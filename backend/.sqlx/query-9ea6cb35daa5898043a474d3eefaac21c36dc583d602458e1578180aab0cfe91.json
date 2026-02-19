@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT t.id, t.name, t.supervisor_id, t.is_active,\n               u.first_name || ' ' || u.last_name AS supervisor_name,\n               COUNT(ss.id)::BIGINT AS slot_count\n        FROM teams t\n        LEFT JOIN users u ON u.id = t.supervisor_id\n        LEFT JOIN shift_slots ss ON ss.team_id = t.id AND ss.is_active = true\n        WHERE t.org_id = $1 AND t.is_active = true\n        GROUP BY t.id, t.name, t.supervisor_id, t.is_active, u.first_name, u.last_name\n        ORDER BY t.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "supervisor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "supervisor_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "slot_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "9ea6cb35daa5898043a474d3eefaac21c36dc583d602458e1578180aab0cfe91"
+}

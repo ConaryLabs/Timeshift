@@ -1,0 +1,25 @@
+# Rust
+target/
+backend/.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# Env files with secrets (keep .env.example)
+.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Proprietary research docs (Valleycom data)
+research/
+
+# Claude Code local data
+.claude/
