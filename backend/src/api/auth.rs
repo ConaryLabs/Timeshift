@@ -1,5 +1,5 @@
-use axum::{extract::State, Json};
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use axum::{extract::State, Json};
 use sqlx::PgPool;
 
 use crate::{
@@ -39,13 +39,14 @@ pub async fn login(
         .verify_password(req.password.as_bytes(), &parsed)
         .map_err(|_| AppError::Unauthorized)?;
 
-    let expiry: u64 = std::env::var("JWT_EXPIRY_HOURS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(12);
-
-    let token = create_token(user.id, user.org_id, user.role.clone(), &state.jwt_secret, expiry)
-        .map_err(AppError::Internal)?;
+    let token = create_token(
+        user.id,
+        user.org_id,
+        user.role.clone(),
+        &state.jwt_secret,
+        state.jwt_expiry_hours,
+    )
+    .map_err(AppError::Internal)?;
 
     // Fetch classification name if set
     let classification_name = if let Some(cid) = user.classification_id {
@@ -77,10 +78,7 @@ pub async fn login(
     }))
 }
 
-pub async fn me(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-) -> Result<Json<UserProfile>> {
+pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserProfile>> {
     let row = sqlx::query!(
         r#"
         SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,
@@ -91,9 +89,10 @@ pub async fn me(
                u.hire_date, u.seniority_date, u.is_active
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
-        WHERE u.id = $1
+        WHERE u.id = $1 AND u.org_id = $2
         "#,
-        auth.id
+        auth.id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?

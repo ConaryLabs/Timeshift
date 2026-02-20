@@ -1,32 +1,21 @@
+use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
-use axum::http::{HeaderValue, Method};
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use tower_http::{
-    compression::CompressionLayer,
-    cors::{Any, CorsLayer},
-    trace::TraceLayer,
+use axum::{
+    http::{
+        header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
+        HeaderValue, Method,
+    },
+    routing::post,
+    Router,
 };
+use sqlx::postgres::PgPoolOptions;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-mod api;
-mod auth;
-mod config;
-mod error;
-mod models;
-
-/// Shared application state available to all handlers via axum's State extractor.
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: PgPool,
-    pub jwt_secret: String,
-}
-
-impl axum::extract::FromRef<AppState> for PgPool {
-    fn from_ref(state: &AppState) -> Self {
-        state.pool.clone()
-    }
-}
+use timeshift_backend::{api, config, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -56,20 +45,59 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         pool,
         jwt_secret: cfg.jwt_secret.clone(),
+        jwt_expiry_hours: cfg.jwt_expiry_hours,
     };
 
     // CORS
+    let allowed_origins: Vec<HeaderValue> = cfg
+        .cors_origins
+        .iter()
+        .filter_map(|o| match o.parse::<HeaderValue>() {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!("Ignoring invalid CORS origin {:?}: {}", o, e);
+                None
+            }
+        })
+        .collect();
+
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
-        .allow_headers(Any)
-        .allow_origin(
-            cfg.cors_origins
-                .iter()
-                .filter_map(|o| o.parse::<HeaderValue>().ok())
-                .collect::<Vec<_>>(),
-        );
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE, ACCEPT])
+        .allow_origin(allowed_origins);
+
+    // Rate limiting for login endpoint: 5 requests burst, replenish 1 per 2 seconds per IP
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(2)
+            .burst_size(5)
+            .finish()
+            .unwrap(),
+    );
+
+    let governor_limiter = governor_conf.limiter().clone();
+    let cleanup_interval = Duration::from_secs(60);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(cleanup_interval);
+        governor_limiter.retain_recent();
+    });
+
+    // Login route with rate limiting
+    let login_router = Router::new()
+        .route("/api/auth/login", post(api::auth::login))
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
+        .with_state(state.clone());
 
     let app = api::router(state)
+        .merge(login_router)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new());
@@ -77,7 +105,11 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&cfg.listen_addr).await?;
     tracing::info!("Listening on {}", cfg.listen_addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

@@ -9,7 +9,10 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::schedule::{Assignment, AssignmentView, CreateAssignmentRequest, StaffingQuery},
-    models::shift::{CreateSchedulePeriodRequest, CreateSlotAssignmentRequest, SchedulePeriod, SlotAssignment},
+    models::shift::{
+        CreateSchedulePeriodRequest, CreateSlotAssignmentRequest, SchedulePeriod, SlotAssignment,
+    },
+    org_guard,
 };
 
 /// Returns a staffing view for a date range.
@@ -18,6 +21,17 @@ pub async fn staffing_view(
     auth: AuthUser,
     Query(q): Query<StaffingQuery>,
 ) -> Result<Json<Vec<AssignmentView>>> {
+    if q.end_date < q.start_date {
+        return Err(AppError::BadRequest(
+            "end_date must be >= start_date".into(),
+        ));
+    }
+    if (q.end_date - q.start_date).whole_days() > 90 {
+        return Err(AppError::BadRequest(
+            "Date range must not exceed 90 days".into(),
+        ));
+    }
+
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -93,7 +107,9 @@ pub async fn create_assignment(
         return Err(AppError::Forbidden);
     }
 
-    let is_trade = req.is_trade.unwrap_or(false);
+    // Verify both scheduled_shift and user belong to caller's org
+    org_guard::verify_scheduled_shift(&pool, req.scheduled_shift_id, auth.org_id).await?;
+    org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
 
     let a = sqlx::query_as!(
         Assignment,
@@ -107,7 +123,7 @@ pub async fn create_assignment(
         req.user_id,
         req.position,
         req.is_overtime,
-        is_trade,
+        req.is_trade,
         req.notes,
         auth.id,
     )
@@ -126,9 +142,25 @@ pub async fn delete_assignment(
         return Err(AppError::Forbidden);
     }
 
-    sqlx::query!("DELETE FROM assignments WHERE id = $1", id)
-        .execute(&pool)
-        .await?;
+    let rows = sqlx::query!(
+        r#"
+        DELETE FROM assignments
+        WHERE id = $1
+          AND EXISTS (
+              SELECT 1 FROM scheduled_shifts ss
+              WHERE ss.id = assignments.scheduled_shift_id AND ss.org_id = $2
+          )
+        "#,
+        id,
+        auth.org_id
+    )
+    .execute(&pool)
+    .await?
+    .rows_affected();
+
+    if rows == 0 {
+        return Err(AppError::NotFound("Assignment not found".into()));
+    }
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -160,6 +192,9 @@ pub async fn create_period(
     auth: AuthUser,
     Json(req): Json<CreateSchedulePeriodRequest>,
 ) -> Result<Json<SchedulePeriod>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }
@@ -192,6 +227,11 @@ pub async fn assign_slot(
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
+
+    // Verify slot, user, and period all belong to caller's org
+    org_guard::verify_slot(&pool, req.slot_id, auth.org_id).await?;
+    org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
+    org_guard::verify_period(&pool, period_id, auth.org_id).await?;
 
     let row = sqlx::query_as!(
         SlotAssignment,

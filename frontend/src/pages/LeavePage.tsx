@@ -1,120 +1,141 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { leaveApi, type LeaveRequest, type LeaveType } from '../api/leave'
-import { useAuthStore } from '../store/auth'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PageHeader } from '@/components/ui/page-header'
+import { DataTable, type Column } from '@/components/ui/data-table'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { FormField } from '@/components/ui/form-field'
+import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave } from '@/hooks/queries'
+import { usePermissions } from '@/hooks/usePermissions'
+import type { LeaveRequest } from '@/api/leave'
 
-const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
-  vacation: 'Vacation',
-  sick: 'Sick',
-  personal_day: 'Personal Day',
-  bereavement: 'Bereavement',
-  fmla: 'FMLA',
-  military_leave: 'Military Leave',
-  other: 'Other',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#f59e0b',
-  approved: '#22c55e',
-  denied: '#ef4444',
-  cancelled: '#94a3b8',
-}
+const INITIAL_FORM = { leave_type_id: '', start_date: '', end_date: '', reason: '' }
 
 export default function LeavePage() {
-  const user = useAuthStore((s) => s.user)
-  const isManager = user?.role === 'admin' || user?.role === 'supervisor'
-  const qc = useQueryClient()
-
+  const { isManager } = usePermissions()
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ leave_type: 'vacation' as LeaveType, start_date: '', end_date: '', reason: '' })
+  const [form, setForm] = useState(INITIAL_FORM)
 
-  const { data, isLoading } = useQuery({ queryKey: ['leave'], queryFn: leaveApi.list })
+  const { data: requests, isLoading, isError } = useLeaveRequests()
+  const { data: leaveTypes } = useLeaveTypes()
+  const createMut = useCreateLeave()
+  const reviewMut = useReviewLeave()
 
-  const createMut = useMutation({
-    mutationFn: leaveApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leave'] }); setShowForm(false) },
-  })
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    createMut.mutate(
+      {
+        leave_type_id: form.leave_type_id,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        reason: form.reason || undefined,
+      },
+      {
+        onSuccess: () => {
+          setForm(INITIAL_FORM)
+          setShowForm(false)
+        },
+      },
+    )
+  }
 
-  const reviewMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'approved' | 'denied' }) =>
-      leaveApi.review(id, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leave'] }),
-  })
+  const columns: Column<LeaveRequest>[] = [
+    ...(isManager
+      ? [{
+          header: 'Employee',
+          cell: (r: LeaveRequest) => `${r.last_name}, ${r.first_name}`,
+          className: 'max-w-[120px] truncate',
+        }]
+      : []),
+    { header: 'Type', cell: (r) => r.leave_type_name },
+    { header: 'Start', accessorKey: 'start_date' },
+    { header: 'End', accessorKey: 'end_date' },
+    { header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
+    ...(isManager
+      ? [{
+          header: 'Actions',
+          cell: (r: LeaveRequest) =>
+            r.status === 'pending' ? (
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-700 hover:bg-green-50"
+                  onClick={() => reviewMut.mutate({ id: r.id, status: 'approved' })}
+                >
+                  Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-700 hover:bg-red-50"
+                  onClick={() => reviewMut.mutate({ id: r.id, status: 'denied' })}
+                >
+                  Deny
+                </Button>
+              </div>
+            ) : null,
+        }]
+      : []),
+  ]
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0 }}>Leave Requests</h2>
-        {!isManager && (
-          <button onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ Request Leave'}
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Leave Requests"
+        actions={
+          !isManager ? (
+            <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? 'outline' : 'default'}>
+              {showForm ? 'Cancel' : '+ Request Leave'}
+            </Button>
+          ) : undefined
+        }
+      />
 
       {showForm && (
         <form
-          onSubmit={(e) => { e.preventDefault(); createMut.mutate(form) }}
-          style={{ background: '#f8fafc', padding: '1rem', borderRadius: 8, marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}
+          onSubmit={handleSubmit}
+          className="bg-card border rounded-lg p-4 mb-6 flex flex-wrap items-end gap-4"
         >
-          <label>
-            Type
-            <select value={form.leave_type} onChange={(e) => setForm({ ...form, leave_type: e.target.value as LeaveType })} style={{ display: 'block' }}>
-              {Object.entries(LEAVE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </label>
-          <label>
-            Start
-            <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} required style={{ display: 'block' }} />
-          </label>
-          <label>
-            End
-            <input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} required style={{ display: 'block' }} />
-          </label>
-          <label>
-            Reason (optional)
-            <input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} style={{ display: 'block' }} />
-          </label>
-          <button type="submit" disabled={createMut.isPending}>Submit</button>
+          <FormField label="Type" htmlFor="leave-type" required>
+            <Select value={form.leave_type_id} onValueChange={(v) => setForm({ ...form, leave_type_id: v })}>
+              <SelectTrigger id="leave-type" className="w-[200px]">
+                <SelectValue placeholder="Select…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(leaveTypes ?? []).map((lt) => (
+                  <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Start" htmlFor="leave-start" required>
+            <Input id="leave-start" type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} required />
+          </FormField>
+          <FormField label="End" htmlFor="leave-end" required>
+            <Input id="leave-end" type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} required />
+          </FormField>
+          <FormField label="Reason" htmlFor="leave-reason">
+            <Input id="leave-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+          </FormField>
+          <Button type="submit" disabled={createMut.isPending || !form.leave_type_id}>
+            Submit
+          </Button>
         </form>
       )}
 
-      {isLoading && <p>Loading…</p>}
-
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-        <thead>
-          <tr style={{ background: '#e2e8f0', textAlign: 'left' }}>
-            {isManager && <th style={{ padding: '0.5rem' }}>Employee</th>}
-            <th style={{ padding: '0.5rem' }}>Type</th>
-            <th style={{ padding: '0.5rem' }}>Start</th>
-            <th style={{ padding: '0.5rem' }}>End</th>
-            <th style={{ padding: '0.5rem' }}>Status</th>
-            {isManager && <th style={{ padding: '0.5rem' }}>Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {(data ?? []).map((req) => (
-            <tr key={req.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-              {isManager && <td style={{ padding: '0.5rem' }}>{req.user_id}</td>}
-              <td style={{ padding: '0.5rem' }}>{LEAVE_TYPE_LABELS[req.leave_type]}</td>
-              <td style={{ padding: '0.5rem' }}>{req.start_date}</td>
-              <td style={{ padding: '0.5rem' }}>{req.end_date}</td>
-              <td style={{ padding: '0.5rem' }}>
-                <span style={{ background: STATUS_COLORS[req.status], color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: '0.8rem' }}>
-                  {req.status}
-                </span>
-              </td>
-              {isManager && req.status === 'pending' && (
-                <td style={{ padding: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => reviewMut.mutate({ id: req.id, status: 'approved' })} style={{ background: '#22c55e', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer' }}>Approve</button>
-                  <button onClick={() => reviewMut.mutate({ id: req.id, status: 'denied' })} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer' }}>Deny</button>
-                </td>
-              )}
-              {isManager && req.status !== 'pending' && <td style={{ padding: '0.5rem' }} />}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load leave requests.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={requests ?? []}
+          isLoading={isLoading}
+          emptyMessage="No leave requests"
+          rowKey={(r) => r.id}
+        />
+      )}
     </div>
   )
 }

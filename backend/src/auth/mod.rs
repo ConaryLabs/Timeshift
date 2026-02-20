@@ -3,7 +3,7 @@ use axum::{
     extract::{FromRef, FromRequestParts},
     http::{request::Parts, HeaderMap},
 };
-use jsonwebtoken::{decode, DecodingKey, Validation};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -36,8 +36,8 @@ impl Role {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: Uuid,         // user id
-    pub org_id: Uuid,      // organization id
+    pub sub: Uuid,    // user id
+    pub org_id: Uuid, // organization id
     pub role: Role,
     pub exp: i64,
     pub iat: i64,
@@ -47,6 +47,12 @@ pub struct AuthUser {
     pub id: Uuid,
     pub org_id: Uuid,
     pub role: Role,
+}
+
+/// Internal row type for the auth DB check query.
+struct AuthUserRow {
+    role: Role,
+    is_active: bool,
 }
 
 #[async_trait]
@@ -60,18 +66,36 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let headers = &parts.headers;
-        let token = extract_bearer_token(headers)
-            .ok_or(AppError::Unauthorized)?;
+        let token = extract_bearer_token(headers).ok_or(AppError::Unauthorized)?;
 
         let key = DecodingKey::from_secret(app_state.jwt_secret.as_bytes());
-        let claims = decode::<Claims>(&token, &key, &Validation::default())
-            .map_err(|_| AppError::Unauthorized)?
+        let claims = decode::<Claims>(&token, &key, &Validation::new(Algorithm::HS256))
+            .map_err(|e| {
+                tracing::warn!("JWT decode failed: {}", e);
+                AppError::Unauthorized
+            })?
             .claims;
+
+        // Verify user is still active and fetch current role from the database
+        let row = sqlx::query_as!(
+            AuthUserRow,
+            r#"SELECT role AS "role: Role", is_active FROM users WHERE id = $1 AND org_id = $2"#,
+            claims.sub,
+            claims.org_id
+        )
+        .fetch_optional(&app_state.pool)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Auth DB check failed: {}", e)))?
+        .ok_or(AppError::Unauthorized)?;
+
+        if !row.is_active {
+            return Err(AppError::Unauthorized);
+        }
 
         Ok(AuthUser {
             id: claims.sub,
             org_id: claims.org_id,
-            role: claims.role,
+            role: row.role,
         })
     }
 }

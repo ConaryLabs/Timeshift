@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT lr.id, lr.user_id,\n               u.first_name, u.last_name,\n               lr.leave_type_id,\n               lt.code AS leave_type_code, lt.name AS leave_type_name,\n               lr.start_date, lr.end_date,\n               lr.hours::FLOAT8 AS hours,\n               lr.reason,\n               lr.status AS \"status: LeaveStatus\",\n               lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE lr.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "leave_type_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "leave_type_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "end_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "hours",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 10,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "status: LeaveStatus",
+        "type_info": {
+          "Custom": {
+            "name": "leave_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "approved",
+                "denied",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "reviewed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 13,
+        "name": "reviewer_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "84a1c9fa2bd54aa660a43f54110bb0a47374d40959898145685117f045eb777a"
+}

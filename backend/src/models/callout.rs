@@ -2,19 +2,6 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-/// Tracks an individual's overtime hours for callout list ordering.
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct OtHours {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub fiscal_year: i32,
-    pub classification_id: Option<Uuid>,
-    pub hours_worked: f64,
-    pub hours_declined: f64,
-    #[serde(with = "time::serde::rfc3339")]
-    pub updated_at: OffsetDateTime,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "callout_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -34,6 +21,9 @@ pub struct CalloutEvent {
     pub reason_text: Option<String>,
     pub classification_id: Option<Uuid>,
     pub status: CalloutStatus,
+    pub shift_template_name: Option<String>,
+    pub shift_date: Option<time::Date>,
+    pub team_name: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -76,6 +66,7 @@ pub struct CreateCalloutEventRequest {
     pub classification_id: Option<Uuid>,
 }
 
+#[allow(dead_code)] // Fields used when record_attempt is implemented (currently 501)
 #[derive(Debug, Deserialize)]
 pub struct RecordAttemptRequest {
     pub response: String,

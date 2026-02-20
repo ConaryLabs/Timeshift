@@ -8,13 +8,12 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
-    models::classification::{Classification, CreateClassificationRequest, UpdateClassificationRequest},
+    models::classification::{
+        Classification, CreateClassificationRequest, UpdateClassificationRequest,
+    },
 };
 
-pub async fn list(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-) -> Result<Json<Vec<Classification>>> {
+pub async fn list(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<Vec<Classification>>> {
     let rows = sqlx::query_as!(
         Classification,
         r#"
@@ -36,6 +35,9 @@ pub async fn create(
     auth: AuthUser,
     Json(req): Json<CreateClassificationRequest>,
 ) -> Result<Json<Classification>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }
@@ -91,7 +93,7 @@ pub async fn update(
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Classification {} not found", id)))?;
+    .ok_or_else(|| AppError::NotFound("Classification not found".into()))?;
 
     Ok(Json(row))
 }

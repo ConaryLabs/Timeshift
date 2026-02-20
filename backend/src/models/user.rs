@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::auth::Role;
 
@@ -14,6 +15,7 @@ pub struct User {
     pub last_name: String,
     pub email: String,
     pub phone: Option<String>,
+    #[serde(skip_serializing)]
     pub password_hash: String,
     pub role: Role,
     pub classification_id: Option<Uuid>,
@@ -56,11 +58,14 @@ pub struct UserProfile {
     pub is_active: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateUserRequest {
     pub employee_id: Option<String>,
+    #[validate(length(min = 1, max = 100))]
     pub first_name: String,
+    #[validate(length(min = 1, max = 100))]
     pub last_name: String,
+    #[validate(email)]
     pub email: String,
     pub phone: Option<String>,
     pub role: Role,
@@ -68,7 +73,46 @@ pub struct CreateUserRequest {
     pub employee_type: Option<EmployeeType>,
     pub hire_date: Option<time::Date>,
     pub seniority_date: Option<time::Date>,
+    #[validate(length(min = 8, max = 128))]
     pub password: String,
+}
+
+/// Update request where nullable fields use `Option<Option<T>>` to distinguish
+/// "not provided" (None) from "set to null" (Some(None)) vs "set to value" (Some(Some(v))).
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateUserRequest {
+    pub employee_id: Option<String>,
+    #[validate(length(min = 1, max = 100))]
+    pub first_name: Option<String>,
+    #[validate(length(min = 1, max = 100))]
+    pub last_name: Option<String>,
+    #[validate(email)]
+    pub email: Option<String>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub phone: Option<Option<String>>,
+    pub role: Option<Role>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub classification_id: Option<Option<Uuid>>,
+    pub employee_type: Option<EmployeeType>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub hire_date: Option<Option<time::Date>>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub seniority_date: Option<Option<time::Date>>,
+}
+
+/// Deserializes a field as `Some(value)` when present (even if null) and `None` when absent.
+fn deserialize_optional_field<'de, T, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
 }
 
 #[derive(Debug, Deserialize)]

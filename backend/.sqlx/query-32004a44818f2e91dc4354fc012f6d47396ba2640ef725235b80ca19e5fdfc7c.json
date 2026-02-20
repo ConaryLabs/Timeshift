@@ -1,0 +1,155 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE users\n        SET first_name        = COALESCE($2, first_name),\n            last_name         = COALESCE($3, last_name),\n            email             = COALESCE($4, email),\n            phone             = CASE WHEN $5 THEN $6 ELSE phone END,\n            classification_id = CASE WHEN $7 THEN $8 ELSE classification_id END,\n            employee_id       = COALESCE($9, employee_id),\n            role              = COALESCE($10, role),\n            employee_type     = COALESCE($11, employee_type),\n            hire_date         = CASE WHEN $12 THEN $13 ELSE hire_date END,\n            seniority_date    = CASE WHEN $14 THEN $15 ELSE seniority_date END,\n            updated_at        = NOW()\n        WHERE id = $1 AND org_id = $16\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  hire_date, seniority_date, is_active\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "employee_type: EmployeeType",
+        "type_info": {
+          "Custom": {
+            "name": "employee_type_enum",
+            "kind": {
+              "Enum": [
+                "regular_full_time",
+                "job_share",
+                "medical_part_time",
+                "temp_part_time"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "hire_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "seniority_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "employee_type_enum",
+            "kind": {
+              "Enum": [
+                "regular_full_time",
+                "job_share",
+                "medical_part_time",
+                "temp_part_time"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Date",
+        "Bool",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "32004a44818f2e91dc4354fc012f6d47396ba2640ef725235b80ca19e5fdfc7c"
+}

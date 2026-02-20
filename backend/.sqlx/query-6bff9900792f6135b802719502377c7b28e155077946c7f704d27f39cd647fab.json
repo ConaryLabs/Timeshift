@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,\n               ce.ot_reason_id, ce.reason_text, ce.classification_id,\n               ce.status AS \"status: CalloutStatus\",\n               st.name AS \"shift_template_name?\",\n               ss.date AS \"shift_date?\",\n               t.name AS \"team_name?\",\n               ce.created_at, ce.updated_at\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN teams t ON t.id = sl.team_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "scheduled_shift_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "initiated_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "ot_reason_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason_text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "status: CalloutStatus",
+        "type_info": {
+          "Custom": {
+            "name": "callout_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "shift_template_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "shift_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "team_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6bff9900792f6135b802719502377c7b28e155077946c7f704d27f39cd647fab"
+}

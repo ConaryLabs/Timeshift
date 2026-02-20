@@ -44,8 +44,10 @@ pub struct CreateAssignmentRequest {
     pub scheduled_shift_id: Uuid,
     pub user_id: Uuid,
     pub position: Option<String>,
+    #[serde(default)]
     pub is_overtime: bool,
-    pub is_trade: Option<bool>,
+    #[serde(default)]
+    pub is_trade: bool,
     pub notes: Option<String>,
 }
 

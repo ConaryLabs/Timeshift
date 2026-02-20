@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Team {
@@ -30,19 +31,6 @@ pub struct TeamWithSlots {
     pub slots: Vec<ShiftSlotView>,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct ShiftSlot {
-    pub id: Uuid,
-    pub team_id: Uuid,
-    pub shift_template_id: Uuid,
-    pub classification_id: Uuid,
-    pub days_of_week: Vec<i32>,
-    pub label: Option<String>,
-    pub is_active: bool,
-    #[serde(with = "time::serde::rfc3339")]
-    pub created_at: OffsetDateTime,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ShiftSlotView {
     pub id: Uuid,
@@ -58,8 +46,9 @@ pub struct ShiftSlotView {
     pub is_active: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateTeamRequest {
+    #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub supervisor_id: Option<Uuid>,
 }

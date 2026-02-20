@@ -15,8 +15,7 @@ pub struct Organization {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateOrganizationRequest {
-    pub name: String,
-    pub slug: String,
+pub struct UpdateOrganizationRequest {
+    pub name: Option<String>,
     pub timezone: Option<String>,
 }

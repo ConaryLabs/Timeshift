@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Classification {
@@ -14,9 +15,11 @@ pub struct Classification {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateClassificationRequest {
+    #[validate(length(min = 1, max = 200))]
     pub name: String,
+    #[validate(length(min = 1, max = 20))]
     pub abbreviation: String,
     pub display_order: Option<i32>,
 }

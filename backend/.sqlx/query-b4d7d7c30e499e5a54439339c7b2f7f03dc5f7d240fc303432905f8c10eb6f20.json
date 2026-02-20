@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE leave_requests\n        SET status = 'cancelled', updated_at = NOW()\n        WHERE id = $1\n          AND status IN ('pending', 'approved')\n          AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $2)\n          AND ($3 OR leave_requests.user_id = $4)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b4d7d7c30e499e5a54439339c7b2f7f03dc5f7d240fc303432905f8c10eb6f20"
+}

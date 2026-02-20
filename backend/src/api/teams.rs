@@ -9,9 +9,10 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::team::{
-        CreateShiftSlotRequest, CreateTeamRequest, ShiftSlotView, Team,
-        TeamSummary, TeamWithSlots, UpdateShiftSlotRequest, UpdateTeamRequest,
+        CreateShiftSlotRequest, CreateTeamRequest, ShiftSlotView, Team, TeamSummary, TeamWithSlots,
+        UpdateShiftSlotRequest, UpdateTeamRequest,
     },
+    org_guard,
 };
 
 pub async fn list_teams(
@@ -66,7 +67,7 @@ pub async fn get_team(
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Team {} not found", id)))?;
+    .ok_or_else(|| AppError::NotFound("Team not found".into()))?;
 
     let slots = fetch_slot_views(&pool, id).await?;
 
@@ -78,8 +79,15 @@ pub async fn create_team(
     auth: AuthUser,
     Json(req): Json<CreateTeamRequest>,
 ) -> Result<Json<Team>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
+    }
+
+    if let Some(sup_id) = req.supervisor_id {
+        org_guard::verify_user(&pool, sup_id, auth.org_id).await?;
     }
 
     let team = sqlx::query_as!(
@@ -110,6 +118,10 @@ pub async fn update_team(
         return Err(AppError::Forbidden);
     }
 
+    if let Some(sup_id) = req.supervisor_id {
+        org_guard::verify_user(&pool, sup_id, auth.org_id).await?;
+    }
+
     let team = sqlx::query_as!(
         Team,
         r#"
@@ -128,7 +140,7 @@ pub async fn update_team(
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Team {} not found", id)))?;
+    .ok_or_else(|| AppError::NotFound("Team not found".into()))?;
 
     Ok(Json(team))
 }
@@ -148,7 +160,7 @@ pub async fn list_slots(
     .await?;
 
     if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound(format!("Team {} not found", team_id)));
+        return Err(AppError::NotFound("Team not found".into()));
     }
 
     let slots = fetch_slot_views(&pool, team_id).await?;
@@ -175,8 +187,12 @@ pub async fn create_slot(
     .await?;
 
     if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound(format!("Team {} not found", team_id)));
+        return Err(AppError::NotFound("Team not found".into()));
     }
+
+    // Verify shift_template and classification belong to caller's org
+    org_guard::verify_shift_template(&pool, req.shift_template_id, auth.org_id).await?;
+    org_guard::verify_classification(&pool, req.classification_id, auth.org_id).await?;
 
     let slot_id = Uuid::new_v4();
     sqlx::query!(
@@ -253,7 +269,15 @@ pub async fn update_slot(
     .await?;
 
     if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound(format!("Shift slot {} not found", slot_id)));
+        return Err(AppError::NotFound("Shift slot not found".into()));
+    }
+
+    // Verify optional FK references belong to caller's org
+    if let Some(tmpl_id) = req.shift_template_id {
+        org_guard::verify_shift_template(&pool, tmpl_id, auth.org_id).await?;
+    }
+    if let Some(class_id) = req.classification_id {
+        org_guard::verify_classification(&pool, class_id, auth.org_id).await?;
     }
 
     sqlx::query!(
@@ -308,7 +332,10 @@ pub async fn update_slot(
     }))
 }
 
-async fn fetch_slot_views(pool: &PgPool, team_id: Uuid) -> std::result::Result<Vec<ShiftSlotView>, sqlx::Error> {
+async fn fetch_slot_views(
+    pool: &PgPool,
+    team_id: Uuid,
+) -> std::result::Result<Vec<ShiftSlotView>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
         SELECT ss.id, ss.team_id, ss.shift_template_id,

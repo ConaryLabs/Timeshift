@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE callout_events\n        SET status = 'cancelled', updated_at = NOW()\n        WHERE id = $1\n          AND status = 'open'\n          AND EXISTS (\n              SELECT 1 FROM scheduled_shifts ss\n              WHERE ss.id = callout_events.scheduled_shift_id AND ss.org_id = $2\n          )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "39137346d374f1fba9017694e3f394efd5aca957606da86a0235d36e8fd059bf"
+}

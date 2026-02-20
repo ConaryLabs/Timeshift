@@ -33,6 +33,8 @@ pub struct LeaveTypeRecord {
 pub struct LeaveRequest {
     pub id: Uuid,
     pub user_id: Uuid,
+    pub first_name: String,
+    pub last_name: String,
     pub leave_type_id: Uuid,
     pub leave_type_code: String,
     pub leave_type_name: String,

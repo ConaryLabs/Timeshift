@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 /// A shift template -- defines what a shift looks like (not who works it).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -18,8 +19,9 @@ pub struct ShiftTemplate {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateShiftTemplateRequest {
+    #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub start_time: time::Time,
     pub end_time: time::Time,
@@ -53,8 +55,9 @@ pub struct SchedulePeriod {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateSchedulePeriodRequest {
+    #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub start_date: time::Date,
     pub end_date: time::Date,
@@ -75,6 +78,13 @@ pub struct SlotAssignment {
 pub struct CreateSlotAssignmentRequest {
     pub slot_id: Uuid,
     pub user_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateShiftTemplateRequest {
+    pub name: Option<String>,
+    pub color: Option<String>,
+    pub is_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use sqlx::PgPool;
@@ -8,7 +8,14 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
-    models::shift::{CreateShiftTemplateRequest, CreateScheduledShiftRequest, ScheduledShift, ShiftTemplate},
+    models::{
+        common::DateRangeParams,
+        shift::{
+            CreateScheduledShiftRequest, CreateShiftTemplateRequest, ScheduledShift, ShiftTemplate,
+            UpdateShiftTemplateRequest,
+        },
+    },
+    org_guard,
 };
 
 // -- Shift Templates --
@@ -51,7 +58,7 @@ pub async fn get_template(
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Shift template {} not found", id)))?;
+    .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
 
     Ok(Json(t))
 }
@@ -61,6 +68,9 @@ pub async fn create_template(
     auth: AuthUser,
     Json(req): Json<CreateShiftTemplateRequest>,
 ) -> Result<Json<ShiftTemplate>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
@@ -68,11 +78,19 @@ pub async fn create_template(
     let crosses = req.end_time < req.start_time;
     let duration = if crosses {
         ((24 * 60) - req.start_time.hour() as i32 * 60 - req.start_time.minute() as i32)
-            + req.end_time.hour() as i32 * 60 + req.end_time.minute() as i32
+            + req.end_time.hour() as i32 * 60
+            + req.end_time.minute() as i32
     } else {
         (req.end_time.hour() as i32 - req.start_time.hour() as i32) * 60
-            + req.end_time.minute() as i32 - req.start_time.minute() as i32
+            + req.end_time.minute() as i32
+            - req.start_time.minute() as i32
     };
+
+    if duration <= 0 {
+        return Err(AppError::BadRequest(
+            "start_time and end_time must differ".into(),
+        ));
+    }
 
     let color = req.color.unwrap_or_else(|| "#4f86c6".into());
 
@@ -102,7 +120,7 @@ pub async fn update_template(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateShiftTemplateRequest>,
 ) -> Result<Json<ShiftTemplate>> {
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
@@ -119,14 +137,14 @@ pub async fn update_template(
         RETURNING id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color, is_active, created_at
         "#,
         id,
-        req["name"].as_str(),
-        req["color"].as_str(),
-        req["is_active"].as_bool(),
+        req.name.as_deref(),
+        req.color.as_deref(),
+        req.is_active,
         auth.org_id,
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))?;
+    .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
 
     Ok(Json(t))
 }
@@ -136,6 +154,7 @@ pub async fn update_template(
 pub async fn list_scheduled(
     State(pool): State<PgPool>,
     auth: AuthUser,
+    Query(params): Query<DateRangeParams>,
 ) -> Result<Json<Vec<ScheduledShift>>> {
     let shifts = sqlx::query_as!(
         ScheduledShift,
@@ -143,9 +162,16 @@ pub async fn list_scheduled(
         SELECT id, org_id, shift_template_id, date, required_headcount, slot_id, notes, created_at
         FROM scheduled_shifts
         WHERE org_id = $1
+          AND ($2::DATE IS NULL OR date >= $2)
+          AND ($3::DATE IS NULL OR date <= $3)
         ORDER BY date
+        LIMIT $4 OFFSET $5
         "#,
-        auth.org_id
+        auth.org_id,
+        params.start_date,
+        params.end_date,
+        params.limit(),
+        params.offset(),
     )
     .fetch_all(&pool)
     .await?;
@@ -169,7 +195,7 @@ pub async fn get_scheduled(
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Scheduled shift {} not found", id)))?;
+    .ok_or_else(|| AppError::NotFound("Scheduled shift not found".into()))?;
 
     Ok(Json(s))
 }
@@ -181,6 +207,13 @@ pub async fn create_scheduled(
 ) -> Result<Json<ScheduledShift>> {
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
+    }
+
+    // Verify shift_template belongs to caller's org
+    org_guard::verify_shift_template(&pool, req.shift_template_id, auth.org_id).await?;
+    // Verify optional slot belongs to caller's org
+    if let Some(slot_id) = req.slot_id {
+        org_guard::verify_slot(&pool, slot_id, auth.org_id).await?;
     }
 
     let headcount = req.required_headcount.unwrap_or(1);
@@ -215,9 +248,18 @@ pub async fn delete_scheduled(
         return Err(AppError::Forbidden);
     }
 
-    sqlx::query!("DELETE FROM scheduled_shifts WHERE id = $1 AND org_id = $2", id, auth.org_id)
-        .execute(&pool)
-        .await?;
+    let rows = sqlx::query!(
+        "DELETE FROM scheduled_shifts WHERE id = $1 AND org_id = $2",
+        id,
+        auth.org_id
+    )
+    .execute(&pool)
+    .await?
+    .rows_affected();
+
+    if rows == 0 {
+        return Err(AppError::NotFound("Scheduled shift not found".into()));
+    }
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
