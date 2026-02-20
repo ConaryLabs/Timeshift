@@ -43,7 +43,7 @@ export const teamsApi = {
   create: (body: { name: string; supervisor_id?: string }) =>
     api.post<Team>('/api/teams', body).then((r) => r.data),
 
-  update: (id: string, body: { name?: string; supervisor_id?: string; is_active?: boolean }) =>
+  update: (id: string, body: { name?: string; supervisor_id?: string | null; is_active?: boolean }) =>
     api.put<Team>(`/api/teams/${id}`, body).then((r) => r.data),
 
   listSlots: (teamId: string) =>

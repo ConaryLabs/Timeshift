@@ -27,6 +27,7 @@ export const queryKeys = {
   },
   users: {
     all: ['users'] as const,
+    list: (includeInactive: boolean) => ['users', { includeInactive }] as const,
     detail: (id: string) => ['users', id] as const,
   },
   organization: {
@@ -124,7 +125,7 @@ export function useCreateTeam() {
 export function useUpdateTeam() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string; is_active?: boolean }) =>
+    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; is_active?: boolean }) =>
       teamsApi.update(id, body),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.teams.all })
@@ -162,26 +163,29 @@ export function useCreateSlot() {
 export function useUpdateSlot() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ slotId, ...body }: {
+    mutationFn: ({ slotId, shift_template_id, classification_id, days_of_week, label, is_active }: {
       slotId: string
+      teamId: string
       shift_template_id?: string
       classification_id?: string
       days_of_week?: number[]
       label?: string
       is_active?: boolean
-    }) => teamsApi.updateSlot(slotId, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teams'] })
+    }) => teamsApi.updateSlot(slotId, { shift_template_id, classification_id, days_of_week, label, is_active }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.teams.slots(vars.teamId) })
+      qc.invalidateQueries({ queryKey: queryKeys.teams.detail(vars.teamId) })
+      qc.invalidateQueries({ queryKey: queryKeys.teams.all })
     },
   })
 }
 
 // -- Users --
 
-export function useUsers() {
+export function useUsers(includeInactive = false) {
   return useQuery({
-    queryKey: queryKeys.users.all,
-    queryFn: usersApi.list,
+    queryKey: queryKeys.users.list(includeInactive),
+    queryFn: () => usersApi.list(includeInactive ? { include_inactive: true } : undefined),
   })
 }
 

@@ -15,9 +15,7 @@ Timeshift is a shift-scheduling platform replacing ScheduleExpress for 911 dispa
 All commands run from the project root via `Makefile`:
 
 ```bash
-make db-start          # Start PostgreSQL 16 container (uses podman, NOT docker)
-make db-stop           # Stop database container
-make db-reset          # Drop and recreate database
+make db-reset          # Drop and recreate database (native PostgreSQL)
 make migrate           # Run SQLx migrations
 make seed              # Load Valleycom seed data
 make backend           # Run Axum server on :8080
@@ -31,8 +29,8 @@ After changing any SQL query in Rust code, always run `make sqlx-prepare` and co
 ### Running a single test
 
 ```bash
-cd backend && DATABASE_URL="postgres://timeshift:timeshift_dev@localhost:5432/timeshift" \
-  TEST_DATABASE_URL="postgres://timeshift:timeshift_dev@localhost:5432/timeshift" \
+cd backend && DATABASE_URL="postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift" \
+  TEST_DATABASE_URL="postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift" \
   cargo test test_name_here -- --nocapture
 ```
 

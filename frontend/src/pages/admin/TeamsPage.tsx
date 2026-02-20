@@ -15,6 +15,7 @@ import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useTeams, useCreateTeam, useUpdateTeam, useUsers } from '@/hooks/queries'
+import { NO_VALUE } from '@/lib/format'
 import type { TeamSummary } from '@/api/teams'
 
 const schema = z.object({
@@ -25,14 +26,12 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-const NO_SUPERVISOR = '__none__'
-
 export default function TeamsPage() {
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<TeamSummary | null>(null)
 
-  const { data: teams, isLoading } = useTeams()
+  const { data: teams, isLoading, isError } = useTeams()
   const { data: users } = useUsers()
   const createMut = useCreateTeam()
   const updateMut = useUpdateTeam()
@@ -61,14 +60,14 @@ export default function TeamsPage() {
   }
 
   function onSubmit(values: FormValues) {
-    const body = {
-      name: values.name,
-      supervisor_id: values.supervisor_id || undefined,
-      is_active: values.is_active,
-    }
     if (editingItem) {
       updateMut.mutate(
-        { id: editingItem.id, ...body },
+        {
+          id: editingItem.id,
+          name: values.name,
+          supervisor_id: values.supervisor_id || null,
+          is_active: values.is_active,
+        },
         {
           onSuccess: () => {
             toast.success('Team updated')
@@ -78,7 +77,7 @@ export default function TeamsPage() {
       )
     } else {
       createMut.mutate(
-        { name: body.name, supervisor_id: body.supervisor_id },
+        { name: values.name, supervisor_id: values.supervisor_id || undefined },
         {
           onSuccess: () => {
             toast.success('Team created')
@@ -89,7 +88,12 @@ export default function TeamsPage() {
     }
   }
 
-  const supervisors = (users ?? []).filter((u) => u.is_active && (u.role === 'admin' || u.role === 'supervisor'))
+  // Include the current supervisor in the dropdown even if they're deactivated
+  const supervisors = (users ?? []).filter(
+    (u) =>
+      (u.is_active && (u.role === 'admin' || u.role === 'supervisor')) ||
+      (editingItem && u.id === editingItem.supervisor_id),
+  )
 
   const columns: Column<TeamSummary>[] = [
     {
@@ -130,13 +134,17 @@ export default function TeamsPage() {
         actions={<Button onClick={openCreate}>+ Add Team</Button>}
       />
 
-      <DataTable
-        columns={columns}
-        data={teams ?? []}
-        isLoading={isLoading}
-        emptyMessage="No teams"
-        rowKey={(r) => r.id}
-      />
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load teams.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={teams ?? []}
+          isLoading={isLoading}
+          emptyMessage="No teams"
+          rowKey={(r) => r.id}
+        />
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
@@ -149,17 +157,17 @@ export default function TeamsPage() {
             </FormField>
             <FormField label="Supervisor" htmlFor="team-sup">
               <Select
-                value={supervisorId || NO_SUPERVISOR}
-                onValueChange={(v) => setValue('supervisor_id', v === NO_SUPERVISOR ? undefined : v)}
+                value={supervisorId || NO_VALUE}
+                onValueChange={(v) => setValue('supervisor_id', v === NO_VALUE ? undefined : v)}
               >
                 <SelectTrigger id="team-sup">
                   <SelectValue placeholder="Select supervisor…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_SUPERVISOR}>None</SelectItem>
+                  <SelectItem value={NO_VALUE}>None</SelectItem>
                   {supervisors.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
-                      {u.last_name}, {u.first_name}
+                      {u.last_name}, {u.first_name}{!u.is_active ? ' (inactive)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

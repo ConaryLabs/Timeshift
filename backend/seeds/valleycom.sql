@@ -24,7 +24,7 @@ INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, passwo
      'ADMIN001',
      'System', 'Admin',
      'admin@valleycom.org',
-     '$argon2id$v=19$m=19456,t=2,p=1$YWRtaW5zYWx0MTIzNDU2$YJFm3M8XT9UE6MqBRalYKxyaJE4LQiErVpyn9ztDBDg',
+     '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
      'admin',
      '00000000-0000-0000-0000-000000000c03',
      '2000-01-01');

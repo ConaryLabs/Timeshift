@@ -4,6 +4,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::auth::Role;
+use crate::models::common::deserialize_optional_field;
 
 /// Full user record as stored in the database.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -81,7 +82,9 @@ pub struct CreateUserRequest {
 /// "not provided" (None) from "set to null" (Some(None)) vs "set to value" (Some(Some(v))).
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateUserRequest {
-    pub employee_id: Option<String>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub employee_id: Option<Option<String>>,
     #[validate(length(min = 1, max = 100))]
     pub first_name: Option<String>,
     #[validate(length(min = 1, max = 100))]
@@ -104,16 +107,6 @@ pub struct UpdateUserRequest {
     pub seniority_date: Option<Option<time::Date>>,
 }
 
-/// Deserializes a field as `Some(value)` when present (even if null) and `None` when absent.
-fn deserialize_optional_field<'de, T, D>(
-    deserializer: D,
-) -> std::result::Result<Option<Option<T>>, D::Error>
-where
-    T: Deserialize<'de>,
-    D: serde::Deserializer<'de>,
-{
-    Ok(Some(Option::deserialize(deserializer)?))
-}
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {

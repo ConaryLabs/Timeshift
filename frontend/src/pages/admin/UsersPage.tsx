@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -25,6 +26,10 @@ import {
   useDeactivateUser,
   useClassifications,
 } from '@/hooks/queries'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { useAuthStore } from '@/store/auth'
+import { NO_VALUE } from '@/lib/format'
 import type { UserProfile, Role, EmployeeType } from '@/store/auth'
 
 const ROLES: Role[] = ['admin', 'supervisor', 'employee']
@@ -35,13 +40,11 @@ const EMPLOYEE_TYPES: { value: EmployeeType; label: string }[] = [
   { value: 'temp_part_time', label: 'Temp Part Time' },
 ]
 
-const NO_VALUE = '__none__'
-
 const createSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   employee_id: z.string().optional(),
   phone: z.string().optional(),
   role: z.enum(['admin', 'supervisor', 'employee'] as const),
@@ -74,11 +77,13 @@ const ROLE_COLORS: Record<Role, string> = {
 }
 
 export default function UsersPage() {
+  const currentUser = useAuthStore((s) => s.user)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<UserProfile | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<UserProfile | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
 
-  const { data: users, isLoading } = useUsers()
+  const { data: users, isLoading, isError } = useUsers(showInactive)
   const { data: classifications } = useClassifications()
   const createMut = useCreateUser()
   const updateMut = useUpdateUser()
@@ -92,6 +97,12 @@ export default function UsersPage() {
   const editForm = useForm<EditValues>({
     resolver: zodResolver(editSchema),
   })
+
+  // Include the editing user's classification even if inactive
+  const editingClassificationId = editingItem?.classification_id
+  const classificationOptions = (classifications ?? []).filter(
+    (c) => c.is_active || (editingClassificationId && c.id === editingClassificationId),
+  )
 
   function openCreate() {
     setEditingItem(null)
@@ -153,11 +164,11 @@ export default function UsersPage() {
       {
         id: editingItem.id,
         ...values,
-        employee_id: values.employee_id || undefined,
-        phone: values.phone || undefined,
-        classification_id: values.classification_id || undefined,
-        hire_date: values.hire_date || undefined,
-        seniority_date: values.seniority_date || undefined,
+        employee_id: values.employee_id || null,
+        phone: values.phone || null,
+        classification_id: values.classification_id || null,
+        hire_date: values.hire_date || null,
+        seniority_date: values.seniority_date || null,
       },
       {
         onSuccess: () => {
@@ -203,13 +214,17 @@ export default function UsersPage() {
       cell: (r) => EMPLOYEE_TYPES.find((t) => t.value === r.employee_type)?.label ?? r.employee_type,
     },
     {
+      header: 'Status',
+      cell: (r) => <StatusBadge status={r.is_active ? 'active' : 'inactive'} />,
+    },
+    {
       header: 'Actions',
       cell: (r) => (
         <div className="flex gap-1">
           <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
             Edit
           </Button>
-          {r.is_active && (
+          {r.is_active && r.id !== currentUser?.id && (
             <Button
               size="sm"
               variant="outline"
@@ -232,13 +247,22 @@ export default function UsersPage() {
         actions={<Button onClick={openCreate}>+ Add User</Button>}
       />
 
-      <DataTable
-        columns={columns}
-        data={users ?? []}
-        isLoading={isLoading}
-        emptyMessage="No users"
-        rowKey={(r) => r.id}
-      />
+      <div className="flex items-center gap-2 mb-4">
+        <Switch id="show-inactive" checked={showInactive} onCheckedChange={setShowInactive} />
+        <Label htmlFor="show-inactive" className="text-sm">Include inactive users</Label>
+      </div>
+
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load users.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={users ?? []}
+          isLoading={isLoading}
+          emptyMessage="No users"
+          rowKey={(r) => r.id}
+        />
+      )}
 
       {/* Create / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -273,6 +297,7 @@ export default function UsersPage() {
                   <Select
                     value={editForm.watch('role')}
                     onValueChange={(v) => editForm.setValue('role', v as Role)}
+                    disabled={editingItem?.id === currentUser?.id}
                   >
                     <SelectTrigger id="ue-role">
                       <SelectValue />
@@ -283,6 +308,9 @@ export default function UsersPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {editingItem?.id === currentUser?.id && (
+                    <p className="text-xs text-muted-foreground mt-1">You cannot change your own role</p>
+                  )}
                 </FormField>
                 <FormField label="Classification" htmlFor="ue-cls">
                   <Select
@@ -294,8 +322,10 @@ export default function UsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_VALUE}>None</SelectItem>
-                      {activeClassifications.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      {classificationOptions.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{!c.is_active ? ' (inactive)' : ''}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

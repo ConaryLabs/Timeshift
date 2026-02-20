@@ -16,7 +16,7 @@ export interface CreateUserRequest {
 }
 
 export interface UpdateUserRequest {
-  employee_id?: string
+  employee_id?: string | null
   first_name?: string
   last_name?: string
   email?: string
@@ -29,8 +29,8 @@ export interface UpdateUserRequest {
 }
 
 export const usersApi = {
-  list: () =>
-    api.get<UserProfile[]>('/api/users').then((r) => r.data),
+  list: (params?: { include_inactive?: boolean }) =>
+    api.get<UserProfile[]>('/api/users', { params }).then((r) => r.data),
 
   get: (id: string) =>
     api.get<UserProfile>(`/api/users/${id}`).then((r) => r.data),

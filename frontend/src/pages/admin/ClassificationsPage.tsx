@@ -28,7 +28,7 @@ export default function ClassificationsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Classification | null>(null)
 
-  const { data: classifications, isLoading } = useClassifications()
+  const { data: classifications, isLoading, isError } = useClassifications()
   const createMut = useCreateClassification()
   const updateMut = useUpdateClassification()
 
@@ -105,13 +105,17 @@ export default function ClassificationsPage() {
         actions={<Button onClick={openCreate}>+ Add Classification</Button>}
       />
 
-      <DataTable
-        columns={columns}
-        data={classifications ?? []}
-        isLoading={isLoading}
-        emptyMessage="No classifications"
-        rowKey={(r) => r.id}
-      />
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load classifications.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={classifications ?? []}
+          isLoading={isLoading}
+          emptyMessage="No classifications"
+          rowKey={(r) => r.id}
+        />
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

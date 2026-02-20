@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -12,7 +12,7 @@ import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useOrganization, useUpdateOrganization } from '@/hooks/queries'
 
-const US_TIMEZONES = [
+const BASE_US_TIMEZONES = [
   'America/New_York',
   'America/Chicago',
   'America/Denver',
@@ -32,8 +32,14 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export default function OrgSettingsPage() {
-  const { data: org, isLoading } = useOrganization()
+  const { data: org, isLoading, isError } = useOrganization()
   const updateMut = useUpdateOrganization()
+
+  // Include the org's current timezone in the list even if it's not in the base list
+  const timezones = useMemo(() => {
+    if (!org || BASE_US_TIMEZONES.includes(org.timezone)) return BASE_US_TIMEZONES
+    return [org.timezone, ...BASE_US_TIMEZONES]
+  }, [org])
 
   const { register, handleSubmit, reset, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -49,11 +55,23 @@ export default function OrgSettingsPage() {
 
   function onSubmit(values: FormValues) {
     updateMut.mutate(values, {
-      onSuccess: () => toast.success('Settings saved'),
+      onSuccess: (data) => {
+        toast.success('Organization updated')
+        reset({ name: data.name, timezone: data.timezone })
+      },
     })
   }
 
   if (isLoading) return <LoadingState />
+
+  if (isError) {
+    return (
+      <div>
+        <PageHeader title="Organization Settings" />
+        <p className="text-sm text-destructive">Failed to load organization settings.</p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -75,7 +93,7 @@ export default function OrgSettingsPage() {
                     <SelectValue placeholder="Select timezone…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {US_TIMEZONES.map((tz) => (
+                    {timezones.map((tz) => (
                       <SelectItem key={tz} value={tz}>{tz.replace(/_/g, ' ')}</SelectItem>
                     ))}
                   </SelectContent>

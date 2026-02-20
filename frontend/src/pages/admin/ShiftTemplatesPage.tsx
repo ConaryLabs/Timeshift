@@ -13,6 +13,7 @@ import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useShiftTemplates, useCreateTemplate, useUpdateTemplate } from '@/hooks/queries'
+import { formatTime, formatDuration } from '@/lib/format'
 import type { ShiftTemplate } from '@/api/schedule'
 
 const createSchema = z.object({
@@ -31,25 +32,11 @@ const editSchema = z.object({
 type CreateValues = z.infer<typeof createSchema>
 type EditValues = z.infer<typeof editSchema>
 
-function formatTime(time: string) {
-  const [h, m] = time.split(':')
-  const hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-  return `${h12}:${m} ${ampm}`
-}
-
-function formatDuration(minutes: number) {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
-
 export default function ShiftTemplatesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShiftTemplate | null>(null)
 
-  const { data: templates, isLoading } = useShiftTemplates()
+  const { data: templates, isLoading, isError } = useShiftTemplates()
   const createMut = useCreateTemplate()
   const updateMut = useUpdateTemplate()
 
@@ -140,13 +127,17 @@ export default function ShiftTemplatesPage() {
         actions={<Button onClick={openCreate}>+ Add Template</Button>}
       />
 
-      <DataTable
-        columns={columns}
-        data={templates ?? []}
-        isLoading={isLoading}
-        emptyMessage="No shift templates"
-        rowKey={(r) => r.id}
-      />
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load shift templates.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={templates ?? []}
+          isLoading={isLoading}
+          emptyMessage="No shift templates"
+          rowKey={(r) => r.id}
+        />
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
@@ -159,6 +150,9 @@ export default function ShiftTemplatesPage() {
               <FormField label="Name" htmlFor="st-name" required error={editForm.formState.errors.name?.message}>
                 <Input id="st-name" {...editForm.register('name')} />
               </FormField>
+              <p className="text-xs text-muted-foreground">
+                Time range ({formatTime(editingItem.start_time)} – {formatTime(editingItem.end_time)}) cannot be changed after creation. Create a new template if different times are needed.
+              </p>
               <FormField label="Color" htmlFor="st-color" error={editForm.formState.errors.color?.message}>
                 <div className="flex items-center gap-2">
                   <input

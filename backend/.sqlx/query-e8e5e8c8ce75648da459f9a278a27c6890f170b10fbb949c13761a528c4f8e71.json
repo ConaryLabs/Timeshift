@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE users\n        SET first_name        = COALESCE($2, first_name),\n            last_name         = COALESCE($3, last_name),\n            email             = COALESCE($4, email),\n            phone             = CASE WHEN $5 THEN $6 ELSE phone END,\n            classification_id = CASE WHEN $7 THEN $8 ELSE classification_id END,\n            employee_id       = COALESCE($9, employee_id),\n            role              = COALESCE($10, role),\n            employee_type     = COALESCE($11, employee_type),\n            hire_date         = CASE WHEN $12 THEN $13 ELSE hire_date END,\n            seniority_date    = CASE WHEN $14 THEN $15 ELSE seniority_date END,\n            updated_at        = NOW()\n        WHERE id = $1 AND org_id = $16\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  hire_date, seniority_date, is_active\n        ",
+  "query": "\n        UPDATE users\n        SET first_name        = COALESCE($2, first_name),\n            last_name         = COALESCE($3, last_name),\n            email             = COALESCE($4, email),\n            phone             = CASE WHEN $5 THEN $6 ELSE phone END,\n            classification_id = CASE WHEN $7 THEN $8 ELSE classification_id END,\n            employee_id       = CASE WHEN $9 THEN $10 ELSE employee_id END,\n            role              = COALESCE($11, role),\n            employee_type     = COALESCE($12, employee_type),\n            hire_date         = CASE WHEN $13 THEN $14 ELSE hire_date END,\n            seniority_date    = CASE WHEN $15 THEN $16 ELSE seniority_date END,\n            updated_at        = NOW()\n        WHERE id = $1 AND org_id = $17\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  hire_date, seniority_date, is_active\n        ",
   "describe": {
     "columns": [
       {
@@ -102,6 +102,7 @@
         "Text",
         "Bool",
         "Uuid",
+        "Bool",
         "Text",
         {
           "Custom": {
@@ -151,5 +152,5 @@
       false
     ]
   },
-  "hash": "32004a44818f2e91dc4354fc012f6d47396ba2640ef725235b80ca19e5fdfc7c"
+  "hash": "e8e5e8c8ce75648da459f9a278a27c6890f170b10fbb949c13761a528c4f8e71"
 }

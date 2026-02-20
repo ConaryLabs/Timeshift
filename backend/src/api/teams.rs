@@ -118,23 +118,28 @@ pub async fn update_team(
         return Err(AppError::Forbidden);
     }
 
-    if let Some(sup_id) = req.supervisor_id {
+    // Verify optional supervisor belongs to caller's org
+    if let Some(Some(sup_id)) = req.supervisor_id {
         org_guard::verify_user(&pool, sup_id, auth.org_id).await?;
     }
+
+    let sup_provided = req.supervisor_id.is_some();
+    let sup_val = req.supervisor_id.flatten();
 
     let team = sqlx::query_as!(
         Team,
         r#"
         UPDATE teams
         SET name          = COALESCE($2, name),
-            supervisor_id = COALESCE($3, supervisor_id),
-            is_active     = COALESCE($4, is_active)
-        WHERE id = $1 AND org_id = $5
+            supervisor_id = CASE WHEN $3 THEN $4 ELSE supervisor_id END,
+            is_active     = COALESCE($5, is_active)
+        WHERE id = $1 AND org_id = $6
         RETURNING id, org_id, name, supervisor_id, is_active, created_at
         "#,
         id,
         req.name,
-        req.supervisor_id,
+        sup_provided,
+        sup_val,
         req.is_active,
         auth.org_id,
     )

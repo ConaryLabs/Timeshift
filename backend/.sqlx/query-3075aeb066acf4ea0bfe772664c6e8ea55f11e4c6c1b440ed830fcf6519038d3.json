@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE teams\n        SET name          = COALESCE($2, name),\n            supervisor_id = COALESCE($3, supervisor_id),\n            is_active     = COALESCE($4, is_active)\n        WHERE id = $1 AND org_id = $5\n        RETURNING id, org_id, name, supervisor_id, is_active, created_at\n        ",
+  "query": "\n        UPDATE teams\n        SET name          = COALESCE($2, name),\n            supervisor_id = CASE WHEN $3 THEN $4 ELSE supervisor_id END,\n            is_active     = COALESCE($5, is_active)\n        WHERE id = $1 AND org_id = $6\n        RETURNING id, org_id, name, supervisor_id, is_active, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,7 @@
       "Left": [
         "Uuid",
         "Text",
+        "Bool",
         "Uuid",
         "Bool",
         "Uuid"
@@ -52,5 +53,5 @@
       false
     ]
   },
-  "hash": "b41849f83f2f0b20a291d7a4e32738f483b9a45fe2722c9887d6b3719a61ba36"
+  "hash": "3075aeb066acf4ea0bfe772664c6e8ea55f11e4c6c1b440ed830fcf6519038d3"
 }

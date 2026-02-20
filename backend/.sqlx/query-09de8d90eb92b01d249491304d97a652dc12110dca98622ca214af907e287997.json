@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT role AS \"role: Role\" FROM users WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "09de8d90eb92b01d249491304d97a652dc12110dca98622ca214af907e287997"
+}

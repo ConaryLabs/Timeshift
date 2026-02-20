@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.hire_date, u.seniority_date, u.is_active\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        WHERE u.org_id = $1 AND u.is_active = true\n        ORDER BY u.last_name, u.first_name\n        LIMIT $2 OFFSET $3\n        ",
+  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.hire_date, u.seniority_date, u.is_active\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        WHERE u.org_id = $1 AND ($4 = false OR u.is_active = true)\n        ORDER BY u.last_name, u.first_name\n        LIMIT $2 OFFSET $3\n        ",
   "describe": {
     "columns": [
       {
@@ -101,7 +101,8 @@
       "Left": [
         "Uuid",
         "Int8",
-        "Int8"
+        "Int8",
+        "Bool"
       ]
     },
     "nullable": [
@@ -121,5 +122,5 @@
       false
     ]
   },
-  "hash": "16f712f13d6bf68eb2be8baf02ba8b67058989553ee879a173c0e4e1e400bbf7"
+  "hash": "6898817807f007ca034f9e47eda27ba7a718689f6aa198eb844ff5785f3c9c60"
 }

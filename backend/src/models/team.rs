@@ -3,6 +3,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::models::common::deserialize_optional_field;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Team {
     pub id: Uuid,
@@ -56,7 +58,9 @@ pub struct CreateTeamRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateTeamRequest {
     pub name: Option<String>,
-    pub supervisor_id: Option<Uuid>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub supervisor_id: Option<Option<Uuid>>,
     pub is_active: Option<bool>,
 }
 

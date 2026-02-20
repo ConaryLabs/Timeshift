@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,6 +24,7 @@ import {
   useShiftTemplates,
   useClassifications,
 } from '@/hooks/queries'
+import { formatTime } from '@/lib/format'
 import type { ShiftSlotView } from '@/api/teams'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -38,21 +39,14 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-function formatTime(time: string) {
-  const [h, m] = time.split(':')
-  const hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-  return `${h12}:${m} ${ampm}`
-}
-
 export default function TeamDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShiftSlotView | null>(null)
 
-  const { data: team, isLoading: teamLoading } = useTeam(id!)
-  const { data: slots, isLoading: slotsLoading } = useTeamSlots(id!)
+  const teamId = id ?? ''
+  const { data: team, isLoading: teamLoading, isError: teamError } = useTeam(teamId)
+  const { data: slots, isLoading: slotsLoading, isError: slotsError } = useTeamSlots(teamId)
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
   const createMut = useCreateSlot()
@@ -66,6 +60,20 @@ export default function TeamDetailPage() {
   const templateId = watch('shift_template_id')
   const classificationId = watch('classification_id')
   const isActive = watch('is_active')
+
+  if (!id) return <Navigate to="/admin/teams" replace />
+
+  const activeTemplates = (templates ?? []).filter((t) => t.is_active)
+  const activeClassifications = (classifications ?? []).filter((c) => c.is_active)
+  const canAddSlot = activeTemplates.length > 0 && activeClassifications.length > 0
+
+  // When editing, include the current template/classification even if deactivated
+  const templateOptions = editingItem
+    ? (templates ?? []).filter((t) => t.is_active || t.id === editingItem.shift_template_id)
+    : activeTemplates
+  const classificationOptions = editingItem
+    ? (classifications ?? []).filter((c) => c.is_active || c.id === editingItem.classification_id)
+    : activeClassifications
 
   function openCreate() {
     setEditingItem(null)
@@ -99,6 +107,7 @@ export default function TeamDetailPage() {
       updateMut.mutate(
         {
           slotId: editingItem.id,
+          teamId: teamId,
           shift_template_id: values.shift_template_id,
           classification_id: values.classification_id,
           days_of_week: values.days_of_week,
@@ -115,7 +124,7 @@ export default function TeamDetailPage() {
     } else {
       createMut.mutate(
         {
-          teamId: id!,
+          teamId: teamId,
           shift_template_id: values.shift_template_id,
           classification_id: values.classification_id,
           days_of_week: values.days_of_week,
@@ -186,16 +195,24 @@ export default function TeamDetailPage() {
       <PageHeader
         title={team?.name ?? 'Team'}
         description={team?.is_active === false ? 'This team is inactive' : undefined}
-        actions={<Button onClick={openCreate}>+ Add Slot</Button>}
+        actions={
+          <Button onClick={openCreate} disabled={!canAddSlot} title={!canAddSlot ? 'Create shift templates and classifications first' : undefined}>
+            + Add Slot
+          </Button>
+        }
       />
 
-      <DataTable
-        columns={columns}
-        data={slots ?? []}
-        isLoading={slotsLoading}
-        emptyMessage="No shift slots"
-        rowKey={(r) => r.id}
-      />
+      {teamError || slotsError ? (
+        <p className="text-sm text-destructive">Failed to load team data.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={slots ?? []}
+          isLoading={slotsLoading}
+          emptyMessage="No shift slots"
+          rowKey={(r) => r.id}
+        />
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
@@ -209,8 +226,8 @@ export default function TeamDetailPage() {
                   <SelectValue placeholder="Select shift…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(templates ?? []).filter((t) => t.is_active).map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  {templateOptions.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}{!t.is_active ? ' (inactive)' : ''}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -221,8 +238,8 @@ export default function TeamDetailPage() {
                   <SelectValue placeholder="Select classification…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(classifications ?? []).filter((c) => c.is_active).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  {classificationOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}{!c.is_active ? ' (inactive)' : ''}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

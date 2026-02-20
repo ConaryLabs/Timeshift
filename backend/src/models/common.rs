@@ -1,5 +1,18 @@
 use serde::Deserialize;
 
+/// Deserializes a field as `Some(value)` when present (even if null) and `None` when absent.
+/// Used for the double-Option pattern: `None` = field not sent, `Some(None)` = explicitly null,
+/// `Some(Some(v))` = set to value.
+pub fn deserialize_optional_field<'de, T, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
+}
+
 /// Pagination query params shared across list endpoints.
 /// `limit` defaults to 100, capped at 500. `offset` defaults to 0.
 #[derive(Debug, Deserialize)]

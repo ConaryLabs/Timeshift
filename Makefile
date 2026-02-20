@@ -1,25 +1,11 @@
-.PHONY: dev db-start db-stop db-reset migrate seed sqlx-prepare backend frontend dbhub test
+.PHONY: dev db-reset migrate seed sqlx-prepare backend frontend dbhub test
 
-DB_URL = postgres://timeshift:timeshift_dev@localhost:5432/timeshift
-CONTAINER = timeshift-pg
+DB_URL = postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift
 
-# Start the dev database
-db-start:
-	podman run -d --name $(CONTAINER) \
-		-e POSTGRES_USER=timeshift \
-		-e POSTGRES_PASSWORD=timeshift_dev \
-		-e POSTGRES_DB=timeshift \
-		-p 5432:5432 \
-		docker.io/postgres:16-alpine || podman start $(CONTAINER)
-
-# Stop the dev database
-db-stop:
-	podman stop $(CONTAINER)
-
-# Drop and recreate the database
+# Drop and recreate the database (native PostgreSQL)
 db-reset:
-	podman exec $(CONTAINER) psql -U timeshift -c "DROP DATABASE IF EXISTS timeshift;" postgres
-	podman exec $(CONTAINER) psql -U timeshift -c "CREATE DATABASE timeshift;" postgres
+	sudo -u postgres psql -c "DROP DATABASE IF EXISTS timeshift;" postgres
+	sudo -u postgres psql -c "CREATE DATABASE timeshift OWNER timeshift;" postgres
 
 # Apply migrations
 migrate:
@@ -27,7 +13,7 @@ migrate:
 
 # Load seed data (run after migrate)
 seed:
-	podman exec -i $(CONTAINER) psql -U timeshift -d timeshift < backend/seeds/valleycom.sql
+	PGPASSWORD=timeshift_dev psql -U timeshift -h 127.0.0.1 -d timeshift < backend/seeds/valleycom.sql
 
 # Regenerate sqlx offline query cache (run after changing SQL queries)
 sqlx-prepare:
