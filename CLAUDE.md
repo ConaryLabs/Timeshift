@@ -101,7 +101,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `store/ui.ts` — Zustand store: sidebar state + selected team/period, persisted as `timeshift-ui`
 - `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~40 hooks)
 - `hooks/usePermissions.ts` — Role-based access helpers
-- `pages/` — LoginPage, SchedulePage, LeavePage, CalloutPage (admin routes are Phase 2 placeholders)
+- `pages/` — LoginPage, SchedulePage, LeavePage, CalloutPage, plus admin pages (Classifications, OrgSettings, ShiftTemplates, Teams, TeamDetail, Users)
 - `components/ui/` — shadcn/radix-ui component wrappers (Button, Input, Card, Table, Dialog, etc.)
 - `components/layout/AppShell.tsx` — Main layout: collapsible sidebar + top bar + content area
 
@@ -113,9 +113,9 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 **Styling**: Tailwind CSS 4 + shadcn/ui. Use `cn()` utility (clsx + tw-merge) for class composition. CSS variables define theme tokens in oklch color space.
 
-**API environment**: `VITE_API_URL` defaults to `http://localhost:8080`.
+**API environment**: `VITE_API_URL` defaults to `http://localhost:8080`. Production builds use `VITE_API_URL=""` for same-origin relative URLs (Caddy proxies `/api` to backend).
 
-**Testing**: Vitest + Testing Library configured but no test files yet (Phase 2 work).
+**Testing**: Vitest + Testing Library configured but no test files yet.
 
 ## Database Schema
 
