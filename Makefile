@@ -1,6 +1,6 @@
 .PHONY: dev db-reset migrate seed sqlx-prepare backend frontend dbhub test
 
-DB_URL = postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift
+DB_URL ?= postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift
 
 # Drop and recreate the database (native PostgreSQL)
 db-reset:
