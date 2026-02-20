@@ -44,6 +44,9 @@ export const scheduleApi = {
     color?: string
   }) => api.post<ShiftTemplate>('/api/shifts/templates', body).then((r) => r.data),
 
+  updateTemplate: (id: string, body: { name?: string; color?: string; is_active?: boolean }) =>
+    api.put<ShiftTemplate>(`/api/shifts/templates/${id}`, body).then((r) => r.data),
+
   getStaffing: (start_date: string, end_date: string, team_id?: string) =>
     api
       .get<AssignmentView[]>('/api/schedule', {

@@ -307,6 +307,15 @@ export function useCreateTemplate() {
   })
 }
 
+export function useUpdateTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string; is_active?: boolean }) =>
+      scheduleApi.updateTemplate(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shifts.templates }),
+  })
+}
+
 // -- Scheduled Shifts --
 
 export function useScheduledShifts(params?: { start_date?: string; end_date?: string }) {

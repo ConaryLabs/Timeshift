@@ -6,16 +6,13 @@ import LoginPage from '@/pages/LoginPage'
 import SchedulePage from '@/pages/SchedulePage'
 import LeavePage from '@/pages/LeavePage'
 import CalloutPage from '@/pages/CalloutPage'
+import ClassificationsPage from '@/pages/admin/ClassificationsPage'
+import ShiftTemplatesPage from '@/pages/admin/ShiftTemplatesPage'
+import TeamsPage from '@/pages/admin/TeamsPage'
+import TeamDetailPage from '@/pages/admin/TeamDetailPage'
+import UsersPage from '@/pages/admin/UsersPage'
+import OrgSettingsPage from '@/pages/admin/OrgSettingsPage'
 import AppShell from '@/components/layout/AppShell'
-
-// Admin pages (placeholder components until Phase 2)
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center py-24 text-muted-foreground">
-      <p className="text-lg">{title} — coming soon</p>
-    </div>
-  )
-}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -53,7 +50,7 @@ export default function App() {
               path="classifications"
               element={
                 <RequireRole roles="admin">
-                  <PlaceholderPage title="Classifications" />
+                  <ClassificationsPage />
                 </RequireRole>
               }
             />
@@ -61,7 +58,7 @@ export default function App() {
               path="shift-templates"
               element={
                 <RequireRole roles="admin">
-                  <PlaceholderPage title="Shift Templates" />
+                  <ShiftTemplatesPage />
                 </RequireRole>
               }
             />
@@ -69,7 +66,7 @@ export default function App() {
               path="teams"
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
-                  <PlaceholderPage title="Teams" />
+                  <TeamsPage />
                 </RequireRole>
               }
             />
@@ -77,7 +74,7 @@ export default function App() {
               path="teams/:id"
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
-                  <PlaceholderPage title="Team Detail" />
+                  <TeamDetailPage />
                 </RequireRole>
               }
             />
@@ -85,7 +82,7 @@ export default function App() {
               path="users"
               element={
                 <RequireRole roles="admin">
-                  <PlaceholderPage title="Users" />
+                  <UsersPage />
                 </RequireRole>
               }
             />
@@ -93,7 +90,7 @@ export default function App() {
               path="settings"
               element={
                 <RequireRole roles="admin">
-                  <PlaceholderPage title="Organization Settings" />
+                  <OrgSettingsPage />
                 </RequireRole>
               }
             />
