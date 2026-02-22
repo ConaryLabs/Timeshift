@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO callout_attempts\n            (id, event_id, user_id, list_position, contacted_at,\n             response, ot_hours_at_contact, notes)\n        VALUES ($1, $2, $3, $4, NOW(), $5, $6::FLOAT8::NUMERIC, $7)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bcde3031d94559f32ee33cf1c410dc2704d6cf145a11bd73cb5c565940d9c976"
+}

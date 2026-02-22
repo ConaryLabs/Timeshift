@@ -258,19 +258,200 @@ pub async fn callout_list(
     Ok(Json(entries))
 }
 
-// TODO: Implement record_attempt — should persist the attempt, refresh OT hours
-// at contact time, and transition the callout event to 'filled' when accepted.
 pub async fn record_attempt(
-    State(_pool): State<PgPool>,
+    State(pool): State<PgPool>,
     auth: AuthUser,
-    Path(_event_id): Path<Uuid>,
-    Json(_req): Json<RecordAttemptRequest>,
+    Path(event_id): Path<Uuid>,
+    Json(req): Json<RecordAttemptRequest>,
 ) -> Result<Json<CalloutAttempt>> {
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
 
-    Err(AppError::NotImplemented)
+    if !matches!(req.response.as_str(), "accepted" | "declined" | "no_answer") {
+        return Err(AppError::BadRequest(
+            "response must be 'accepted', 'declined', or 'no_answer'".into(),
+        ));
+    }
+
+    let mut tx = pool.begin().await?;
+
+    // 1. Lock the callout event row (FOR UPDATE) and fetch shift context.
+    let ctx = sqlx::query!(
+        r#"
+        SELECT ce.status AS "status: CalloutStatus", ce.scheduled_shift_id,
+               ss.org_id, ss.date AS shift_date, st.duration_minutes
+        FROM callout_events ce
+        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        JOIN shift_templates  st ON st.id = ss.shift_template_id
+        WHERE ce.id = $1
+        FOR UPDATE OF ce
+        "#,
+        event_id
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
+
+    if ctx.org_id != auth.org_id {
+        return Err(AppError::NotFound("Callout event not found".into()));
+    }
+    if ctx.status != CalloutStatus::Open {
+        return Err(AppError::Conflict("Callout event is no longer open".into()));
+    }
+
+    // 2. Validate the target user belongs to this org and is active.
+    let user_ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND is_active = true)",
+        req.user_id,
+        auth.org_id
+    )
+    .fetch_one(&mut *tx)
+    .await?
+    .unwrap_or(false);
+
+    if !user_ok {
+        return Err(AppError::NotFound("User not found".into()));
+    }
+
+    // Use shift date's calendar year as the OT fiscal year.
+    let fiscal_year: i32 = ctx.shift_date.year();
+
+    // 3. Snapshot current OT hours_worked at contact time (0 if no row yet).
+    let ot_snapshot: f64 = sqlx::query_scalar!(
+        r#"
+        SELECT CAST(hours_worked AS FLOAT8)
+        FROM ot_hours
+        WHERE user_id = $1 AND fiscal_year = $2 AND classification_id IS NULL
+        "#,
+        req.user_id,
+        fiscal_year,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten()
+    .unwrap_or(0.0);
+
+    // 4. Contact-order position: how many attempts have already been recorded.
+    let count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM callout_attempts WHERE event_id = $1",
+        event_id
+    )
+    .fetch_one(&mut *tx)
+    .await?
+    .unwrap_or(0);
+    let position = (count + 1) as i32;
+
+    // 5. Insert the attempt.
+    let attempt_id = Uuid::new_v4();
+    sqlx::query!(
+        r#"
+        INSERT INTO callout_attempts
+            (id, event_id, user_id, list_position, contacted_at,
+             response, ot_hours_at_contact, notes)
+        VALUES ($1, $2, $3, $4, NOW(), $5, $6::FLOAT8::NUMERIC, $7)
+        "#,
+        attempt_id,
+        event_id,
+        req.user_id,
+        position,
+        req.response,
+        ot_snapshot,
+        req.notes,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Shift duration in hours for OT accounting.
+    let shift_hours = ctx.duration_minutes as f64 / 60.0;
+
+    match req.response.as_str() {
+        "accepted" => {
+            // Mark the event filled.
+            sqlx::query!(
+                "UPDATE callout_events SET status = 'filled', updated_at = NOW() WHERE id = $1",
+                event_id
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            // Create an OT assignment. Skip if the user is already on this shift.
+            sqlx::query!(
+                r#"
+                INSERT INTO assignments
+                    (id, scheduled_shift_id, user_id, is_overtime, created_by)
+                VALUES (gen_random_uuid(), $1, $2, true, $3)
+                ON CONFLICT (scheduled_shift_id, user_id) DO NOTHING
+                "#,
+                ctx.scheduled_shift_id,
+                req.user_id,
+                auth.id,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            // Upsert OT hours_worked for this user/year.
+            sqlx::query!(
+                r#"
+                INSERT INTO ot_hours
+                    (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
+                VALUES (gen_random_uuid(), $1, $2, NULL, $3::FLOAT8::NUMERIC, 0)
+                ON CONFLICT (user_id, fiscal_year,
+                    COALESCE(classification_id,
+                             '00000000-0000-0000-0000-000000000000'::uuid))
+                DO UPDATE SET
+                    hours_worked = ot_hours.hours_worked + $3::FLOAT8::NUMERIC,
+                    updated_at   = NOW()
+                "#,
+                req.user_id,
+                fiscal_year,
+                shift_hours,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+        "declined" => {
+            // Upsert OT hours_declined for this user/year.
+            sqlx::query!(
+                r#"
+                INSERT INTO ot_hours
+                    (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
+                VALUES (gen_random_uuid(), $1, $2, NULL, 0, $3::FLOAT8::NUMERIC)
+                ON CONFLICT (user_id, fiscal_year,
+                    COALESCE(classification_id,
+                             '00000000-0000-0000-0000-000000000000'::uuid))
+                DO UPDATE SET
+                    hours_declined = ot_hours.hours_declined + $3::FLOAT8::NUMERIC,
+                    updated_at     = NOW()
+                "#,
+                req.user_id,
+                fiscal_year,
+                shift_hours,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+        _ => {} // no_answer: no OT accounting change
+    }
+
+    tx.commit().await?;
+
+    // Fetch and return the persisted attempt.
+    let attempt = sqlx::query_as!(
+        CalloutAttempt,
+        r#"
+        SELECT id, event_id, user_id, list_position, contacted_at, response,
+               CAST(ot_hours_at_contact AS FLOAT8) AS "ot_hours_at_contact!",
+               notes
+        FROM callout_attempts
+        WHERE id = $1
+        "#,
+        attempt_id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(attempt))
 }
 
 pub async fn cancel_event(

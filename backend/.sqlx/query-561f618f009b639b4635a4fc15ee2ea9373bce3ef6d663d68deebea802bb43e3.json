@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO assignments\n                    (id, scheduled_shift_id, user_id, is_overtime, created_by)\n                VALUES (gen_random_uuid(), $1, $2, true, $3)\n                ON CONFLICT (scheduled_shift_id, user_id) DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "561f618f009b639b4635a4fc15ee2ea9373bce3ef6d663d68deebea802bb43e3"
+}

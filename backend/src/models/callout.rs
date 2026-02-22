@@ -66,9 +66,10 @@ pub struct CreateCalloutEventRequest {
     pub classification_id: Option<Uuid>,
 }
 
-#[allow(dead_code)] // Fields used when record_attempt is implemented (currently 501)
 #[derive(Debug, Deserialize)]
 pub struct RecordAttemptRequest {
+    pub user_id: Uuid,
+    /// Must be one of: "accepted", "declined", "no_answer"
     pub response: String,
     pub notes: Option<String>,
 }
