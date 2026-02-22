@@ -39,7 +39,9 @@ pub struct ShiftSlotView {
     pub team_id: Uuid,
     pub shift_template_id: Uuid,
     pub shift_template_name: String,
+    #[serde(with = "crate::models::common::time_format")]
     pub start_time: time::Time,
+    #[serde(with = "crate::models::common::time_format")]
     pub end_time: time::Time,
     pub classification_id: Uuid,
     pub classification_abbreviation: String,

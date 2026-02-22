@@ -9,7 +9,9 @@ pub struct ShiftTemplate {
     pub id: Uuid,
     pub org_id: Uuid,
     pub name: String,
+    #[serde(with = "crate::models::common::time_format")]
     pub start_time: time::Time,
+    #[serde(with = "crate::models::common::time_format")]
     pub end_time: time::Time,
     pub crosses_midnight: bool,
     pub duration_minutes: i32,
@@ -23,7 +25,9 @@ pub struct ShiftTemplate {
 pub struct CreateShiftTemplateRequest {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
+    #[serde(with = "crate::models::common::time_format")]
     pub start_time: time::Time,
+    #[serde(with = "crate::models::common::time_format")]
     pub end_time: time::Time,
     pub color: Option<String>,
 }
@@ -89,7 +93,9 @@ pub struct SlotAssignmentView {
     pub team_id: Uuid,
     pub team_name: String,
     pub shift_template_name: String,
+    #[serde(with = "crate::models::common::time_format")]
     pub start_time: time::Time,
+    #[serde(with = "crate::models::common::time_format")]
     pub end_time: time::Time,
     pub classification_id: Uuid,
     pub classification_name: String,

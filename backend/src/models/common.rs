@@ -1,5 +1,11 @@
 use serde::Deserialize;
 
+/// Serde module: serialize/deserialize `time::Time` as "HH:MM:SS" strings.
+pub mod time_format {
+    time::serde::format_description!(inner, Time, "[hour]:[minute]:[second]");
+    pub use inner::{deserialize, serialize};
+}
+
 /// Deserializes a field as `Some(value)` when present (even if null) and `None` when absent.
 /// Used for the double-Option pattern: `None` = field not sent, `Some(None)` = explicitly null,
 /// `Some(Some(v))` = set to value.

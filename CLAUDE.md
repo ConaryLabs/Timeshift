@@ -142,7 +142,7 @@ PG enums: `app_role`, `employee_type_enum`, `leave_status`, `callout_status`
 ## Conventions
 
 - Rust edition 2021, requires Rust 1.93
-- Axum 0.7 route params use `{id}` syntax (not `:id`)
+- Axum 0.7 route params use `:id` syntax (not `{id}` — that's Axum 0.8+ with matchit 0.8+)
 - `FromRequestParts` implementations require `#[async_trait]`
 - Backend handlers extract `State(pool): State<PgPool>` via the `FromRef` impl on AppState
 - Frontend uses `@/` path alias for imports from `src/`

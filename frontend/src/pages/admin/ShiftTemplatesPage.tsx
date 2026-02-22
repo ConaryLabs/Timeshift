@@ -64,7 +64,13 @@ export default function ShiftTemplatesPage() {
   }
 
   function onCreateSubmit(values: CreateValues) {
-    createMut.mutate(values, {
+    // HTML time inputs send "HH:MM"; backend needs "HH:MM:SS"
+    const body = {
+      ...values,
+      start_time: values.start_time.length === 5 ? `${values.start_time}:00` : values.start_time,
+      end_time: values.end_time.length === 5 ? `${values.end_time}:00` : values.end_time,
+    }
+    createMut.mutate(body, {
       onSuccess: () => {
         toast.success('Shift template created')
         setDialogOpen(false)

@@ -43,6 +43,7 @@ export default function OrgSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    defaultValues: { name: '', timezone: '' },
   })
 
   const timezone = watch('timezone')

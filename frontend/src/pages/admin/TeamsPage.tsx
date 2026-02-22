@@ -142,7 +142,7 @@ export default function TeamsPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={teams ?? []}
+          data={(teams ?? []).slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))}
           isLoading={isLoading}
           emptyMessage="No teams"
           rowKey={(r) => r.id}
