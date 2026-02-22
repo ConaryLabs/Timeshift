@@ -28,6 +28,17 @@ export interface CalloutListEntry {
   unavailable_reason: string | null
 }
 
+export interface CalloutAttempt {
+  id: string
+  event_id: string
+  user_id: string
+  list_position: number
+  contacted_at: string | null
+  response: string | null
+  ot_hours_at_contact: number
+  notes: string | null
+}
+
 export const calloutApi = {
   listEvents: () =>
     api.get<CalloutEvent[]>('/api/callout/events').then((r) => r.data),
@@ -46,4 +57,12 @@ export const calloutApi = {
 
   cancelEvent: (event_id: string) =>
     api.patch(`/api/callout/events/${event_id}/cancel`).then((r) => r.data),
+
+  recordAttempt: (
+    event_id: string,
+    body: { user_id: string; response: string; notes?: string },
+  ) =>
+    api
+      .post<CalloutAttempt>(`/api/callout/events/${event_id}/attempt`, body)
+      .then((r) => r.data),
 }

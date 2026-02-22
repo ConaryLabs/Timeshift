@@ -22,6 +22,7 @@ import {
   useCalloutList,
   useCancelCalloutEvent,
   useCreateCalloutEvent,
+  useRecordAttempt,
   useScheduledShifts,
   useShiftTemplates,
   useClassifications,
@@ -37,11 +38,15 @@ const INITIAL_FORM = {
   reason_text: '',
 }
 
+type AcceptTarget = { user_id: string; name: string }
+
 export default function CalloutPage() {
   const { isManager } = usePermissions()
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
   const [showInitiate, setShowInitiate] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
+  const [acceptTarget, setAcceptTarget] = useState<AcceptTarget | null>(null)
+  const [acceptNotes, setAcceptNotes] = useState('')
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
@@ -50,12 +55,16 @@ export default function CalloutPage() {
   const { data: calloutList } = useCalloutList(selectedEvent ?? '')
   const cancelMut = useCancelCalloutEvent()
   const createMut = useCreateCalloutEvent()
+  const recordMut = useRecordAttempt()
 
   const { data: scheduledShifts } = useScheduledShifts({ start_date: today, end_date: twoWeeksOut })
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
 
   const templateMap = Object.fromEntries((templates ?? []).map((t) => [t.id, t]))
+
+  const selectedEventData = (events ?? []).find((e) => e.id === selectedEvent)
+  const eventIsOpen = selectedEventData?.status === 'open'
 
   function handleInitiate() {
     if (form.scheduled_shift_id === NO_VALUE) return
@@ -70,6 +79,29 @@ export default function CalloutPage() {
           setShowInitiate(false)
           setForm(INITIAL_FORM)
           setSelectedEvent(ev.id)
+        },
+      },
+    )
+  }
+
+  function recordResponse(userId: string, response: 'declined' | 'no_answer') {
+    if (!selectedEvent) return
+    recordMut.mutate({ eventId: selectedEvent, user_id: userId, response })
+  }
+
+  function handleAccept() {
+    if (!acceptTarget || !selectedEvent) return
+    recordMut.mutate(
+      {
+        eventId: selectedEvent,
+        user_id: acceptTarget.user_id,
+        response: 'accepted',
+        notes: acceptNotes || undefined,
+      },
+      {
+        onSuccess: () => {
+          setAcceptTarget(null)
+          setAcceptNotes('')
         },
       },
     )
@@ -100,6 +132,44 @@ export default function CalloutPage() {
           <span className="text-muted-foreground text-xs">{r.unavailable_reason}</span>
         ),
     },
+    ...(isManager && eventIsOpen
+      ? [{
+          header: 'Contact',
+          cell: (r: CalloutListEntry) => {
+            const busy = recordMut.isPending && (recordMut.variables as { user_id: string } | undefined)?.user_id === r.user_id
+            return (
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-700 hover:bg-green-50"
+                  disabled={recordMut.isPending}
+                  onClick={() => setAcceptTarget({ user_id: r.user_id, name: `${r.last_name}, ${r.first_name}` })}
+                >
+                  Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-700 hover:bg-red-50"
+                  disabled={recordMut.isPending}
+                  onClick={() => recordResponse(r.user_id, 'declined')}
+                >
+                  {busy && (recordMut.variables as { response: string } | undefined)?.response === 'declined' ? '…' : 'Decline'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={recordMut.isPending}
+                  onClick={() => recordResponse(r.user_id, 'no_answer')}
+                >
+                  {busy && (recordMut.variables as { response: string } | undefined)?.response === 'no_answer' ? '…' : 'No Answer'}
+                </Button>
+              </div>
+            )
+          },
+        }]
+      : []),
   ]
 
   return (
@@ -209,9 +279,7 @@ export default function CalloutPage() {
                 <SelectContent>
                   {(scheduledShifts ?? []).map((s) => {
                     const tmpl = templateMap[s.shift_template_id]
-                    const label = tmpl
-                      ? `${s.date} — ${tmpl.name}`
-                      : s.date
+                    const label = tmpl ? `${s.date} — ${tmpl.name}` : s.date
                     return (
                       <SelectItem key={s.id} value={s.id}>
                         {label}
@@ -259,6 +327,34 @@ export default function CalloutPage() {
               disabled={form.scheduled_shift_id === NO_VALUE || createMut.isPending}
             >
               Initiate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Accept confirmation dialog */}
+      <Dialog open={!!acceptTarget} onOpenChange={(open) => !open && setAcceptTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Acceptance</DialogTitle>
+            <DialogDescription>
+              <strong>{acceptTarget?.name}</strong> has accepted the OT shift.
+              This will mark the callout event as filled and create an OT assignment.
+            </DialogDescription>
+          </DialogHeader>
+          <FormField label="Notes" htmlFor="accept-notes">
+            <Textarea
+              id="accept-notes"
+              value={acceptNotes}
+              onChange={(e) => setAcceptNotes(e.target.value)}
+              placeholder="Optional notes…"
+              rows={2}
+            />
+          </FormField>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAcceptTarget(null)}>Cancel</Button>
+            <Button onClick={handleAccept} disabled={recordMut.isPending}>
+              Confirm Acceptance
             </Button>
           </DialogFooter>
         </DialogContent>

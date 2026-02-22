@@ -417,6 +417,21 @@ export function useCreateCalloutEvent() {
   })
 }
 
+export function useRecordAttempt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      eventId,
+      ...body
+    }: { eventId: string; user_id: string; response: string; notes?: string }) =>
+      calloutApi.recordAttempt(eventId, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.list(vars.eventId) })
+    },
+  })
+}
+
 export function useCancelCalloutEvent() {
   const qc = useQueryClient()
   return useMutation({
