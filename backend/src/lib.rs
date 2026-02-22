@@ -13,6 +13,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: String,
     pub jwt_expiry_hours: u64,
+    pub cookie_secure: bool,
 }
 
 impl axum::extract::FromRef<AppState> for PgPool {

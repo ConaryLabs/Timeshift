@@ -1,5 +1,5 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use axum::{extract::State, Json};
+use axum::{extract::State, http::header, response::IntoResponse, Json};
 use sqlx::PgPool;
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>> {
+) -> Result<impl IntoResponse> {
     let user = sqlx::query_as!(
         User,
         r#"
@@ -57,25 +57,52 @@ pub async fn login(
         None
     };
 
-    Ok(Json(LoginResponse {
+    let cookie_str = format!(
+        "auth_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
         token,
-        user: UserProfile {
-            id: user.id,
-            org_id: user.org_id,
-            employee_id: user.employee_id,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            email: user.email,
-            phone: user.phone,
-            role: user.role,
-            classification_id: user.classification_id,
-            classification_name,
-            employee_type: user.employee_type,
-            hire_date: user.hire_date,
-            seniority_date: user.seniority_date,
-            is_active: user.is_active,
-        },
-    }))
+        state.jwt_expiry_hours * 3600,
+        if state.cookie_secure { "; Secure" } else { "" }
+    );
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        cookie_str
+            .parse()
+            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+    );
+
+    Ok((
+        headers,
+        Json(LoginResponse {
+            token,
+            user: UserProfile {
+                id: user.id,
+                org_id: user.org_id,
+                employee_id: user.employee_id,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                classification_id: user.classification_id,
+                classification_name,
+                employee_type: user.employee_type,
+                hire_date: user.hire_date,
+                seniority_date: user.seniority_date,
+                is_active: user.is_active,
+            },
+        }),
+    ))
+}
+
+pub async fn logout() -> impl IntoResponse {
+    (
+        [(
+            header::SET_COOKIE,
+            "auth_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+        )],
+        axum::http::StatusCode::NO_CONTENT,
+    )
 }
 
 pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserProfile>> {

@@ -7,6 +7,7 @@ pub struct Config {
     pub jwt_expiry_hours: u64,
     pub listen_addr: String,
     pub cors_origins: Vec<String>,
+    pub cookie_secure: bool,
 }
 
 impl Config {
@@ -32,6 +33,10 @@ impl Config {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
+            cookie_secure: std::env::var("COOKIE_SECURE")
+                .unwrap_or_else(|_| "true".into())
+                .parse()
+                .context("COOKIE_SECURE must be 'true' or 'false'")?,
         })
     }
 }

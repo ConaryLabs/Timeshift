@@ -38,6 +38,7 @@ pub async fn setup_test_app() -> (SocketAddr, PgPool) {
         pool: pool.clone(),
         jwt_secret: JWT_SECRET.to_string(),
         jwt_expiry_hours: JWT_EXPIRY_HOURS,
+        cookie_secure: false,
     };
 
     // Build the app router. The login route was moved to main.rs (with rate

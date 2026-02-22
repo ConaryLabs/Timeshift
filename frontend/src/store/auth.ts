@@ -27,9 +27,8 @@ export interface UserProfile {
 }
 
 interface AuthState {
-  token: string | null
   user: UserProfile | null
-  setAuth: (token: string, user: UserProfile) => void
+  setAuth: (user: UserProfile) => void
   setUser: (user: UserProfile) => void
   logout: () => void
 }
@@ -37,18 +36,15 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      token: null,
       user: null,
-      setAuth: (token, user) => set({ token, user }),
+      setAuth: (user) => set({ user }),
       setUser: (user) => set({ user }),
-      logout: () => set({ token: null, user: null }),
+      logout: () => set({ user: null }),
     }),
     {
       name: 'timeshift-auth',
-      version: 1,
-      migrate: (persistedState) => {
-        return persistedState as AuthState
-      },
+      version: 2,
+      migrate: () => ({ user: null }),
     },
   ),
 )

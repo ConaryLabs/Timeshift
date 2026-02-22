@@ -26,7 +26,7 @@ export default function LoginPage() {
         '/api/auth/login',
         { email, password },
       )
-      setAuth(res.data.token, res.data.user)
+      setAuth(res.data.user)
       navigate('/schedule')
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }

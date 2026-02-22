@@ -66,7 +66,7 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let headers = &parts.headers;
-        let token = extract_bearer_token(headers).ok_or(AppError::Unauthorized)?;
+        let token = extract_token_from_parts(headers).ok_or(AppError::Unauthorized)?;
 
         let key = DecodingKey::from_secret(app_state.jwt_secret.as_bytes());
         let claims = decode::<Claims>(&token, &key, &Validation::new(Algorithm::HS256))
@@ -98,6 +98,22 @@ where
             role: row.role,
         })
     }
+}
+
+/// Try cookie first (browser requests), then Authorization: Bearer (API/tests).
+fn extract_token_from_parts(headers: &HeaderMap) -> Option<String> {
+    extract_cookie_token(headers).or_else(|| extract_bearer_token(headers))
+}
+
+fn extract_cookie_token(headers: &HeaderMap) -> Option<String> {
+    let cookie_header = headers.get("Cookie")?.to_str().ok()?;
+    for part in cookie_header.split(';') {
+        let part = part.trim();
+        if let Some(val) = part.strip_prefix("auth_token=") {
+            return Some(val.to_string());
+        }
+    }
+    None
 }
 
 fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {

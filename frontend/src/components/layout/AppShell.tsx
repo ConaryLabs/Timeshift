@@ -26,6 +26,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { useAuthStore } from '@/store/auth'
+import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useMe } from '@/hooks/queries'
@@ -155,6 +156,7 @@ export default function AppShell() {
   }, [toggleSidebar])
 
   function handleLogout() {
+    authApi.logout().catch(() => {})
     logout()
     navigate('/login')
   }

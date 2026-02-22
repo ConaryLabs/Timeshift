@@ -46,6 +46,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         jwt_secret: cfg.jwt_secret.clone(),
         jwt_expiry_hours: cfg.jwt_expiry_hours,
+        cookie_secure: cfg.cookie_secure,
     };
 
     // CORS
@@ -70,6 +71,7 @@ async fn main() -> anyhow::Result<()> {
             Method::DELETE,
         ])
         .allow_headers([AUTHORIZATION, CONTENT_TYPE, ACCEPT])
+        .allow_credentials(true)
         .allow_origin(allowed_origins);
 
     // Rate limiting for login endpoint: 5 requests burst, replenish 1 per 2 seconds per IP

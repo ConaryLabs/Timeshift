@@ -10,15 +10,7 @@ export const SESSION_EXPIRED = Symbol('SESSION_EXPIRED')
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-})
-
-// Attach JWT on every request
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
+  withCredentials: true,
 })
 
 // Auto-logout on 401
@@ -26,15 +18,15 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      const token = useAuthStore.getState().token
-      if (token) {
+      const user = useAuthStore.getState().user
+      if (user) {
         // Session expired: toast here, reject with sentinel so global
         // mutation onError skips the duplicate toast
         toast.error('Session expired — please log in again')
         useAuthStore.getState().logout()
         return Promise.reject(SESSION_EXPIRED)
       }
-      // Login failure (no token): reject normally so page-level catch works
+      // Login failure (no session): reject normally so page-level catch works
     }
     return Promise.reject(err)
   },

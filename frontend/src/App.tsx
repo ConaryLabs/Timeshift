@@ -17,8 +17,8 @@ import SchedulePeriodDetailPage from '@/pages/admin/SchedulePeriodDetailPage'
 import AppShell from '@/components/layout/AppShell'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token)
-  return token ? <>{children}</> : <Navigate to="/login" replace />
+  const user = useAuthStore((s) => s.user)
+  return user ? <>{children}</> : <Navigate to="/login" replace />
 }
 
 export default function App() {
