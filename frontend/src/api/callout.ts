@@ -40,8 +40,8 @@ export interface CalloutAttempt {
 }
 
 export const calloutApi = {
-  listEvents: () =>
-    api.get<CalloutEvent[]>('/api/callout/events').then((r) => r.data),
+  listEvents: (params?: { limit?: number; offset?: number }) =>
+    api.get<CalloutEvent[]>('/api/callout/events', { params }).then((r) => r.data),
 
   createEvent: (body: {
     scheduled_shift_id: string

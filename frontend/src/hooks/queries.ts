@@ -27,7 +27,8 @@ export const queryKeys = {
   },
   users: {
     all: ['users'] as const,
-    list: (includeInactive: boolean) => ['users', { includeInactive }] as const,
+    list: (params?: { include_inactive?: boolean; limit?: number; offset?: number }) =>
+      ['users', params] as const,
     detail: (id: string) => ['users', id] as const,
   },
   organization: {
@@ -49,9 +50,11 @@ export const queryKeys = {
   leave: {
     types: ['leave-types'] as const,
     all: ['leave'] as const,
+    list: (params?: { limit?: number; offset?: number }) => ['leave', params] as const,
   },
   callout: {
     events: ['callout-events'] as const,
+    eventsList: (params?: { limit?: number; offset?: number }) => ['callout-events', params] as const,
     list: (eventId: string) => ['callout-list', eventId] as const,
   },
 } as const
@@ -183,10 +186,10 @@ export function useUpdateSlot() {
 
 // -- Users --
 
-export function useUsers(includeInactive = false) {
+export function useUsers(params?: { include_inactive?: boolean; limit?: number; offset?: number }) {
   return useQuery({
-    queryKey: queryKeys.users.list(includeInactive),
-    queryFn: () => usersApi.list(includeInactive ? { include_inactive: true } : undefined),
+    queryKey: queryKeys.users.list(params),
+    queryFn: () => usersApi.list(params),
   })
 }
 
@@ -360,10 +363,10 @@ export function useLeaveTypes() {
   })
 }
 
-export function useLeaveRequests() {
+export function useLeaveRequests(params?: { limit?: number; offset?: number }) {
   return useQuery({
-    queryKey: queryKeys.leave.all,
-    queryFn: leaveApi.list,
+    queryKey: queryKeys.leave.list(params),
+    queryFn: () => leaveApi.list(params),
   })
 }
 
@@ -394,10 +397,10 @@ export function useCancelLeave() {
 
 // -- Callout --
 
-export function useCalloutEvents() {
+export function useCalloutEvents(params?: { limit?: number; offset?: number }) {
   return useQuery({
-    queryKey: queryKeys.callout.events,
-    queryFn: calloutApi.listEvents,
+    queryKey: queryKeys.callout.eventsList(params),
+    queryFn: () => calloutApi.listEvents(params),
   })
 }
 

@@ -29,7 +29,7 @@ export interface UpdateUserRequest {
 }
 
 export const usersApi = {
-  list: (params?: { include_inactive?: boolean }) =>
+  list: (params?: { include_inactive?: boolean; limit?: number; offset?: number }) =>
     api.get<UserProfile[]>('/api/users', { params }).then((r) => r.data),
 
   get: (id: string) =>

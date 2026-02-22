@@ -38,7 +38,8 @@ export const leaveApi = {
   listTypes: () =>
     api.get<LeaveTypeRecord[]>('/api/leave/types').then((r) => r.data),
 
-  list: () => api.get<LeaveRequest[]>('/api/leave').then((r) => r.data),
+  list: (params?: { limit?: number; offset?: number }) =>
+    api.get<LeaveRequest[]>('/api/leave', { params }).then((r) => r.data),
 
   get: (id: string) =>
     api.get<LeaveRequest>(`/api/leave/${id}`).then((r) => r.data),

@@ -83,7 +83,7 @@ export default function UsersPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<UserProfile | null>(null)
   const [showInactive, setShowInactive] = useState(false)
 
-  const { data: users, isLoading, isError } = useUsers(showInactive)
+  const { data: users, isLoading, isError } = useUsers({ include_inactive: showInactive })
   const { data: classifications } = useClassifications()
   const createMut = useCreateUser()
   const updateMut = useUpdateUser()
