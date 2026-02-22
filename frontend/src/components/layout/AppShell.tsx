@@ -17,7 +17,6 @@ import {
   Menu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Sheet,
@@ -78,8 +77,8 @@ function SidebarLink({ item, collapsed, onClick }: { item: NavItem; collapsed: b
         cn(
           "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
           isActive
-            ? "bg-accent text-accent-foreground"
-            : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
+            ? "bg-sidebar-primary/20 text-white"
+            : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",
           collapsed && "justify-center px-2",
         )
       }
@@ -108,16 +107,16 @@ function SidebarNav({ main, admin, collapsed, onLinkClick }: {
   onLinkClick?: () => void
 }) {
   return (
-    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
       {main.map((item) => (
         <SidebarLink key={item.to} item={item} collapsed={collapsed} onClick={onLinkClick} />
       ))}
 
       {admin.length > 0 && (
         <>
-          <Separator className="my-3" />
+          <div className="my-3 h-px bg-sidebar-border" />
           {!collapsed && (
-            <p className="px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest mb-1">
               Admin
             </p>
           )}
@@ -127,6 +126,19 @@ function SidebarNav({ main, admin, collapsed, onLinkClick }: {
         </>
       )}
     </nav>
+  )
+}
+
+function SidebarLogo({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div className={cn("flex items-center gap-2.5 px-3 h-14 border-b border-sidebar-border", collapsed && "justify-center")}>
+      <div className="h-7 w-7 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+        <Building2 className="h-4 w-4 text-white" />
+      </div>
+      {!collapsed && (
+        <span className="font-brand text-xl text-white tracking-tight">Timeshift</span>
+      )}
+    </div>
   )
 }
 
@@ -163,44 +175,44 @@ export default function AppShell() {
 
   const collapsed = !sidebarOpen
 
+  const initials = [user?.first_name?.[0], user?.last_name?.[0]].filter(Boolean).join('')
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar (lg and above) */}
       <aside
         className={cn(
-          "hidden lg:flex flex-col border-r bg-card transition-all duration-200",
+          "hidden lg:flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200",
           collapsed ? "w-14" : "w-56",
         )}
       >
-        {/* Logo */}
-        <div className={cn("flex items-center gap-2 px-3 h-14 border-b", collapsed && "justify-center")}>
-          <Building2 className="h-5 w-5 text-primary shrink-0" />
-          {!collapsed && <span className="font-bold text-lg tracking-tight">Timeshift</span>}
-        </div>
+        <SidebarLogo collapsed={collapsed} />
 
-        {/* Nav */}
         <SidebarNav main={main} admin={admin} collapsed={collapsed} />
 
-        {/* Footer */}
-        <div className="border-t p-2 space-y-1">
-          <Button
-            variant="ghost"
-            size="sm"
+        {/* Footer: collapse toggle */}
+        <div className="border-t border-sidebar-border p-2">
+          <button
             onClick={toggleSidebar}
-            className={cn("w-full", collapsed ? "justify-center px-2" : "justify-start")}
+            className={cn(
+              "w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-white/[0.06] hover:text-white transition-colors",
+              collapsed ? "justify-center px-2" : "justify-start",
+            )}
           >
             {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            {!collapsed && <span className="ml-2">Collapse</span>}
-          </Button>
+            {!collapsed && <span>Collapse</span>}
+          </button>
         </div>
       </aside>
 
       {/* Mobile sidebar sheet (below lg) */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 p-0">
-          <SheetHeader className="border-b px-3 h-14 flex-row items-center gap-2">
-            <Building2 className="h-5 w-5 text-primary shrink-0" />
-            <SheetTitle className="font-bold text-lg tracking-tight">Timeshift</SheetTitle>
+        <SheetContent side="left" className="w-64 p-0 bg-sidebar border-sidebar-border gap-0" showCloseButton={false}>
+          <SheetHeader className="border-b border-sidebar-border px-3 h-14 flex-row items-center gap-2.5 p-0">
+            <div className="h-7 w-7 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+              <Building2 className="h-4 w-4 text-white" />
+            </div>
+            <SheetTitle className="font-brand text-xl text-white tracking-tight">Timeshift</SheetTitle>
           </SheetHeader>
           <SidebarNav main={main} admin={admin} collapsed={false} onLinkClick={() => setMobileOpen(false)} />
         </SheetContent>
@@ -224,13 +236,23 @@ export default function AppShell() {
           {/* Spacer for desktop where hamburger is hidden */}
           <div className="hidden lg:block" />
 
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            {initials && (
+              <div className="hidden sm:flex h-7 w-7 rounded-full bg-primary/10 text-primary items-center justify-center text-xs font-semibold shrink-0">
+                {initials}
+              </div>
+            )}
+            <span className="hidden sm:block text-sm font-medium text-foreground">
               {user?.first_name} {user?.last_name}
             </span>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-1" />
-              Log out
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-muted-foreground hover:text-foreground gap-1.5"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </header>
