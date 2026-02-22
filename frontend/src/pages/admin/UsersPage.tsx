@@ -29,6 +29,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/auth'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { NO_VALUE } from '@/lib/format'
 import type { UserProfile, Role, EmployeeType } from '@/store/auth'
 
@@ -88,6 +89,8 @@ export default function UsersPage() {
   const createMut = useCreateUser()
   const updateMut = useUpdateUser()
   const deactivateMut = useDeactivateUser()
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
 
   const createForm = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
@@ -265,7 +268,15 @@ export default function UsersPage() {
       )}
 
       {/* Create / Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            const dirty = editingItem ? editForm.formState.isDirty : createForm.formState.isDirty
+            confirmClose(dirty, () => setDialogOpen(false))
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit User' : 'New User'}</DialogTitle>
@@ -447,6 +458,8 @@ export default function UsersPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
 
       {/* Deactivate confirmation dialog */}
       <Dialog open={!!deactivateTarget} onOpenChange={(open) => !open && setDeactivateTarget(null)}>

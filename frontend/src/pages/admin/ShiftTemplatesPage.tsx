@@ -13,6 +13,7 @@ import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useShiftTemplates, useCreateTemplate, useUpdateTemplate } from '@/hooks/queries'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { formatTime, formatDuration } from '@/lib/format'
 import type { ShiftTemplate } from '@/api/schedule'
 
@@ -39,6 +40,8 @@ export default function ShiftTemplatesPage() {
   const { data: templates, isLoading, isError } = useShiftTemplates()
   const createMut = useCreateTemplate()
   const updateMut = useUpdateTemplate()
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
 
   const createForm = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
@@ -139,7 +142,15 @@ export default function ShiftTemplatesPage() {
         />
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            const dirty = editingItem ? editForm.formState.isDirty : createForm.formState.isDirty
+            confirmClose(dirty, () => setDialogOpen(false))
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Shift Template' : 'New Shift Template'}</DialogTitle>
@@ -217,6 +228,7 @@ export default function ShiftTemplatesPage() {
           )}
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   )
 }

@@ -15,6 +15,7 @@ import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useTeams, useCreateTeam, useUpdateTeam, useUsers } from '@/hooks/queries'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { NO_VALUE } from '@/lib/format'
 import type { TeamSummary } from '@/api/teams'
 
@@ -36,7 +37,9 @@ export default function TeamsPage() {
   const createMut = useCreateTeam()
   const updateMut = useUpdateTeam()
 
-  const { register, handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<FormValues>({
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const { register, handleSubmit, reset, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
@@ -146,7 +149,7 @@ export default function TeamsPage() {
         />
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) confirmClose(isDirty, () => setDialogOpen(false)) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Team' : 'New Team'}</DialogTitle>
@@ -191,6 +194,7 @@ export default function TeamsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   )
 }

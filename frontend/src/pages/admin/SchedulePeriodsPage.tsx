@@ -12,6 +12,7 @@ import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { useSchedulePeriods, useCreatePeriod } from '@/hooks/queries'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SchedulePeriod } from '@/api/schedulePeriods'
 
 const schema = z.object({
@@ -32,7 +33,9 @@ export default function SchedulePeriodsPage() {
   const { data: periods, isLoading, isError } = useSchedulePeriods()
   const createMut = useCreatePeriod()
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
@@ -96,7 +99,7 @@ export default function SchedulePeriodsPage() {
         />
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) confirmClose(isDirty, () => setDialogOpen(false)) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Schedule Period</DialogTitle>
@@ -119,6 +122,7 @@ export default function SchedulePeriodsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   )
 }

@@ -24,6 +24,7 @@ import {
   useShiftTemplates,
   useClassifications,
 } from '@/hooks/queries'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { formatTime } from '@/lib/format'
 import type { ShiftSlotView } from '@/api/teams'
 
@@ -52,7 +53,9 @@ export default function TeamDetailPage() {
   const createMut = useCreateSlot()
   const updateMut = useUpdateSlot()
 
-  const { handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<FormValues>({
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const { handleSubmit, reset, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
@@ -214,7 +217,7 @@ export default function TeamDetailPage() {
         />
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) confirmClose(isDirty, () => setDialogOpen(false)) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Slot' : 'New Slot'}</DialogTitle>
@@ -288,6 +291,7 @@ export default function TeamDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   )
 }

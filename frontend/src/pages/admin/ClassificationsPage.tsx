@@ -13,6 +13,7 @@ import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useClassifications, useCreateClassification, useUpdateClassification } from '@/hooks/queries'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { Classification } from '@/api/classifications'
 
 const schema = z.object({
@@ -32,7 +33,9 @@ export default function ClassificationsPage() {
   const createMut = useCreateClassification()
   const updateMut = useUpdateClassification()
 
-  const { register, handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<FormValues>({
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const { register, handleSubmit, reset, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
@@ -117,7 +120,7 @@ export default function ClassificationsPage() {
         />
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) confirmClose(isDirty, () => setDialogOpen(false)) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Classification' : 'New Classification'}</DialogTitle>
@@ -150,6 +153,7 @@ export default function ClassificationsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   )
 }
