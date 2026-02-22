@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            sl.id                   AS slot_id,\n            sl.team_id,\n            t.name                  AS team_name,\n            st.name                 AS shift_template_name,\n            st.start_time,\n            st.end_time,\n            cl.name                 AS classification_name,\n            cl.abbreviation         AS classification_abbreviation,\n            sl.days_of_week,\n            sl.label,\n            sl.is_active            AS slot_is_active,\n            sa.id                   AS \"assignment_id?\",\n            sa.user_id              AS \"user_id?\",\n            u.first_name            AS \"user_first_name?\",\n            u.last_name             AS \"user_last_name?\"\n        FROM shift_slots sl\n        JOIN teams t ON t.id = sl.team_id\n        JOIN shift_templates st ON st.id = sl.shift_template_id\n        JOIN classifications cl ON cl.id = sl.classification_id\n        LEFT JOIN slot_assignments sa ON sa.slot_id = sl.id AND sa.period_id = $2\n        LEFT JOIN users u ON u.id = sa.user_id\n        WHERE t.org_id = $1\n          AND sl.is_active = true\n        ORDER BY t.name, st.start_time, cl.abbreviation\n        ",
+  "query": "\n        SELECT\n            sl.id                   AS slot_id,\n            sl.team_id,\n            t.name                  AS team_name,\n            st.name                 AS shift_template_name,\n            st.start_time,\n            st.end_time,\n            cl.id                   AS classification_id,\n            cl.name                 AS classification_name,\n            cl.abbreviation         AS classification_abbreviation,\n            sl.days_of_week,\n            sl.label,\n            sl.is_active            AS slot_is_active,\n            sa.id                   AS \"assignment_id?\",\n            sa.user_id              AS \"user_id?\",\n            u.first_name            AS \"user_first_name?\",\n            u.last_name             AS \"user_last_name?\"\n        FROM shift_slots sl\n        JOIN teams t ON t.id = sl.team_id\n        JOIN shift_templates st ON st.id = sl.shift_template_id\n        JOIN classifications cl ON cl.id = sl.classification_id\n        LEFT JOIN slot_assignments sa ON sa.slot_id = sl.id AND sa.period_id = $2\n        LEFT JOIN users u ON u.id = sa.user_id\n        WHERE t.org_id = $1\n          AND t.is_active = true\n          AND sl.is_active = true\n        ORDER BY t.name, st.start_time, cl.abbreviation\n        ",
   "describe": {
     "columns": [
       {
@@ -35,46 +35,51 @@
       },
       {
         "ordinal": 6,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
         "name": "classification_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "classification_abbreviation",
         "type_info": "Text"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "days_of_week",
         "type_info": "Int4Array"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "label",
         "type_info": "Text"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "slot_is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "assignment_id?",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "user_id?",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "user_first_name?",
         "type_info": "Text"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "user_last_name?",
         "type_info": "Text"
       }
@@ -95,6 +100,7 @@
       false,
       false,
       false,
+      false,
       true,
       false,
       false,
@@ -103,5 +109,5 @@
       false
     ]
   },
-  "hash": "44876026eac74786922e399b4bbd1a089fc52faa98d7d935d384787e8a2c9645"
+  "hash": "5fb9e4332375bd22247b7309aafad9ecfd9e733f8acf4d1df12f72f5b50fbdd5"
 }

@@ -197,14 +197,34 @@ export default function SchedulePeriodDetailPage() {
                 <SelectValue placeholder="Select a user…" />
               </SelectTrigger>
               <SelectContent>
-                {activeUsers.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.last_name}, {u.first_name}
-                    {u.classification_id === assignTarget?.slot_id ? '' : ''}
-                  </SelectItem>
-                ))}
+                {activeUsers.map((u) => {
+                  const matches = u.classification_id === assignTarget?.classification_id
+                  return (
+                    <SelectItem key={u.id} value={u.id}>
+                      <span className={matches ? undefined : 'text-muted-foreground'}>
+                        {u.last_name}, {u.first_name}
+                        {!matches && (
+                          <span className="ml-1 text-xs">
+                            ({u.classification_name ?? 'no classification'})
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
+            {selectedUserId !== '__none__' && (() => {
+              const selectedUser = activeUsers.find((u) => u.id === selectedUserId)
+              if (selectedUser && selectedUser.classification_id !== assignTarget?.classification_id) {
+                return (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Warning: this user's classification ({selectedUser.classification_name ?? 'none'}) does not match the slot's required classification ({assignTarget?.classification_name}).
+                  </p>
+                )
+              }
+              return null
+            })()}
           </FormField>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignTarget(null)}>Cancel</Button>

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO slot_assignments (id, slot_id, user_id, period_id)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (slot_id, period_id) DO UPDATE SET user_id = EXCLUDED.user_id\n        RETURNING id, slot_id, user_id, period_id, created_at\n        ",
+  "query": "\n        INSERT INTO slot_assignments (id, slot_id, user_id, period_id)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (slot_id, period_id) DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = NOW()\n        RETURNING id, slot_id, user_id, period_id, created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,11 @@
         "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -42,8 +47,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "7d29730edf8e9742774f167851caa5ffca46dbdcb681b768e8d40e99788e0a83"
+  "hash": "9c42d9daf82060e54e06a299e729a6ba11731ac7a0f2fe0a2f6deb2aed233413"
 }

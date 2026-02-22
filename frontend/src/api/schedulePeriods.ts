@@ -16,6 +16,7 @@ export interface SlotAssignment {
   user_id: string
   period_id: string
   created_at: string
+  updated_at: string
 }
 
 export interface SlotAssignmentView {
@@ -25,6 +26,7 @@ export interface SlotAssignmentView {
   shift_template_name: string
   start_time: string
   end_time: string
+  classification_id: string
   classification_name: string
   classification_abbreviation: string
   days_of_week: number[]

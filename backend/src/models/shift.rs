@@ -72,6 +72,8 @@ pub struct SlotAssignment {
     pub period_id: Uuid,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,6 +91,7 @@ pub struct SlotAssignmentView {
     pub shift_template_name: String,
     pub start_time: time::Time,
     pub end_time: time::Time,
+    pub classification_id: Uuid,
     pub classification_name: String,
     pub classification_abbreviation: String,
     pub days_of_week: Vec<i32>,

@@ -239,8 +239,8 @@ pub async fn assign_slot(
         r#"
         INSERT INTO slot_assignments (id, slot_id, user_id, period_id)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (slot_id, period_id) DO UPDATE SET user_id = EXCLUDED.user_id
-        RETURNING id, slot_id, user_id, period_id, created_at
+        ON CONFLICT (slot_id, period_id) DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = NOW()
+        RETURNING id, slot_id, user_id, period_id, created_at, updated_at
         "#,
         Uuid::new_v4(),
         req.slot_id,
@@ -258,6 +258,10 @@ pub async fn list_period_assignments(
     auth: AuthUser,
     Path(period_id): Path<Uuid>,
 ) -> Result<Json<Vec<SlotAssignmentView>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
     org_guard::verify_period(&pool, period_id, auth.org_id).await?;
 
     let rows = sqlx::query!(
@@ -269,6 +273,7 @@ pub async fn list_period_assignments(
             st.name                 AS shift_template_name,
             st.start_time,
             st.end_time,
+            cl.id                   AS classification_id,
             cl.name                 AS classification_name,
             cl.abbreviation         AS classification_abbreviation,
             sl.days_of_week,
@@ -285,6 +290,7 @@ pub async fn list_period_assignments(
         LEFT JOIN slot_assignments sa ON sa.slot_id = sl.id AND sa.period_id = $2
         LEFT JOIN users u ON u.id = sa.user_id
         WHERE t.org_id = $1
+          AND t.is_active = true
           AND sl.is_active = true
         ORDER BY t.name, st.start_time, cl.abbreviation
         "#,
@@ -303,6 +309,7 @@ pub async fn list_period_assignments(
             shift_template_name: r.shift_template_name,
             start_time: r.start_time,
             end_time: r.end_time,
+            classification_id: r.classification_id,
             classification_name: r.classification_name,
             classification_abbreviation: r.classification_abbreviation,
             days_of_week: r.days_of_week,
@@ -328,6 +335,7 @@ pub async fn remove_slot_assignment(
     }
 
     org_guard::verify_period(&pool, period_id, auth.org_id).await?;
+    org_guard::verify_slot(&pool, slot_id, auth.org_id).await?;
 
     let rows = sqlx::query!(
         r#"
