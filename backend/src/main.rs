@@ -45,7 +45,8 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         pool,
         jwt_secret: cfg.jwt_secret.clone(),
-        jwt_expiry_hours: cfg.jwt_expiry_hours,
+        access_token_expiry_minutes: cfg.access_token_expiry_minutes,
+        refresh_token_expiry_days: cfg.refresh_token_expiry_days,
         cookie_secure: cfg.cookie_secure,
     };
 

@@ -1,9 +1,11 @@
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{extract::State, http::header, response::IntoResponse, Json};
+use axum::http::StatusCode;
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{
-    auth::{create_token, AuthUser, Role},
+    auth::{create_token, AuthUser, RefreshTokenCookie, Role},
     error::{AppError, Result},
     models::user::{EmployeeType, LoginRequest, LoginResponse, User, UserProfile},
     AppState,
@@ -44,9 +46,32 @@ pub async fn login(
         user.org_id,
         user.role.clone(),
         &state.jwt_secret,
-        state.jwt_expiry_hours,
+        state.access_token_expiry_minutes,
     )
     .map_err(AppError::Internal)?;
+
+    // Generate and store refresh token
+    let refresh_raw = Uuid::new_v4().to_string();
+    let refresh_expires = time::OffsetDateTime::now_utc()
+        + time::Duration::days(state.refresh_token_expiry_days as i64);
+
+    // Clean up expired refresh tokens for this user (best-effort)
+    let _ = sqlx::query!(
+        "DELETE FROM refresh_tokens WHERE user_id = $1 AND expires_at < NOW()",
+        user.id
+    )
+    .execute(&state.pool)
+    .await;
+
+    sqlx::query!(
+        "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
+        user.id,
+        user.org_id,
+        refresh_raw,
+        refresh_expires,
+    )
+    .execute(&state.pool)
+    .await?;
 
     // Fetch classification name if set
     let classification_name = if let Some(cid) = user.classification_id {
@@ -57,16 +82,31 @@ pub async fn login(
         None
     };
 
-    let cookie_str = format!(
+    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
+
+    let auth_cookie = format!(
         "auth_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
         token,
-        state.jwt_expiry_hours * 3600,
-        if state.cookie_secure { "; Secure" } else { "" }
+        state.access_token_expiry_minutes * 60,
+        secure_flag,
     );
+    let refresh_cookie = format!(
+        "refresh_token={}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        refresh_raw,
+        state.refresh_token_expiry_days * 86400,
+        secure_flag,
+    );
+
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        cookie_str
+        auth_cookie
+            .parse()
+            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+    );
+    headers.append(
+        header::SET_COOKIE,
+        refresh_cookie
             .parse()
             .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
     );
@@ -95,14 +135,145 @@ pub async fn login(
     ))
 }
 
-pub async fn logout() -> impl IntoResponse {
-    (
-        [(
-            header::SET_COOKIE,
-            "auth_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
-        )],
-        axum::http::StatusCode::NO_CONTENT,
+pub async fn logout(
+    State(state): State<AppState>,
+    refresh: Option<RefreshTokenCookie>,
+) -> impl IntoResponse {
+    if let Some(RefreshTokenCookie(raw)) = refresh {
+        let _ = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", raw)
+            .execute(&state.pool)
+            .await;
+    }
+
+    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
+    let clear_auth = format!(
+        "auth_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{}",
+        secure_flag
+    );
+    let clear_refresh = format!(
+        "refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0{}",
+        secure_flag
+    );
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        clear_auth.parse().unwrap(),
+    );
+    headers.append(
+        header::SET_COOKIE,
+        clear_refresh.parse().unwrap(),
+    );
+
+    (headers, StatusCode::NO_CONTENT)
+}
+
+pub async fn refresh(
+    State(state): State<AppState>,
+    RefreshTokenCookie(raw): RefreshTokenCookie,
+) -> Result<impl IntoResponse> {
+    struct RefreshRow {
+        id: Uuid,
+        user_id: Uuid,
+        org_id: Uuid,
+        expires_at: time::OffsetDateTime,
+    }
+
+    let row = sqlx::query_as!(
+        RefreshRow,
+        r#"SELECT id, user_id, org_id, expires_at FROM refresh_tokens WHERE token = $1"#,
+        raw
     )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::Unauthorized)?;
+
+    if row.expires_at < time::OffsetDateTime::now_utc() {
+        let _ = sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
+            .execute(&state.pool)
+            .await;
+        return Err(AppError::Unauthorized);
+    }
+
+    // Consume old token (rotation)
+    sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
+        .execute(&state.pool)
+        .await?;
+
+    // Verify user still active
+    struct UserRow {
+        role: Role,
+        is_active: bool,
+    }
+    let user = sqlx::query_as!(
+        UserRow,
+        r#"SELECT role AS "role: Role", is_active FROM users WHERE id = $1 AND org_id = $2"#,
+        row.user_id,
+        row.org_id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::Unauthorized)?;
+
+    if !user.is_active {
+        return Err(AppError::Unauthorized);
+    }
+
+    // Issue new access token
+    let access_token = create_token(
+        row.user_id,
+        row.org_id,
+        user.role,
+        &state.jwt_secret,
+        state.access_token_expiry_minutes,
+    )
+    .map_err(AppError::Internal)?;
+
+    // Issue new refresh token
+    let new_refresh_raw = Uuid::new_v4().to_string();
+    let refresh_expires = time::OffsetDateTime::now_utc()
+        + time::Duration::days(state.refresh_token_expiry_days as i64);
+
+    sqlx::query!(
+        "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
+        row.user_id,
+        row.org_id,
+        new_refresh_raw,
+        refresh_expires,
+    )
+    .execute(&state.pool)
+    .await?;
+
+    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
+
+    let auth_cookie = format!(
+        "auth_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
+        access_token,
+        state.access_token_expiry_minutes * 60,
+        secure_flag,
+    );
+    let refresh_cookie = format!(
+        "refresh_token={}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        new_refresh_raw,
+        state.refresh_token_expiry_days * 86400,
+        secure_flag,
+    );
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        auth_cookie
+            .parse()
+            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+    );
+    headers.append(
+        header::SET_COOKIE,
+        refresh_cookie
+            .parse()
+            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+    );
+
+    Ok((headers, StatusCode::NO_CONTENT))
 }
 
 pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserProfile>> {

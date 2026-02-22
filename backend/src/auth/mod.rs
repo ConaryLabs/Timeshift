@@ -100,16 +100,34 @@ where
     }
 }
 
-/// Try cookie first (browser requests), then Authorization: Bearer (API/tests).
-fn extract_token_from_parts(headers: &HeaderMap) -> Option<String> {
-    extract_cookie_token(headers).or_else(|| extract_bearer_token(headers))
+/// Extractor for the `refresh_token` HttpOnly cookie.
+pub struct RefreshTokenCookie(pub String);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for RefreshTokenCookie
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        extract_cookie(&parts.headers, "refresh_token")
+            .map(RefreshTokenCookie)
+            .ok_or(AppError::Unauthorized)
+    }
 }
 
-fn extract_cookie_token(headers: &HeaderMap) -> Option<String> {
+/// Try cookie first (browser requests), then Authorization: Bearer (API/tests).
+fn extract_token_from_parts(headers: &HeaderMap) -> Option<String> {
+    extract_cookie(headers, "auth_token").or_else(|| extract_bearer_token(headers))
+}
+
+pub fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     let cookie_header = headers.get("Cookie")?.to_str().ok()?;
+    let prefix = format!("{}=", name);
     for part in cookie_header.split(';') {
         let part = part.trim();
-        if let Some(val) = part.strip_prefix("auth_token=") {
+        if let Some(val) = part.strip_prefix(&prefix) {
             return Some(val.to_string());
         }
     }
@@ -127,12 +145,12 @@ pub fn create_token(
     org_id: Uuid,
     role: Role,
     secret: &str,
-    expiry_hours: u64,
+    expiry_minutes: u64,
 ) -> anyhow::Result<String> {
     use jsonwebtoken::{encode, EncodingKey, Header};
 
     let now = OffsetDateTime::now_utc();
-    let exp = now + time::Duration::hours(expiry_hours as i64);
+    let exp = now + time::Duration::minutes(expiry_minutes as i64);
 
     let claims = Claims {
         sub: user_id,

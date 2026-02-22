@@ -12,7 +12,8 @@ use sqlx::PgPool;
 pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: String,
-    pub jwt_expiry_hours: u64,
+    pub access_token_expiry_minutes: u64,
+    pub refresh_token_expiry_days: u64,
     pub cookie_secure: bool,
 }
 

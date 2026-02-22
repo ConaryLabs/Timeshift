@@ -19,6 +19,7 @@ pub fn router(state: AppState) -> Router {
         // Auth (login route is in main.rs with rate limiting)
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/refresh", post(auth::refresh))
         // Organization (own org only)
         .route(
             "/api/organization",

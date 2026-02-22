@@ -16,7 +16,7 @@ fn database_url() -> String {
         .expect("TEST_DATABASE_URL must be set — tests write/delete data and should not run against a shared database")
 }
 const JWT_SECRET: &str = "test-secret-that-is-at-least-32-chars-long!!";
-const JWT_EXPIRY_HOURS: u64 = 12;
+const ACCESS_TOKEN_EXPIRY_MINUTES: u64 = 15;
 
 /// Spin up a real Axum server on a random port, returning its address and the
 /// database pool.  All tests share the same dev database; test isolation comes
@@ -37,7 +37,8 @@ pub async fn setup_test_app() -> (SocketAddr, PgPool) {
     let state = AppState {
         pool: pool.clone(),
         jwt_secret: JWT_SECRET.to_string(),
-        jwt_expiry_hours: JWT_EXPIRY_HOURS,
+        access_token_expiry_minutes: ACCESS_TOKEN_EXPIRY_MINUTES,
+        refresh_token_expiry_days: 30,
         cookie_secure: false,
     };
 
