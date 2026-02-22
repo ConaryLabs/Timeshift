@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -12,10 +21,14 @@ import type { LeaveRequest } from '@/api/leave'
 
 const INITIAL_FORM = { leave_type_id: '', start_date: '', end_date: '', reason: '' }
 
+type ReviewTarget = { id: string; action: 'approved' | 'denied' }
+
 export default function LeavePage() {
   const { isManager } = usePermissions()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
+  const [reviewerNotes, setReviewerNotes] = useState('')
 
   const { data: requests, isLoading, isError } = useLeaveRequests()
   const { data: leaveTypes } = useLeaveTypes()
@@ -37,6 +50,19 @@ export default function LeavePage() {
           setShowForm(false)
         },
       },
+    )
+  }
+
+  function openReview(id: string, action: 'approved' | 'denied') {
+    setReviewerNotes('')
+    setReviewTarget({ id, action })
+  }
+
+  function handleReview() {
+    if (!reviewTarget) return
+    reviewMut.mutate(
+      { id: reviewTarget.id, status: reviewTarget.action, reviewer_notes: reviewerNotes || undefined },
+      { onSuccess: () => setReviewTarget(null) },
     )
   }
 
@@ -62,7 +88,7 @@ export default function LeavePage() {
                   size="sm"
                   variant="outline"
                   className="text-green-700 hover:bg-green-50"
-                  onClick={() => reviewMut.mutate({ id: r.id, status: 'approved' })}
+                  onClick={() => openReview(r.id, 'approved')}
                 >
                   Approve
                 </Button>
@@ -70,7 +96,7 @@ export default function LeavePage() {
                   size="sm"
                   variant="outline"
                   className="text-red-700 hover:bg-red-50"
-                  onClick={() => reviewMut.mutate({ id: r.id, status: 'denied' })}
+                  onClick={() => openReview(r.id, 'denied')}
                 >
                   Deny
                 </Button>
@@ -136,6 +162,38 @@ export default function LeavePage() {
           rowKey={(r) => r.id}
         />
       )}
+
+      <Dialog open={!!reviewTarget} onOpenChange={(open) => !open && setReviewTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {reviewTarget?.action === 'approved' ? 'Approve Request' : 'Deny Request'}
+            </DialogTitle>
+            <DialogDescription>
+              Optionally add notes for the employee.
+            </DialogDescription>
+          </DialogHeader>
+          <FormField label="Reviewer Notes" htmlFor="reviewer-notes">
+            <Textarea
+              id="reviewer-notes"
+              value={reviewerNotes}
+              onChange={(e) => setReviewerNotes(e.target.value)}
+              placeholder="Optional notes…"
+              rows={3}
+            />
+          </FormField>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
+            <Button
+              variant={reviewTarget?.action === 'approved' ? 'default' : 'destructive'}
+              onClick={handleReview}
+              disabled={reviewMut.isPending}
+            >
+              {reviewTarget?.action === 'approved' ? 'Approve' : 'Deny'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

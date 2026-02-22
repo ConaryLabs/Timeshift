@@ -1,22 +1,79 @@
 import { useState } from 'react'
+import { format, addDays } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
-import { useCalloutEvents, useCalloutList, useCancelCalloutEvent } from '@/hooks/queries'
+import {
+  useCalloutEvents,
+  useCalloutList,
+  useCancelCalloutEvent,
+  useCreateCalloutEvent,
+  useScheduledShifts,
+  useShiftTemplates,
+  useClassifications,
+} from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
+import { NO_VALUE } from '@/lib/format'
 import type { CalloutListEntry } from '@/api/callout'
+
+const INITIAL_FORM = {
+  scheduled_shift_id: NO_VALUE,
+  classification_id: NO_VALUE,
+  reason_text: '',
+}
 
 export default function CalloutPage() {
   const { isManager } = usePermissions()
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
+  const [showInitiate, setShowInitiate] = useState(false)
+  const [form, setForm] = useState(INITIAL_FORM)
+
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
 
   const { data: events, isLoading, isError } = useCalloutEvents()
   const { data: calloutList } = useCalloutList(selectedEvent ?? '')
   const cancelMut = useCancelCalloutEvent()
+  const createMut = useCreateCalloutEvent()
+
+  const { data: scheduledShifts } = useScheduledShifts({ start_date: today, end_date: twoWeeksOut })
+  const { data: templates } = useShiftTemplates()
+  const { data: classifications } = useClassifications()
+
+  const templateMap = Object.fromEntries((templates ?? []).map((t) => [t.id, t]))
+
+  function handleInitiate() {
+    if (form.scheduled_shift_id === NO_VALUE) return
+    createMut.mutate(
+      {
+        scheduled_shift_id: form.scheduled_shift_id,
+        classification_id: form.classification_id !== NO_VALUE ? form.classification_id : undefined,
+        reason_text: form.reason_text || undefined,
+      },
+      {
+        onSuccess: (ev) => {
+          setShowInitiate(false)
+          setForm(INITIAL_FORM)
+          setSelectedEvent(ev.id)
+        },
+      },
+    )
+  }
 
   const calloutColumns: Column<CalloutListEntry>[] = [
     { header: '#', cell: (r) => <span className="font-semibold">{r.position}</span> },
@@ -47,7 +104,14 @@ export default function CalloutPage() {
 
   return (
     <div>
-      <PageHeader title="Callout" />
+      <PageHeader
+        title="Callout"
+        actions={
+          isManager ? (
+            <Button onClick={() => setShowInitiate(true)}>+ Initiate Callout</Button>
+          ) : undefined
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Events list */}
@@ -122,6 +186,83 @@ export default function CalloutPage() {
           )}
         </div>
       </div>
+
+      {/* Initiate callout dialog */}
+      <Dialog open={showInitiate} onOpenChange={(open) => !open && setShowInitiate(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Initiate Callout</DialogTitle>
+            <DialogDescription>
+              Select the shift that needs coverage.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <FormField label="Shift" htmlFor="callout-shift" required>
+              <Select
+                value={form.scheduled_shift_id}
+                onValueChange={(v) => setForm({ ...form, scheduled_shift_id: v })}
+              >
+                <SelectTrigger id="callout-shift">
+                  <SelectValue placeholder="Select a shift…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(scheduledShifts ?? []).map((s) => {
+                    const tmpl = templateMap[s.shift_template_id]
+                    const label = tmpl
+                      ? `${s.date} — ${tmpl.name}`
+                      : s.date
+                    return (
+                      <SelectItem key={s.id} value={s.id}>
+                        {label}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Classification Filter" htmlFor="callout-class">
+              <Select
+                value={form.classification_id}
+                onValueChange={(v) => setForm({ ...form, classification_id: v })}
+              >
+                <SelectTrigger id="callout-class">
+                  <SelectValue placeholder="Any classification" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_VALUE}>Any classification</SelectItem>
+                  {(classifications ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} ({c.abbreviation})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Reason" htmlFor="callout-reason">
+              <Textarea
+                id="callout-reason"
+                value={form.reason_text}
+                onChange={(e) => setForm({ ...form, reason_text: e.target.value })}
+                placeholder="Optional reason for the callout…"
+                rows={3}
+              />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInitiate(false)}>Cancel</Button>
+            <Button
+              onClick={handleInitiate}
+              disabled={form.scheduled_shift_id === NO_VALUE || createMut.isPending}
+            >
+              Initiate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
