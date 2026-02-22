@@ -163,7 +163,7 @@ pub async fn callout_list(
 
     let event = sqlx::query!(
         r#"
-        SELECT ce.scheduled_shift_id, ss.org_id
+        SELECT ce.scheduled_shift_id, ss.org_id, ss.date AS shift_date
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         WHERE ce.id = $1
@@ -177,6 +177,10 @@ pub async fn callout_list(
     if event.org_id != auth.org_id {
         return Err(AppError::NotFound("Callout event not found".into()));
     }
+
+    // Use shift date's calendar year so the displayed OT hours match what
+    // record_attempt will record (consistent with fiscal_year in that handler).
+    let fiscal_year: i32 = event.shift_date.year();
 
     let rows = sqlx::query!(
         r#"
@@ -217,7 +221,7 @@ pub async fn callout_list(
         FROM users u
         LEFT JOIN classifications cl ON cl.id = u.classification_id
         LEFT JOIN ot_hours ot ON ot.user_id = u.id
-            AND ot.fiscal_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
+            AND ot.fiscal_year = $3
             AND ot.classification_id IS NULL
         WHERE u.is_active = true AND u.org_id = $2
         ORDER BY
@@ -234,6 +238,7 @@ pub async fn callout_list(
         "#,
         event.scheduled_shift_id,
         auth.org_id,
+        fiscal_year,
     )
     .fetch_all(&pool)
     .await?;
