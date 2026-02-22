@@ -12,6 +12,8 @@ import TeamsPage from '@/pages/admin/TeamsPage'
 import TeamDetailPage from '@/pages/admin/TeamDetailPage'
 import UsersPage from '@/pages/admin/UsersPage'
 import OrgSettingsPage from '@/pages/admin/OrgSettingsPage'
+import SchedulePeriodsPage from '@/pages/admin/SchedulePeriodsPage'
+import SchedulePeriodDetailPage from '@/pages/admin/SchedulePeriodDetailPage'
 import AppShell from '@/components/layout/AppShell'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -83,6 +85,22 @@ export default function App() {
               element={
                 <RequireRole roles="admin">
                   <UsersPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="schedule-periods"
+              element={
+                <RequireRole roles="admin">
+                  <SchedulePeriodsPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="schedule-periods/:id"
+              element={
+                <RequireRole roles="admin">
+                  <SchedulePeriodDetailPage />
                 </RequireRole>
               }
             />

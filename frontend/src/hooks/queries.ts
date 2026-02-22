@@ -39,6 +39,7 @@ export const queryKeys = {
   },
   periods: {
     all: ['schedule-periods'] as const,
+    assignments: (periodId: string) => ['schedule-periods', periodId, 'assignments'] as const,
   },
   shifts: {
     templates: ['shift-templates'] as const,
@@ -285,12 +286,33 @@ export function useCreatePeriod() {
   })
 }
 
+export function useSlotAssignments(periodId: string) {
+  return useQuery({
+    queryKey: queryKeys.periods.assignments(periodId),
+    queryFn: () => schedulePeriodsApi.listAssignments(periodId),
+    enabled: !!periodId,
+  })
+}
+
 export function useAssignSlot() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ periodId, ...body }: { periodId: string; slot_id: string; user_id: string }) =>
       schedulePeriodsApi.assignSlot(periodId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.periods.all }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.periods.assignments(vars.periodId) })
+    },
+  })
+}
+
+export function useRemoveSlotAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ periodId, slotId }: { periodId: string; slotId: string }) =>
+      schedulePeriodsApi.removeAssignment(periodId, slotId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.periods.assignments(vars.periodId) })
+    },
   })
 }
 

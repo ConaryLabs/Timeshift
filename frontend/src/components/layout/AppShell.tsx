@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Calendar,
+  CalendarDays,
   ClipboardList,
   Phone,
   Users,
@@ -55,6 +56,7 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
       { to: '/admin/shift-templates', label: 'Shift Templates', icon: <Clock className="h-4 w-4" /> },
       { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
       { to: '/admin/users', label: 'Users', icon: <Users className="h-4 w-4" /> },
+      { to: '/admin/schedule-periods', label: 'Bid Periods', icon: <CalendarDays className="h-4 w-4" /> },
       { to: '/admin/settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
     )
   } else if (isManager) {

@@ -89,6 +89,14 @@ pub fn router(state: AppState) -> Router {
             "/api/schedule/periods/{id}/assign",
             post(schedule::assign_slot),
         )
+        .route(
+            "/api/schedule/periods/{id}/assignments",
+            get(schedule::list_period_assignments),
+        )
+        .route(
+            "/api/schedule/periods/{id}/assignments/{slot_id}",
+            delete(schedule::remove_slot_assignment),
+        )
         // Leave types
         .route("/api/leave/types", get(leave::list_types))
         // Leave requests

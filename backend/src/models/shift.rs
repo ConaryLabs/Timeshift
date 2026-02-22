@@ -80,6 +80,26 @@ pub struct CreateSlotAssignmentRequest {
     pub user_id: Uuid,
 }
 
+/// A slot with its assignment info for a period (user_* fields None when unassigned).
+#[derive(Debug, Clone, Serialize)]
+pub struct SlotAssignmentView {
+    pub slot_id: Uuid,
+    pub team_id: Uuid,
+    pub team_name: String,
+    pub shift_template_name: String,
+    pub start_time: time::Time,
+    pub end_time: time::Time,
+    pub classification_name: String,
+    pub classification_abbreviation: String,
+    pub days_of_week: Vec<i32>,
+    pub label: Option<String>,
+    pub slot_is_active: bool,
+    pub assignment_id: Option<Uuid>,
+    pub user_id: Option<Uuid>,
+    pub user_first_name: Option<String>,
+    pub user_last_name: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateShiftTemplateRequest {
     pub name: Option<String>,

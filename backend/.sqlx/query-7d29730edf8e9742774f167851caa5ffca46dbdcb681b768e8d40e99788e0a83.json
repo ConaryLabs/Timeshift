@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO slot_assignments (id, slot_id, user_id, period_id)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, slot_id, user_id, period_id, created_at\n        ",
+  "query": "\n        INSERT INTO slot_assignments (id, slot_id, user_id, period_id)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (slot_id, period_id) DO UPDATE SET user_id = EXCLUDED.user_id\n        RETURNING id, slot_id, user_id, period_id, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -45,5 +45,5 @@
       false
     ]
   },
-  "hash": "0cacbab7ec482a50d159d21492837cc04b9f1557e9eb36aabf795b469c86ec27"
+  "hash": "7d29730edf8e9742774f167851caa5ffca46dbdcb681b768e8d40e99788e0a83"
 }
