@@ -20,6 +20,7 @@ import SchedulePeriodDetailPage from '@/pages/admin/SchedulePeriodDetailPage'
 import VacationBidAdminPage from '@/pages/admin/VacationBidAdminPage'
 import HolidayCalendarPage from '@/pages/admin/HolidayCalendarPage'
 import ReportsPage from '@/pages/admin/ReportsPage'
+import DashboardPage from '@/pages/DashboardPage'
 import DayViewPage from '@/pages/DayViewPage'
 import CoverageRequirementsPage from '@/pages/admin/CoverageRequirementsPage'
 import VacationBidPage from '@/pages/VacationBidPage'
@@ -161,6 +162,14 @@ export default function App() {
               element={
                 <RequireRole roles="admin">
                   <HolidayCalendarPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="dashboard"
+              element={
+                <RequireRole roles={['admin', 'supervisor']}>
+                  <DashboardPage />
                 </RequireRole>
               }
             />

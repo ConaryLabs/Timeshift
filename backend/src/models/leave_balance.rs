@@ -103,7 +103,17 @@ pub struct LeaveRequestLine {
     pub id: Uuid,
     pub leave_request_id: Uuid,
     pub date: time::Date,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "crate::models::common::time_format_option"
+    )]
     pub start_time: Option<time::Time>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "crate::models::common::time_format_option"
+    )]
     pub end_time: Option<time::Time>,
     pub hours: f64,
 }

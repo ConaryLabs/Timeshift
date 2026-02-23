@@ -37,6 +37,7 @@ export interface VacationBid {
 
 export interface VacationWindowDetail {
   window: VacationBidWindow
+  round: number
   bids: VacationBid[]
   dates_taken: string[]
 }

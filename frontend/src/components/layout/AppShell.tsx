@@ -83,6 +83,7 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
   } else if (isManager) {
     admin.push(
       { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
+      { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
     )
   }
 

@@ -243,7 +243,7 @@ pub async fn list_windows(
         return Err(AppError::NotFound("Vacation bid period not found".into()));
     }
 
-    let is_admin = auth.role.is_admin();
+    let is_admin = auth.role.can_manage_schedule();
 
     let rows = sqlx::query!(
         r#"
@@ -308,8 +308,8 @@ pub async fn get_window(
         return Err(AppError::NotFound("Vacation bid window not found".into()));
     }
 
-    // Non-admin can only see own window
-    if !auth.role.is_admin() && w.user_id != auth.id {
+    // Non-manager can only see own window
+    if !auth.role.can_manage_schedule() && w.user_id != auth.id {
         return Err(AppError::Forbidden);
     }
 
@@ -363,6 +363,7 @@ pub async fn get_window(
 
     Ok(Json(VacationWindowDetail {
         window,
+        round: w.round,
         bids,
         dates_taken: awarded_dates,
     }))

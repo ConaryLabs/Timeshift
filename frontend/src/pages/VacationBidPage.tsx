@@ -90,30 +90,22 @@ export default function VacationBidPage() {
     return set
   }, [picks])
 
-  const window = data?.window
-  const round = useMemo(() => {
-    if (!window) return 1
-    // Determine round from the period - we need to check if it's round 1 or 2
-    // The window detail doesn't directly have round, but we can check from bids or infer
-    // For now, we'll need to pass it somehow. Let's check the period query.
-    // Actually, the VacationWindowDetail doesn't include round. We'll add it to the query response.
-    // For now, default to round 2 (individual days) as it's the most flexible
-    return 1 // Will be determined by actual period data
-  }, [window])
+  const bidWindow = data?.window
+  const round = data?.round ?? 1
 
   const isWindowOpen = useMemo(() => {
-    if (!window) return false
+    if (!bidWindow) return false
     const now = new Date()
-    return now >= new Date(window.opens_at) && now <= new Date(window.closes_at)
-  }, [window])
+    return now >= new Date(bidWindow.opens_at) && now <= new Date(bidWindow.closes_at)
+  }, [bidWindow])
 
-  const hasSubmitted = !!window?.submitted_at
+  const hasSubmitted = !!bidWindow?.submitted_at
 
   const year = useMemo(() => {
-    if (!window) return new Date().getFullYear()
+    if (!bidWindow) return new Date().getFullYear()
     // Infer year from window dates
-    return new Date(window.opens_at).getFullYear()
-  }, [window])
+    return new Date(bidWindow.opens_at).getFullYear()
+  }, [bidWindow])
 
   const handleDayClick = useCallback((date: Date) => {
     const dateStr = dateToStr(date)
@@ -189,7 +181,7 @@ export default function VacationBidPage() {
     <div>
       <PageHeader
         title="Vacation Bid"
-        description={`${window?.first_name} ${window?.last_name} - Seniority Rank #${window?.seniority_rank}`}
+        description={`${bidWindow?.first_name} ${bidWindow?.last_name} - Seniority Rank #${bidWindow?.seniority_rank}`}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -218,7 +210,7 @@ export default function VacationBidPage() {
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200">
-                  {new Date() < new Date(window?.opens_at ?? '') ? 'Not Yet Open' : 'Window Closed'}
+                  {new Date() < new Date(bidWindow?.opens_at ?? '') ? 'Not Yet Open' : 'Window Closed'}
                 </Badge>
               )}
             </CardContent>
@@ -269,7 +261,7 @@ export default function VacationBidPage() {
                     </div>
                   ))}
                   <p className="text-xs text-muted-foreground mt-2">
-                    Submitted {new Date(window?.submitted_at ?? '').toLocaleString()}
+                    Submitted {new Date(bidWindow?.submitted_at ?? '').toLocaleString()}
                   </p>
                 </>
               ) : picks.length === 0 ? (
@@ -323,11 +315,11 @@ export default function VacationBidPage() {
             <CardContent className="text-sm space-y-1">
               <p>
                 <span className="text-muted-foreground">Opens:</span>{' '}
-                {new Date(window?.opens_at ?? '').toLocaleString()}
+                {new Date(bidWindow?.opens_at ?? '').toLocaleString()}
               </p>
               <p>
                 <span className="text-muted-foreground">Closes:</span>{' '}
-                {new Date(window?.closes_at ?? '').toLocaleString()}
+                {new Date(bidWindow?.closes_at ?? '').toLocaleString()}
               </p>
               <p>
                 <span className="text-muted-foreground">Round:</span>{' '}

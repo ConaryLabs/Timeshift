@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: BidPeriodStatus\" FROM schedule_periods WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: BidPeriodStatus",
+        "type_info": {
+          "Custom": {
+            "name": "bid_period_status",
+            "kind": {
+              "Enum": [
+                "draft",
+                "open",
+                "in_progress",
+                "completed",
+                "archived"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8d0029467662dd680a1e7361c3785f678ec7d2e3781ef91793f78ca73dd1bfe6"
+}

@@ -46,6 +46,11 @@ pub struct CalloutAttempt {
     pub event_id: Uuid,
     pub user_id: Uuid,
     pub list_position: i32,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
     pub contacted_at: Option<OffsetDateTime>,
     pub response: Option<String>,
     pub ot_hours_at_contact: f64,
