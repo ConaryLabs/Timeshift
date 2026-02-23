@@ -327,7 +327,7 @@ export default function CalloutPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Events list */}
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">Events</h3>

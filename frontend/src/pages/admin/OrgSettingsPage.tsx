@@ -112,6 +112,7 @@ function ConfigSection() {
         <Button
           size="sm"
           variant="outline"
+          aria-label="Save fiscal year start month"
           onClick={() => saveSetting('fiscal_year_start_month', Number(fiscalMonth))}
           disabled={setMut.isPending}
         >
@@ -135,6 +136,7 @@ function ConfigSection() {
         <Button
           size="sm"
           variant="outline"
+          aria-label="Save pay period type"
           onClick={() => saveSetting('pay_period_type', payPeriod)}
           disabled={setMut.isPending}
         >
@@ -156,6 +158,7 @@ function ConfigSection() {
         <Button
           size="sm"
           variant="outline"
+          aria-label="Save bid cycle"
           onClick={() => saveSetting('bid_cycle_months', Number(bidCycle))}
           disabled={setMut.isPending}
         >
@@ -178,16 +181,11 @@ export default function OrgSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', timezone: '' },
+    values: org ? { name: org.name, timezone: org.timezone } : { name: '', timezone: '' },
+    resetOptions: { keepDirtyValues: true },
   })
 
   const timezone = watch('timezone')
-
-  useEffect(() => {
-    if (org) {
-      reset({ name: org.name, timezone: org.timezone })
-    }
-  }, [org, reset])
 
   function onSubmit(values: FormValues) {
     updateMut.mutate(values, {
