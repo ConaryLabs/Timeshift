@@ -422,9 +422,10 @@ pub async fn advance_step(
         }
     };
     if req.step != expected {
-        return Err(AppError::BadRequest(
-            format!("Next step must be {:?}; got {:?}", expected, req.step),
-        ));
+        return Err(AppError::BadRequest(format!(
+            "Next step must be {:?}; got {:?}",
+            expected, req.step
+        )));
     }
 
     sqlx::query!(
