@@ -210,7 +210,7 @@ pub async fn callout_list(
 
     let today = time::OffsetDateTime::now_utc().date();
     let days_until_shift = (event.shift_date - today).whole_days();
-    let cross_class_eligible = days_until_shift <= window_days;
+    let cross_class_eligible = days_until_shift >= 0 && days_until_shift <= window_days;
 
     let rows = sqlx::query!(
         r#"
@@ -846,7 +846,36 @@ pub async fn review_bump_request(
     .await?;
 
     if req.approved {
-        // 3a. Cancel displaced user's OT assignment
+        // 3a. Re-verify requesting user is still active in this org.
+        let requester_ok = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND is_active = true)",
+            br.requesting_user_id,
+            auth.org_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?
+        .unwrap_or(false);
+
+        if !requester_ok {
+            return Err(AppError::Conflict(
+                "Requesting user is no longer active".into(),
+            ));
+        }
+
+        // 3b. Fetch ot_type from displaced user's assignment, then cancel it.
+        let displaced_ot_type: Option<String> = sqlx::query_scalar!(
+            r#"
+            SELECT ot_type FROM assignments
+            WHERE scheduled_shift_id = $1 AND user_id = $2
+              AND is_overtime = true AND cancelled_at IS NULL
+            "#,
+            scheduled_shift_id,
+            br.displaced_user_id,
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+
         sqlx::query!(
             r#"
             UPDATE assignments SET cancelled_at = NOW()
@@ -859,16 +888,17 @@ pub async fn review_bump_request(
         .execute(&mut *tx)
         .await?;
 
-        // 3b. Insert new OT assignment for requester
+        // 3c. Insert new OT assignment for requester, copying ot_type from displaced.
         sqlx::query!(
             r#"
-            INSERT INTO assignments (id, scheduled_shift_id, user_id, is_overtime, created_by)
-            VALUES (gen_random_uuid(), $1, $2, true, $3)
+            INSERT INTO assignments (id, scheduled_shift_id, user_id, is_overtime, created_by, ot_type)
+            VALUES (gen_random_uuid(), $1, $2, true, $3, $4)
             ON CONFLICT (scheduled_shift_id, user_id) DO NOTHING
             "#,
             scheduled_shift_id,
             br.requesting_user_id,
             auth.id,
+            displaced_ot_type,
         )
         .execute(&mut *tx)
         .await?;
