@@ -157,7 +157,11 @@ pub async fn get_auth_token(addr: SocketAddr, email: &str, password: &str) -> St
         .iter()
         .find_map(|v| {
             let s = v.to_str().ok()?;
-            if s.starts_with("auth_token=") { Some(s.to_string()) } else { None }
+            if s.starts_with("auth_token=") {
+                Some(s.to_string())
+            } else {
+                None
+            }
         })
         .expect("Response should contain auth_token cookie");
 
@@ -213,6 +217,7 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
         // Trade requests
         "DELETE FROM trade_requests WHERE org_id = $1",
         // Callout chain
+        "DELETE FROM bump_requests WHERE org_id = $1",
         "DELETE FROM ot_volunteers WHERE callout_event_id IN (SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ss.org_id = $1)",
         "DELETE FROM callout_attempts WHERE event_id IN (SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ss.org_id = $1)",
         "DELETE FROM callout_events WHERE scheduled_shift_id IN (SELECT id FROM scheduled_shifts WHERE org_id = $1)",
@@ -253,4 +258,109 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
     for q in cleanup_queries {
         let _ = sqlx::query(q).bind(org_id).execute(pool).await;
     }
+}
+
+/// Create a test classification for an org. Returns the classification ID.
+pub async fn create_test_classification(pool: &PgPool, org_id: Uuid) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO classifications (id, org_id, name, abbreviation) VALUES ($1, $2, 'Dispatcher', 'DISP')",
+    )
+    .bind(id)
+    .bind(org_id)
+    .execute(pool)
+    .await
+    .expect("Failed to create test classification");
+    id
+}
+
+/// Create a test shift template for an org. Returns the template ID.
+pub async fn create_test_shift_template(pool: &PgPool, org_id: Uuid) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO shift_templates (id, org_id, name, start_time, end_time, duration_minutes, color) \
+         VALUES ($1, $2, 'Day Shift', '07:00:00', '19:00:00', 720, '#3B82F6')",
+    )
+    .bind(id)
+    .bind(org_id)
+    .execute(pool)
+    .await
+    .expect("Failed to create test shift template");
+    id
+}
+
+/// Create a test scheduled shift. Returns the scheduled shift ID.
+pub async fn create_test_scheduled_shift(
+    pool: &PgPool,
+    org_id: Uuid,
+    shift_template_id: Uuid,
+    date: time::Date,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(id)
+    .bind(org_id)
+    .bind(shift_template_id)
+    .bind(date)
+    .execute(pool)
+    .await
+    .expect("Failed to create test scheduled shift");
+    id
+}
+
+/// Create a test user with a specific classification. Returns the user ID.
+pub async fn create_test_user_with_classification(
+    pool: &PgPool,
+    org_id: Uuid,
+    classification_id: Uuid,
+    role: &str,
+    email: &str,
+) -> (Uuid, String) {
+    let user_id = Uuid::new_v4();
+    let password = "testpass123";
+    let salt = SaltString::generate(&mut OsRng);
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .expect("Failed to hash password")
+        .to_string();
+
+    sqlx::query(
+        "INSERT INTO users (id, org_id, first_name, last_name, email, password_hash, role, classification_id, is_active) \
+         VALUES ($1, $2, 'Test', 'User', $3, $4, $5::app_role, $6, true)",
+    )
+    .bind(user_id)
+    .bind(org_id)
+    .bind(email)
+    .bind(&hash)
+    .bind(role)
+    .bind(classification_id)
+    .execute(pool)
+    .await
+    .expect("Failed to create test user with classification");
+
+    (user_id, password.to_string())
+}
+
+/// Create a callout event directly in the DB. Returns the event ID.
+pub async fn create_test_callout_event(
+    pool: &PgPool,
+    scheduled_shift_id: Uuid,
+    initiated_by: Uuid,
+    classification_id: Uuid,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO callout_events (id, scheduled_shift_id, initiated_by, classification_id, status) \
+         VALUES ($1, $2, $3, $4, 'open')",
+    )
+    .bind(id)
+    .bind(scheduled_shift_id)
+    .bind(initiated_by)
+    .bind(classification_id)
+    .execute(pool)
+    .await
+    .expect("Failed to create test callout event");
+    id
 }
