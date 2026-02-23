@@ -10,6 +10,9 @@ export interface VacationBidPeriod {
   status: VacationBidPeriodStatus
   opens_at: string | null
   closes_at: string | null
+  allowance_hours: number | null
+  min_block_hours: number | null
+  bargaining_unit: string | null
   created_at: string
 }
 
@@ -40,6 +43,9 @@ export interface VacationWindowDetail {
   round: number
   bids: VacationBid[]
   dates_taken: string[]
+  allowance_hours: number | null
+  min_block_hours: number | null
+  hours_used: number
 }
 
 export interface VacationPick {
@@ -52,7 +58,13 @@ export const vacationBidsApi = {
   listPeriods: (year?: number) =>
     api.get<VacationBidPeriod[]>('/api/vacation-bids/periods', { params: year ? { year } : undefined }).then((r) => r.data),
 
-  createPeriod: (body: { year: number; round: number }) =>
+  createPeriod: (body: {
+    year: number
+    round: number
+    allowance_hours?: number | null
+    min_block_hours?: number | null
+    bargaining_unit?: string | null
+  }) =>
     api.post<VacationBidPeriod>('/api/vacation-bids/periods', body).then((r) => r.data),
 
   deletePeriod: (id: string) =>

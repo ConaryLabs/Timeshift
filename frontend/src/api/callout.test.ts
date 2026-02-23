@@ -10,8 +10,6 @@ vi.mock('./client', () => ({
   },
 }))
 
-const mockApi = vi.mocked(api)
-
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -31,14 +29,14 @@ describe('calloutApi.createBumpRequest', () => {
       reason: 'Higher priority',
       created_at: '2026-02-23T00:00:00Z',
     }
-    mockApi.post.mockResolvedValue({ data: mockResponse })
+    vi.mocked(api.post).mockResolvedValue({ data: mockResponse })
 
     const result = await calloutApi.createBumpRequest('evt-1', {
       displaced_user_id: 'user-2',
       reason: 'Higher priority',
     })
 
-    expect(mockApi.post).toHaveBeenCalledWith(
+    expect(vi.mocked(api.post)).toHaveBeenCalledWith(
       '/api/callout/events/evt-1/bump',
       { displaced_user_id: 'user-2', reason: 'Higher priority' },
     )
@@ -63,11 +61,11 @@ describe('calloutApi.reviewBumpRequest', () => {
       reviewed_at: '2026-02-23T01:00:00Z',
       reviewed_by: 'supervisor-1',
     }
-    mockApi.patch.mockResolvedValue({ data: mockResponse })
+    vi.mocked(api.patch).mockResolvedValue({ data: mockResponse })
 
     const result = await calloutApi.reviewBumpRequest('bump-1', { approved: true })
 
-    expect(mockApi.patch).toHaveBeenCalledWith(
+    expect(vi.mocked(api.patch)).toHaveBeenCalledWith(
       '/api/callout/bump-requests/bump-1/review',
       { approved: true },
     )
@@ -79,14 +77,14 @@ describe('calloutApi.reviewBumpRequest', () => {
       id: 'bump-1',
       status: 'denied',
     }
-    mockApi.patch.mockResolvedValue({ data: mockResponse })
+    vi.mocked(api.patch).mockResolvedValue({ data: mockResponse })
 
     const result = await calloutApi.reviewBumpRequest('bump-1', {
       approved: false,
       reason: 'Insufficient priority',
     })
 
-    expect(mockApi.patch).toHaveBeenCalledWith(
+    expect(vi.mocked(api.patch)).toHaveBeenCalledWith(
       '/api/callout/bump-requests/bump-1/review',
       { approved: false, reason: 'Insufficient priority' },
     )
@@ -111,11 +109,11 @@ describe('calloutApi.listBumpRequests', () => {
         created_at: '2026-02-23T00:00:00Z',
       },
     ]
-    mockApi.get.mockResolvedValue({ data: mockResponse })
+    vi.mocked(api.get).mockResolvedValue({ data: mockResponse })
 
     const result = await calloutApi.listBumpRequests('evt-1')
 
-    expect(mockApi.get).toHaveBeenCalledWith('/api/callout/events/evt-1/bump-requests')
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/callout/events/evt-1/bump-requests')
     expect(result).toEqual(mockResponse)
   })
 })

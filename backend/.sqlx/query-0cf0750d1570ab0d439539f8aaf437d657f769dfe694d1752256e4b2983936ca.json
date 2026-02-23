@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT w.id, w.vacation_bid_period_id, w.user_id,\n               u.first_name, u.last_name,\n               w.seniority_rank, w.opens_at, w.closes_at, w.submitted_at,\n               p.year, p.round, p.org_id\n        FROM vacation_bid_windows w\n        JOIN users u ON u.id = w.user_id\n        JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id\n        WHERE w.id = $1\n        ",
+  "query": "\n        SELECT w.id, w.vacation_bid_period_id, w.user_id,\n               u.first_name, u.last_name,\n               w.seniority_rank, w.opens_at, w.closes_at, w.submitted_at,\n               p.year, p.round, p.org_id, p.allowance_hours\n        FROM vacation_bid_windows w\n        JOIN users u ON u.id = w.user_id\n        JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id\n        WHERE w.id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -62,6 +62,11 @@
         "ordinal": 11,
         "name": "org_id",
         "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "allowance_hours",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -81,8 +86,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "4e3c2cbd7d9586c910627407d2aefd8b0a6791a87a39d4799ef490960e1ec817"
+  "hash": "0cf0750d1570ab0d439539f8aaf437d657f769dfe694d1752256e4b2983936ca"
 }

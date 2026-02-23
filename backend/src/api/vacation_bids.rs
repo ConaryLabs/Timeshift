@@ -27,7 +27,8 @@ pub async fn list_periods(
         VacationBidPeriod,
         r#"
         SELECT id, org_id, year, round, status,
-               opens_at, closes_at, created_at
+               opens_at, closes_at, created_at,
+               allowance_hours, min_block_hours, bargaining_unit
         FROM vacation_bid_periods
         WHERE org_id = $1
           AND ($2::INT IS NULL OR year = $2)
@@ -58,15 +59,19 @@ pub async fn create_period(
     let row = sqlx::query_as!(
         VacationBidPeriod,
         r#"
-        INSERT INTO vacation_bid_periods (id, org_id, year, round)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO vacation_bid_periods (id, org_id, year, round, allowance_hours, min_block_hours, bargaining_unit)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, org_id, year, round, status,
-                  opens_at, closes_at, created_at
+                  opens_at, closes_at, created_at,
+                  allowance_hours, min_block_hours, bargaining_unit
         "#,
         Uuid::new_v4(),
         auth.org_id,
         body.year,
         body.round,
+        body.allowance_hours,
+        body.min_block_hours,
+        body.bargaining_unit,
     )
     .fetch_one(&pool)
     .await?;
@@ -114,18 +119,15 @@ pub async fn open_bidding(
         return Err(AppError::Forbidden);
     }
 
-    // Verify period exists and belongs to org
-    let exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM vacation_bid_periods WHERE id = $1 AND org_id = $2)",
+    // Verify period exists and belongs to org, and fetch bargaining_unit
+    let period = sqlx::query!(
+        "SELECT id, bargaining_unit FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id,
     )
-    .fetch_one(&pool)
-    .await?;
-
-    if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Vacation bid period not found".into()));
-    }
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Vacation bid period not found".into()))?;
 
     if body.window_duration_hours < 1 {
         return Err(AppError::BadRequest(
@@ -133,16 +135,19 @@ pub async fn open_bidding(
         ));
     }
 
-    // Get all active users ordered by seniority
+    // Get all active users ordered by seniority, optionally filtered by BU
     let users = sqlx::query!(
         r#"
         SELECT u.id, u.first_name, u.last_name
         FROM users u
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
-        WHERE u.org_id = $1 AND u.is_active = true
+        WHERE u.org_id = $1
+          AND u.is_active = true
+          AND ($2::TEXT IS NULL OR u.bargaining_unit::TEXT = $2)
         ORDER BY sr.overall_seniority_date ASC NULLS LAST, u.last_name, u.first_name
         "#,
         auth.org_id,
+        period.bargaining_unit,
     )
     .fetch_all(&pool)
     .await?;
@@ -226,7 +231,8 @@ pub async fn open_bidding(
         SET status = 'open', opens_at = $2, closes_at = $3
         WHERE id = $1
         RETURNING id, org_id, year, round, status,
-                  opens_at, closes_at, created_at
+                  opens_at, closes_at, created_at,
+                  allowance_hours, min_block_hours, bargaining_unit
         "#,
         id,
         period_opens,
@@ -307,7 +313,7 @@ pub async fn get_window(
         SELECT w.id, w.vacation_bid_period_id, w.user_id,
                u.first_name, u.last_name,
                w.seniority_rank, w.opens_at, w.closes_at, w.submitted_at,
-               p.year, p.round, p.org_id
+               p.year, p.round, p.org_id, p.allowance_hours
         FROM vacation_bid_windows w
         JOIN users u ON u.id = w.user_id
         JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id
@@ -376,11 +382,18 @@ pub async fn get_window(
         submitted_at: w.submitted_at,
     };
 
+    let hours_used: f64 = bids.iter().map(|b| {
+        let days = (b.end_date - b.start_date).whole_days() + 1;
+        (days * 8) as f64
+    }).sum();
+
     Ok(Json(VacationWindowDetail {
         window,
         round: w.round,
         bids,
         dates_taken: awarded_dates,
+        allowance_hours: w.allowance_hours,
+        hours_used,
     }))
 }
 
@@ -394,7 +407,8 @@ pub async fn submit_bid(
     let w = sqlx::query!(
         r#"
         SELECT w.id, w.user_id, w.opens_at, w.closes_at,
-               p.round, p.org_id, p.status AS period_status
+               p.round, p.org_id, p.status AS period_status,
+               p.allowance_hours, p.min_block_hours
         FROM vacation_bid_windows w
         JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id
         WHERE w.id = $1
@@ -463,6 +477,37 @@ pub async fn submit_bid(
                     "Round 1 picks must be full weeks (7 days)".into(),
                 ));
             }
+        }
+    }
+
+    // Enforce min_block_hours: each pick must cover at least min_block_hours
+    // Using 8 hrs/day assumption (consistent with leave request creation in process_bids)
+    if let Some(min_block) = w.min_block_hours {
+        for pick in &body.picks {
+            let days = (pick.end_date - pick.start_date).whole_days() + 1;
+            let hours = days * 8;
+            if hours < min_block as i64 {
+                return Err(AppError::BadRequest(format!(
+                    "Each vacation block must be at least {} hours ({} days); got {} hours",
+                    min_block,
+                    (min_block + 7) / 8,
+                    hours,
+                )));
+            }
+        }
+    }
+
+    // Enforce allowance_hours: total hours across all picks must not exceed the limit
+    if let Some(allowance) = w.allowance_hours {
+        let total_hours: i64 = body.picks.iter().map(|p| {
+            let days = (p.end_date - p.start_date).whole_days() + 1;
+            days * 8
+        }).sum();
+        if total_hours > allowance as i64 {
+            return Err(AppError::BadRequest(format!(
+                "Total vacation hours ({}) exceeds round allowance of {} hours",
+                total_hours, allowance,
+            )));
         }
     }
 
@@ -590,6 +635,14 @@ pub async fn process_bids(
 
     let leave_type_id = leave_type.map(|lt| lt.id);
 
+    // Fetch non-linear hours lookup from org_settings (for Sep-Feb vacation periods)
+    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
+        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
+        auth.org_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
     // Track all awarded dates across all windows to detect conflicts
     let mut awarded_dates: HashSet<time::Date> = HashSet::new();
 
@@ -645,8 +698,7 @@ pub async fn process_bids(
 
             // Create approved leave request if we have a vacation leave type
             if let Some(lt_id) = leave_type_id {
-                let days = (bid.end_date - bid.start_date).whole_days() + 1;
-                let hours = (days as f64) * 8.0; // Assume 8-hour days
+                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
 
                 sqlx::query!(
                     r#"
@@ -675,7 +727,8 @@ pub async fn process_bids(
         SET status = 'completed'
         WHERE id = $1
         RETURNING id, org_id, year, round, status,
-                  opens_at, closes_at, created_at
+                  opens_at, closes_at, created_at,
+                  allowance_hours, min_block_hours, bargaining_unit
         "#,
         period_id,
     )
@@ -685,4 +738,43 @@ pub async fn process_bids(
     tx.commit().await?;
 
     Ok(Json(updated))
+}
+
+/// Calculate hours charged for a vacation bid.
+/// For Sep-Feb months, uses a non-linear lookup table from org_settings if available.
+/// Falls back to flat 8 hours/day.
+fn calculate_hours(
+    start_date: time::Date,
+    end_date: time::Date,
+    lookup: &Option<serde_json::Value>,
+) -> f64 {
+    let days = (end_date - start_date).whole_days() + 1;
+
+    // Check if start_date falls in Sep-Feb (months 9,10,11,12,1,2)
+    let month = start_date.month() as u8;
+    let is_sep_feb = month >= 9 || month <= 2;
+
+    if is_sep_feb {
+        if let Some(table) = lookup {
+            if let Some(entries) = table.as_array() {
+                for entry in entries {
+                    let min_days = entry.get("min_days").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let max_days = entry.get("max_days").and_then(|v| v.as_i64()).unwrap_or(0);
+
+                    if days >= min_days && days <= max_days {
+                        // Flat hours for the entry
+                        if let Some(flat_hours) = entry.get("hours").and_then(|v| v.as_f64()) {
+                            return flat_hours;
+                        }
+                        // Per-day rate
+                        if let Some(hpd) = entry.get("hours_per_day").and_then(|v| v.as_f64()) {
+                            return days as f64 * hpd;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    days as f64 * 8.0
 }

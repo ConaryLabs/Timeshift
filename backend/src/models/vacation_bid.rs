@@ -15,12 +15,18 @@ pub struct VacationBidPeriod {
     pub closes_at: Option<OffsetDateTime>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    pub allowance_hours: Option<i32>,
+    pub min_block_hours: Option<i32>,
+    pub bargaining_unit: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateVacationBidPeriodRequest {
     pub year: i32,
     pub round: i32,
+    pub allowance_hours: Option<i32>,
+    pub min_block_hours: Option<i32>,
+    pub bargaining_unit: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -75,6 +81,8 @@ pub struct VacationWindowDetail {
     pub round: i32,
     pub bids: Vec<VacationBid>,
     pub dates_taken: Vec<time::Date>,
+    pub allowance_hours: Option<i32>,
+    pub hours_used: f64,
 }
 
 #[derive(Debug, Deserialize)]
