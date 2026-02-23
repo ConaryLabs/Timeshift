@@ -65,6 +65,12 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
   main.push({ to: '/profile', label: 'Profile', icon: <UserCircle className="h-4 w-4" /> })
 
   const admin: NavItem[] = []
+  if (isManager) {
+    admin.push(
+      { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+    )
+  }
+
   if (isAdmin) {
     admin.push(
       { to: '/admin/classifications', label: 'Classifications', icon: <Shield className="h-4 w-4" /> },

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT lr.id, lr.user_id, lr.leave_type_id,\n               lr.hours::FLOAT8 AS hours,\n               lr.status AS \"status: LeaveStatus\"\n        FROM leave_requests lr\n        JOIN users u ON u.id = lr.user_id\n        WHERE lr.id = $1 AND u.org_id = $2\n          AND lr.status IN ('pending', 'approved')\n          AND ($3 OR lr.user_id = $4)\n        ",
+  "query": "\n        SELECT lr.id, lr.user_id, lr.leave_type_id,\n               lr.hours::FLOAT8 AS hours,\n               lr.status AS \"status: LeaveStatus\"\n        FROM leave_requests lr\n        JOIN users u ON u.id = lr.user_id\n        WHERE lr.id = $1 AND u.org_id = $2\n          AND lr.status IN ('pending', 'approved')\n          AND ($3 OR lr.user_id = $4)\n        FOR UPDATE OF lr\n        ",
   "describe": {
     "columns": [
       {
@@ -57,5 +57,5 @@
       false
     ]
   },
-  "hash": "703f3c8059e70cfe59a1a1e074fe78036adbc4af2be40b5fe0f7fcfc154e2cdc"
+  "hash": "dc2d59d6ecb08960f8d08b96e8eb4e1480216add6a21a0c4882ceae42f0926ea"
 }
