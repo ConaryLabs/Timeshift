@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT a.id, a.user_id, a.ot_type, a.cancelled_at\n        FROM assignments a\n        JOIN callout_events ce ON ce.scheduled_shift_id = a.scheduled_shift_id\n        WHERE ce.id = $1 AND a.is_overtime = true AND a.cancelled_at IS NULL\n        ",
+  "query": "\n        SELECT a.id, a.user_id, a.ot_type, a.cancelled_at\n        FROM assignments a\n        JOIN callout_events ce ON ce.id = $1 AND ce.scheduled_shift_id = a.scheduled_shift_id\n        JOIN callout_attempts ca ON ca.event_id = $1 AND ca.user_id = a.user_id AND ca.response = 'accepted'\n        WHERE a.is_overtime = true AND a.cancelled_at IS NULL\n        ",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       true
     ]
   },
-  "hash": "2915fbb2e1393fb557a99aad64fa6a9b2ea63f000f20d4195e68609755c2cd8f"
+  "hash": "eec79e85e1ad500fc0b1998b78bc478be0339563d8f9cfe626bdf84fa4554026"
 }

@@ -118,14 +118,16 @@ pub struct BumpRequest {
     pub reviewed_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateBumpRequest {
     pub displaced_user_id: Uuid,
+    #[validate(length(max = 2000))]
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ReviewBumpRequest {
     pub approved: bool,
+    #[validate(length(max = 2000))]
     pub reason: Option<String>,
 }
