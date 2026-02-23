@@ -617,7 +617,9 @@ pub async fn process_bids(
                     has_conflict = true;
                     break;
                 }
-                d = d.next_day().ok_or(AppError::BadRequest("Date range exceeds maximum date".into()))?;
+                d = d.next_day().ok_or(AppError::BadRequest(
+                    "Date range exceeds maximum date".into(),
+                ))?;
             }
 
             if has_conflict {
@@ -636,7 +638,9 @@ pub async fn process_bids(
             let mut d = bid.start_date;
             while d <= bid.end_date {
                 awarded_dates.insert(d);
-                d = d.next_day().ok_or(AppError::BadRequest("Date range exceeds maximum date".into()))?;
+                d = d.next_day().ok_or(AppError::BadRequest(
+                    "Date range exceeds maximum date".into(),
+                ))?;
             }
 
             // Create approved leave request if we have a vacation leave type

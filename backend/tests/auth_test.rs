@@ -29,7 +29,9 @@ async fn login_valid_credentials_returns_token_and_profile() {
 
     // Token is now sent via HttpOnly cookie, not in response body
     let cookies: Vec<_> = resp.headers().get_all("set-cookie").iter().collect();
-    let has_auth_cookie = cookies.iter().any(|c| c.to_str().unwrap_or("").starts_with("auth_token="));
+    let has_auth_cookie = cookies
+        .iter()
+        .any(|c| c.to_str().unwrap_or("").starts_with("auth_token="));
     assert!(has_auth_cookie, "Response should set auth_token cookie");
 
     let body: serde_json::Value = resp.json().await.unwrap();
