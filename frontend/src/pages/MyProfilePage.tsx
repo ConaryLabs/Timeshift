@@ -28,7 +28,9 @@ const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '\u2014'
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+  const d = new Date(dateStr + 'T00:00:00')
+  if (isNaN(d.getTime())) return '\u2014'
+  return d.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
