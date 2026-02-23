@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use super::ot::CalloutStep;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "callout_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -21,6 +23,13 @@ pub struct CalloutEvent {
     pub reason_text: Option<String>,
     pub classification_id: Option<Uuid>,
     pub status: CalloutStatus,
+    pub current_step: Option<CalloutStep>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub step_started_at: Option<OffsetDateTime>,
     pub shift_template_name: Option<String>,
     pub shift_date: Option<time::Date>,
     pub team_name: Option<String>,

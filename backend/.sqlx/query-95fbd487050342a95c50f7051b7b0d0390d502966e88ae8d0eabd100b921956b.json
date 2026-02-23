@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE schedule_periods SET status = 'in_progress' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "95fbd487050342a95c50f7051b7b0d0390d502966e88ae8d0eabd100b921956b"
+}

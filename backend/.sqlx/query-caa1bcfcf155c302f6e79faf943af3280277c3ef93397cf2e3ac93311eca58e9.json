@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            ss.date,\n            st.id              AS shift_template_id,\n            st.name            AS shift_name,\n            st.color           AS shift_color,\n            a.id               AS assignment_id,\n            u.id               AS user_id,\n            u.employee_id,\n            u.first_name,\n            u.last_name,\n            cl.abbreviation    AS \"classification_abbreviation?\",\n            a.is_overtime,\n            a.is_trade\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates st  ON st.id = ss.shift_template_id\n        JOIN users u             ON u.id  = a.user_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE ss.org_id = $1\n          AND ss.date BETWEEN $2 AND $3\n          AND ($4::uuid IS NULL OR sl.team_id = $4)\n        ORDER BY ss.date, st.start_time, u.last_name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "shift_template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "shift_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "shift_color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "assignment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "classification_abbreviation?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_overtime",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "is_trade",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "caa1bcfcf155c302f6e79faf943af3280277c3ef93397cf2e3ac93311eca58e9"
+}

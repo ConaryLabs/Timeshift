@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react'
-import { format, startOfWeek, addDays } from 'date-fns'
-import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { format, startOfWeek, addDays, startOfMonth, endOfMonth, getDay, getDaysInMonth } from 'date-fns'
+import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
-import { useStaffing, useTeams } from '@/hooks/queries'
+import { useStaffing, useTeams, useScheduleGrid } from '@/hooks/queries'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/format'
 import { NO_VALUE } from '@/lib/format'
-import type { AssignmentView } from '@/api/schedule'
+import type { AssignmentView, GridCell } from '@/api/schedule'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -30,22 +31,36 @@ function contrastText(hex: string): string {
   return luminance > 0.5 ? 'text-gray-900' : 'text-white'
 }
 
-type ViewMode = 'week' | 'board'
+type ViewMode = 'week' | 'board' | 'month'
 
 export default function SchedulePage() {
+  const navigate = useNavigate()
   const [anchor, setAnchor] = useState(() => new Date())
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const { start, end } = getWeekRange(anchor)
   const startStr = format(start, 'yyyy-MM-dd')
   const endStr = format(end, 'yyyy-MM-dd')
 
+  // Month view range
+  const monthStart = startOfMonth(anchor)
+  const monthEnd = endOfMonth(anchor)
+  const monthStartStr = format(monthStart, 'yyyy-MM-dd')
+  const monthEndStr = format(monthEnd, 'yyyy-MM-dd')
+
   const currentUserId = useAuthStore((s) => s.user?.id)
   const { selectedTeamId, setSelectedTeamId } = useUIStore()
   const { data: teams } = useTeams()
 
   const { data, isLoading, error } = useStaffing(
-    startStr,
-    endStr,
+    viewMode === 'month' ? monthStartStr : startStr,
+    viewMode === 'month' ? monthEndStr : endStr,
+    selectedTeamId ?? undefined,
+  )
+
+  // Grid data for month view coverage indicators
+  const { data: gridData } = useScheduleGrid(
+    monthStartStr,
+    monthEndStr,
     selectedTeamId ?? undefined,
   )
 
@@ -99,16 +114,48 @@ export default function SchedulePage() {
                 <LayoutGrid className="h-3.5 w-3.5" />
                 Board
               </button>
+              <button
+                onClick={() => setViewMode('month')}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1 text-sm border-l',
+                  viewMode === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                )}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                Month
+              </button>
             </div>
 
-            {/* Week navigation */}
-            <Button variant="outline" size="sm" onClick={() => setAnchor((d) => addDays(d, -7))}>
+            {/* Navigation */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setAnchor((d) =>
+                  viewMode === 'month'
+                    ? new Date(d.getFullYear(), d.getMonth() - 1, 1)
+                    : addDays(d, -7),
+                )
+              }
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium min-w-[180px] text-center">
-              {format(start, 'MMM d')} – {format(end, 'MMM d, yyyy')}
+              {viewMode === 'month'
+                ? format(anchor, 'MMMM yyyy')
+                : `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`}
             </span>
-            <Button variant="outline" size="sm" onClick={() => setAnchor((d) => addDays(d, 7))}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setAnchor((d) =>
+                  viewMode === 'month'
+                    ? new Date(d.getFullYear(), d.getMonth() + 1, 1)
+                    : addDays(d, 7),
+                )
+              }
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={() => setAnchor(new Date())}>
@@ -131,6 +178,10 @@ export default function SchedulePage() {
 
       {!isLoading && !error && hasAssignments && viewMode === 'board' && (
         <BoardView data={data ?? []} days={days} currentUserId={currentUserId} />
+      )}
+
+      {!isLoading && !error && viewMode === 'month' && (
+        <MonthView anchor={anchor} gridData={gridData ?? []} navigate={navigate} />
       )}
     </div>
   )
@@ -286,6 +337,129 @@ function BoardView({
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// ── Month view ──────────────────────────────────────────────────────────────
+
+function MonthView({
+  anchor,
+  gridData,
+  navigate,
+}: {
+  anchor: Date
+  gridData: GridCell[]
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  const monthStart = startOfMonth(anchor)
+  const daysInMonth = getDaysInMonth(anchor)
+  const startDow = getDay(monthStart)
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+  // Group grid data by date for quick lookup
+  const byDate = useMemo(() => {
+    const map = new Map<string, GridCell[]>()
+    for (const cell of gridData) {
+      const arr = map.get(cell.date) ?? []
+      arr.push(cell)
+      map.set(cell.date, arr)
+    }
+    return map
+  }, [gridData])
+
+  // Build 6-week grid (42 cells)
+  const cells: (Date | null)[] = []
+  for (let i = 0; i < startDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(new Date(anchor.getFullYear(), anchor.getMonth(), d))
+  }
+  while (cells.length < 42) cells.push(null)
+
+  return (
+    <div>
+      <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+        {DAY_LABELS.map((label) => (
+          <div key={label} className="bg-muted px-2 py-1.5 text-xs font-medium text-muted-foreground text-center">
+            {label}
+          </div>
+        ))}
+        {cells.map((day, i) => {
+          if (!day) {
+            return <div key={`empty-${i}`} className="bg-card min-h-[80px]" />
+          }
+          const dateStr = format(day, 'yyyy-MM-dd')
+          const isToday = dateStr === todayStr
+          const dayCells = byDate.get(dateStr) ?? []
+
+          // Compute overall coverage status for the day
+          let worstStatus: 'none' | 'green' | 'yellow' | 'red' = 'none'
+          for (const cell of dayCells) {
+            if (cell.coverage_required > 0) {
+              if (cell.coverage_actual < cell.coverage_required) {
+                worstStatus = 'red'
+                break
+              } else if (cell.coverage_actual === cell.coverage_required) {
+                worstStatus = 'yellow'
+              } else {
+                if (worstStatus === 'none') worstStatus = 'green'
+              }
+            }
+          }
+
+          const totalAssignments = dayCells.reduce((sum, c) => sum + c.assignments.length, 0)
+
+          return (
+            <div
+              key={dateStr}
+              onClick={() => navigate(`/schedule/day/${dateStr}`)}
+              className={cn(
+                'bg-card min-h-[80px] p-1.5 cursor-pointer hover:bg-accent/50 transition-colors',
+                isToday && 'ring-2 ring-inset ring-primary/50',
+              )}
+            >
+              <div className={cn(
+                'text-sm font-medium mb-1',
+                isToday ? 'text-primary font-semibold' : 'text-foreground',
+              )}>
+                {format(day, 'd')}
+              </div>
+              {dayCells.length > 0 && (
+                <div className="space-y-0.5">
+                  {/* Mini coverage dots */}
+                  <div className="flex flex-wrap gap-0.5">
+                    {dayCells.slice(0, 4).map((cell) => {
+                      const status =
+                        cell.coverage_required === 0
+                          ? 'bg-muted-foreground/30'
+                          : cell.coverage_actual >= cell.coverage_required
+                            ? 'bg-green-500'
+                            : cell.coverage_actual > 0
+                              ? 'bg-amber-500'
+                              : 'bg-red-500'
+                      return (
+                        <div
+                          key={cell.shift_template_id}
+                          title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required}`}
+                          className={cn('w-2 h-2 rounded-full', status)}
+                        />
+                      )
+                    })}
+                    {dayCells.length > 4 && (
+                      <span className="text-[9px] text-muted-foreground">+{dayCells.length - 4}</span>
+                    )}
+                  </div>
+                  {totalAssignments > 0 && (
+                    <div className="text-[10px] text-muted-foreground">
+                      {totalAssignments} staff
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

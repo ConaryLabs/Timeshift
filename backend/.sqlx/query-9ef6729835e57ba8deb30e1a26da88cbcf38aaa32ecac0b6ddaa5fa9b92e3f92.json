@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT shift_template_id, SUM(target_headcount) AS \"total!\"\n        FROM coverage_requirements\n        WHERE org_id = $1 AND day_of_week = $2\n        GROUP BY shift_template_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "shift_template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "total!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "9ef6729835e57ba8deb30e1a26da88cbcf38aaa32ecac0b6ddaa5fa9b92e3f92"
+}

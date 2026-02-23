@@ -15,9 +15,10 @@ import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
-import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave } from '@/hooks/queries'
+import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useLeaveBalances } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { LeaveRequest } from '@/api/leave'
+import { Card, CardContent } from '@/components/ui/card'
 
 const INITIAL_FORM = { leave_type_id: '', start_date: '', end_date: '', reason: '' }
 
@@ -32,8 +33,11 @@ export default function LeavePage() {
 
   const { data: requests, isLoading, isError } = useLeaveRequests()
   const { data: leaveTypes } = useLeaveTypes()
+  const { data: balances } = useLeaveBalances()
   const createMut = useCreateLeave()
   const reviewMut = useReviewLeave()
+
+  const selectedBalance = balances?.find((b) => b.leave_type_id === form.leave_type_id)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -119,6 +123,19 @@ export default function LeavePage() {
         }
       />
 
+      {!isManager && balances && balances.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+          {balances.map((b) => (
+            <Card key={b.leave_type_id}>
+              <CardContent className="p-4">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{b.leave_type_name}</p>
+                <p className="text-2xl font-semibold mt-1">{b.balance_hours.toFixed(1)}<span className="text-sm font-normal text-muted-foreground ml-1">hrs</span></p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {showForm && (
         <form
           onSubmit={handleSubmit}
@@ -136,6 +153,11 @@ export default function LeavePage() {
               </SelectContent>
             </Select>
           </FormField>
+          {selectedBalance !== undefined && (
+            <p className="text-xs text-muted-foreground self-end pb-2">
+              Balance: <span className="font-medium text-foreground">{selectedBalance.balance_hours.toFixed(1)} hrs</span>
+            </p>
+          )}
           <FormField label="Start" htmlFor="leave-start" required>
             <Input id="leave-start" type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} required />
           </FormField>

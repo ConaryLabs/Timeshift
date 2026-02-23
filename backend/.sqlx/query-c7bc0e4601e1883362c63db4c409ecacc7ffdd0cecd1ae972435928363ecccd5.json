@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO ot_queue_positions (id, org_id, classification_id, user_id, position, fiscal_year, updated_at)\n            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c7bc0e4601e1883362c63db4c409ecacc7ffdd0cecd1ae972435928363ecccd5"
+}

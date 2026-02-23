@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.id, w.vacation_bid_period_id, w.user_id,\n               u.first_name, u.last_name,\n               w.seniority_rank, w.opens_at, w.closes_at, w.submitted_at,\n               p.year, p.round, p.org_id\n        FROM vacation_bid_windows w\n        JOIN users u ON u.id = w.user_id\n        JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id\n        WHERE w.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "vacation_bid_period_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "seniority_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "opens_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "closes_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "year",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "org_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4e3c2cbd7d9586c910627407d2aefd8b0a6791a87a39d4799ef490960e1ec817"
+}

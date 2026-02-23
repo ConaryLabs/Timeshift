@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM trade_requests\n            WHERE org_id = $1\n              AND status IN ('pending_partner', 'pending_approval', 'approved')\n              AND (\n                  (requester_id = $2 AND requester_date = $3)\n                  OR (partner_id = $2 AND partner_date = $3)\n                  OR (requester_id = $4 AND requester_date = $5)\n                  OR (partner_id = $4 AND partner_date = $5)\n              )\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8a6b56d969920f935bc683e3309d371dc8ced046b6f54d95a7397f3d3378d2b9"
+}

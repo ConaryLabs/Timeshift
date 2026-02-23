@@ -3,6 +3,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::models::bidding::BidPeriodStatus;
+
 /// A shift template -- defines what a shift looks like (not who works it).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ShiftTemplate {
@@ -55,6 +57,11 @@ pub struct SchedulePeriod {
     pub start_date: time::Date,
     pub end_date: time::Date,
     pub is_active: bool,
+    pub status: BidPeriodStatus,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub bid_opens_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub bid_closes_at: Option<OffsetDateTime>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }

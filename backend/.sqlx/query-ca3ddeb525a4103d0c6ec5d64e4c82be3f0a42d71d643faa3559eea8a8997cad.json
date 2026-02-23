@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM trade_requests\n        WHERE (requester_id = $1 OR partner_id = $1)\n          AND status IN ('pending_partner', 'pending_approval')\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ca3ddeb525a4103d0c6ec5d64e4c82be3f0a42d71d643faa3559eea8a8997cad"
+}

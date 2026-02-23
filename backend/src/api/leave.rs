@@ -16,6 +16,104 @@ use crate::{
     },
 };
 
+/// Deduct hours from leave balance when a leave request is approved.
+async fn deduct_leave_balance(
+    pool: &PgPool,
+    org_id: Uuid,
+    user_id: Uuid,
+    leave_type_id: Uuid,
+    hours: f64,
+    leave_request_id: Uuid,
+    reviewer_id: Uuid,
+) -> Result<()> {
+    // Insert usage transaction (negative hours = deduction)
+    sqlx::query!(
+        r#"
+        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, created_by)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'usage', $6, $7)
+        "#,
+        Uuid::new_v4(),
+        org_id,
+        user_id,
+        leave_type_id,
+        -hours.abs(),
+        leave_request_id,
+        reviewer_id,
+    )
+    .execute(pool)
+    .await?;
+
+    // Upsert balance (subtract)
+    sqlx::query!(
+        r#"
+        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
+        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
+            as_of_date = CURRENT_DATE,
+            updated_at = NOW()
+        "#,
+        Uuid::new_v4(),
+        org_id,
+        user_id,
+        leave_type_id,
+        -hours.abs(),
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Refund hours to leave balance when a previously approved leave request is cancelled.
+async fn refund_leave_balance(
+    pool: &PgPool,
+    org_id: Uuid,
+    user_id: Uuid,
+    leave_type_id: Uuid,
+    hours: f64,
+    leave_request_id: Uuid,
+    canceller_id: Uuid,
+) -> Result<()> {
+    // Insert refund transaction (positive hours = refund)
+    sqlx::query!(
+        r#"
+        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, note, created_by)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'adjustment', $6, 'Refund: approved leave cancelled', $7)
+        "#,
+        Uuid::new_v4(),
+        org_id,
+        user_id,
+        leave_type_id,
+        hours.abs(),
+        leave_request_id,
+        canceller_id,
+    )
+    .execute(pool)
+    .await?;
+
+    // Upsert balance (add back)
+    sqlx::query!(
+        r#"
+        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
+        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
+            as_of_date = CURRENT_DATE,
+            updated_at = NOW()
+        "#,
+        Uuid::new_v4(),
+        org_id,
+        user_id,
+        leave_type_id,
+        hours.abs(),
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn list(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -236,28 +334,60 @@ pub async fn cancel(
 ) -> Result<Json<serde_json::Value>> {
     let can_cancel_others = auth.role.can_approve_leave();
 
-    let rows = sqlx::query!(
+    // Fetch the request first so we know its status and hours for potential refund
+    let request = sqlx::query!(
         r#"
-        UPDATE leave_requests
-        SET status = 'cancelled', updated_at = NOW()
-        WHERE id = $1
-          AND status IN ('pending', 'approved')
-          AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $2)
-          AND ($3 OR leave_requests.user_id = $4)
+        SELECT lr.id, lr.user_id, lr.leave_type_id,
+               lr.hours::FLOAT8 AS hours,
+               lr.status AS "status: LeaveStatus"
+        FROM leave_requests lr
+        JOIN users u ON u.id = lr.user_id
+        WHERE lr.id = $1 AND u.org_id = $2
+          AND lr.status IN ('pending', 'approved')
+          AND ($3 OR lr.user_id = $4)
         "#,
         id,
         auth.org_id,
         can_cancel_others,
         auth.id,
     )
-    .execute(&pool)
+    .fetch_optional(&pool)
     .await?
-    .rows_affected();
-
-    if rows == 0 {
-        return Err(AppError::NotFound(
+    .ok_or_else(|| {
+        AppError::NotFound(
             "Leave request not found or cannot be cancelled (already denied or cancelled)".into(),
-        ));
+        )
+    })?;
+
+    let was_approved = request.status == LeaveStatus::Approved;
+
+    sqlx::query!(
+        r#"
+        UPDATE leave_requests
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE id = $1
+        "#,
+        id,
+    )
+    .execute(&pool)
+    .await?;
+
+    // If the request was previously approved, refund the hours
+    if was_approved {
+        if let Some(hours) = request.hours {
+            if hours > 0.0 {
+                refund_leave_balance(
+                    &pool,
+                    auth.org_id,
+                    request.user_id,
+                    request.leave_type_id,
+                    hours,
+                    id,
+                    auth.id,
+                )
+                .await?;
+            }
+        }
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))
@@ -279,6 +409,8 @@ pub async fn review(
         ));
     }
 
+    let status = body.status;
+
     let rows_affected = sqlx::query!(
         r#"
         UPDATE leave_requests
@@ -291,7 +423,7 @@ pub async fn review(
           AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $5)
         "#,
         id,
-        body.status as LeaveStatus,
+        status as LeaveStatus,
         auth.id,
         body.reviewer_notes,
         auth.org_id,
@@ -326,6 +458,24 @@ pub async fn review(
     )
     .fetch_one(&pool)
     .await?;
+
+    // On approve: deduct hours from leave balance
+    if status == LeaveStatus::Approved {
+        if let Some(hours) = r.hours {
+            if hours > 0.0 {
+                deduct_leave_balance(
+                    &pool,
+                    auth.org_id,
+                    r.user_id,
+                    r.leave_type_id,
+                    hours,
+                    id,
+                    auth.id,
+                )
+                .await?;
+            }
+        }
+    }
 
     Ok(Json(LeaveRequest {
         id: r.id,

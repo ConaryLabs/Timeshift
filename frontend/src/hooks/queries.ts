@@ -9,6 +9,16 @@ import { schedulePeriodsApi } from '@/api/schedulePeriods'
 import { shiftsApi } from '@/api/shifts'
 import { leaveApi } from '@/api/leave'
 import { calloutApi } from '@/api/callout'
+import { otApi } from '@/api/ot'
+import type { CalloutStep } from '@/api/ot'
+import { leaveBalancesApi } from '@/api/leaveBalances'
+import { coverageApi } from '@/api/coverage'
+import { tradesApi, type TradeListParams } from '@/api/trades'
+import { vacationBidsApi } from '@/api/vacationBids'
+import { biddingApi } from '@/api/bidding'
+import { employeeApi, type UpdatePreferencesRequest } from '@/api/employee'
+import { holidaysApi } from '@/api/holidays'
+import { reportsApi } from '@/api/reports'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -37,6 +47,17 @@ export const queryKeys = {
   schedule: {
     staffing: (start: string, end: string, teamId?: string) =>
       ['schedule', 'staffing', start, end, teamId] as const,
+    grid: (start: string, end: string, teamId?: string) =>
+      ['schedule', 'grid', start, end, teamId] as const,
+    day: (date: string) => ['schedule', 'day', date] as const,
+    dashboard: ['schedule', 'dashboard'] as const,
+    annotations: (start: string, end: string) =>
+      ['schedule', 'annotations', start, end] as const,
+  },
+  coverage: {
+    all: ['coverage'] as const,
+    list: (params?: { shift_template_id?: string; classification_id?: string }) =>
+      ['coverage', params] as const,
   },
   periods: {
     all: ['schedule-periods'] as const,
@@ -51,11 +72,59 @@ export const queryKeys = {
     types: ['leave-types'] as const,
     all: ['leave'] as const,
     list: (params?: { limit?: number; offset?: number }) => ['leave', params] as const,
+    balances: (userId?: string) => ['leave-balances', userId] as const,
+    balanceHistory: (userId: string, params?: Record<string, unknown>) =>
+      ['leave-balance-history', userId, params] as const,
+  },
+  accrualSchedules: {
+    all: ['accrual-schedules'] as const,
   },
   callout: {
     events: ['callout-events'] as const,
     eventsList: (params?: { limit?: number; offset?: number }) => ['callout-events', params] as const,
     list: (eventId: string) => ['callout-list', eventId] as const,
+    volunteers: (eventId: string) => ['callout-volunteers', eventId] as const,
+  },
+  ot: {
+    queue: (classificationId: string, fiscalYear?: number) =>
+      ['ot-queue', classificationId, fiscalYear] as const,
+    hours: (params?: { user_id?: string; fiscal_year?: number; classification_id?: string }) =>
+      ['ot-hours', params] as const,
+  },
+  trades: {
+    all: ['trades'] as const,
+    list: (params?: TradeListParams) => ['trades', params] as const,
+    detail: (id: string) => ['trades', id] as const,
+  },
+  vacationBids: {
+    all: ['vacation-bids'] as const,
+    periods: (year?: number) => ['vacation-bids', 'periods', year] as const,
+    windows: (periodId: string) => ['vacation-bids', 'windows', periodId] as const,
+    window: (windowId: string) => ['vacation-bids', 'window', windowId] as const,
+  },
+  bidding: {
+    windows: (periodId: string) => ['bidding', 'windows', periodId] as const,
+    window: (windowId: string) => ['bidding', 'window', windowId] as const,
+  },
+  employee: {
+    preferences: ['employee', 'preferences'] as const,
+    schedule: (start: string, end: string) => ['employee', 'schedule', start, end] as const,
+    dashboard: ['employee', 'dashboard'] as const,
+  },
+  holidays: {
+    all: ['holidays'] as const,
+    list: (year?: number) => ['holidays', year] as const,
+  },
+  reports: {
+    coverage: (params: { start_date: string; end_date: string; team_id?: string }) =>
+      ['reports', 'coverage', params] as const,
+    otSummary: (params?: { fiscal_year?: number; classification_id?: string }) =>
+      ['reports', 'ot-summary', params] as const,
+    leaveSummary: (params: { start_date: string; end_date: string }) =>
+      ['reports', 'leave-summary', params] as const,
+  },
+  orgSettings: {
+    all: ['org-settings'] as const,
   },
 } as const
 
@@ -265,10 +334,99 @@ export function useCreateAssignment() {
 }
 
 export function useDeleteAssignment() {
-  const qc = useQueryClient()
+  const qc2 = useQueryClient()
   return useMutation({
     mutationFn: scheduleApi.deleteAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule'] }),
+    onSuccess: () => qc2.invalidateQueries({ queryKey: ['schedule'] }),
+  })
+}
+
+// -- Schedule Views --
+
+export function useScheduleGrid(startDate: string, endDate: string, teamId?: string) {
+  return useQuery({
+    queryKey: queryKeys.schedule.grid(startDate, endDate, teamId),
+    queryFn: () => scheduleApi.getGrid(startDate, endDate, teamId),
+    enabled: !!startDate && !!endDate,
+  })
+}
+
+export function useDayView(date: string) {
+  return useQuery({
+    queryKey: queryKeys.schedule.day(date),
+    queryFn: () => scheduleApi.getDayView(date),
+    enabled: !!date,
+  })
+}
+
+export function useDashboard() {
+  return useQuery({
+    queryKey: queryKeys.schedule.dashboard,
+    queryFn: scheduleApi.getDashboard,
+  })
+}
+
+export function useAnnotations(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: queryKeys.schedule.annotations(startDate, endDate),
+    queryFn: () => scheduleApi.listAnnotations(startDate, endDate),
+    enabled: !!startDate && !!endDate,
+  })
+}
+
+export function useCreateAnnotation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: scheduleApi.createAnnotation,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schedule', 'annotations'] })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
+    },
+  })
+}
+
+export function useDeleteAnnotation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: scheduleApi.deleteAnnotation,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schedule', 'annotations'] })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
+    },
+  })
+}
+
+// -- Coverage Requirements --
+
+export function useCoverageRequirements(params?: { shift_template_id?: string; classification_id?: string }) {
+  return useQuery({
+    queryKey: queryKeys.coverage.list(params),
+    queryFn: () => coverageApi.list(params),
+  })
+}
+
+export function useCreateCoverageRequirement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: coverageApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coverage.all }),
+  })
+}
+
+export function useUpdateCoverageRequirement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; min_headcount?: number; target_headcount?: number; max_headcount?: number }) =>
+      coverageApi.update(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coverage.all }),
+  })
+}
+
+export function useDeleteCoverageRequirement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: coverageApi.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coverage.all }),
   })
 }
 
@@ -383,7 +541,10 @@ export function useReviewLeave() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
       leaveApi.review(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.leave.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
+      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+    },
   })
 }
 
@@ -391,7 +552,73 @@ export function useCancelLeave() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: leaveApi.cancel,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.leave.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
+      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+    },
+  })
+}
+
+// -- Leave Balances --
+
+export function useLeaveBalances(userId?: string) {
+  return useQuery({
+    queryKey: queryKeys.leave.balances(userId),
+    queryFn: () => leaveBalancesApi.list(userId),
+  })
+}
+
+export function useLeaveBalanceHistory(
+  userId: string,
+  params?: { leave_type_id?: string; start_date?: string; end_date?: string; limit?: number; offset?: number },
+) {
+  return useQuery({
+    queryKey: queryKeys.leave.balanceHistory(userId, params),
+    queryFn: () => leaveBalancesApi.history(userId, params),
+    enabled: !!userId,
+  })
+}
+
+export function useAdjustLeaveBalance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: leaveBalancesApi.adjust,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+      qc.invalidateQueries({ queryKey: ['leave-balance-history'] })
+    },
+  })
+}
+
+export function useAccrualSchedules() {
+  return useQuery({
+    queryKey: queryKeys.accrualSchedules.all,
+    queryFn: leaveBalancesApi.listAccrualSchedules,
+  })
+}
+
+export function useCreateAccrualSchedule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: leaveBalancesApi.createAccrualSchedule,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.accrualSchedules.all }),
+  })
+}
+
+export function useUpdateAccrualSchedule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; hours_per_pay_period?: number; max_balance_hours?: number | null; years_of_service_min?: number; years_of_service_max?: number | null }) =>
+      leaveBalancesApi.updateAccrualSchedule(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.accrualSchedules.all }),
+  })
+}
+
+export function useDeleteAccrualSchedule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: leaveBalancesApi.deleteAccrualSchedule,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.accrualSchedules.all }),
   })
 }
 
@@ -443,5 +670,355 @@ export function useCancelCalloutEvent() {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: ['callout-list'] })
     },
+  })
+}
+
+// -- OT Queue & Hours --
+
+export function useOtQueue(classificationId: string, fiscalYear?: number) {
+  return useQuery({
+    queryKey: queryKeys.ot.queue(classificationId, fiscalYear),
+    queryFn: () => otApi.getQueue(classificationId, fiscalYear),
+    enabled: !!classificationId,
+  })
+}
+
+export function useReorderOtQueue() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otApi.reorderQueue,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ot-queue'] }),
+  })
+}
+
+export function useOtHours(params?: { user_id?: string; fiscal_year?: number; classification_id?: string }) {
+  return useQuery({
+    queryKey: queryKeys.ot.hours(params),
+    queryFn: () => otApi.getHours(params),
+  })
+}
+
+export function useAdjustOtHours() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otApi.adjustHours,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ot-hours'] }),
+  })
+}
+
+export function useVolunteer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otApi.volunteer,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['callout-volunteers'] })
+    },
+  })
+}
+
+export function useCalloutVolunteers(eventId: string) {
+  return useQuery({
+    queryKey: queryKeys.callout.volunteers(eventId),
+    queryFn: () => otApi.listVolunteers(eventId),
+    enabled: !!eventId,
+  })
+}
+
+export function useAdvanceCalloutStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ eventId, step }: { eventId: string; step: CalloutStep }) =>
+      otApi.advanceStep(eventId, step),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+    },
+  })
+}
+
+// -- Trades --
+
+export function useTrades(params?: TradeListParams) {
+  return useQuery({
+    queryKey: queryKeys.trades.list(params),
+    queryFn: () => tradesApi.list(params),
+  })
+}
+
+export function useTrade(id: string) {
+  return useQuery({
+    queryKey: queryKeys.trades.detail(id),
+    queryFn: () => tradesApi.get(id),
+    enabled: !!id,
+  })
+}
+
+export function useCreateTrade() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: tradesApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trades.all }),
+  })
+}
+
+export function useRespondTrade() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; accept: boolean }) =>
+      tradesApi.respond(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trades.all }),
+  })
+}
+
+export function useReviewTrade() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; approve: boolean; reviewer_notes?: string }) =>
+      tradesApi.review(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
+      qc.invalidateQueries({ queryKey: ['schedule'] })
+    },
+  })
+}
+
+export function useCancelTrade() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: tradesApi.cancel,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trades.all }),
+  })
+}
+
+// -- Vacation Bids --
+
+export function useVacationBidPeriods(year?: number) {
+  return useQuery({
+    queryKey: queryKeys.vacationBids.periods(year),
+    queryFn: () => vacationBidsApi.listPeriods(year),
+  })
+}
+
+export function useVacationBidWindows(periodId: string) {
+  return useQuery({
+    queryKey: queryKeys.vacationBids.windows(periodId),
+    queryFn: () => vacationBidsApi.listWindows(periodId),
+    enabled: !!periodId,
+  })
+}
+
+export function useVacationBidWindow(windowId: string) {
+  return useQuery({
+    queryKey: queryKeys.vacationBids.window(windowId),
+    queryFn: () => vacationBidsApi.getWindow(windowId),
+    enabled: !!windowId,
+  })
+}
+
+export function useCreateVacationBidPeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: vacationBidsApi.createPeriod,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all }),
+  })
+}
+
+export function useDeleteVacationBidPeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: vacationBidsApi.deletePeriod,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all }),
+  })
+}
+
+export function useOpenVacationBidding() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; window_duration_hours: number; start_at?: string }) =>
+      vacationBidsApi.openBidding(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all }),
+  })
+}
+
+export function useSubmitVacationBid() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ windowId, picks }: { windowId: string; picks: { start_date: string; end_date: string; preference_rank: number }[] }) =>
+      vacationBidsApi.submitBid(windowId, { picks }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.vacationBids.window(vars.windowId) })
+      qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all })
+    },
+  })
+}
+
+export function useProcessVacationBids() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: vacationBidsApi.processBids,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
+    },
+  })
+}
+
+// -- Shift Bidding --
+
+export function useBidWindows(periodId: string) {
+  return useQuery({
+    queryKey: queryKeys.bidding.windows(periodId),
+    queryFn: () => biddingApi.listBidWindows(periodId),
+    enabled: !!periodId,
+  })
+}
+
+export function useBidWindow(windowId: string) {
+  return useQuery({
+    queryKey: queryKeys.bidding.window(windowId),
+    queryFn: () => biddingApi.getBidWindow(windowId),
+    enabled: !!windowId,
+  })
+}
+
+export function useOpenBidding() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ periodId, ...body }: { periodId: string; window_duration_hours: number; start_at?: string }) =>
+      biddingApi.openBidding(periodId, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.periods.all })
+      qc.invalidateQueries({ queryKey: queryKeys.bidding.windows(vars.periodId) })
+    },
+  })
+}
+
+export function useSubmitBid() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ windowId, preferences }: { windowId: string; preferences: { slot_id: string; preference_rank: number }[] }) =>
+      biddingApi.submitBid(windowId, { preferences }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.bidding.window(vars.windowId) })
+    },
+  })
+}
+
+export function useProcessBids() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: biddingApi.processBids,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.periods.all })
+      qc.invalidateQueries({ queryKey: ['bidding'] })
+      qc.invalidateQueries({ queryKey: ['schedule-periods'] })
+    },
+  })
+}
+
+// -- Employee Portal --
+
+export function useMyPreferences() {
+  return useQuery({
+    queryKey: queryKeys.employee.preferences,
+    queryFn: employeeApi.getPreferences,
+  })
+}
+
+export function useUpdateMyPreferences() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: UpdatePreferencesRequest) => employeeApi.updatePreferences(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.employee.preferences }),
+  })
+}
+
+export function useMySchedule(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: queryKeys.employee.schedule(startDate, endDate),
+    queryFn: () => employeeApi.getSchedule(startDate, endDate),
+    enabled: !!startDate && !!endDate,
+  })
+}
+
+export function useMyDashboard() {
+  return useQuery({
+    queryKey: queryKeys.employee.dashboard,
+    queryFn: employeeApi.getDashboard,
+  })
+}
+
+// -- Holidays --
+
+export function useHolidays(year?: number) {
+  return useQuery({
+    queryKey: queryKeys.holidays.list(year),
+    queryFn: () => holidaysApi.list(year),
+  })
+}
+
+export function useCreateHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: holidaysApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.holidays.all }),
+  })
+}
+
+export function useUpdateHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; is_premium_pay?: boolean }) =>
+      holidaysApi.update(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.holidays.all }),
+  })
+}
+
+export function useDeleteHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: holidaysApi.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.holidays.all }),
+  })
+}
+
+// -- Reports --
+
+export function useCoverageReport(params: { start_date: string; end_date: string; team_id?: string }) {
+  return useQuery({
+    queryKey: queryKeys.reports.coverage(params),
+    queryFn: () => reportsApi.coverage(params),
+    enabled: !!params.start_date && !!params.end_date,
+  })
+}
+
+export function useOtSummaryReport(params?: { fiscal_year?: number; classification_id?: string }) {
+  return useQuery({
+    queryKey: queryKeys.reports.otSummary(params),
+    queryFn: () => reportsApi.otSummary(params),
+  })
+}
+
+export function useLeaveSummaryReport(params: { start_date: string; end_date: string }) {
+  return useQuery({
+    queryKey: queryKeys.reports.leaveSummary(params),
+    queryFn: () => reportsApi.leaveSummary(params),
+    enabled: !!params.start_date && !!params.end_date,
+  })
+}
+
+// -- Org Settings --
+
+export function useOrgSettings() {
+  return useQuery({
+    queryKey: queryKeys.orgSettings.all,
+    queryFn: reportsApi.listSettings,
+  })
+}
+
+export function useSetOrgSetting() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: reportsApi.setSetting,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.orgSettings.all }),
   })
 }

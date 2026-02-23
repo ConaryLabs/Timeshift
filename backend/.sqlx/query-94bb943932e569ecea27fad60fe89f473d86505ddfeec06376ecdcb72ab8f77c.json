@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            q.user_id,\n            u.first_name,\n            u.last_name,\n            u.employee_id,\n            q.position,\n            COALESCE(CAST(ot.hours_worked AS FLOAT8), 0.0) AS \"ot_hours_worked!\",\n            COALESCE(CAST(ot.hours_declined AS FLOAT8), 0.0) AS \"ot_hours_declined!\"\n        FROM ot_queue_positions q\n        JOIN users u ON u.id = q.user_id\n        LEFT JOIN ot_hours ot ON ot.user_id = q.user_id\n            AND ot.fiscal_year = q.fiscal_year\n            AND ot.classification_id IS NULL\n        WHERE q.org_id = $1\n          AND q.classification_id = $2\n          AND q.fiscal_year = $3\n        ORDER BY q.position ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "ot_hours_worked!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "ot_hours_declined!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "94bb943932e569ecea27fad60fe89f473d86505ddfeec06376ecdcb72ab8f77c"
+}

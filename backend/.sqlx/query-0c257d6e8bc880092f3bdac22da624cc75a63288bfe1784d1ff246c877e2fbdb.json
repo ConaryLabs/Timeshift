@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO trade_requests (id, org_id, requester_id, partner_id,\n            requester_assignment_id, partner_assignment_id,\n            requester_date, partner_date, status)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_partner')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0c257d6e8bc880092f3bdac22da624cc75a63288bfe1784d1ff246c877e2fbdb"
+}

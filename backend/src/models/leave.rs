@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "leave_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum LeaveStatus {

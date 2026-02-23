@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO employee_preferences (id, user_id)\n        VALUES ($1, $2)\n        ON CONFLICT (user_id) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "99f227ee73f2b65fda63f578d38dda65fb1f6684b64ed91c068598f475595cf8"
+}

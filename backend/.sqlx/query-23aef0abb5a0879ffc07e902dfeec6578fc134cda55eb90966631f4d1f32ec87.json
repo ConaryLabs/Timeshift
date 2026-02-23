@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE leave_requests\n        SET status = 'cancelled', updated_at = NOW()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "23aef0abb5a0879ffc07e902dfeec6578fc134cda55eb90966631f4d1f32ec87"
+}

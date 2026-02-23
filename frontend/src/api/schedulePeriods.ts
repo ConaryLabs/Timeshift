@@ -1,5 +1,7 @@
 import { api } from './client'
 
+import type { BidPeriodStatus } from './bidding'
+
 export interface SchedulePeriod {
   id: string
   org_id: string
@@ -7,6 +9,9 @@ export interface SchedulePeriod {
   start_date: string
   end_date: string
   is_active: boolean
+  status: BidPeriodStatus
+  bid_opens_at: string | null
+  bid_closes_at: string | null
   created_at: string
 }
 

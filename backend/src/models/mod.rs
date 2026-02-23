@@ -1,9 +1,17 @@
+pub mod bidding;
 pub mod callout;
 pub mod classification;
 pub mod common;
+pub mod employee;
+pub mod holiday;
 pub mod leave;
+pub mod leave_balance;
 pub mod organization;
+pub mod ot;
+pub mod report;
 pub mod schedule;
 pub mod shift;
 pub mod team;
+pub mod trade;
 pub mod user;
+pub mod vacation_bid;
