@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO schedule_periods (id, org_id, name, start_date, end_date)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, org_id, name, start_date, end_date, is_active,\n                  status AS \"status: BidPeriodStatus\",\n                  bid_opens_at, bid_closes_at,\n                  created_at\n        ",
+  "query": "\n        SELECT id, org_id, name, start_date, end_date, is_active,\n               status AS \"status: BidPeriodStatus\",\n               bid_opens_at, bid_closes_at,\n               bargaining_unit,\n               created_at\n        FROM schedule_periods\n        WHERE org_id = $1\n        ORDER BY start_date DESC\n        LIMIT $2 OFFSET $3\n        ",
   "describe": {
     "columns": [
       {
@@ -63,6 +63,11 @@
       },
       {
         "ordinal": 9,
+        "name": "bargaining_unit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -70,10 +75,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Text",
-        "Date",
-        "Date"
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
@@ -86,8 +89,9 @@
       false,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "87f46686c2cdc8306431031f475ba51605fc9026d7ef6224445a0d6e0ef8669c"
+  "hash": "a35bdad014dc18c76613939a7153728c58c03907b8400878462d26dfd8defbb0"
 }

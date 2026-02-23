@@ -46,16 +46,31 @@ pub async fn open_bidding(
 
     let duration = time::Duration::hours(req.window_duration_hours);
 
-    // Get all active users ordered by seniority_date (most senior first, nulls last)
+    // M3: Fetch bargaining_unit from schedule period for BU-specific filtering
+    let period_bu = sqlx::query_scalar!(
+        "SELECT bargaining_unit FROM schedule_periods WHERE id = $1",
+        period_id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    // M1+M3: Get active users ordered by seniority, job_share last, optional BU filter
     let users = sqlx::query!(
         r#"
-        SELECT u.id, u.first_name, u.last_name
+        SELECT u.id, u.first_name, u.last_name,
+               (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
         FROM users u
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
-        WHERE u.org_id = $1 AND u.is_active = true
-        ORDER BY sr.overall_seniority_date ASC NULLS LAST, u.last_name, u.first_name
+        WHERE u.org_id = $1
+          AND u.is_active = true
+          AND ($2::TEXT IS NULL OR u.bargaining_unit::TEXT = $2)
+        ORDER BY
+          (u.employee_type::TEXT = 'job_share') ASC,
+          sr.overall_seniority_date ASC NULLS LAST,
+          u.last_name, u.first_name
         "#,
-        auth.org_id
+        auth.org_id,
+        period_bu as Option<String>,
     )
     .fetch_all(&pool)
     .await?;
@@ -93,15 +108,21 @@ pub async fn open_bidding(
         let opens = start_at + duration * i as u32;
         let closes = opens + duration;
 
+        // M2: Only unlock rank 1 immediately; others wait for approval cascade
+        let unlocked = if i == 0 { Some(opens) } else { None };
+
         let row = sqlx::query_as!(
             BidWindowRow,
             r#"
-            INSERT INTO bid_windows (id, period_id, user_id, seniority_rank, opens_at, closes_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO bid_windows (id, period_id, user_id, seniority_rank, opens_at, closes_at, unlocked_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id, period_id, user_id,
-                      $7::text AS "first_name!",
-                      $8::text AS "last_name!",
-                      seniority_rank, opens_at, closes_at, submitted_at
+                      $8::text AS "first_name!",
+                      $9::text AS "last_name!",
+                      seniority_rank, opens_at, closes_at, submitted_at,
+                      unlocked_at, approved_at,
+                      approved_by AS "approved_by?",
+                      $10::bool AS "is_job_share!"
             "#,
             Uuid::new_v4(),
             period_id,
@@ -109,8 +130,10 @@ pub async fn open_bidding(
             rank,
             opens,
             closes,
+            unlocked,
             user.first_name,
             user.last_name,
+            user.is_job_share,
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -125,6 +148,10 @@ pub async fn open_bidding(
             opens_at: row.opens_at,
             closes_at: row.closes_at,
             submitted_at: row.submitted_at,
+            unlocked_at: row.unlocked_at,
+            approved_at: row.approved_at,
+            approved_by: row.approved_by,
+            is_job_share: row.is_job_share,
         });
     }
 
@@ -166,7 +193,10 @@ pub async fn list_bid_windows(
             r#"
             SELECT bw.id, bw.period_id, bw.user_id,
                    u.first_name, u.last_name,
-                   bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at
+                   bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
+                   bw.unlocked_at, bw.approved_at,
+                   bw.approved_by AS "approved_by?",
+                   (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
             FROM bid_windows bw
             JOIN users u ON u.id = bw.user_id
             WHERE bw.period_id = $1
@@ -182,7 +212,10 @@ pub async fn list_bid_windows(
             r#"
             SELECT bw.id, bw.period_id, bw.user_id,
                    u.first_name, u.last_name,
-                   bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at
+                   bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
+                   bw.unlocked_at, bw.approved_at,
+                   bw.approved_by AS "approved_by?",
+                   (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
             FROM bid_windows bw
             JOIN users u ON u.id = bw.user_id
             WHERE bw.period_id = $1 AND bw.user_id = $2
@@ -207,6 +240,10 @@ pub async fn list_bid_windows(
             opens_at: r.opens_at,
             closes_at: r.closes_at,
             submitted_at: r.submitted_at,
+            unlocked_at: r.unlocked_at,
+            approved_at: r.approved_at,
+            approved_by: r.approved_by,
+            is_job_share: r.is_job_share,
         })
         .collect();
 
@@ -226,7 +263,10 @@ pub async fn get_bid_window(
         r#"
         SELECT bw.id, bw.period_id, bw.user_id,
                u.first_name, u.last_name,
-               bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at
+               bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
+               bw.unlocked_at, bw.approved_at,
+               bw.approved_by AS "approved_by?",
+               (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
         FROM bid_windows bw
         JOIN users u ON u.id = bw.user_id
         JOIN schedule_periods sp ON sp.id = bw.period_id
@@ -254,6 +294,10 @@ pub async fn get_bid_window(
         opens_at: window_row.opens_at,
         closes_at: window_row.closes_at,
         submitted_at: window_row.submitted_at,
+        unlocked_at: window_row.unlocked_at,
+        approved_at: window_row.approved_at,
+        approved_by: window_row.approved_by,
+        is_job_share: window_row.is_job_share,
     };
 
     // Available slots: active slots for the org, marking ones already awarded
@@ -269,7 +313,8 @@ pub async fn get_bid_window(
             cl.abbreviation AS classification_abbreviation,
             sl.days_of_week,
             sl.label,
-            CASE WHEN sa.id IS NOT NULL THEN true ELSE false END AS "already_awarded!"
+            CASE WHEN sa.id IS NOT NULL THEN true ELSE false END AS "already_awarded!",
+            sl.is_flex AS "is_flex!"
         FROM shift_slots sl
         JOIN teams t ON t.id = sl.team_id
         JOIN shift_templates st ON st.id = sl.shift_template_id
@@ -299,6 +344,7 @@ pub async fn get_bid_window(
             days_of_week: s.days_of_week,
             label: s.label,
             already_awarded: s.already_awarded,
+            is_flex: s.is_flex,
         })
         .collect();
 
@@ -360,7 +406,7 @@ pub async fn submit_bid(
     let window = sqlx::query!(
         r#"
         SELECT bw.id, bw.period_id, bw.user_id, bw.opens_at, bw.closes_at,
-               sp.org_id
+               bw.unlocked_at, sp.org_id
         FROM bid_windows bw
         JOIN schedule_periods sp ON sp.id = bw.period_id
         WHERE bw.id = $1
@@ -388,6 +434,13 @@ pub async fn submit_bid(
     }
     if now > window.closes_at {
         return Err(AppError::BadRequest("Your bid window has closed".into()));
+    }
+
+    // M2: Check sequential unlock — window must be unlocked before submitting
+    if window.unlocked_at.is_none() {
+        return Err(AppError::BadRequest(
+            "Your bidding window has not been unlocked yet. Wait for the previous employee's bid to be approved.".into(),
+        ));
     }
 
     // Validate preferences
@@ -465,6 +518,90 @@ pub async fn submit_bid(
     ))
 }
 
+/// POST /api/bid-windows/:id/approve
+/// Supervisor approves the submitted bid for this window, unlocking the next window.
+pub async fn approve_bid_window(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(window_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let mut tx = pool.begin().await?;
+
+    // Fetch window with org check
+    let w = sqlx::query!(
+        r#"
+        SELECT bw.id, bw.period_id, bw.seniority_rank, bw.submitted_at, bw.approved_at,
+               sp.org_id
+        FROM bid_windows bw
+        JOIN schedule_periods sp ON sp.id = bw.period_id
+        WHERE bw.id = $1
+        FOR UPDATE
+        "#,
+        window_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Bid window not found".into()))?;
+
+    if w.org_id != auth.org_id {
+        return Err(AppError::NotFound("Bid window not found".into()));
+    }
+    if w.submitted_at.is_none() {
+        return Err(AppError::BadRequest(
+            "Cannot approve a window that has not been submitted yet".into(),
+        ));
+    }
+    if w.approved_at.is_some() {
+        return Err(AppError::Conflict(
+            "This bid window has already been approved".into(),
+        ));
+    }
+
+    // Mark this window approved
+    sqlx::query!(
+        "UPDATE bid_windows SET approved_at = NOW(), approved_by = $2 WHERE id = $1",
+        window_id,
+        auth.id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Find and unlock the next window (seniority_rank + 1)
+    let next_window = sqlx::query!(
+        r#"
+        SELECT id FROM bid_windows
+        WHERE period_id = $1 AND seniority_rank = $2
+        "#,
+        w.period_id,
+        w.seniority_rank + 1,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let next_window_id = if let Some(next) = next_window {
+        sqlx::query!(
+            "UPDATE bid_windows SET unlocked_at = NOW() WHERE id = $1",
+            next.id,
+        )
+        .execute(&mut *tx)
+        .await?;
+        Some(next.id)
+    } else {
+        None
+    };
+
+    tx.commit().await?;
+
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "next_window_id": next_window_id,
+    })))
+}
+
 /// POST /api/schedule/periods/:id/process-bids
 /// Admin trigger to process all bids and create slot assignments.
 pub async fn process_bids(
@@ -516,15 +653,19 @@ pub async fn process_bids(
     .await?;
 
     let mut awards_count = 0;
+    // M4: Track flex slot awards per classification (max 2 per classification per cycle)
+    let mut flex_awards: std::collections::HashMap<Uuid, u32> = std::collections::HashMap::new();
 
     for win in &windows {
-        // Get this window's submissions in preference order
+        // Get this window's submissions in preference order, with flex/classification info
         let submissions = sqlx::query!(
             r#"
-            SELECT id, slot_id, preference_rank
-            FROM bid_submissions
-            WHERE bid_window_id = $1
-            ORDER BY preference_rank ASC
+            SELECT bs.id, bs.slot_id, bs.preference_rank,
+                   ss.is_flex AS "is_flex!", ss.classification_id
+            FROM bid_submissions bs
+            JOIN shift_slots ss ON ss.id = bs.slot_id
+            WHERE bs.bid_window_id = $1
+            ORDER BY bs.preference_rank ASC
             "#,
             win.id
         )
@@ -533,6 +674,14 @@ pub async fn process_bids(
 
         // Find the highest-preference slot that hasn't been awarded to someone else
         for sub in &submissions {
+            // M4: Check flex slot constraint (max 2 flex slots per classification per cycle)
+            if sub.is_flex {
+                let count = flex_awards.get(&sub.classification_id).copied().unwrap_or(0);
+                if count >= 2 {
+                    continue; // Flex cap reached for this classification
+                }
+            }
+
             // Check if this slot already has an assignment for this period
             let already_assigned = sqlx::query_scalar!(
                 r#"
@@ -569,6 +718,11 @@ pub async fn process_bids(
                 )
                 .execute(&mut *tx)
                 .await?;
+
+                // M4: Track flex award
+                if sub.is_flex {
+                    *flex_awards.entry(sub.classification_id).or_insert(0) += 1;
+                }
 
                 awards_count += 1;
                 break;

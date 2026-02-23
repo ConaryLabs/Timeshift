@@ -62,6 +62,7 @@ pub struct SchedulePeriod {
     pub bid_opens_at: Option<OffsetDateTime>,
     #[serde(with = "time::serde::rfc3339::option")]
     pub bid_closes_at: Option<OffsetDateTime>,
+    pub bargaining_unit: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
@@ -72,6 +73,7 @@ pub struct CreateSchedulePeriodRequest {
     pub name: String,
     pub start_date: time::Date,
     pub end_date: time::Date,
+    pub bargaining_unit: Option<String>,
 }
 
 /// A slot assignment -- who holds a slot for a schedule period (result of bid).

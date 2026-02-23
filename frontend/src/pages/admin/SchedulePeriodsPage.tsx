@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -19,12 +21,25 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
+  bargaining_unit: z.string().optional(),
 }).refine((v) => v.end_date > v.start_date, {
   message: 'End date must be after start date',
   path: ['end_date'],
 })
 
 type FormValues = z.infer<typeof schema>
+
+const BU_OPTIONS = [
+  { value: '', label: '(All employees)' },
+  { value: 'vccea', label: 'VCCEA' },
+  { value: 'vcsg', label: 'VCSG' },
+] as const
+
+function bargainingUnitLabel(bu: string | null): string | null {
+  if (!bu) return null
+  const found = BU_OPTIONS.find((o) => o.value === bu)
+  return found ? found.label : bu.toUpperCase()
+}
 
 export default function SchedulePeriodsPage() {
   const navigate = useNavigate()
@@ -35,17 +50,21 @@ export default function SchedulePeriodsPage() {
 
   const { confirmClose, confirmDialog } = useConfirmClose()
 
-  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors, isDirty } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
   function openCreate() {
-    reset({ name: '', start_date: '', end_date: '' })
+    reset({ name: '', start_date: '', end_date: '', bargaining_unit: '' })
     setDialogOpen(true)
   }
 
   function onSubmit(values: FormValues) {
-    createMut.mutate(values, {
+    const payload = {
+      ...values,
+      bargaining_unit: values.bargaining_unit || null,
+    }
+    createMut.mutate(payload, {
       onSuccess: () => {
         toast.success('Schedule period created')
         setDialogOpen(false)
@@ -64,7 +83,17 @@ export default function SchedulePeriodsPage() {
   }
 
   const columns: Column<SchedulePeriod>[] = [
-    { header: 'Name', accessorKey: 'name' },
+    {
+      header: 'Name',
+      cell: (r) => (
+        <span className="flex items-center gap-2">
+          {r.name}
+          {r.bargaining_unit && (
+            <Badge variant="outline" className="text-xs">{bargainingUnitLabel(r.bargaining_unit)}</Badge>
+          )}
+        </span>
+      ),
+    },
     {
       header: 'Date Range',
       cell: (r) => `${formatDate(r.start_date)} – ${formatDate(r.end_date)}`,
@@ -120,6 +149,23 @@ export default function SchedulePeriodsPage() {
                 <Input id="sp-end" type="date" {...register('end_date')} />
               </FormField>
             </div>
+            <FormField label="Bargaining Unit" htmlFor="sp-bu">
+              <Select
+                value={watch('bargaining_unit') || '__all'}
+                onValueChange={(v) => setValue('bargaining_unit', v === '__all' ? '' : v, { shouldDirty: true })}
+              >
+                <SelectTrigger id="sp-bu">
+                  <SelectValue placeholder="(All employees)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BU_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value || '__all'} value={opt.value || '__all'}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
             <DialogFooter>
               <Button type="submit" disabled={createMut.isPending}>Create</Button>
             </DialogFooter>

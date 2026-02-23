@@ -133,6 +133,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/bid-windows/:id", get(bidding::get_bid_window))
         .route("/api/bid-windows/:id/submit", post(bidding::submit_bid))
+        .route("/api/bid-windows/:id/approve", post(bidding::approve_bid_window))
         // Schedule views
         .route("/api/schedule/grid", get(schedule::grid))
         .route("/api/schedule/day/:date", get(schedule::day_view))

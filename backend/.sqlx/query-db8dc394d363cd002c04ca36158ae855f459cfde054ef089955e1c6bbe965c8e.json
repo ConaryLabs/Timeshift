@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT bw.id, bw.period_id, bw.user_id, bw.opens_at, bw.closes_at,\n               sp.org_id\n        FROM bid_windows bw\n        JOIN schedule_periods sp ON sp.id = bw.period_id\n        WHERE bw.id = $1\n        ",
+  "query": "\n        SELECT bw.id, bw.period_id, bw.seniority_rank, bw.submitted_at, bw.approved_at,\n               sp.org_id\n        FROM bid_windows bw\n        JOIN schedule_periods sp ON sp.id = bw.period_id\n        WHERE bw.id = $1\n        FOR UPDATE\n        ",
   "describe": {
     "columns": [
       {
@@ -15,17 +15,17 @@
       },
       {
         "ordinal": 2,
-        "name": "user_id",
-        "type_info": "Uuid"
+        "name": "seniority_rank",
+        "type_info": "Int4"
       },
       {
         "ordinal": 3,
-        "name": "opens_at",
+        "name": "submitted_at",
         "type_info": "Timestamptz"
       },
       {
         "ordinal": 4,
-        "name": "closes_at",
+        "name": "approved_at",
         "type_info": "Timestamptz"
       },
       {
@@ -43,10 +43,10 @@
       false,
       false,
       false,
-      false,
-      false,
+      true,
+      true,
       false
     ]
   },
-  "hash": "452de18309807a0cd4006aca2b1c06be71ba1dafa37e5b91b62102e4797db625"
+  "hash": "db8dc394d363cd002c04ca36158ae855f459cfde054ef089955e1c6bbe965c8e"
 }

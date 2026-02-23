@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Play, Users, Zap } from 'lucide-react'
+import { ArrowLeft, Play, Users, Zap, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -28,6 +28,7 @@ import {
   useBidWindows,
   useOpenBidding,
   useProcessBids,
+  useApproveBidWindow,
 } from '@/hooks/queries'
 import { formatTime } from '@/lib/format'
 import { NO_VALUE } from '@/lib/format'
@@ -65,10 +66,12 @@ function StatusBadge({ status }: { status: BidPeriodStatus }) {
 }
 
 function getWindowStatus(w: BidWindow) {
+  if (!w.unlocked_at) return 'locked' as const
+  if (w.submitted_at && w.approved_at) return 'approved' as const
+  if (w.submitted_at) return 'submitted' as const
   const now = new Date()
   const opens = new Date(w.opens_at)
   const closes = new Date(w.closes_at)
-  if (w.submitted_at) return 'submitted' as const
   if (now < opens) return 'upcoming' as const
   if (now > closes) return 'closed' as const
   return 'active' as const
@@ -93,6 +96,7 @@ export default function SchedulePeriodDetailPage() {
   const removeMut = useRemoveSlotAssignment()
   const openBiddingMut = useOpenBidding()
   const processBidsMut = useProcessBids()
+  const approveMut = useApproveBidWindow()
 
   if (!id) return <Navigate to="/admin/schedule-periods" replace />
 
@@ -172,6 +176,18 @@ export default function SchedulePeriodDetailPage() {
     })
   }
 
+  function handleApproveWindow(windowId: string) {
+    approveMut.mutate(windowId, {
+      onSuccess: () => {
+        toast.success('Bid window approved — next window unlocked')
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to approve bid window'
+        toast.error(msg)
+      },
+    })
+  }
+
   const columns: Column<SlotAssignmentView>[] = [
     { header: 'Team', accessorKey: 'team_name' },
     { header: 'Shift', accessorKey: 'shift_template_name' },
@@ -232,6 +248,10 @@ export default function SchedulePeriodDetailPage() {
   ]
 
   // Bid window columns
+  const pendingApproval = (bidWindows ?? []).filter(
+    (w) => w.submitted_at && !w.approved_at,
+  )
+
   const windowColumns: Column<BidWindow>[] = [
     {
       header: 'Rank',
@@ -239,7 +259,14 @@ export default function SchedulePeriodDetailPage() {
     },
     {
       header: 'Employee',
-      cell: (r) => `${r.last_name}, ${r.first_name}`,
+      cell: (r) => (
+        <span className="flex items-center gap-1.5">
+          {r.last_name}, {r.first_name}
+          {r.is_job_share && (
+            <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 py-0 h-5">Job Share</Badge>
+          )}
+        </span>
+      ),
     },
     {
       header: 'Opens',
@@ -253,10 +280,32 @@ export default function SchedulePeriodDetailPage() {
       header: 'Status',
       cell: (r) => {
         const s = getWindowStatus(r)
+        if (s === 'approved') return <Badge className="bg-green-700">Approved</Badge>
         if (s === 'submitted') return <Badge className="bg-blue-600">Submitted</Badge>
         if (s === 'active') return <Badge className="bg-green-600">Active</Badge>
         if (s === 'closed') return <Badge variant="outline">Closed</Badge>
+        if (s === 'locked') return <Badge variant="secondary">Locked</Badge>
         return <Badge variant="secondary">Upcoming</Badge>
+      },
+    },
+    {
+      header: 'Actions',
+      cell: (r) => {
+        if (r.submitted_at && !r.approved_at) {
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-green-700 hover:bg-green-50"
+              onClick={() => handleApproveWindow(r.id)}
+              disabled={approveMut.isPending}
+            >
+              <CheckCircle className="w-3.5 h-3.5 mr-1" />
+              Approve
+            </Button>
+          )
+        }
+        return null
       },
     },
   ]
@@ -304,6 +353,20 @@ export default function SchedulePeriodDetailPage() {
           </div>
         }
       />
+
+      {/* Pending Approval banner */}
+      {status === 'open' && pendingApproval.length > 0 && (
+        <Card className="mb-6 border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-amber-800">
+                <strong>{pendingApproval.length}</strong> bid{pendingApproval.length > 1 ? 's' : ''} awaiting supervisor approval.
+                The next employee's window will unlock once approved.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bid Windows section (when bidding has been opened) */}
       {(status === 'open' || status === 'completed' || status === 'in_progress') && (
