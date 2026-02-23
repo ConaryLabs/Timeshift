@@ -93,13 +93,24 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     );
 
+    // Rate limiting for callout actions (bump, volunteer): 3 requests burst, 1 per second per IP
+    let callout_action_governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(1)
+            .burst_size(3)
+            .finish()
+            .unwrap(),
+    );
+
     let governor_limiter = governor_conf.limiter().clone();
     let refresh_governor_limiter = refresh_governor_conf.limiter().clone();
+    let callout_action_limiter = callout_action_governor_conf.limiter().clone();
     let cleanup_interval = Duration::from_secs(60);
     std::thread::spawn(move || loop {
         std::thread::sleep(cleanup_interval);
         governor_limiter.retain_recent();
         refresh_governor_limiter.retain_recent();
+        callout_action_limiter.retain_recent();
     });
 
     // Login route with rate limiting
@@ -118,9 +129,25 @@ async fn main() -> anyhow::Result<()> {
         })
         .with_state(state.clone());
 
+    // Callout action routes (bump, volunteer) with rate limiting
+    let callout_action_router = Router::new()
+        .route(
+            "/api/callout/events/:id/bump",
+            post(api::callout::create_bump_request),
+        )
+        .route(
+            "/api/callout/events/:id/volunteer",
+            post(api::ot::volunteer),
+        )
+        .layer(GovernorLayer {
+            config: callout_action_governor_conf,
+        })
+        .with_state(state.clone());
+
     let app = api::router(state)
         .merge(login_router)
         .merge(refresh_router)
+        .merge(callout_action_router)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new());

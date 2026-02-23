@@ -10,8 +10,9 @@ use crate::{
     error::{AppError, Result},
     models::{
         callout::{
-            BumpRequest, CalloutAttempt, CalloutEvent, CalloutListEntry, CalloutStatus,
-            CreateBumpRequest, CreateCalloutEventRequest, RecordAttemptRequest, ReviewBumpRequest,
+            BumpRequest, BumpRequestWithNames, CalloutAttempt, CalloutEvent, CalloutListEntry,
+            CalloutStatus, CreateBumpRequest, CreateCalloutEventRequest, RecordAttemptRequest,
+            ReviewBumpRequest,
         },
         common::PaginationParams,
         ot::CalloutStep,
@@ -569,13 +570,15 @@ pub async fn cancel_ot_assignment(
     )
     .fetch_optional(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound("No filled callout event found".into()))?;
+    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
 
     if event.org_id != auth.org_id {
-        return Err(AppError::NotFound("No filled callout event found".into()));
+        return Err(AppError::NotFound("Callout event not found".into()));
     }
     if event.status != CalloutStatus::Filled {
-        return Err(AppError::NotFound("No filled callout event found".into()));
+        return Err(AppError::Conflict(
+            "Callout event is not in filled status".into(),
+        ));
     }
 
     // 2. Find the active OT assignment for the user who accepted THIS callout event.
@@ -632,6 +635,16 @@ pub async fn cancel_ot_assignment(
     .execute(&pool)
     .await?;
 
+    // 7. Auto-reopen event so it re-enters the callout queue — in 911 dispatch,
+    // lost OT coverage must be immediately re-callable without manual supervisor
+    // intervention.
+    sqlx::query!(
+        "UPDATE callout_events SET status = 'open', updated_at = NOW() WHERE id = $1",
+        event_id
+    )
+    .execute(&pool)
+    .await?;
+
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -671,6 +684,17 @@ pub async fn cancel_event(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+/// Submit a bump request to displace another employee from a filled OT callout event.
+///
+/// **Role check**: Any authenticated employee can submit — there is no supervisor gate.
+/// The business gate is the OT queue priority comparison (step 5 below): the requesting
+/// user must have strictly higher OT priority (fewer hours worked, or earlier queue
+/// timestamp when hours are equal) than the displaced user. If they do not, the request
+/// is rejected with a 409 Conflict.
+///
+/// This is intentional per the VCCEA contract — union members have the right to bump
+/// lower-priority employees off OT assignments without requiring supervisor pre-approval.
+/// A supervisor review step occurs *after* submission (see `review_bump_request`).
 pub async fn create_bump_request(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -1017,4 +1041,47 @@ pub async fn review_bump_request(
     .await?;
 
     Ok(Json(updated))
+}
+
+pub async fn list_bump_requests(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(event_id): Path<Uuid>,
+) -> Result<Json<Vec<BumpRequestWithNames>>> {
+    // Verify event belongs to the user's org
+    let event_org = sqlx::query_scalar!(
+        "SELECT org_id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ce.id = $1",
+        event_id
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
+
+    if event_org != auth.org_id {
+        return Err(AppError::NotFound("Callout event not found".into()));
+    }
+
+    let rows = sqlx::query_as!(
+        BumpRequestWithNames,
+        r#"
+        SELECT br.id, br.event_id, br.requesting_user_id,
+               ru.first_name AS requesting_user_first_name,
+               ru.last_name  AS requesting_user_last_name,
+               br.displaced_user_id,
+               du.first_name AS displaced_user_first_name,
+               du.last_name  AS displaced_user_last_name,
+               br.status, br.reason, br.created_at, br.reviewed_at, br.reviewed_by
+        FROM bump_requests br
+        JOIN users ru ON ru.id = br.requesting_user_id
+        JOIN users du ON du.id = br.displaced_user_id
+        WHERE br.event_id = $1 AND br.org_id = $2
+        ORDER BY br.created_at DESC
+        "#,
+        event_id,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    Ok(Json(rows))
 }

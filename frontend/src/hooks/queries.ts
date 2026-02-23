@@ -90,6 +90,8 @@ export const queryKeys = {
     list: (eventId: string) => ['callout-list', eventId] as const,
     volunteersAll: ['callout-volunteers'] as const,
     volunteers: (eventId: string) => ['callout-volunteers', eventId] as const,
+    bumpRequestsAll: ['bump-requests'] as const,
+    bumpRequests: (eventId: string) => ['bump-requests', eventId] as const,
   },
   ot: {
     queueAll: ['ot-queue'] as const,
@@ -756,6 +758,40 @@ export function useAdvanceCalloutStep() {
     mutationFn: ({ eventId, step }: { eventId: string; step: CalloutStep }) =>
       otApi.advanceStep(eventId, step),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+    },
+  })
+}
+
+// -- Bump Requests --
+
+export function useBumpRequests(eventId: string) {
+  return useQuery({
+    queryKey: queryKeys.callout.bumpRequests(eventId),
+    queryFn: () => calloutApi.listBumpRequests(eventId),
+    enabled: !!eventId,
+  })
+}
+
+export function useCreateBumpRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ eventId, ...payload }: { eventId: string; displaced_user_id: string; reason?: string }) =>
+      calloutApi.createBumpRequest(eventId, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.bumpRequests(vars.eventId) })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+    },
+  })
+}
+
+export function useReviewBumpRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ requestId, ...payload }: { requestId: string; approved: boolean; reason?: string }) =>
+      calloutApi.reviewBumpRequest(requestId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.bumpRequestsAll })
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
     },
   })

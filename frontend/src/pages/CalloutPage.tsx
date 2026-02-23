@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { format, addDays } from 'date-fns'
-import { Hand, Info } from 'lucide-react'
+import { Hand, Info, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -34,13 +34,16 @@ import {
   useCalloutVolunteers,
   useVolunteer,
   useAdvanceCalloutStep,
+  useBumpRequests,
+  useCreateBumpRequest,
+  useReviewBumpRequest,
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { NO_VALUE } from '@/lib/format'
-import type { CalloutListEntry } from '@/api/callout'
+import type { CalloutListEntry, BumpRequest } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
 
 const INITIAL_FORM = {
@@ -123,6 +126,9 @@ export default function CalloutPage() {
   const [acceptNotes, setAcceptNotes] = useState('')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
+  const [showBumpDialog, setShowBumpDialog] = useState(false)
+  const [bumpDisplacedUserId, setBumpDisplacedUserId] = useState(NO_VALUE)
+  const [bumpReason, setBumpReason] = useState('')
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
@@ -136,6 +142,10 @@ export default function CalloutPage() {
   const volunteerMut = useVolunteer()
   const advanceStepMut = useAdvanceCalloutStep()
 
+  const { data: bumpRequests } = useBumpRequests(selectedEvent ?? '')
+  const createBumpMut = useCreateBumpRequest()
+  const reviewBumpMut = useReviewBumpRequest()
+
   const { data: scheduledShifts } = useScheduledShifts({ start_date: today, end_date: twoWeeksOut })
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
@@ -144,6 +154,7 @@ export default function CalloutPage() {
 
   const selectedEventData = (events ?? []).find((e) => e.id === selectedEvent)
   const eventIsOpen = selectedEventData?.status === 'open'
+  const eventIsFilled = selectedEventData?.status === 'filled'
   const currentStep = selectedEventData?.current_step ?? null
 
   // Check if current user already volunteered
@@ -250,6 +261,40 @@ export default function CalloutPage() {
       },
     )
   }
+
+  function handleBumpSubmit() {
+    if (!selectedEvent || bumpDisplacedUserId === NO_VALUE) return
+    createBumpMut.mutate(
+      { eventId: selectedEvent, displaced_user_id: bumpDisplacedUserId, reason: bumpReason || undefined },
+      {
+        onSuccess: () => {
+          toast.success('Bump request submitted')
+          setShowBumpDialog(false)
+          setBumpDisplacedUserId(NO_VALUE)
+          setBumpReason('')
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit bump request'
+          toast.error(msg)
+        },
+      },
+    )
+  }
+
+  function handleBumpReview(requestId: string, approved: boolean) {
+    reviewBumpMut.mutate(
+      { requestId, approved },
+      {
+        onSuccess: () => toast.success(approved ? 'Bump approved' : 'Bump rejected'),
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review bump request'
+          toast.error(msg)
+        },
+      },
+    )
+  }
+
+  const pendingBumps = (bumpRequests ?? []).filter((b: BumpRequest) => b.status === 'pending')
 
   const calloutColumns: Column<CalloutListEntry>[] = [
     { header: '#', cell: (r) => <span className="font-semibold">{r.position}</span> },
@@ -481,6 +526,75 @@ export default function CalloutPage() {
               emptyMessage="No entries in callout list"
             />
           )}
+
+          {/* Bump request section — visible when event is filled */}
+          {selectedEvent && eventIsFilled && (
+            <div className="mt-6">
+              {/* Employee: Request Bump button */}
+              {!isManager && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowBumpDialog(true)}
+                  aria-label="Request bump"
+                >
+                  <ArrowUpDown className="h-4 w-4 mr-1" />
+                  Request Bump
+                </Button>
+              )}
+
+              {/* Supervisor: Pending bump requests panel */}
+              {isManager && pendingBumps.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-3">
+                    Pending Bump Requests ({pendingBumps.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {pendingBumps.map((b: BumpRequest) => (
+                      <div key={b.id} className="border rounded-lg p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-sm">
+                            <span className="font-medium">
+                              {b.requesting_user_last_name}, {b.requesting_user_first_name}
+                            </span>
+                            {' wants to bump '}
+                            <span className="font-medium">
+                              {b.displaced_user_last_name}, {b.displaced_user_first_name}
+                            </span>
+                          </div>
+                        </div>
+                        {b.reason && (
+                          <p className="text-xs text-muted-foreground mt-1">{b.reason}</p>
+                        )}
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-700 hover:bg-green-50"
+                            disabled={reviewBumpMut.isPending}
+                            aria-label={`Approve bump by ${b.requesting_user_first_name} ${b.requesting_user_last_name}`}
+                            onClick={() => handleBumpReview(b.id, true)}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-700 hover:bg-red-50"
+                            disabled={reviewBumpMut.isPending}
+                            aria-label={`Reject bump by ${b.requesting_user_first_name} ${b.requesting_user_last_name}`}
+                            onClick={() => handleBumpReview(b.id, false)}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -581,6 +695,67 @@ export default function CalloutPage() {
             <Button variant="outline" onClick={() => setAcceptTarget(null)}>Cancel</Button>
             <Button onClick={handleAccept} disabled={recordMut.isPending}>
               Confirm Acceptance
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bump request dialog */}
+      <Dialog open={showBumpDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowBumpDialog(false)
+          setBumpDisplacedUserId(NO_VALUE)
+          setBumpReason('')
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Bump</DialogTitle>
+            <DialogDescription>
+              Submit a bump request to displace an employee from the filled OT assignment.
+              You must have higher OT priority than the displaced employee.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <FormField label="Employee to Displace" htmlFor="bump-displaced" required>
+              <Select
+                value={bumpDisplacedUserId}
+                onValueChange={setBumpDisplacedUserId}
+              >
+                <SelectTrigger id="bump-displaced">
+                  <SelectValue placeholder="Select employee…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(calloutList ?? [])
+                    .filter((e) => e.user_id !== user?.id)
+                    .map((e) => (
+                      <SelectItem key={e.user_id} value={e.user_id}>
+                        {e.last_name}, {e.first_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Reason" htmlFor="bump-reason">
+              <Textarea
+                id="bump-reason"
+                value={bumpReason}
+                onChange={(e) => setBumpReason(e.target.value)}
+                placeholder="Optional reason for the bump request…"
+                rows={3}
+              />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBumpDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handleBumpSubmit}
+              disabled={bumpDisplacedUserId === NO_VALUE || createBumpMut.isPending}
+            >
+              Submit
             </Button>
           </DialogFooter>
         </DialogContent>
