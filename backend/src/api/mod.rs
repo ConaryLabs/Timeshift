@@ -171,10 +171,12 @@ pub fn router(state: AppState) -> Router {
         )
         // Leave requests
         .route("/api/leave", get(leave::list).post(leave::create))
+        .route("/api/leave/bulk-review", post(leave::bulk_review))
         .route("/api/leave/:id", get(leave::get_one).delete(leave::cancel))
         .route("/api/leave/:id/review", patch(leave::review))
         // Trades
         .route("/api/trades", get(trades::list).post(trades::create))
+        .route("/api/trades/bulk-review", post(trades::bulk_review))
         .route(
             "/api/trades/:id",
             get(trades::get_one).delete(trades::cancel),

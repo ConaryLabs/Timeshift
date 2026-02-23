@@ -22,6 +22,7 @@ import {
   useCreateTrade,
   useRespondTrade,
   useReviewTrade,
+  useBulkReviewTrade,
   useCancelTrade,
 } from '@/hooks/queries'
 import { SearchInput } from '@/components/ui/search-input'
@@ -71,6 +72,7 @@ export default function TradesPage() {
   const createMut = useCreateTrade()
   const respondMut = useRespondTrade()
   const reviewMut = useReviewTrade()
+  const bulkReviewMut = useBulkReviewTrade()
   const cancelMut = useCancelTrade()
 
   // Filter my assignments from staffing data
@@ -397,6 +399,46 @@ export default function TradesPage() {
           emptyMessage="No trade requests"
           emptyDescription="Use the button above to request a shift trade."
           rowKey={(r) => r.id}
+          selectable={isManager && statusFilter === 'pending_approval'}
+          toolbar={isManager && statusFilter === 'pending_approval' ? (selectedKeys) => (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{selectedKeys.size} selected</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-green-700 hover:bg-green-50"
+                disabled={bulkReviewMut.isPending}
+                onClick={() => bulkReviewMut.mutate(
+                  { ids: [...selectedKeys], approve: true },
+                  {
+                    onSuccess: (data) => {
+                      toast.success(`${data.reviewed} trade(s) approved`)
+                    },
+                    onError: () => toast.error('Failed to bulk approve'),
+                  },
+                )}
+              >
+                Approve Selected
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-700 hover:bg-red-50"
+                disabled={bulkReviewMut.isPending}
+                onClick={() => bulkReviewMut.mutate(
+                  { ids: [...selectedKeys], approve: false },
+                  {
+                    onSuccess: (data) => {
+                      toast.success(`${data.reviewed} trade(s) denied`)
+                    },
+                    onError: () => toast.error('Failed to bulk deny'),
+                  },
+                )}
+              >
+                Deny Selected
+              </Button>
+            </div>
+          ) : undefined}
         />
       )}
 

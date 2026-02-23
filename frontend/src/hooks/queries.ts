@@ -548,6 +548,17 @@ export function useReviewLeave() {
   })
 }
 
+export function useBulkReviewLeave() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: leaveApi.bulkReview,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
+      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+    },
+  })
+}
+
 export function useCancelLeave() {
   const qc = useQueryClient()
   return useMutation({
@@ -774,6 +785,17 @@ export function useReviewTrade() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; approve: boolean; reviewer_notes?: string }) =>
       tradesApi.review(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
+      qc.invalidateQueries({ queryKey: ['schedule'] })
+    },
+  })
+}
+
+export function useBulkReviewTrade() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: tradesApi.bulkReview,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.trades.all })
       qc.invalidateQueries({ queryKey: ['schedule'] })
