@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, year, round, status,\n               opens_at, closes_at, created_at,\n               allowance_hours, min_block_hours, bargaining_unit\n        FROM vacation_bid_periods\n        WHERE org_id = $1\n          AND ($2::INT IS NULL OR year = $2)\n        ORDER BY year DESC, round\n        ",
+  "query": "\n        SELECT id, org_id, year, round, status,\n               opens_at, closes_at, created_at,\n               allowance_hours, min_block_hours,\n               bargaining_unit::TEXT AS bargaining_unit\n        FROM vacation_bid_periods\n        WHERE org_id = $1\n          AND ($2::INT IS NULL OR year = $2)\n        ORDER BY year DESC, round\n        ",
   "describe": {
     "columns": [
       {
@@ -76,8 +76,8 @@
       false,
       true,
       true,
-      true
+      null
     ]
   },
-  "hash": "e3fdb63f4225144534ea598222700383e00ab66ca2e120fcd966673d71730c23"
+  "hash": "fbdedbe624527d4c89800f368dca5439d3e892cc99a32a9328f4bfc7b1459824"
 }

@@ -28,7 +28,8 @@ pub async fn list_periods(
         r#"
         SELECT id, org_id, year, round, status,
                opens_at, closes_at, created_at,
-               allowance_hours, min_block_hours, bargaining_unit
+               allowance_hours, min_block_hours,
+               bargaining_unit::TEXT AS bargaining_unit
         FROM vacation_bid_periods
         WHERE org_id = $1
           AND ($2::INT IS NULL OR year = $2)
@@ -60,10 +61,11 @@ pub async fn create_period(
         VacationBidPeriod,
         r#"
         INSERT INTO vacation_bid_periods (id, org_id, year, round, allowance_hours, min_block_hours, bargaining_unit)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::TEXT::bargaining_unit_enum)
         RETURNING id, org_id, year, round, status,
                   opens_at, closes_at, created_at,
-                  allowance_hours, min_block_hours, bargaining_unit
+                  allowance_hours, min_block_hours,
+                  bargaining_unit::TEXT AS bargaining_unit
         "#,
         Uuid::new_v4(),
         auth.org_id,
@@ -71,7 +73,7 @@ pub async fn create_period(
         body.round,
         body.allowance_hours,
         body.min_block_hours,
-        body.bargaining_unit,
+        body.bargaining_unit.as_deref(),
     )
     .fetch_one(&pool)
     .await?;
@@ -121,7 +123,7 @@ pub async fn open_bidding(
 
     // Verify period exists and belongs to org, and fetch bargaining_unit
     let period = sqlx::query!(
-        "SELECT id, bargaining_unit FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
+        "SELECT id, bargaining_unit::TEXT AS \"bargaining_unit?\" FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id,
     )
@@ -232,7 +234,8 @@ pub async fn open_bidding(
         WHERE id = $1
         RETURNING id, org_id, year, round, status,
                   opens_at, closes_at, created_at,
-                  allowance_hours, min_block_hours, bargaining_unit
+                  allowance_hours, min_block_hours,
+                  bargaining_unit::TEXT AS bargaining_unit
         "#,
         id,
         period_opens,
@@ -313,7 +316,7 @@ pub async fn get_window(
         SELECT w.id, w.vacation_bid_period_id, w.user_id,
                u.first_name, u.last_name,
                w.seniority_rank, w.opens_at, w.closes_at, w.submitted_at,
-               p.year, p.round, p.org_id, p.allowance_hours
+               p.year, p.round, p.org_id, p.allowance_hours, p.min_block_hours
         FROM vacation_bid_windows w
         JOIN users u ON u.id = w.user_id
         JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id
@@ -382,10 +385,18 @@ pub async fn get_window(
         submitted_at: w.submitted_at,
     };
 
-    let hours_used: f64 = bids.iter().map(|b| {
-        let days = (b.end_date - b.start_date).whole_days() + 1;
-        (days * 8) as f64
-    }).sum();
+    // Fetch non-linear hours lookup so hours_used matches what process_bids will charge
+    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
+        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    let hours_used: f64 = bids
+        .iter()
+        .map(|b| calculate_hours(b.start_date, b.end_date, &hours_lookup))
+        .sum();
 
     Ok(Json(VacationWindowDetail {
         window,
@@ -393,6 +404,7 @@ pub async fn get_window(
         bids,
         dates_taken: awarded_dates,
         allowance_hours: w.allowance_hours,
+        min_block_hours: w.min_block_hours,
         hours_used,
     }))
 }
@@ -426,6 +438,14 @@ pub async fn submit_bid(
     if w.user_id != auth.id {
         return Err(AppError::Forbidden);
     }
+
+    // Fetch non-linear hours lookup so validation matches what process_bids will charge
+    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
+        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
+        w.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?;
 
     if w.period_status != "open" {
         return Err(AppError::BadRequest("Bidding period is not open".into()));
@@ -480,32 +500,30 @@ pub async fn submit_bid(
         }
     }
 
-    // Enforce min_block_hours: each pick must cover at least min_block_hours
-    // Using 8 hrs/day assumption (consistent with leave request creation in process_bids)
+    // Enforce min_block_hours: each pick must cover at least min_block_hours.
+    // Uses calculate_hours for consistency with process_bids (non-linear Sep-Feb table).
     if let Some(min_block) = w.min_block_hours {
         for pick in &body.picks {
-            let days = (pick.end_date - pick.start_date).whole_days() + 1;
-            let hours = days * 8;
-            if hours < min_block as i64 {
+            let hours = calculate_hours(pick.start_date, pick.end_date, &hours_lookup);
+            if hours < min_block as f64 {
                 return Err(AppError::BadRequest(format!(
-                    "Each vacation block must be at least {} hours ({} days); got {} hours",
+                    "Each vacation block must be at least {} hours; got {:.0} hours",
                     min_block,
-                    (min_block + 7) / 8,
                     hours,
                 )));
             }
         }
     }
 
-    // Enforce allowance_hours: total hours across all picks must not exceed the limit
+    // Enforce allowance_hours: total hours across all picks must not exceed the limit.
+    // Uses calculate_hours for consistency with process_bids.
     if let Some(allowance) = w.allowance_hours {
-        let total_hours: i64 = body.picks.iter().map(|p| {
-            let days = (p.end_date - p.start_date).whole_days() + 1;
-            days * 8
-        }).sum();
-        if total_hours > allowance as i64 {
+        let total_hours: f64 = body.picks.iter()
+            .map(|p| calculate_hours(p.start_date, p.end_date, &hours_lookup))
+            .sum();
+        if total_hours > allowance as f64 {
             return Err(AppError::BadRequest(format!(
-                "Total vacation hours ({}) exceeds round allowance of {} hours",
+                "Total vacation hours ({:.0}) exceeds round allowance of {} hours",
                 total_hours, allowance,
             )));
         }
@@ -589,9 +607,9 @@ pub async fn process_bids(
     let mut tx = pool.begin().await?;
 
     // Lock period row inside transaction to prevent concurrent processing
-    let period_status = sqlx::query_scalar!(
+    let period = sqlx::query!(
         r#"
-        SELECT status
+        SELECT status, year
         FROM vacation_bid_periods
         WHERE id = $1 AND org_id = $2
         FOR UPDATE
@@ -603,7 +621,7 @@ pub async fn process_bids(
     .await?
     .ok_or_else(|| AppError::NotFound("Vacation bid period not found".into()))?;
 
-    if period_status != "open" {
+    if period.status != "open" {
         return Err(AppError::BadRequest(
             "Period must be in open status to process bids".into(),
         ));
@@ -643,8 +661,28 @@ pub async fn process_bids(
     .fetch_optional(&mut *tx)
     .await?;
 
-    // Track all awarded dates across all windows to detect conflicts
-    let mut awarded_dates: HashSet<time::Date> = HashSet::new();
+    // Pre-seed with dates already awarded in earlier rounds of the same year so that
+    // round 2 cannot double-book dates already granted in round 1.
+    let prior_dates: Vec<time::Date> = sqlx::query_scalar!(
+        r#"
+        SELECT DISTINCT d::DATE AS "date!"
+        FROM vacation_bids vb
+        JOIN vacation_bid_windows vw ON vw.id = vb.vacation_bid_window_id
+        JOIN vacation_bid_periods vp ON vp.id = vw.vacation_bid_period_id
+        CROSS JOIN generate_series(vb.start_date, vb.end_date, '1 day'::interval) AS d
+        WHERE vp.org_id = $1
+          AND vp.year = $2
+          AND vp.id != $3
+          AND vb.awarded = true
+        "#,
+        auth.org_id,
+        period.year,
+        period_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut awarded_dates: HashSet<time::Date> = prior_dates.into_iter().collect();
 
     // Process each window in seniority order
     for window in &windows {
@@ -728,7 +766,8 @@ pub async fn process_bids(
         WHERE id = $1
         RETURNING id, org_id, year, round, status,
                   opens_at, closes_at, created_at,
-                  allowance_hours, min_block_hours, bargaining_unit
+                  allowance_hours, min_block_hours,
+                  bargaining_unit::TEXT AS bargaining_unit
         "#,
         period_id,
     )

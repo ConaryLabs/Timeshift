@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT d::DATE AS \"date!\"\n        FROM vacation_bids vb\n        JOIN vacation_bid_windows vw ON vw.id = vb.vacation_bid_window_id\n        JOIN vacation_bid_periods vp ON vp.id = vw.vacation_bid_period_id\n        CROSS JOIN generate_series(vb.start_date, vb.end_date, '1 day'::interval) AS d\n        WHERE vp.org_id = $1\n          AND vp.year = $2\n          AND vp.id != $3\n          AND vb.awarded = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date!",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5eef571515b4c4468c9ca6ab7fa7c611bf47cc4c7829d3728d8912d878103879"
+}

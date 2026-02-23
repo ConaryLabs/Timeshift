@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO schedule_periods (id, org_id, name, start_date, end_date, bargaining_unit)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, org_id, name, start_date, end_date, is_active,\n                  status AS \"status: BidPeriodStatus\",\n                  bid_opens_at, bid_closes_at,\n                  bargaining_unit,\n                  created_at\n        ",
+  "query": "\n        INSERT INTO schedule_periods (id, org_id, name, start_date, end_date, bargaining_unit)\n        VALUES ($1, $2, $3, $4, $5, $6::TEXT::bargaining_unit_enum)\n        RETURNING id, org_id, name, start_date, end_date, is_active,\n                  status AS \"status: BidPeriodStatus\",\n                  bid_opens_at, bid_closes_at,\n                  bargaining_unit::TEXT AS bargaining_unit,\n                  created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -92,9 +92,9 @@
       false,
       true,
       true,
-      true,
+      null,
       false
     ]
   },
-  "hash": "f7e639dd79abd2ceba04b84c288f516901fccfdfd57e087998e73f35e71d98ef"
+  "hash": "403a153c8e76e569c5c17520c2118233445996225be853cf4ede927cdf8e49e6"
 }
