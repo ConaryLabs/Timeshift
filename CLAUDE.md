@@ -122,7 +122,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ## Database Schema
 
-15 migrations in `backend/migrations/` (0001–0015). Key tables:
+20 migrations in `backend/migrations/` (0001–0020). Key tables:
 
 - `organizations` — Multi-tenant root
 - `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (type: `bargaining_unit_enum`), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
@@ -133,7 +133,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `scheduled_shifts` — Concrete shift instances on specific dates
 - `schedule_periods` — Bid periods for slot assignments
 - `slot_assignments` — Who holds a slot for a period (bid results)
-- `assignments` — Who works a specific scheduled_shift (daily assignments)
+- `assignments` — Who works a specific scheduled_shift (daily assignments; `ot_type` VARCHAR and `cancelled_at` TIMESTAMPTZ for OT tracking)
 - `leave_types` — Reference table (26 leave codes)
 - `leave_requests` — Time-off requests with approval workflow
 - `leave_balances` — Per-user leave hour balances
@@ -143,8 +143,9 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `callout_events` + `callout_attempts` — Callout process tracking
 - `ot_hours` — OT tracking per user/fiscal_year/classification
 - `ot_reasons` — Reasons for OT callout
-- `ot_queue_positions` — OT queue ordering per classification
+- `ot_queue_positions` — OT queue ordering per user/classification/year; ordered by `last_ot_event_at` timestamp (NULL = never called = highest priority)
 - `ot_volunteers` — Callout event volunteers
+- `bump_requests` — OT bump requests (requesting_user displaces displaced_user, supervisor review)
 - `trade_requests` — Shift trade requests with approval workflow
 - `coverage_requirements` — Min/target/max headcount per shift+classification+day
 - `schedule_annotations` — Notes/alerts on schedule dates
