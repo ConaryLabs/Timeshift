@@ -113,6 +113,10 @@ export default function SchedulePeriodDetailPage() {
           toast.success('Assignment saved')
           setAssignTarget(null)
         },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
+        },
       },
     )
   }
@@ -125,6 +129,10 @@ export default function SchedulePeriodDetailPage() {
         onSuccess: () => {
           toast.success('Assignment removed')
           setRemoveTarget(null)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
         },
       },
     )

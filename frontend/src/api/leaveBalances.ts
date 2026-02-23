@@ -77,7 +77,7 @@ export const leaveBalancesApi = {
       years_of_service_min?: number
       years_of_service_max?: number | null
     },
-  ) => api.put<AccrualSchedule>(`/api/leave/accrual-schedules/${id}`, body).then((r) => r.data),
+  ) => api.patch<AccrualSchedule>(`/api/leave/accrual-schedules/${id}`, body).then((r) => r.data),
 
   deleteAccrualSchedule: (id: string) =>
     api.delete(`/api/leave/accrual-schedules/${id}`).then((r) => r.data),

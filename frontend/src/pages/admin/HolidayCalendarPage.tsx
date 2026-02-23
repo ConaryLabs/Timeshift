@@ -81,6 +81,10 @@ export default function HolidayCalendarPage() {
             toast.success('Holiday updated')
             setDialogOpen(false)
           },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
+          },
         },
       )
     } else {
@@ -90,6 +94,10 @@ export default function HolidayCalendarPage() {
           onSuccess: () => {
             toast.success('Holiday created')
             setDialogOpen(false)
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
           },
         },
       )

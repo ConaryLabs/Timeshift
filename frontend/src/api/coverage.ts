@@ -37,7 +37,7 @@ export const coverageApi = {
     api.post<CoverageRequirement>('/api/coverage', body).then((r) => r.data),
 
   update: (id: string, body: UpdateCoverageRequirementBody) =>
-    api.put<CoverageRequirement>(`/api/coverage/${id}`, body).then((r) => r.data),
+    api.patch<CoverageRequirement>(`/api/coverage/${id}`, body).then((r) => r.data),
 
   delete: (id: string) =>
     api.delete(`/api/coverage/${id}`).then((r) => r.data),

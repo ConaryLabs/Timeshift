@@ -137,6 +137,9 @@ pub async fn adjust(
     auth: AuthUser,
     Json(body): Json<AdjustBalanceRequest>,
 ) -> Result<Json<serde_json::Value>> {
+    use validator::Validate;
+    body.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }
@@ -246,6 +249,9 @@ pub async fn create_accrual_schedule(
     auth: AuthUser,
     Json(body): Json<CreateAccrualScheduleRequest>,
 ) -> Result<Json<AccrualSchedule>> {
+    use validator::Validate;
+    body.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }

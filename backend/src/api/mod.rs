@@ -19,7 +19,7 @@ pub mod vacation_bids;
 
 use crate::AppState;
 use axum::{
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, patch, post},
     Router,
 };
 
@@ -28,18 +28,17 @@ pub fn router(state: AppState) -> Router {
         // Auth (login route is in main.rs with rate limiting)
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
-        .route("/api/auth/refresh", post(auth::refresh))
         // Organization (own org only)
         .route(
             "/api/organization",
-            get(organizations::get_own).put(organizations::update_own),
+            get(organizations::get_own).patch(organizations::update_own),
         )
         // Classifications
         .route(
             "/api/classifications",
             get(classifications::list).post(classifications::create),
         )
-        .route("/api/classifications/:id", put(classifications::update))
+        .route("/api/classifications/:id", patch(classifications::update))
         // Teams
         .route(
             "/api/teams",
@@ -47,27 +46,28 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/api/teams/:id",
-            get(teams::get_team).put(teams::update_team),
+            get(teams::get_team).patch(teams::update_team),
         )
         .route(
             "/api/teams/:id/slots",
             get(teams::list_slots).post(teams::create_slot),
         )
         // Shift slots (cross-team update)
-        .route("/api/shift-slots/:id", put(teams::update_slot))
+        .route("/api/shift-slots/:id", patch(teams::update_slot))
         // Employee portal (must be before /api/users/:id to avoid param capture)
         .route(
             "/api/users/me/preferences",
-            get(employee::get_preferences).put(employee::update_preferences),
+            get(employee::get_preferences).patch(employee::update_preferences),
         )
         .route("/api/users/me/schedule", get(employee::my_schedule))
         .route("/api/users/me/dashboard", get(employee::my_dashboard))
+        .route("/api/users/me/password", patch(users::change_password))
         // Users
         .route("/api/users", get(users::list).post(users::create))
         .route(
             "/api/users/:id",
             get(users::get_one)
-                .put(users::update)
+                .patch(users::update)
                 .delete(users::deactivate),
         )
         // Shift templates
@@ -77,7 +77,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/api/shifts/templates/:id",
-            get(shifts::get_template).put(shifts::update_template),
+            get(shifts::get_template).patch(shifts::update_template),
         )
         // Scheduled shifts
         .route(
@@ -102,6 +102,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/schedule/periods",
             get(schedule::list_periods).post(schedule::create_period),
+        )
+        .route(
+            "/api/schedule/periods/:id",
+            get(schedule::get_period),
         )
         .route(
             "/api/schedule/periods/:id/assign",
@@ -147,7 +151,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/coverage", get(coverage::list).post(coverage::create))
         .route(
             "/api/coverage/:id",
-            put(coverage::update).delete(coverage::delete),
+            patch(coverage::update).delete(coverage::delete),
         )
         // Leave types
         .route("/api/leave/types", get(leave::list_types))
@@ -166,21 +170,20 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/api/leave/accrual-schedules/:id",
-            put(leave_balances::update_accrual_schedule)
+            patch(leave_balances::update_accrual_schedule)
                 .delete(leave_balances::delete_accrual_schedule),
         )
         // Leave requests
         .route("/api/leave", get(leave::list).post(leave::create))
         .route("/api/leave/bulk-review", post(leave::bulk_review))
-        .route("/api/leave/:id", get(leave::get_one).delete(leave::cancel))
+        .route("/api/leave/:id", get(leave::get_one))
+        .route("/api/leave/:id/cancel", patch(leave::cancel))
         .route("/api/leave/:id/review", patch(leave::review))
         // Trades
         .route("/api/trades", get(trades::list).post(trades::create))
         .route("/api/trades/bulk-review", post(trades::bulk_review))
-        .route(
-            "/api/trades/:id",
-            get(trades::get_one).delete(trades::cancel),
-        )
+        .route("/api/trades/:id", get(trades::get_one))
+        .route("/api/trades/:id/cancel", patch(trades::cancel))
         .route("/api/trades/:id/respond", patch(trades::respond))
         .route("/api/trades/:id/review", patch(trades::review))
         // Callout
@@ -189,7 +192,7 @@ pub fn router(state: AppState) -> Router {
             get(callout::list_events).post(callout::create_event),
         )
         .route("/api/callout/events/:id", get(callout::get_event))
-        .route("/api/callout/events/:id/list", get(callout::callout_list))
+        .route("/api/callout/events/:id/queue", get(callout::callout_list))
         .route(
             "/api/callout/events/:id/attempt",
             post(callout::record_attempt),
@@ -214,30 +217,30 @@ pub fn router(state: AppState) -> Router {
             delete(vacation_bids::delete_period),
         )
         .route(
-            "/api/vacation-bids/periods/:id/open",
+            "/api/vacation-bids/periods/:id/open-bidding",
             post(vacation_bids::open_bidding),
         )
         .route(
-            "/api/vacation-bids/periods/:id/windows",
+            "/api/vacation-bids/periods/:id/bid-windows",
             get(vacation_bids::list_windows),
         )
         .route(
-            "/api/vacation-bids/periods/:id/process",
+            "/api/vacation-bids/periods/:id/process-bids",
             post(vacation_bids::process_bids),
         )
         .route(
-            "/api/vacation-bids/windows/:id",
+            "/api/vacation-bids/bid-windows/:id",
             get(vacation_bids::get_window),
         )
         .route(
-            "/api/vacation-bids/windows/:id/submit",
+            "/api/vacation-bids/bid-windows/:id/submit",
             post(vacation_bids::submit_bid),
         )
         // Holidays
         .route("/api/holidays", get(holidays::list).post(holidays::create))
         .route(
             "/api/holidays/:id",
-            put(holidays::update).delete(holidays::delete),
+            patch(holidays::update).delete(holidays::delete),
         )
         // Reports
         .route("/api/reports/coverage", get(reports::coverage))
@@ -246,7 +249,7 @@ pub fn router(state: AppState) -> Router {
         // Organization settings
         .route(
             "/api/organization/settings",
-            get(organizations::list_settings).put(organizations::set_setting),
+            get(organizations::list_settings).patch(organizations::set_setting),
         )
         // OT Queue & Hours
         .route("/api/ot/queue", get(ot::get_queue))

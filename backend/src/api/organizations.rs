@@ -30,6 +30,9 @@ pub async fn update_own(
     auth: AuthUser,
     Json(req): Json<UpdateOrganizationRequest>,
 ) -> Result<Json<Organization>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }

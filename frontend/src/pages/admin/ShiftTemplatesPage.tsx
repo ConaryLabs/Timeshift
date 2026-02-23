@@ -75,6 +75,10 @@ export default function ShiftTemplatesPage() {
         toast.success('Shift template created')
         setDialogOpen(false)
       },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
+      },
     })
   }
 
@@ -86,6 +90,10 @@ export default function ShiftTemplatesPage() {
         onSuccess: () => {
           toast.success('Shift template updated')
           setDialogOpen(false)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
         },
       },
     )
@@ -119,13 +127,20 @@ export default function ShiftTemplatesPage() {
       cell: (r) => (
         <Switch
           checked={r.is_active}
+          aria-label={`Toggle active status for ${r.name}`}
           onCheckedChange={(checked) => {
             if (!checked) {
               setDeactivateTarget(r)
             } else {
               updateMut.mutate(
                 { id: r.id, is_active: true },
-                { onSuccess: () => toast.success('Shift template activated') },
+                {
+                  onSuccess: () => toast.success('Shift template activated'),
+                  onError: (err: unknown) => {
+                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                    toast.error(msg)
+                  },
+                },
               )
             }
           }}
@@ -271,6 +286,10 @@ export default function ShiftTemplatesPage() {
                     onSuccess: () => {
                       toast.success('Shift template deactivated')
                       setDeactivateTarget(null)
+                    },
+                    onError: (err: unknown) => {
+                      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                      toast.error(msg)
                     },
                   },
                 )

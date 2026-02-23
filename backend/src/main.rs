@@ -84,11 +84,22 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     );
 
+    // Rate limiting for refresh endpoint: 5 requests burst, replenish 1 per 200ms per IP
+    let refresh_governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_millisecond(200)
+            .burst_size(10)
+            .finish()
+            .unwrap(),
+    );
+
     let governor_limiter = governor_conf.limiter().clone();
+    let refresh_governor_limiter = refresh_governor_conf.limiter().clone();
     let cleanup_interval = Duration::from_secs(60);
     std::thread::spawn(move || loop {
         std::thread::sleep(cleanup_interval);
         governor_limiter.retain_recent();
+        refresh_governor_limiter.retain_recent();
     });
 
     // Login route with rate limiting
@@ -99,8 +110,17 @@ async fn main() -> anyhow::Result<()> {
         })
         .with_state(state.clone());
 
+    // Refresh route with rate limiting
+    let refresh_router = Router::new()
+        .route("/api/auth/refresh", post(api::auth::refresh))
+        .layer(GovernorLayer {
+            config: refresh_governor_conf,
+        })
+        .with_state(state.clone());
+
     let app = api::router(state)
         .merge(login_router)
+        .merge(refresh_router)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new());

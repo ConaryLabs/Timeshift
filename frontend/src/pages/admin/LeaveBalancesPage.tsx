@@ -93,6 +93,10 @@ export default function LeaveBalancesPage() {
           toast.success('Balance adjusted')
           setAdjustDialog(null)
         },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
+        },
       },
     )
   }
@@ -141,6 +145,10 @@ export default function LeaveBalancesPage() {
             toast.success('Schedule updated')
             setScheduleDialog(false)
           },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
+          },
         },
       )
     } else {
@@ -159,6 +167,10 @@ export default function LeaveBalancesPage() {
             toast.success('Schedule created')
             setScheduleDialog(false)
           },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
+          },
         },
       )
     }
@@ -167,6 +179,10 @@ export default function LeaveBalancesPage() {
   function handleDeleteSchedule(id: string) {
     deleteScheduleMut.mutate(id, {
       onSuccess: () => toast.success('Schedule deleted'),
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
+      },
     })
   }
 
@@ -274,8 +290,10 @@ export default function LeaveBalancesPage() {
       />
 
       {/* Tab switcher */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div className="flex gap-1 mb-6 border-b" role="tablist">
         <button
+          role="tab"
+          aria-selected={tab === 'balances'}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === 'balances'
               ? 'border-primary text-primary'
@@ -286,6 +304,8 @@ export default function LeaveBalancesPage() {
           Employee Balances
         </button>
         <button
+          role="tab"
+          aria-selected={tab === 'schedules'}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === 'schedules'
               ? 'border-primary text-primary'

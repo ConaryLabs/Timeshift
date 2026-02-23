@@ -308,8 +308,17 @@ pub async fn review(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewTradeRequest>,
 ) -> Result<Json<TradeRequest>> {
+    use validator::Validate;
+    body.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
+    }
+
+    if body.status != "approved" && body.status != "denied" {
+        return Err(AppError::BadRequest(
+            "status must be 'approved' or 'denied'".into(),
+        ));
     }
 
     // Entire review is one transaction — fetch with FOR UPDATE to prevent TOCTOU race
@@ -337,7 +346,7 @@ pub async fn review(
         ));
     }
 
-    if body.approve {
+    if body.status == "approved" {
         // Swap user_ids on both assignments and set is_trade = true
         // Guard: verify assignments still belong to expected users (prevents stale swap)
         let req_rows = sqlx::query!(
@@ -442,8 +451,17 @@ pub async fn bulk_review(
     auth: AuthUser,
     Json(body): Json<BulkReviewTradeRequest>,
 ) -> Result<Json<serde_json::Value>> {
+    use validator::Validate;
+    body.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
+    }
+
+    if body.status != "approved" && body.status != "denied" {
+        return Err(AppError::BadRequest(
+            "status must be 'approved' or 'denied'".into(),
+        ));
     }
 
     if body.ids.is_empty() {
@@ -481,7 +499,7 @@ pub async fn bulk_review(
             _ => continue, // skip non-existent or non-pending trades
         };
 
-        if body.approve {
+        if body.status == "approved" {
             // Swap user_ids on both assignments
             let req_rows = sqlx::query!(
                 r#"
@@ -510,7 +528,19 @@ pub async fn bulk_review(
             .rows_affected();
 
             if req_rows == 0 || partner_rows == 0 {
-                // Assignments changed — skip this trade but don't fail the whole batch
+                // Assignments changed — deny with explanation instead of silently skipping
+                sqlx::query!(
+                    r#"
+                    UPDATE trade_requests
+                    SET status = 'denied', reviewed_by = $2, reviewer_notes = 'Assignments changed since trade was created', updated_at = NOW()
+                    WHERE id = $1
+                    "#,
+                    id,
+                    auth.id,
+                )
+                .execute(&mut *tx)
+                .await?;
+                reviewed += 1;
                 continue;
             }
 

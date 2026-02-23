@@ -1,45 +1,53 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import RequireRole from '@/components/RequireRole'
 import ErrorBoundary from '@/components/ErrorBoundary'
-import LoginPage from '@/pages/LoginPage'
-import SchedulePage from '@/pages/SchedulePage'
-import LeavePage from '@/pages/LeavePage'
-import CalloutPage from '@/pages/CalloutPage'
-import TradesPage from '@/pages/TradesPage'
-import ClassificationsPage from '@/pages/admin/ClassificationsPage'
-import ShiftTemplatesPage from '@/pages/admin/ShiftTemplatesPage'
-import TeamsPage from '@/pages/admin/TeamsPage'
-import TeamDetailPage from '@/pages/admin/TeamDetailPage'
-import UsersPage from '@/pages/admin/UsersPage'
-import OrgSettingsPage from '@/pages/admin/OrgSettingsPage'
-import OTQueuePage from '@/pages/admin/OTQueuePage'
-import LeaveBalancesPage from '@/pages/admin/LeaveBalancesPage'
-import SchedulePeriodsPage from '@/pages/admin/SchedulePeriodsPage'
-import SchedulePeriodDetailPage from '@/pages/admin/SchedulePeriodDetailPage'
-import VacationBidAdminPage from '@/pages/admin/VacationBidAdminPage'
-import HolidayCalendarPage from '@/pages/admin/HolidayCalendarPage'
-import ReportsPage from '@/pages/admin/ReportsPage'
-import DashboardPage from '@/pages/DashboardPage'
-import DayViewPage from '@/pages/DayViewPage'
-import CoverageRequirementsPage from '@/pages/admin/CoverageRequirementsPage'
-import VacationBidPage from '@/pages/VacationBidPage'
-import BidPage from '@/pages/BidPage'
-import MyDashboardPage from '@/pages/MyDashboardPage'
-import MySchedulePage from '@/pages/MySchedulePage'
-import MyProfilePage from '@/pages/MyProfilePage'
+import { LoadingState } from '@/components/ui/loading-state'
 import AppShell from '@/components/layout/AppShell'
+
+// Lazy-loaded pages
+const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const SchedulePage = lazy(() => import('@/pages/SchedulePage'))
+const LeavePage = lazy(() => import('@/pages/LeavePage'))
+const CalloutPage = lazy(() => import('@/pages/CalloutPage'))
+const TradesPage = lazy(() => import('@/pages/TradesPage'))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
+const DayViewPage = lazy(() => import('@/pages/DayViewPage'))
+const VacationBidPage = lazy(() => import('@/pages/VacationBidPage'))
+const BidPage = lazy(() => import('@/pages/BidPage'))
+const MyDashboardPage = lazy(() => import('@/pages/MyDashboardPage'))
+const MySchedulePage = lazy(() => import('@/pages/MySchedulePage'))
+const MyProfilePage = lazy(() => import('@/pages/MyProfilePage'))
+const ClassificationsPage = lazy(() => import('@/pages/admin/ClassificationsPage'))
+const ShiftTemplatesPage = lazy(() => import('@/pages/admin/ShiftTemplatesPage'))
+const TeamsPage = lazy(() => import('@/pages/admin/TeamsPage'))
+const TeamDetailPage = lazy(() => import('@/pages/admin/TeamDetailPage'))
+const UsersPage = lazy(() => import('@/pages/admin/UsersPage'))
+const OrgSettingsPage = lazy(() => import('@/pages/admin/OrgSettingsPage'))
+const OTQueuePage = lazy(() => import('@/pages/admin/OTQueuePage'))
+const LeaveBalancesPage = lazy(() => import('@/pages/admin/LeaveBalancesPage'))
+const SchedulePeriodsPage = lazy(() => import('@/pages/admin/SchedulePeriodsPage'))
+const SchedulePeriodDetailPage = lazy(() => import('@/pages/admin/SchedulePeriodDetailPage'))
+const VacationBidAdminPage = lazy(() => import('@/pages/admin/VacationBidAdminPage'))
+const HolidayCalendarPage = lazy(() => import('@/pages/admin/HolidayCalendarPage'))
+const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
+const CoverageRequirementsPage = lazy(() => import('@/pages/admin/CoverageRequirementsPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
   return user ? <>{children}</> : <Navigate to="/login" replace />
 }
 
+function PageSuspense({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<LoadingState />}>{children}</Suspense>
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<PageSuspense><LoginPage /></PageSuspense>} />
         <Route
           element={
             <RequireAuth>
@@ -49,23 +57,23 @@ export default function App() {
         >
           {/* Core pages */}
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<MyDashboardPage />} />
-          <Route path="my-schedule" element={<MySchedulePage />} />
-          <Route path="profile" element={<MyProfilePage />} />
-          <Route path="schedule" element={<SchedulePage />} />
-          <Route path="schedule/day/:date" element={<DayViewPage />} />
-          <Route path="leave" element={<LeavePage />} />
-          <Route path="trades" element={<TradesPage />} />
+          <Route path="dashboard" element={<PageSuspense><MyDashboardPage /></PageSuspense>} />
+          <Route path="my-schedule" element={<PageSuspense><MySchedulePage /></PageSuspense>} />
+          <Route path="profile" element={<PageSuspense><MyProfilePage /></PageSuspense>} />
+          <Route path="schedule" element={<PageSuspense><SchedulePage /></PageSuspense>} />
+          <Route path="schedule/day/:date" element={<PageSuspense><DayViewPage /></PageSuspense>} />
+          <Route path="leave" element={<PageSuspense><LeavePage /></PageSuspense>} />
+          <Route path="trades" element={<PageSuspense><TradesPage /></PageSuspense>} />
           <Route
             path="callout"
             element={
               <RequireRole roles={['admin', 'supervisor']}>
-                <CalloutPage />
+                <PageSuspense><CalloutPage /></PageSuspense>
               </RequireRole>
             }
           />
-          <Route path="vacation-bid/:windowId" element={<VacationBidPage />} />
-          <Route path="bid/:windowId" element={<BidPage />} />
+          <Route path="vacation-bid/:windowId" element={<PageSuspense><VacationBidPage /></PageSuspense>} />
+          <Route path="bid/:windowId" element={<PageSuspense><BidPage /></PageSuspense>} />
 
           {/* Admin routes */}
           <Route path="admin">
@@ -73,7 +81,7 @@ export default function App() {
               path="classifications"
               element={
                 <RequireRole roles="admin">
-                  <ClassificationsPage />
+                  <PageSuspense><ClassificationsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -81,7 +89,7 @@ export default function App() {
               path="shift-templates"
               element={
                 <RequireRole roles="admin">
-                  <ShiftTemplatesPage />
+                  <PageSuspense><ShiftTemplatesPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -89,7 +97,7 @@ export default function App() {
               path="coverage"
               element={
                 <RequireRole roles="admin">
-                  <CoverageRequirementsPage />
+                  <PageSuspense><CoverageRequirementsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -97,7 +105,7 @@ export default function App() {
               path="teams"
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
-                  <TeamsPage />
+                  <PageSuspense><TeamsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -105,7 +113,7 @@ export default function App() {
               path="teams/:id"
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
-                  <TeamDetailPage />
+                  <PageSuspense><TeamDetailPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -113,7 +121,7 @@ export default function App() {
               path="users"
               element={
                 <RequireRole roles="admin">
-                  <UsersPage />
+                  <PageSuspense><UsersPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -121,7 +129,7 @@ export default function App() {
               path="ot-queue"
               element={
                 <RequireRole roles="admin">
-                  <OTQueuePage />
+                  <PageSuspense><OTQueuePage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -129,7 +137,7 @@ export default function App() {
               path="leave-balances"
               element={
                 <RequireRole roles="admin">
-                  <LeaveBalancesPage />
+                  <PageSuspense><LeaveBalancesPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -137,7 +145,7 @@ export default function App() {
               path="schedule-periods"
               element={
                 <RequireRole roles="admin">
-                  <SchedulePeriodsPage />
+                  <PageSuspense><SchedulePeriodsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -145,7 +153,7 @@ export default function App() {
               path="schedule-periods/:id"
               element={
                 <RequireRole roles="admin">
-                  <SchedulePeriodDetailPage />
+                  <PageSuspense><SchedulePeriodDetailPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -153,7 +161,7 @@ export default function App() {
               path="vacation-bids"
               element={
                 <RequireRole roles="admin">
-                  <VacationBidAdminPage />
+                  <PageSuspense><VacationBidAdminPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -161,7 +169,7 @@ export default function App() {
               path="holidays"
               element={
                 <RequireRole roles="admin">
-                  <HolidayCalendarPage />
+                  <PageSuspense><HolidayCalendarPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -169,7 +177,7 @@ export default function App() {
               path="dashboard"
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
-                  <DashboardPage />
+                  <PageSuspense><DashboardPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -177,7 +185,7 @@ export default function App() {
               path="reports"
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
-                  <ReportsPage />
+                  <PageSuspense><ReportsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -185,7 +193,7 @@ export default function App() {
               path="settings"
               element={
                 <RequireRole roles="admin">
-                  <OrgSettingsPage />
+                  <PageSuspense><OrgSettingsPage /></PageSuspense>
                 </RequireRole>
               }
             />

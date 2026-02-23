@@ -53,13 +53,13 @@ export const leaveApi = {
   }) => api.post<LeaveRequest>('/api/leave', body).then((r) => r.data),
 
   cancel: (id: string) =>
-    api.delete(`/api/leave/${id}`).then((r) => r.data),
+    api.patch(`/api/leave/${id}/cancel`).then((r) => r.data),
 
   review: (
     id: string,
     body: { status: 'approved' | 'denied'; reviewer_notes?: string },
   ) => api.patch<LeaveRequest>(`/api/leave/${id}/review`, body).then((r) => r.data),
 
-  bulkReview: (body: { ids: string[]; action: 'approved' | 'denied'; reviewer_notes?: string }) =>
+  bulkReview: (body: { ids: string[]; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
     api.post<{ ok: boolean; reviewed: number }>('/api/leave/bulk-review', body).then((r) => r.data),
 }

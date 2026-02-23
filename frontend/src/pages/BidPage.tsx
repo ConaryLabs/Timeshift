@@ -305,6 +305,8 @@ export default function BidPage() {
                     return (
                       <button
                         key={slot.slot_id}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => toggleSlot(slot)}
                         className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                           isSelected

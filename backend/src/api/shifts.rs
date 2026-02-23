@@ -9,7 +9,7 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::{
-        common::DateRangeParams,
+        common::{DateRangeParams, PaginationParams},
         shift::{
             CreateScheduledShiftRequest, CreateShiftTemplateRequest, ScheduledShift, ShiftTemplate,
             UpdateShiftTemplateRequest,
@@ -23,6 +23,7 @@ use crate::{
 pub async fn list_templates(
     State(pool): State<PgPool>,
     auth: AuthUser,
+    Query(params): Query<PaginationParams>,
 ) -> Result<Json<Vec<ShiftTemplate>>> {
     let templates = sqlx::query_as!(
         ShiftTemplate,
@@ -32,8 +33,11 @@ pub async fn list_templates(
         FROM shift_templates
         WHERE org_id = $1 AND is_active = true
         ORDER BY start_time
+        LIMIT $2 OFFSET $3
         "#,
-        auth.org_id
+        auth.org_id,
+        params.limit(),
+        params.offset(),
     )
     .fetch_all(&pool)
     .await?;
@@ -122,6 +126,9 @@ pub async fn update_template(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateShiftTemplateRequest>,
 ) -> Result<Json<ShiftTemplate>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
@@ -205,6 +212,9 @@ pub async fn create_scheduled(
     auth: AuthUser,
     Json(req): Json<CreateScheduledShiftRequest>,
 ) -> Result<Json<ScheduledShift>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }

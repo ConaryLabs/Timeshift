@@ -232,10 +232,23 @@ pub async fn create(
     auth: AuthUser,
     Json(body): Json<CreateLeaveRequest>,
 ) -> Result<Json<LeaveRequest>> {
+    use validator::Validate;
+    body.validate()?;
+
     if body.end_date < body.start_date {
         return Err(AppError::BadRequest(
             "end_date must be >= start_date".into(),
         ));
+    }
+
+    if let Some(hours) = body.hours {
+        if hours <= 0.0 || hours > 744.0 {
+            return Err(AppError::BadRequest("hours must be between 0 and 744".into()));
+        }
+    }
+
+    if (body.end_date - body.start_date).whole_days() > 365 {
+        return Err(AppError::BadRequest("Leave request cannot span more than 365 days".into()));
     }
 
     // Verify leave type belongs to caller's org and is active
@@ -410,6 +423,9 @@ pub async fn review(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewLeaveRequest>,
 ) -> Result<Json<LeaveRequest>> {
+    use validator::Validate;
+    body.validate()?;
+
     if !auth.role.can_approve_leave() {
         return Err(AppError::Forbidden);
     }
@@ -517,13 +533,16 @@ pub async fn bulk_review(
     auth: AuthUser,
     Json(body): Json<BulkReviewLeaveRequest>,
 ) -> Result<Json<serde_json::Value>> {
+    use validator::Validate;
+    body.validate()?;
+
     if !auth.role.can_approve_leave() {
         return Err(AppError::Forbidden);
     }
 
-    if !matches!(body.action, LeaveStatus::Approved | LeaveStatus::Denied) {
+    if !matches!(body.status, LeaveStatus::Approved | LeaveStatus::Denied) {
         return Err(AppError::BadRequest(
-            "action must be 'approved' or 'denied'".into(),
+            "status must be 'approved' or 'denied'".into(),
         ));
     }
 
@@ -553,7 +572,7 @@ pub async fn bulk_review(
               AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $5)
             "#,
             id,
-            body.action as LeaveStatus,
+            body.status as LeaveStatus,
             auth.id,
             body.reviewer_notes,
             auth.org_id,
@@ -569,7 +588,7 @@ pub async fn bulk_review(
         reviewed += rows_affected;
 
         // On approve: deduct hours from leave balance
-        if body.action == LeaveStatus::Approved {
+        if body.status == LeaveStatus::Approved {
             let r = sqlx::query!(
                 r#"
                 SELECT user_id, leave_type_id, hours::FLOAT8 AS hours

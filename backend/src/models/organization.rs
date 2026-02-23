@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Organization {
@@ -14,8 +15,10 @@ pub struct Organization {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateOrganizationRequest {
+    #[validate(length(max = 100))]
     pub name: Option<String>,
+    #[validate(length(max = 100))]
     pub timezone: Option<String>,
 }

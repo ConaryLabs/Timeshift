@@ -45,13 +45,15 @@ export const queryKeys = {
     current: ['organization'] as const,
   },
   schedule: {
+    all: ['schedule'] as const,
     staffing: (start: string, end: string, teamId?: string) =>
       ['schedule', 'staffing', start, end, teamId] as const,
     grid: (start: string, end: string, teamId?: string) =>
       ['schedule', 'grid', start, end, teamId] as const,
     day: (date: string) => ['schedule', 'day', date] as const,
     dashboard: ['schedule', 'dashboard'] as const,
-    annotations: (start: string, end: string) =>
+    annotations: ['schedule', 'annotations'] as const,
+    annotationsRange: (start: string, end: string) =>
       ['schedule', 'annotations', start, end] as const,
   },
   coverage: {
@@ -72,7 +74,9 @@ export const queryKeys = {
     types: ['leave-types'] as const,
     all: ['leave'] as const,
     list: (params?: { limit?: number; offset?: number }) => ['leave', params] as const,
+    balancesAll: ['leave-balances'] as const,
     balances: (userId?: string) => ['leave-balances', userId] as const,
+    balanceHistoryAll: ['leave-balance-history'] as const,
     balanceHistory: (userId: string, params?: Record<string, unknown>) =>
       ['leave-balance-history', userId, params] as const,
   },
@@ -82,12 +86,16 @@ export const queryKeys = {
   callout: {
     events: ['callout-events'] as const,
     eventsList: (params?: { limit?: number; offset?: number }) => ['callout-events', params] as const,
+    listAll: ['callout-list'] as const,
     list: (eventId: string) => ['callout-list', eventId] as const,
+    volunteersAll: ['callout-volunteers'] as const,
     volunteers: (eventId: string) => ['callout-volunteers', eventId] as const,
   },
   ot: {
+    queueAll: ['ot-queue'] as const,
     queue: (classificationId: string, fiscalYear?: number) =>
       ['ot-queue', classificationId, fiscalYear] as const,
+    hoursAll: ['ot-hours'] as const,
     hours: (params?: { user_id?: string; fiscal_year?: number; classification_id?: string }) =>
       ['ot-hours', params] as const,
   },
@@ -103,6 +111,7 @@ export const queryKeys = {
     window: (windowId: string) => ['vacation-bids', 'window', windowId] as const,
   },
   bidding: {
+    all: ['bidding'] as const,
     windows: (periodId: string) => ['bidding', 'windows', periodId] as const,
     window: (windowId: string) => ['bidding', 'window', windowId] as const,
   },
@@ -298,6 +307,12 @@ export function useDeactivateUser() {
   })
 }
 
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: usersApi.changePassword,
+  })
+}
+
 // -- Organization --
 
 export function useOrganization() {
@@ -329,15 +344,15 @@ export function useCreateAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: scheduleApi.createAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.schedule.all }),
   })
 }
 
 export function useDeleteAssignment() {
-  const qc2 = useQueryClient()
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: scheduleApi.deleteAssignment,
-    onSuccess: () => qc2.invalidateQueries({ queryKey: ['schedule'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.schedule.all }),
   })
 }
 
@@ -368,7 +383,7 @@ export function useDashboard() {
 
 export function useAnnotations(startDate: string, endDate: string) {
   return useQuery({
-    queryKey: queryKeys.schedule.annotations(startDate, endDate),
+    queryKey: queryKeys.schedule.annotationsRange(startDate, endDate),
     queryFn: () => scheduleApi.listAnnotations(startDate, endDate),
     enabled: !!startDate && !!endDate,
   })
@@ -379,7 +394,7 @@ export function useCreateAnnotation() {
   return useMutation({
     mutationFn: scheduleApi.createAnnotation,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule', 'annotations'] })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.annotations })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
     },
   })
@@ -390,7 +405,7 @@ export function useDeleteAnnotation() {
   return useMutation({
     mutationFn: scheduleApi.deleteAnnotation,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule', 'annotations'] })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.annotations })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
     },
   })
@@ -543,7 +558,7 @@ export function useReviewLeave() {
       leaveApi.review(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
     },
   })
 }
@@ -554,7 +569,7 @@ export function useBulkReviewLeave() {
     mutationFn: leaveApi.bulkReview,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
     },
   })
 }
@@ -565,7 +580,7 @@ export function useCancelLeave() {
     mutationFn: leaveApi.cancel,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-      qc.invalidateQueries({ queryKey: ['leave-balances'] })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
     },
   })
 }
@@ -595,8 +610,8 @@ export function useAdjustLeaveBalance() {
   return useMutation({
     mutationFn: leaveBalancesApi.adjust,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['leave-balances'] })
-      qc.invalidateQueries({ queryKey: ['leave-balance-history'] })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balanceHistoryAll })
     },
   })
 }
@@ -679,7 +694,7 @@ export function useCancelCalloutEvent() {
     mutationFn: calloutApi.cancelEvent,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-      qc.invalidateQueries({ queryKey: ['callout-list'] })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.listAll })
     },
   })
 }
@@ -698,7 +713,7 @@ export function useReorderOtQueue() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: otApi.reorderQueue,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ot-queue'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll }),
   })
 }
 
@@ -713,7 +728,7 @@ export function useAdjustOtHours() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: otApi.adjustHours,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ot-hours'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll }),
   })
 }
 
@@ -722,7 +737,7 @@ export function useVolunteer() {
   return useMutation({
     mutationFn: otApi.volunteer,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['callout-volunteers'] })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.volunteersAll })
     },
   })
 }
@@ -783,11 +798,11 @@ export function useRespondTrade() {
 export function useReviewTrade() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; approve: boolean; reviewer_notes?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
       tradesApi.review(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: ['schedule'] })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
     },
   })
 }
@@ -798,7 +813,7 @@ export function useBulkReviewTrade() {
     mutationFn: tradesApi.bulkReview,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: ['schedule'] })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
     },
   })
 }
@@ -931,8 +946,7 @@ export function useProcessBids() {
     mutationFn: biddingApi.processBids,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.periods.all })
-      qc.invalidateQueries({ queryKey: ['bidding'] })
-      qc.invalidateQueries({ queryKey: ['schedule-periods'] })
+      qc.invalidateQueries({ queryKey: queryKeys.bidding.all })
     },
   })
 }

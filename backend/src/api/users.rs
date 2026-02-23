@@ -1,4 +1,4 @@
-use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
+use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -236,25 +236,6 @@ pub async fn update(
         }
     }
 
-    // Prevent demoting the last admin in the org
-    if let Some(new_role) = &req.role {
-        if !new_role.is_admin() {
-            let admin_count = sqlx::query_scalar!(
-                "SELECT COUNT(*) FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true",
-                auth.org_id
-            )
-            .fetch_one(&pool)
-            .await?
-            .unwrap_or(0);
-
-            if admin_count <= 1 {
-                return Err(AppError::BadRequest(
-                    "Cannot remove the last admin. Promote another user to admin first.".into(),
-                ));
-            }
-        }
-    }
-
     // Verify optional classification belongs to caller's org
     if let Some(Some(cid)) = req.classification_id {
         org_guard::verify_classification(&pool, cid, auth.org_id).await?;
@@ -274,6 +255,27 @@ pub async fn update(
     let hire_val = req.hire_date.flatten();
     let seniority_provided = req.seniority_date.is_some();
     let seniority_val = req.seniority_date.flatten();
+
+    let mut tx = pool.begin().await?;
+
+    // Prevent demoting the last admin in the org — check inside tx with row locking
+    if let Some(new_role) = &req.role {
+        if !new_role.is_admin() {
+            // Lock all admin rows to prevent concurrent demotion (TOCTOU)
+            let admin_ids: Vec<Uuid> = sqlx::query_scalar!(
+                "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true FOR UPDATE",
+                auth.org_id
+            )
+            .fetch_all(&mut *tx)
+            .await?;
+
+            if admin_ids.len() <= 1 {
+                return Err(AppError::BadRequest(
+                    "Cannot remove the last admin. Promote another user to admin first.".into(),
+                ));
+            }
+        }
+    }
 
     let r = sqlx::query!(
         r#"
@@ -314,9 +316,11 @@ pub async fn update(
         seniority_val,
         auth.org_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    tx.commit().await?;
 
     let classification_name = if let Some(cid) = r.classification_id {
         sqlx::query_scalar!("SELECT name FROM classifications WHERE id = $1", cid)
@@ -360,33 +364,34 @@ pub async fn deactivate(
         ));
     }
 
-    // Prevent deactivating the last admin in the org
+    let mut tx = pool.begin().await?;
+
+    // Lock the target user row and check role — inside transaction to prevent TOCTOU
     let target_role = sqlx::query_scalar!(
-        r#"SELECT role AS "role: Role" FROM users WHERE id = $1 AND org_id = $2"#,
+        r#"SELECT role AS "role: Role" FROM users WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
+    // Prevent deactivating the last admin in the org
     if target_role.is_admin() {
-        let admin_count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true",
+        // Lock all admin rows to prevent concurrent deactivation (TOCTOU)
+        let admin_ids: Vec<Uuid> = sqlx::query_scalar!(
+            "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true FOR UPDATE",
             auth.org_id
         )
-        .fetch_one(&pool)
-        .await?
-        .unwrap_or(0);
+        .fetch_all(&mut *tx)
+        .await?;
 
-        if admin_count <= 1 {
+        if admin_ids.len() <= 1 {
             return Err(AppError::BadRequest(
                 "Cannot deactivate the last admin. Promote another user to admin first.".into(),
             ));
         }
     }
-
-    let mut tx = pool.begin().await?;
 
     let rows = sqlx::query!(
         "UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 AND org_id = $2",
@@ -425,6 +430,66 @@ pub async fn deactivate(
     .await?;
 
     tx.commit().await?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+pub async fn change_password(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(req): Json<ChangePasswordRequest>,
+) -> Result<Json<serde_json::Value>> {
+    // Validate new password length
+    if req.new_password.len() < 8 || req.new_password.len() > 128 {
+        return Err(AppError::BadRequest(
+            "New password must be between 8 and 128 characters".into(),
+        ));
+    }
+
+    // Fetch current password hash
+    let current_hash = sqlx::query_scalar!(
+        "SELECT password_hash FROM users WHERE id = $1 AND org_id = $2",
+        auth.id,
+        auth.org_id
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    // Verify current password
+    let parsed = PasswordHash::new(&current_hash)
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
+
+    Argon2::default()
+        .verify_password(req.current_password.as_bytes(), &parsed)
+        .map_err(|_| AppError::BadRequest("Current password is incorrect".into()))?;
+
+    // Hash new password
+    let salt = SaltString::generate(&mut OsRng);
+    let new_hash = Argon2::default()
+        .hash_password(req.new_password.as_bytes(), &salt)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Password hashing failed: {}", e)))?
+        .to_string();
+
+    // Update password and delete all refresh tokens (force re-login on all devices)
+    sqlx::query!(
+        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND org_id = $3",
+        new_hash,
+        auth.id,
+        auth.org_id
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query!("DELETE FROM refresh_tokens WHERE user_id = $1", auth.id)
+        .execute(&pool)
+        .await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

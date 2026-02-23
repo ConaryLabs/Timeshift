@@ -94,6 +94,15 @@ export default function CoverageRequirementsPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
+    if (minHeadcount > targetHeadcount) {
+      toast.error('Min headcount must be ≤ target headcount')
+      return
+    }
+    if (targetHeadcount > maxHeadcount) {
+      toast.error('Target headcount must be ≤ max headcount')
+      return
+    }
+
     if (editingItem) {
       updateMut.mutate(
         {
@@ -106,6 +115,10 @@ export default function CoverageRequirementsPage() {
           onSuccess: () => {
             toast.success('Coverage requirement updated')
             setDialogOpen(false)
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
           },
         },
       )
@@ -127,6 +140,10 @@ export default function CoverageRequirementsPage() {
           onSuccess: () => {
             toast.success('Coverage requirement created')
             setDialogOpen(false)
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
           },
         },
       )

@@ -340,11 +340,13 @@ export default function CalloutPage() {
           )}
           <div className="space-y-2">
             {(events ?? []).map((ev) => (
-              <div
+              <button
                 key={ev.id}
+                type="button"
                 onClick={() => setSelectedEvent(ev.id)}
+                aria-label={`Callout event from ${new Date(ev.created_at).toLocaleDateString()}${ev.shift_template_name ? `, ${ev.shift_template_name}` : ''}`}
                 className={cn(
-                  "border rounded-lg p-3 cursor-pointer transition-colors",
+                  "border rounded-lg p-3 cursor-pointer transition-colors w-full text-left",
                   selectedEvent === ev.id
                     ? "border-primary bg-primary/5"
                     : "hover:bg-accent/50",
@@ -394,7 +396,7 @@ export default function CalloutPage() {
                     Cancel event
                   </Button>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         </div>

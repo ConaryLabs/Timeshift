@@ -135,7 +135,7 @@ pub async fn create_inactive_user(pool: &PgPool, org_id: Uuid, email: &str) -> (
     (user_id, password.to_string())
 }
 
-/// Log in via the HTTP API and return the JWT token.
+/// Log in via the HTTP API and return the JWT token (extracted from Set-Cookie header).
 pub async fn get_auth_token(addr: SocketAddr, email: &str, password: &str) -> String {
     let client = reqwest::Client::new();
     let resp = client
@@ -150,10 +150,24 @@ pub async fn get_auth_token(addr: SocketAddr, email: &str, password: &str) -> St
 
     assert_eq!(resp.status(), 200, "Login should return 200");
 
-    let body: serde_json::Value = resp.json().await.expect("Failed to parse login response");
-    body["token"]
-        .as_str()
-        .expect("Response should contain token")
+    // Token is now in HttpOnly cookie — extract from Set-Cookie header
+    let cookie_header = resp
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .find_map(|v| {
+            let s = v.to_str().ok()?;
+            if s.starts_with("auth_token=") { Some(s.to_string()) } else { None }
+        })
+        .expect("Response should contain auth_token cookie");
+
+    // Extract the token value from "auth_token=<token>; HttpOnly; ..."
+    cookie_header
+        .strip_prefix("auth_token=")
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
         .to_string()
 }
 

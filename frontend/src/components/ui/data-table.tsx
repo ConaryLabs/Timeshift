@@ -116,7 +116,7 @@ export function DataTable<T>({
                       <Checkbox
                         checked={selectedKeys.has(key)}
                         onCheckedChange={() => toggleOne(key)}
-                        aria-label="Select row"
+                        aria-label={`Select row ${key}`}
                       />
                     </TableCell>
                   )}

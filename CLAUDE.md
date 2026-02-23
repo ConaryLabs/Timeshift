@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Timeshift is a shift-scheduling platform replacing ScheduleExpress for 911 dispatch centers (starting with Valleycom, Kent WA). The goal is to generalize beyond Valleycom to support any shift-work organization.
 
-- **Backend**: Rust (Axum 0.7 + SQLx 0.8 + PostgreSQL 16) at `backend/`
+- **Backend**: Rust (Axum 0.7 + SQLx 0.8 + PostgreSQL 18) at `backend/`
 - **Frontend**: React 19 + TypeScript + Vite at `frontend/`
 - **Multi-tenant**: Every table has `org_id` FK; JWT claims carry `org_id` for tenant isolation
 
@@ -55,17 +55,17 @@ cd frontend && npm run build
 ### Source layout (`backend/src/`)
 
 - `main.rs` — Server entry, middleware (CORS, compression, tracing), rate limiting on login, route registration
-- `lib.rs` — `AppState` (PgPool, jwt_secret, jwt_expiry_hours) with `FromRef` impl for extracting pool
+- `lib.rs` — `AppState` (PgPool, jwt_secret, access_token_expiry_minutes, refresh_token_expiry_days, cookie_secure) with `FromRef` impl for extracting pool
 - `config.rs` — `Config::from_env()` with validation (JWT_SECRET must be 32+ chars, no "change_me")
 - `error.rs` — `AppError` enum mapping to HTTP status codes; custom `Result<T>` alias
-- `auth/mod.rs` — `AuthUser` extractor (FromRequestParts), JWT Claims, Role enum with permission methods
+- `auth/mod.rs` — `AuthUser` extractor (FromRequestParts), JWT Claims, Role enum with permission methods, `RefreshTokenCookie` extractor
 - `org_guard.rs` — Helpers that verify a resource belongs to the user's org before operations
 - `models/` — Request/response DTOs, DB row types, PG enum mappings
-- `api/` — Route handlers organized by domain (auth, users, teams, shifts, schedule, leave, callout, classifications, organizations)
+- `api/` — Route handlers organized by domain: auth, users, teams, shifts, schedule, leave, leave_balances, callout, classifications, organizations, coverage, trades, ot, bidding, vacation_bids, holidays, employee, reports
 
 ### Key patterns
 
-**Auth flow**: `AuthUser` extractor parses Bearer JWT, then re-verifies user in DB (checks `is_active`, fetches current role). Three roles: `admin`, `supervisor`, `employee`.
+**Auth flow**: Cookie-first with Bearer fallback. `AuthUser` extractor checks for `auth_token` HttpOnly cookie first, falls back to `Authorization: Bearer` header, then re-verifies user in DB (checks `is_active`, fetches current role). Refresh tokens stored in `refresh_tokens` table with HttpOnly `refresh_token` cookie. Three roles: `admin`, `supervisor`, `employee`.
 
 **Multi-tenancy**: Every query filters by `org_id` from JWT claims. `org_guard::verify_*` functions return `NotFound` for resources in other orgs.
 
@@ -95,13 +95,14 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ### Source layout (`frontend/src/`)
 
-- `api/client.ts` — Axios instance with JWT interceptor (attaches Bearer token from Zustand) and 401 auto-logout
-- `api/*.ts` — Per-domain API modules (auth, teams, users, shifts, schedule, leave, callout, classifications, organizations, schedulePeriods)
-- `store/auth.ts` — Zustand store: token + UserProfile, persisted to localStorage as `timeshift-auth`
+- `api/client.ts` — Axios instance with 401 auto-logout (credentials included for HttpOnly cookies)
+- `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coverage, trades, ot, bidding, vacationBids, employee, holidays, reports
+- `store/auth.ts` — Zustand store: user profile only (no token — auth uses HttpOnly cookies), persisted to localStorage as `timeshift-auth`
 - `store/ui.ts` — Zustand store: sidebar state + selected team/period, persisted as `timeshift-ui`
-- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~40 hooks)
+- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~50 hooks)
 - `hooks/usePermissions.ts` — Role-based access helpers
-- `pages/` — LoginPage, SchedulePage, LeavePage, CalloutPage, plus admin pages (Classifications, OrgSettings, ShiftTemplates, Teams, TeamDetail, Users)
+- `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage
+- `pages/admin/` — ClassificationsPage, ShiftTemplatesPage, CoverageRequirementsPage, TeamsPage, TeamDetailPage, UsersPage, OTQueuePage, LeaveBalancesPage, SchedulePeriodsPage, SchedulePeriodDetailPage, VacationBidAdminPage, HolidayCalendarPage, ReportsPage, OrgSettingsPage
 - `components/ui/` — shadcn/radix-ui component wrappers (Button, Input, Card, Table, Dialog, etc.)
 - `components/layout/AppShell.tsx` — Main layout: collapsible sidebar + top bar + content area
 
@@ -109,7 +110,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 **State**: Zustand for client state (auth, UI preferences), React Query for server state (all API data). Query stale time: 30s. Mutations invalidate related query keys on success.
 
-**Routing**: React Router 7. `RequireAuth` wrapper checks auth token. `RequireRole` guards admin-only routes.
+**Routing**: React Router 7. `RequireAuth` wrapper checks auth user. `RequireRole` guards admin-only routes. All pages are lazy-loaded with `React.lazy()` + `Suspense`.
 
 **Styling**: Tailwind CSS 4 + shadcn/ui. Use `cn()` utility (clsx + tw-merge) for class composition. CSS variables define theme tokens in oklch color space.
 
@@ -119,12 +120,12 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ## Database Schema
 
-Single migration at `backend/migrations/0001_initial.sql`. Key tables:
+12 migrations in `backend/migrations/` (0001–0012). Key tables:
 
 - `organizations` — Multi-tenant root
 - `users` — With `classification_id` FK, `employee_type_enum`, `is_active` soft-delete
 - `classifications` — Org-specific job classifications (e.g., dispatcher, call-taker)
-- `shift_templates` — Reusable shift definitions (name, start/end time, hours)
+- `shift_templates` — Reusable shift definitions (name, start/end time, hours, color)
 - `teams` — Org divisions with optional `supervisor_id`
 - `shift_slots` — Recurring slots linking team + template + classification + days_of_week
 - `scheduled_shifts` — Concrete shift instances on specific dates
@@ -133,11 +134,27 @@ Single migration at `backend/migrations/0001_initial.sql`. Key tables:
 - `assignments` — Who works a specific scheduled_shift (daily assignments)
 - `leave_types` — Reference table (26 leave codes)
 - `leave_requests` — Time-off requests with approval workflow
+- `leave_balances` — Per-user leave hour balances
+- `accrual_schedules` — Automatic leave accrual rules
+- `accrual_transactions` — Leave balance change history
+- `leave_request_lines` — Per-day leave request breakdown
 - `callout_events` + `callout_attempts` — Callout process tracking
 - `ot_hours` — OT tracking per user/fiscal_year/classification
 - `ot_reasons` — Reasons for OT callout
+- `ot_queue_positions` — OT queue ordering per classification
+- `ot_volunteers` — Callout event volunteers
+- `trade_requests` — Shift trade requests with approval workflow
+- `coverage_requirements` — Min/target/max headcount per shift+classification+day
+- `schedule_annotations` — Notes/alerts on schedule dates
+- `bid_windows` + `bid_submissions` — Shift bidding windows and submissions
+- `vacation_bid_periods` + `vacation_bid_windows` + `vacation_bids` — Vacation bid system
+- `employee_preferences` — Per-user notification and view preferences
+- `holiday_calendar` — Org holiday dates with premium pay flag
+- `org_settings` — Key-value org configuration
+- `refresh_tokens` — JWT refresh token storage
+- `seniority_records` — Historical seniority tracking
 
-PG enums: `app_role`, `employee_type_enum`, `leave_status`, `callout_status`
+PG enums: `app_role`, `employee_type_enum`, `leave_status`, `callout_status`, `trade_status`, `callout_step`, `bid_period_status`
 
 ## Conventions
 

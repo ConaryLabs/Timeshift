@@ -51,8 +51,7 @@ const openSchema = z.object({
   start_at: z.string().optional(),
 })
 
-type CreateFormValues = z.infer<typeof createSchema>
-type OpenFormValues = z.infer<typeof openSchema>
+// Types inferred by zodResolver at runtime
 
 export default function VacationBidAdminPage() {
   const [selectedYear, setSelectedYear] = useState(currentYear)
@@ -71,17 +70,17 @@ export default function VacationBidAdminPage() {
 
   const { confirmClose, confirmDialog } = useConfirmClose()
 
-  const createForm = useForm<CreateFormValues>({
-    resolver: zodResolver(createSchema) as any,
+  const createForm = useForm({
+    resolver: zodResolver(createSchema),
     defaultValues: { year: currentYear, round: 1 },
   })
 
-  const openForm = useForm<OpenFormValues>({
-    resolver: zodResolver(openSchema) as any,
-    defaultValues: { window_duration_hours: 24 },
+  const openForm = useForm({
+    resolver: zodResolver(openSchema),
+    defaultValues: { window_duration_hours: 24, start_at: '' },
   })
 
-  function handleCreate(values: CreateFormValues) {
+  function handleCreate(values: { year: number; round: number }) {
     createMut.mutate(values, {
       onSuccess: () => {
         toast.success('Vacation bid period created')
@@ -105,7 +104,7 @@ export default function VacationBidAdminPage() {
     })
   }
 
-  function handleOpenBidding(values: OpenFormValues) {
+  function handleOpenBidding(values: { window_duration_hours: number; start_at?: string }) {
     if (!openBiddingPeriod) return
     openMut.mutate(
       { id: openBiddingPeriod.id, ...values },

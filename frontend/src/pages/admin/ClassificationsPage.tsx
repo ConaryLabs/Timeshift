@@ -67,6 +67,10 @@ export default function ClassificationsPage() {
             toast.success('Classification updated')
             setDialogOpen(false)
           },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
+          },
         },
       )
     } else {
@@ -76,6 +80,10 @@ export default function ClassificationsPage() {
           onSuccess: () => {
             toast.success('Classification created')
             setDialogOpen(false)
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
           },
         },
       )

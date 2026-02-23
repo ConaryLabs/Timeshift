@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT role AS \"role: Role\" FROM users WHERE id = $1 AND org_id = $2",
+  "query": "SELECT role AS \"role: Role\" FROM users WHERE id = $1 AND org_id = $2 FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -30,5 +30,5 @@
       false
     ]
   },
-  "hash": "09de8d90eb92b01d249491304d97a652dc12110dca98622ca214af907e287997"
+  "hash": "b7e6e1f09f50605971529b7145ba8db4670485b473b392fd879d1009fc986177"
 }

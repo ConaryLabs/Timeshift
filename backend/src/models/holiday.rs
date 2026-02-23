@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Holiday {
@@ -13,15 +14,17 @@ pub struct Holiday {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateHolidayRequest {
     pub date: time::Date,
+    #[validate(length(max = 100))]
     pub name: String,
     pub is_premium_pay: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateHolidayRequest {
+    #[validate(length(max = 100))]
     pub name: Option<String>,
     pub is_premium_pay: Option<bool>,
 }

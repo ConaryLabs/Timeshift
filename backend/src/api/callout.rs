@@ -102,6 +102,9 @@ pub async fn create_event(
     auth: AuthUser,
     Json(req): Json<CreateCalloutEventRequest>,
 ) -> Result<Json<CalloutEvent>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
@@ -276,6 +279,9 @@ pub async fn record_attempt(
     Path(event_id): Path<Uuid>,
     Json(req): Json<RecordAttemptRequest>,
 ) -> Result<Json<CalloutAttempt>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }

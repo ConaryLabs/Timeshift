@@ -116,18 +116,21 @@ pub struct SlotAssignmentView {
     pub user_last_name: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateShiftTemplateRequest {
+    #[validate(length(max = 100))]
     pub name: Option<String>,
+    #[validate(length(max = 50))]
     pub color: Option<String>,
     pub is_active: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateScheduledShiftRequest {
     pub shift_template_id: Uuid,
     pub date: time::Date,
     pub required_headcount: Option<i32>,
     pub slot_id: Option<Uuid>,
+    #[validate(length(max = 2000))]
     pub notes: Option<String>,
 }

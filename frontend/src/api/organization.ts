@@ -22,11 +22,11 @@ export const organizationApi = {
     api.get<Organization>('/api/organization').then((r) => r.data),
 
   update: (body: { name?: string; timezone?: string }) =>
-    api.put<Organization>('/api/organization', body).then((r) => r.data),
+    api.patch<Organization>('/api/organization', body).then((r) => r.data),
 
   listSettings: () =>
     api.get<OrgSetting[]>('/api/organization/settings').then((r) => r.data),
 
   setSetting: (body: { key: string; value: unknown }) =>
-    api.put<OrgSetting>('/api/organization/settings', body).then((r) => r.data),
+    api.patch<OrgSetting>('/api/organization/settings', body).then((r) => r.data),
 }
