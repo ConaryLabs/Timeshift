@@ -7,6 +7,8 @@ pub mod employee;
 pub mod holidays;
 pub mod leave;
 pub mod leave_balances;
+pub mod leave_donation;
+pub mod leave_sellback;
 pub mod organizations;
 pub mod ot;
 pub mod reports;
@@ -103,10 +105,7 @@ pub fn router(state: AppState) -> Router {
             "/api/schedule/periods",
             get(schedule::list_periods).post(schedule::create_period),
         )
-        .route(
-            "/api/schedule/periods/:id",
-            get(schedule::get_period),
-        )
+        .route("/api/schedule/periods/:id", get(schedule::get_period))
         .route(
             "/api/schedule/periods/:id/assign",
             post(schedule::assign_slot),
@@ -176,6 +175,22 @@ pub fn router(state: AppState) -> Router {
         // Leave requests
         .route("/api/leave", get(leave::list).post(leave::create))
         .route("/api/leave/bulk-review", post(leave::bulk_review))
+        .route("/api/leave/carryover-enforcement", post(leave::carryover_enforcement))
+        .route("/api/leave/longevity-credit", post(leave::longevity_credit))
+        // Holiday sellback
+        .route(
+            "/api/leave/sellback",
+            get(leave_sellback::list).post(leave_sellback::create),
+        )
+        .route("/api/leave/sellback/:id/review", patch(leave_sellback::review))
+        .route("/api/leave/sellback/:id/cancel", patch(leave_sellback::cancel))
+        // Sick leave donations
+        .route(
+            "/api/leave/donations",
+            get(leave_donation::list).post(leave_donation::create),
+        )
+        .route("/api/leave/donations/:id/review", patch(leave_donation::review))
+        .route("/api/leave/donations/:id/cancel", patch(leave_donation::cancel))
         .route("/api/leave/:id", get(leave::get_one))
         .route("/api/leave/:id/cancel", patch(leave::cancel))
         .route("/api/leave/:id/review", patch(leave::review))
@@ -210,8 +225,14 @@ pub fn router(state: AppState) -> Router {
             "/api/callout/events/:id/volunteers",
             get(ot::list_volunteers),
         )
-        .route("/api/callout/events/:id/bump", post(callout::create_bump_request))
-        .route("/api/callout/bump-requests/:id/review", patch(callout::review_bump_request))
+        .route(
+            "/api/callout/events/:id/bump",
+            post(callout::create_bump_request),
+        )
+        .route(
+            "/api/callout/bump-requests/:id/review",
+            patch(callout::review_bump_request),
+        )
         .route("/api/callout/events/:id/step", patch(ot::advance_step))
         // Vacation Bids
         .route(

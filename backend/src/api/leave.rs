@@ -11,7 +11,7 @@ use crate::{
     models::{
         common::PaginationParams,
         leave::{
-            BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveStatus,
+            BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveSegment, LeaveStatus,
             LeaveTypeRecord, ReviewLeaveRequest,
         },
     },
@@ -27,7 +27,6 @@ async fn deduct_leave_balance(
     leave_request_id: Uuid,
     reviewer_id: Uuid,
 ) -> Result<()> {
-    // Insert usage transaction (negative hours = deduction)
     sqlx::query!(
         r#"
         INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, created_by)
@@ -44,7 +43,6 @@ async fn deduct_leave_balance(
     .execute(&mut **tx)
     .await?;
 
-    // Upsert balance (subtract)
     sqlx::query!(
         r#"
         INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
@@ -76,7 +74,6 @@ async fn refund_leave_balance(
     leave_request_id: Uuid,
     canceller_id: Uuid,
 ) -> Result<()> {
-    // Insert refund transaction (positive hours = refund)
     sqlx::query!(
         r#"
         INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, note, created_by)
@@ -93,7 +90,6 @@ async fn refund_leave_balance(
     .execute(&mut **tx)
     .await?;
 
-    // Upsert balance (add back)
     sqlx::query!(
         r#"
         INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
@@ -115,12 +111,130 @@ async fn refund_leave_balance(
     Ok(())
 }
 
+/// Fetch segments for a leave request (empty vec if none).
+async fn fetch_segments(pool: &PgPool, leave_request_id: Uuid) -> Result<Vec<LeaveSegment>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT lrs.id, lrs.leave_type_id, lt.code AS leave_type_code, lt.name AS leave_type_name,
+               CAST(lrs.hours AS FLOAT8) AS "hours!", lrs.sort_order
+        FROM leave_request_segments lrs
+        JOIN leave_types lt ON lt.id = lrs.leave_type_id
+        WHERE lrs.leave_request_id = $1
+        ORDER BY lrs.sort_order
+        "#,
+        leave_request_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| LeaveSegment {
+            id: r.id,
+            leave_type_id: r.leave_type_id,
+            leave_type_code: r.leave_type_code,
+            leave_type_name: r.leave_type_name,
+            hours: r.hours,
+            sort_order: r.sort_order,
+        })
+        .collect())
+}
+
+/// M6: Auto-create FMLA priority segments inside an open transaction.
+/// Priority order: sick → comp → holiday → vacation → lwop.
+/// Draws on the user's existing balances; LWOP covers any remainder.
+async fn create_fmla_segments(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    leave_request_id: Uuid,
+    org_id: Uuid,
+    user_id: Uuid,
+    total_hours: f64,
+) -> Result<()> {
+    let fmla_pools = ["sick", "comp", "holiday", "vacation"];
+    let mut remaining = total_hours;
+    let mut sort_order = 0i32;
+
+    for pool_name in &fmla_pools {
+        if remaining <= 0.0 {
+            break;
+        }
+
+        // Find leave types in this org/pool that the user has a positive balance for,
+        // ordered by balance descending so we drain the largest bucket first.
+        let pool_types = sqlx::query!(
+            r#"
+            SELECT lt.id AS leave_type_id,
+                   CAST(COALESCE(lb.balance_hours, 0) AS FLOAT8) AS "balance_hours!"
+            FROM leave_types lt
+            LEFT JOIN leave_balances lb
+                   ON lb.leave_type_id = lt.id AND lb.user_id = $2 AND lb.org_id = $3
+            WHERE lt.org_id = $1 AND lt.draws_from = $4 AND lt.is_active = true
+              AND COALESCE(lb.balance_hours, 0) > 0
+            ORDER BY COALESCE(lb.balance_hours, 0) DESC
+            "#,
+            org_id,
+            user_id,
+            org_id,
+            pool_name,
+        )
+        .fetch_all(&mut **tx)
+        .await?;
+
+        for pt in pool_types {
+            if remaining <= 0.0 {
+                break;
+            }
+            let use_hours = remaining.min(pt.balance_hours);
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
+                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
+                "#,
+                leave_request_id,
+                pt.leave_type_id,
+                use_hours,
+                sort_order,
+            )
+            .execute(&mut **tx)
+            .await?;
+            remaining -= use_hours;
+            sort_order += 1;
+        }
+    }
+
+    // LWOP segment covers any hours not covered by existing balances
+    if remaining > 0.01 {
+        let lwop_id = sqlx::query_scalar!(
+            "SELECT id FROM leave_types WHERE org_id = $1 AND code = 'lwop' AND is_active = true LIMIT 1",
+            org_id,
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some(lwop_id) = lwop_id {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
+                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
+                "#,
+                leave_request_id,
+                lwop_id,
+                remaining,
+                sort_order,
+            )
+            .execute(&mut **tx)
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn list(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<Vec<LeaveRequest>>> {
-    // Use a single query with conditional filter to avoid sqlx type mismatch
     let is_manager = auth.role.can_approve_leave();
     let rows = sqlx::query!(
         r#"
@@ -169,6 +283,7 @@ pub async fn list(
             reviewer_notes: r.reviewer_notes,
             created_at: r.created_at,
             updated_at: r.updated_at,
+            segments: vec![],
         })
         .collect();
 
@@ -207,6 +322,8 @@ pub async fn get_one(
         return Err(AppError::Forbidden);
     }
 
+    let segments = fetch_segments(&pool, r.id).await?;
+
     Ok(Json(LeaveRequest {
         id: r.id,
         user_id: r.user_id,
@@ -224,6 +341,7 @@ pub async fn get_one(
         reviewer_notes: r.reviewer_notes,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        segments,
     }))
 }
 
@@ -243,12 +361,16 @@ pub async fn create(
 
     if let Some(hours) = body.hours {
         if hours <= 0.0 || hours > 744.0 {
-            return Err(AppError::BadRequest("hours must be between 0 and 744".into()));
+            return Err(AppError::BadRequest(
+                "hours must be between 0 and 744".into(),
+            ));
         }
     }
 
     if (body.end_date - body.start_date).whole_days() > 365 {
-        return Err(AppError::BadRequest("Leave request cannot span more than 365 days".into()));
+        return Err(AppError::BadRequest(
+            "Leave request cannot span more than 365 days".into(),
+        ));
     }
 
     // Verify leave type belongs to caller's org and is active
@@ -263,7 +385,7 @@ pub async fn create(
         return Err(AppError::NotFound("Leave type not found".into()));
     }
 
-    // Get leave type code/name (already validated above) and user name
+    // Get leave type code/name and creator name
     let lt = sqlx::query!(
         "SELECT code, name FROM leave_types WHERE id = $1",
         body.leave_type_id
@@ -278,7 +400,6 @@ pub async fn create(
     .fetch_one(&pool)
     .await?;
 
-    // Wrap overlap check + INSERT in a transaction to prevent TOCTOU race
     let mut tx = pool.begin().await?;
 
     // Check for overlapping leave requests (only pending/approved block new ones)
@@ -304,6 +425,7 @@ pub async fn create(
         ));
     }
 
+    let leave_request_id = Uuid::new_v4();
     let r = sqlx::query!(
         r#"
         INSERT INTO leave_requests (id, user_id, leave_type_id, start_date, end_date, hours, reason, status)
@@ -313,7 +435,7 @@ pub async fn create(
                   status AS "status: LeaveStatus",
                   reviewed_by, reviewer_notes, created_at, updated_at
         "#,
-        Uuid::new_v4(),
+        leave_request_id,
         auth.id,
         body.leave_type_id,
         body.start_date,
@@ -324,7 +446,17 @@ pub async fn create(
     .fetch_one(&mut *tx)
     .await?;
 
+    // M6: Auto-create FMLA priority segments for FMLA leave types when hours are specified
+    let is_fmla = lt.code.starts_with("fmla_");
+    if is_fmla {
+        if let Some(total_hours) = body.hours {
+            create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours).await?;
+        }
+    }
+
     tx.commit().await?;
+
+    let segments = fetch_segments(&pool, leave_request_id).await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,
@@ -343,6 +475,7 @@ pub async fn create(
         reviewer_notes: r.reviewer_notes,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        segments,
     }))
 }
 
@@ -355,7 +488,6 @@ pub async fn cancel(
 
     let mut tx = pool.begin().await?;
 
-    // Fetch inside transaction with FOR UPDATE to prevent double-refund race
     let request = sqlx::query!(
         r#"
         SELECT lr.id, lr.user_id, lr.leave_type_id,
@@ -394,20 +526,54 @@ pub async fn cancel(
     .execute(&mut *tx)
     .await?;
 
-    // If the request was previously approved, refund the hours (within same transaction)
+    // If the request was previously approved, refund the hours
     if was_approved {
-        if let Some(hours) = request.hours {
-            if hours > 0.0 {
-                refund_leave_balance(
-                    &mut tx,
-                    auth.org_id,
-                    request.user_id,
-                    request.leave_type_id,
-                    hours,
-                    id,
-                    auth.id,
-                )
-                .await?;
+        // Check for segments first (FMLA / split absences)
+        let segments = sqlx::query!(
+            r#"
+            SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
+                   lt.code AS leave_type_code
+            FROM leave_request_segments lrs
+            JOIN leave_types lt ON lt.id = lrs.leave_type_id
+            WHERE lrs.leave_request_id = $1
+            ORDER BY lrs.sort_order
+            "#,
+            id,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        if segments.is_empty() {
+            // Original single-type refund
+            if let Some(hours) = request.hours {
+                if hours > 0.0 {
+                    refund_leave_balance(
+                        &mut tx,
+                        auth.org_id,
+                        request.user_id,
+                        request.leave_type_id,
+                        hours,
+                        id,
+                        auth.id,
+                    )
+                    .await?;
+                }
+            }
+        } else {
+            // Refund each segment (skip LWOP — no balance was deducted for it)
+            for seg in segments {
+                if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                    refund_leave_balance(
+                        &mut tx,
+                        auth.org_id,
+                        request.user_id,
+                        seg.leave_type_id,
+                        seg.hours,
+                        id,
+                        auth.id,
+                    )
+                    .await?;
+                }
             }
         }
     }
@@ -488,25 +654,61 @@ pub async fn review(
     .fetch_one(&mut *tx)
     .await?;
 
-    // On approve: deduct hours from leave balance (within same transaction)
+    // On approve: deduct hours from leave balance(s)
     if status == LeaveStatus::Approved {
-        if let Some(hours) = r.hours {
-            if hours > 0.0 {
-                deduct_leave_balance(
-                    &mut tx,
-                    auth.org_id,
-                    r.user_id,
-                    r.leave_type_id,
-                    hours,
-                    id,
-                    auth.id,
-                )
-                .await?;
+        // Check for segments (FMLA / split absences)
+        let segments = sqlx::query!(
+            r#"
+            SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
+                   lt.code AS leave_type_code
+            FROM leave_request_segments lrs
+            JOIN leave_types lt ON lt.id = lrs.leave_type_id
+            WHERE lrs.leave_request_id = $1
+            ORDER BY lrs.sort_order
+            "#,
+            id,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        if segments.is_empty() {
+            // Original single-type deduction
+            if let Some(hours) = r.hours {
+                if hours > 0.0 {
+                    deduct_leave_balance(
+                        &mut tx,
+                        auth.org_id,
+                        r.user_id,
+                        r.leave_type_id,
+                        hours,
+                        id,
+                        auth.id,
+                    )
+                    .await?;
+                }
+            }
+        } else {
+            // Deduct from each segment's leave type (skip LWOP — no balance)
+            for seg in segments {
+                if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                    deduct_leave_balance(
+                        &mut tx,
+                        auth.org_id,
+                        r.user_id,
+                        seg.leave_type_id,
+                        seg.hours,
+                        id,
+                        auth.id,
+                    )
+                    .await?;
+                }
             }
         }
     }
 
     tx.commit().await?;
+
+    let segments = fetch_segments(&pool, id).await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,
@@ -525,6 +727,7 @@ pub async fn review(
         reviewer_notes: r.reviewer_notes,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        segments,
     }))
 }
 
@@ -587,7 +790,6 @@ pub async fn bulk_review(
 
         reviewed += rows_affected;
 
-        // On approve: deduct hours from leave balance
         if body.status == LeaveStatus::Approved {
             let r = sqlx::query!(
                 r#"
@@ -600,18 +802,50 @@ pub async fn bulk_review(
             .fetch_one(&mut *tx)
             .await?;
 
-            if let Some(hours) = r.hours {
-                if hours > 0.0 {
-                    deduct_leave_balance(
-                        &mut tx,
-                        auth.org_id,
-                        r.user_id,
-                        r.leave_type_id,
-                        hours,
-                        *id,
-                        auth.id,
-                    )
-                    .await?;
+            // Check for segments
+            let segments = sqlx::query!(
+                r#"
+                SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
+                       lt.code AS leave_type_code
+                FROM leave_request_segments lrs
+                JOIN leave_types lt ON lt.id = lrs.leave_type_id
+                WHERE lrs.leave_request_id = $1
+                ORDER BY lrs.sort_order
+                "#,
+                id,
+            )
+            .fetch_all(&mut *tx)
+            .await?;
+
+            if segments.is_empty() {
+                if let Some(hours) = r.hours {
+                    if hours > 0.0 {
+                        deduct_leave_balance(
+                            &mut tx,
+                            auth.org_id,
+                            r.user_id,
+                            r.leave_type_id,
+                            hours,
+                            *id,
+                            auth.id,
+                        )
+                        .await?;
+                    }
+                }
+            } else {
+                for seg in segments {
+                    if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                        deduct_leave_balance(
+                            &mut tx,
+                            auth.org_id,
+                            r.user_id,
+                            seg.leave_type_id,
+                            seg.hours,
+                            *id,
+                            auth.id,
+                        )
+                        .await?;
+                    }
                 }
             }
         }
@@ -619,7 +853,9 @@ pub async fn bulk_review(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true, "reviewed": reviewed })))
+    Ok(Json(
+        serde_json::json!({ "ok": true, "reviewed": reviewed }),
+    ))
 }
 
 // -- Leave Types --
@@ -643,4 +879,275 @@ pub async fn list_types(
     .await?;
 
     Ok(Json(rows))
+}
+
+// -- M2/M3: Carryover cap enforcement --
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CarryoverRequest {
+    pub fiscal_year: i32,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CarryoverResult {
+    pub fiscal_year: i32,
+    pub users_processed: i64,
+    pub users_affected: i64,
+    pub total_hours_cashed_out: f64,
+}
+
+/// POST /api/leave/carryover-enforcement
+/// Admin-only: enforce vacation+holiday carryover caps at fiscal year-end.
+/// VCCEA: vacation + holiday combined ≤ 240 hrs (deduct vacation first, then holiday).
+/// VCSG: vacation only ≤ 260 hrs.
+pub async fn carryover_enforcement(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(body): Json<CarryoverRequest>,
+) -> Result<Json<CarryoverResult>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    let mut tx = pool.begin().await?;
+
+    // Fetch all active users with their bargaining units
+    let users = sqlx::query!(
+        r#"
+        SELECT id, bargaining_unit::TEXT AS "bargaining_unit!"
+        FROM users
+        WHERE org_id = $1 AND is_active = true
+          AND bargaining_unit IN ('vccea', 'vcsg')
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut users_processed = 0i64;
+    let mut users_affected = 0i64;
+    let mut total_cashed_out = 0.0f64;
+
+    for user in &users {
+        users_processed += 1;
+        let (cap, pool_draws_from): (f64, &[&str]) = match user.bargaining_unit.as_str() {
+            "vccea" => (240.0, &["vacation", "holiday"]),
+            "vcsg" => (260.0, &["vacation"]),
+            _ => continue,
+        };
+
+        // Sum current balances across all leave types in the applicable pools
+        let balance_rows = sqlx::query!(
+            r#"
+            SELECT lb.leave_type_id, lt.draws_from,
+                   CAST(lb.balance_hours AS FLOAT8) AS "balance_hours!"
+            FROM leave_balances lb
+            JOIN leave_types lt ON lt.id = lb.leave_type_id
+            WHERE lb.user_id = $1 AND lb.org_id = $2
+              AND lt.draws_from = ANY($3)
+              AND lb.balance_hours > 0
+            ORDER BY lt.draws_from DESC, lb.balance_hours DESC
+            "#,
+            user.id,
+            auth.org_id,
+            pool_draws_from as &[&str],
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let total: f64 = balance_rows.iter().map(|r| r.balance_hours).sum();
+        if total <= cap {
+            continue;
+        }
+
+        users_affected += 1;
+        let mut excess = total - cap;
+
+        // Deduct from vacation types first, then holiday (for VCCEA)
+        for row in &balance_rows {
+            if excess <= 0.0 {
+                break;
+            }
+            let deduct = excess.min(row.balance_hours);
+
+            sqlx::query!(
+                r#"
+                INSERT INTO accrual_transactions
+                    (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
+                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'carryover',
+                        $6, $7)
+                "#,
+                Uuid::new_v4(),
+                auth.org_id,
+                user.id,
+                row.leave_type_id,
+                -deduct,
+                format!("FY{} carryover cap enforcement — excess cashed out", body.fiscal_year),
+                auth.id,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                UPDATE leave_balances
+                SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
+                    as_of_date = CURRENT_DATE,
+                    updated_at = NOW()
+                WHERE user_id = $1 AND leave_type_id = $2
+                "#,
+                user.id,
+                row.leave_type_id,
+                deduct,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            excess -= deduct;
+            total_cashed_out += deduct;
+        }
+    }
+
+    tx.commit().await?;
+
+    Ok(Json(CarryoverResult {
+        fiscal_year: body.fiscal_year,
+        users_processed,
+        users_affected,
+        total_hours_cashed_out: total_cashed_out,
+    }))
+}
+
+// -- M7: VCSG longevity credit --
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LongevityRequest {
+    pub user_id: Uuid,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct LongevityResult {
+    pub user_id: Uuid,
+    pub years_of_service: i32,
+    pub vacation_hours_credited: f64,
+    pub longevity_bonus_percent: f64,
+}
+
+/// POST /api/leave/longevity-credit
+/// Admin-only: credit 24 vacation hours on VCSG employee anniversary.
+/// Returns longevity bonus % for payroll processing.
+pub async fn longevity_credit(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(body): Json<LongevityRequest>,
+) -> Result<Json<LongevityResult>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    // Fetch user — must be VCSG and in caller's org
+    let user = sqlx::query!(
+        r#"
+        SELECT users.id, bargaining_unit::TEXT AS "bargaining_unit!",
+               hire_date,
+               overall_seniority_date AS "overall_seniority_date?"
+        FROM users
+        JOIN seniority_records sr ON sr.user_id = users.id
+        WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true
+        "#,
+        body.user_id,
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    if user.bargaining_unit != "vcsg" {
+        return Err(AppError::BadRequest(
+            "Longevity credit applies to VCSG employees only".into(),
+        ));
+    }
+
+    // Determine service start date (overall_seniority_date preferred, fall back to hire_date)
+    let service_start = user
+        .overall_seniority_date
+        .or(user.hire_date)
+        .ok_or_else(|| AppError::BadRequest("User has no seniority or hire date set".into()))?;
+
+    let today = time::OffsetDateTime::now_utc().date();
+    let years_of_service = (today.year() - service_start.year()) as i32;
+
+    // VCSG longevity tiers
+    let longevity_percent = match years_of_service {
+        0..=4 => 1.55,
+        5..=9 => 2.05,
+        10..=14 => 2.55,
+        15..=19 => 3.05,
+        _ => 3.55,
+    };
+
+    // Credit 24 vacation hours — find the first active vacation-pool leave type
+    let vacation_type_id = sqlx::query_scalar!(
+        r#"
+        SELECT id FROM leave_types
+        WHERE org_id = $1 AND draws_from = 'vacation' AND is_active = true
+        ORDER BY display_order LIMIT 1
+        "#,
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("No vacation leave type configured".into()))?;
+
+    const VACATION_CREDIT: f64 = 24.0;
+
+    let mut tx = pool.begin().await?;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO accrual_transactions
+            (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'adjustment',
+                $6, $7)
+        "#,
+        Uuid::new_v4(),
+        auth.org_id,
+        body.user_id,
+        vacation_type_id,
+        VACATION_CREDIT,
+        format!(
+            "VCSG anniversary credit: {} yrs of service; longevity {}%",
+            years_of_service, longevity_percent
+        ),
+        auth.id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
+        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
+            as_of_date = CURRENT_DATE,
+            updated_at = NOW()
+        "#,
+        Uuid::new_v4(),
+        auth.org_id,
+        body.user_id,
+        vacation_type_id,
+        VACATION_CREDIT,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(LongevityResult {
+        user_id: body.user_id,
+        years_of_service,
+        vacation_hours_credited: VACATION_CREDIT,
+        longevity_bonus_percent: longevity_percent,
+    }))
 }

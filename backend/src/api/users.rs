@@ -59,6 +59,7 @@ pub async fn list(
                u.cto_designation, u.admin_training_supervisor_since,
                u.employee_status AS "employee_status: EmployeeStatus",
                sr.accrual_pause_started_at AS "accrual_paused_since?",
+               u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
                u.is_active
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
@@ -98,6 +99,7 @@ pub async fn list(
             admin_training_supervisor_since: r.admin_training_supervisor_since,
             employee_status: r.employee_status,
             accrual_paused_since: r.accrual_paused_since,
+            leave_accrual_paused_at: r.leave_accrual_paused_at,
             is_active: r.is_active,
         })
         .collect();
@@ -129,6 +131,7 @@ pub async fn get_one(
                u.cto_designation, u.admin_training_supervisor_since,
                u.employee_status AS "employee_status: EmployeeStatus",
                sr.accrual_pause_started_at AS "accrual_paused_since?",
+               u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
                u.is_active
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
@@ -163,6 +166,7 @@ pub async fn get_one(
         admin_training_supervisor_since: r.admin_training_supervisor_since,
         employee_status: r.employee_status,
         accrual_paused_since: r.accrual_paused_since,
+        leave_accrual_paused_at: r.leave_accrual_paused_at,
         is_active: r.is_active,
     }))
 }
@@ -301,6 +305,7 @@ pub async fn create(
         admin_training_supervisor_since: r.admin_training_supervisor_since,
         employee_status: r.employee_status,
         accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
+        leave_accrual_paused_at: None,
         is_active: r.is_active,
     }))
 }
@@ -523,6 +528,32 @@ pub async fn update(
         }
     }
 
+    // M5: Leave accrual pause / resume logic
+    if let Some(new_status) = &req.employee_status {
+        let is_pausing = matches!(
+            new_status,
+            EmployeeStatus::UnpaidLoa | EmployeeStatus::Lwop | EmployeeStatus::Layoff
+        );
+        let is_exception = req.seniority_pause_exception.unwrap_or(false);
+
+        if is_pausing && !is_exception {
+            sqlx::query!(
+                "UPDATE users SET leave_accrual_paused_at = CURRENT_DATE
+                 WHERE id = $1 AND leave_accrual_paused_at IS NULL",
+                r.id,
+            )
+            .execute(&mut *tx)
+            .await?;
+        } else if matches!(new_status, EmployeeStatus::Active) {
+            sqlx::query!(
+                "UPDATE users SET leave_accrual_paused_at = NULL WHERE id = $1",
+                r.id,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
     // M324: Separation handling — auto-cancel or flag pending trades
     if matches!(req.employee_status, Some(EmployeeStatus::Separated)) {
         let today = time::OffsetDateTime::now_utc().date();
@@ -584,6 +615,14 @@ pub async fn update(
         None
     };
 
+    let leave_accrual_paused_at = sqlx::query_scalar!(
+        "SELECT leave_accrual_paused_at FROM users WHERE id = $1",
+        r.id
+    )
+    .fetch_optional(&pool)
+    .await?
+    .flatten();
+
     Ok(Json(UserProfile {
         id: r.id,
         org_id: r.org_id,
@@ -605,6 +644,7 @@ pub async fn update(
         admin_training_supervisor_since: r.admin_training_supervisor_since,
         employee_status: r.employee_status,
         accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
+        leave_accrual_paused_at,
         is_active: r.is_active,
     }))
 }

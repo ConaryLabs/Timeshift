@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n               password_hash,\n               role AS \"role: Role\",\n               classification_id,\n               employee_type AS \"employee_type: EmployeeType\",\n               bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               hire_date, cto_designation,\n               admin_training_supervisor_since,\n               employee_status AS \"employee_status: EmployeeStatus\",\n               is_active,\n               created_at, updated_at\n        FROM users\n        WHERE email = $1 AND is_active = true\n        ",
+  "query": "\n        SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n               password_hash,\n               role AS \"role: Role\",\n               classification_id,\n               employee_type AS \"employee_type: EmployeeType\",\n               bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               hire_date, cto_designation,\n               admin_training_supervisor_since,\n               employee_status AS \"employee_status: EmployeeStatus\",\n               is_active, leave_accrual_paused_at,\n               created_at, updated_at\n        FROM users\n        WHERE email = $1 AND is_active = true\n        ",
   "describe": {
     "columns": [
       {
@@ -137,11 +137,16 @@
       },
       {
         "ordinal": 17,
+        "name": "leave_accrual_paused_at",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -169,9 +174,10 @@
       true,
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "e70c07565790757af609ac8abccc830a3c1fa0830aca31d3a4f5e68459360b10"
+  "hash": "3ed16ba13e2395971b85b878e23dd10ce4386fb4d51cc5414f616d7b8a2fc53d"
 }

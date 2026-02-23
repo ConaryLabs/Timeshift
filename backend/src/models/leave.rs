@@ -29,6 +29,17 @@ pub struct LeaveTypeRecord {
     pub created_at: OffsetDateTime,
 }
 
+/// One slice of a split/FMLA leave request drawing from a specific leave type balance.
+#[derive(Debug, Clone, Serialize)]
+pub struct LeaveSegment {
+    pub id: Uuid,
+    pub leave_type_id: Uuid,
+    pub leave_type_code: String,
+    pub leave_type_name: String,
+    pub hours: f64,
+    pub sort_order: i32,
+}
+
 /// Leave request with leave type info populated from join.
 #[derive(Debug, Clone, Serialize)]
 pub struct LeaveRequest {
@@ -50,6 +61,8 @@ pub struct LeaveRequest {
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
+    /// FMLA or split-absence segments. Populated in get_one; empty in list.
+    pub segments: Vec<LeaveSegment>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

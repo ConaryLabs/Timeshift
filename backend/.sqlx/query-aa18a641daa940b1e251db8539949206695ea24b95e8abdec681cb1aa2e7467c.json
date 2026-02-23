@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET leave_accrual_paused_at = CURRENT_DATE\n                 WHERE id = $1 AND leave_accrual_paused_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aa18a641daa940b1e251db8539949206695ea24b95e8abdec681cb1aa2e7467c"
+}

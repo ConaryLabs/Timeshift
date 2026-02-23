@@ -211,6 +211,7 @@ pub async fn list_accrual_schedules(
         r#"
         SELECT id, org_id, leave_type_id,
                employee_type::TEXT AS "employee_type!",
+               bargaining_unit::TEXT AS "bargaining_unit?",
                years_of_service_min,
                years_of_service_max,
                CAST(hours_per_pay_period AS FLOAT8) AS "hours_per_pay_period!",
@@ -232,6 +233,7 @@ pub async fn list_accrual_schedules(
             org_id: r.org_id,
             leave_type_id: r.leave_type_id,
             employee_type: r.employee_type,
+            bargaining_unit: r.bargaining_unit,
             years_of_service_min: r.years_of_service_min,
             years_of_service_max: r.years_of_service_max,
             hours_per_pay_period: r.hours_per_pay_period,
@@ -278,11 +280,13 @@ pub async fn create_accrual_schedule(
 
     let r = sqlx::query!(
         r#"
-        INSERT INTO accrual_schedules (id, org_id, leave_type_id, employee_type, years_of_service_min,
+        INSERT INTO accrual_schedules (id, org_id, leave_type_id, employee_type, bargaining_unit,
+                                       years_of_service_min,
                                        years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-        VALUES ($1, $2, $3, $4::TEXT::employee_type_enum, $5, $6, $7::FLOAT8::NUMERIC, $8::FLOAT8::NUMERIC, $9)
+        VALUES ($1, $2, $3, $4::TEXT::employee_type_enum, $10::TEXT::bargaining_unit_enum, $5, $6, $7::FLOAT8::NUMERIC, $8::FLOAT8::NUMERIC, $9)
         RETURNING id, org_id, leave_type_id,
                   employee_type::TEXT AS "employee_type!",
+                  bargaining_unit::TEXT AS "bargaining_unit?",
                   years_of_service_min,
                   years_of_service_max,
                   CAST(hours_per_pay_period AS FLOAT8) AS "hours_per_pay_period!",
@@ -298,6 +302,7 @@ pub async fn create_accrual_schedule(
         body.hours_per_pay_period,
         body.max_balance_hours,
         effective,
+        body.bargaining_unit.as_deref(),
     )
     .fetch_one(&pool)
     .await?;
@@ -307,6 +312,7 @@ pub async fn create_accrual_schedule(
         org_id: r.org_id,
         leave_type_id: r.leave_type_id,
         employee_type: r.employee_type,
+        bargaining_unit: r.bargaining_unit,
         years_of_service_min: r.years_of_service_min,
         years_of_service_max: r.years_of_service_max,
         hours_per_pay_period: r.hours_per_pay_period,
@@ -353,6 +359,7 @@ pub async fn update_accrual_schedule(
         WHERE id = $1 AND org_id = $10
         RETURNING id, org_id, leave_type_id,
                   employee_type::TEXT AS "employee_type!",
+                  bargaining_unit::TEXT AS "bargaining_unit?",
                   years_of_service_min,
                   years_of_service_max,
                   CAST(hours_per_pay_period AS FLOAT8) AS "hours_per_pay_period!",
@@ -378,6 +385,7 @@ pub async fn update_accrual_schedule(
         org_id: r.org_id,
         leave_type_id: r.leave_type_id,
         employee_type: r.employee_type,
+        bargaining_unit: r.bargaining_unit,
         years_of_service_min: r.years_of_service_min,
         years_of_service_max: r.years_of_service_max,
         hours_per_pay_period: r.hours_per_pay_period,

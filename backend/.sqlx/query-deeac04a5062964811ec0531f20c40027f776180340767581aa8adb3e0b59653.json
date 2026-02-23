@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT lb.leave_type_id, lt.draws_from,\n                   CAST(lb.balance_hours AS FLOAT8) AS \"balance_hours!\"\n            FROM leave_balances lb\n            JOIN leave_types lt ON lt.id = lb.leave_type_id\n            WHERE lb.user_id = $1 AND lb.org_id = $2\n              AND lt.draws_from = ANY($3)\n              AND lb.balance_hours > 0\n            ORDER BY lt.draws_from DESC, lb.balance_hours DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "draws_from",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "balance_hours!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "deeac04a5062964811ec0531f20c40027f776180340767581aa8adb3e0b59653"
+}

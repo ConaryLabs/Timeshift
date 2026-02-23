@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO accrual_schedules (id, org_id, leave_type_id, employee_type, years_of_service_min,\n                                       years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)\n        VALUES ($1, $2, $3, $4::TEXT::employee_type_enum, $5, $6, $7::FLOAT8::NUMERIC, $8::FLOAT8::NUMERIC, $9)\n        RETURNING id, org_id, leave_type_id,\n                  employee_type::TEXT AS \"employee_type!\",\n                  years_of_service_min,\n                  years_of_service_max,\n                  CAST(hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n                  CAST(max_balance_hours AS FLOAT8) AS \"max_balance_hours?\",\n                  effective_date, created_at\n        ",
+  "query": "\n        INSERT INTO accrual_schedules (id, org_id, leave_type_id, employee_type, bargaining_unit,\n                                       years_of_service_min,\n                                       years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)\n        VALUES ($1, $2, $3, $4::TEXT::employee_type_enum, $10::TEXT::bargaining_unit_enum, $5, $6, $7::FLOAT8::NUMERIC, $8::FLOAT8::NUMERIC, $9)\n        RETURNING id, org_id, leave_type_id,\n                  employee_type::TEXT AS \"employee_type!\",\n                  bargaining_unit::TEXT AS \"bargaining_unit?\",\n                  years_of_service_min,\n                  years_of_service_max,\n                  CAST(hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n                  CAST(max_balance_hours AS FLOAT8) AS \"max_balance_hours?\",\n                  effective_date, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -25,31 +25,36 @@
       },
       {
         "ordinal": 4,
+        "name": "bargaining_unit?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
         "name": "years_of_service_min",
         "type_info": "Int4"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "years_of_service_max",
         "type_info": "Int4"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "hours_per_pay_period!",
         "type_info": "Float8"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "max_balance_hours?",
         "type_info": "Float8"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "effective_date",
         "type_info": "Date"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -64,13 +69,15 @@
         "Int4",
         "Float8",
         "Float8",
-        "Date"
+        "Date",
+        "Text"
       ]
     },
     "nullable": [
       false,
       false,
       false,
+      null,
       null,
       false,
       true,
@@ -80,5 +87,5 @@
       false
     ]
   },
-  "hash": "678f64157e09ee385fb6853ab4719ef12a9f2dd0632eb3ad61b16b8257a42255"
+  "hash": "af00580969d3cf9e60e6dfe1096e4fda4da764cc8f936b5b99d65ead7cb4dd4b"
 }

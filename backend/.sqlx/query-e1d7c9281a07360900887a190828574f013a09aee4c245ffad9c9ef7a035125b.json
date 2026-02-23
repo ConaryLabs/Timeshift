@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, bargaining_unit::TEXT AS \"bargaining_unit!\"\n        FROM users\n        WHERE org_id = $1 AND is_active = true\n          AND bargaining_unit IN ('vccea', 'vcsg')\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "bargaining_unit!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "e1d7c9281a07360900887a190828574f013a09aee4c245ffad9c9ef7a035125b"
+}
