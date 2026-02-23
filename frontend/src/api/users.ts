@@ -26,6 +26,7 @@ export interface UpdateUserRequest {
   employee_type?: EmployeeType
   hire_date?: string | null
   seniority_date?: string | null
+  is_active?: boolean
 }
 
 export const usersApi = {

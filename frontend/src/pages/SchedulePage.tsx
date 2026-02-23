@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, getDay, getDaysInMonth } from 'date-fns'
-import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Calendar as CalendarIcon, Printer, StickyNote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -121,7 +124,7 @@ export default function SchedulePage() {
                   viewMode === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
                 )}
               >
-                <Calendar className="h-3.5 w-3.5" />
+                <CalendarIcon className="h-3.5 w-3.5" />
                 Month
               </button>
             </div>
@@ -130,6 +133,7 @@ export default function SchedulePage() {
             <Button
               variant="outline"
               size="sm"
+              aria-label={viewMode === 'month' ? 'Previous month' : 'Previous week'}
               onClick={() =>
                 setAnchor((d) =>
                   viewMode === 'month'
@@ -140,14 +144,27 @@ export default function SchedulePage() {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium min-w-[180px] text-center">
-              {viewMode === 'month'
-                ? format(anchor, 'MMMM yyyy')
-                : `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`}
-            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-sm font-medium min-w-[180px] text-center hover:bg-accent rounded-md px-2 py-1 transition-colors">
+                  {viewMode === 'month'
+                    ? format(anchor, 'MMMM yyyy')
+                    : `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="center">
+                <Calendar
+                  mode="single"
+                  selected={anchor}
+                  onSelect={(date) => date && setAnchor(date)}
+                  defaultMonth={anchor}
+                />
+              </PopoverContent>
+            </Popover>
             <Button
               variant="outline"
               size="sm"
+              aria-label={viewMode === 'month' ? 'Next month' : 'Next week'}
               onClick={() =>
                 setAnchor((d) =>
                   viewMode === 'month'
@@ -161,6 +178,9 @@ export default function SchedulePage() {
             <Button variant="outline" size="sm" onClick={() => setAnchor(new Date())}>
               Today
             </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()} aria-label="Print schedule">
+              <Printer className="h-4 w-4" />
+            </Button>
           </div>
         }
       />
@@ -169,7 +189,7 @@ export default function SchedulePage() {
       {error && <p className="text-sm text-destructive">Failed to load schedule</p>}
 
       {!isLoading && !error && !hasAssignments && (
-        <EmptyState title="No shifts scheduled" description="No assignments found for this week." />
+        <EmptyState title="No shifts scheduled for this period" description="Shift templates and team assignments create the schedule." />
       )}
 
       {!isLoading && !error && hasAssignments && viewMode === 'week' && (
@@ -283,7 +303,7 @@ function BoardView({
                 <th
                   key={dateStr}
                   className={cn(
-                    'p-2 text-center border-b font-medium',
+                    'p-2 text-center border-b font-medium min-w-[100px]',
                     isToday ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
@@ -315,7 +335,7 @@ function BoardView({
                 return (
                   <td
                     key={dateStr}
-                    className={cn('p-1 align-top min-w-[90px]', isToday && 'bg-primary/5')}
+                    className={cn('p-1 align-top min-w-[100px]', isToday && 'bg-primary/5')}
                   >
                     {assignments.length === 0 ? (
                       <span className="text-xs text-muted-foreground/50">—</span>
@@ -502,6 +522,16 @@ function AssignmentChip({
       </span>
       {a.is_overtime && <span className="shrink-0 opacity-90 text-[10px] font-bold">OT</span>}
       {a.crosses_midnight && <span className="shrink-0 opacity-80 text-[10px]">→</span>}
+      {a.notes && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <StickyNote className="h-3 w-3 shrink-0 opacity-70" />
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            {a.notes}
+          </TooltipContent>
+        </Tooltip>
+      )}
     </div>
   )
 }

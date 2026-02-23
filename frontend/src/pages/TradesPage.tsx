@@ -24,6 +24,8 @@ import {
   useReviewTrade,
   useCancelTrade,
 } from '@/hooks/queries'
+import { SearchInput } from '@/components/ui/search-input'
+import { useDebounce } from '@/hooks/useDebounce'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import type { TradeRequest, TradeStatus } from '@/api/trades'
@@ -42,6 +44,8 @@ export default function TradesPage() {
   const user = useAuthStore((s) => s.user)
   const { isManager } = usePermissions()
   const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>('all')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search)
   const [showForm, setShowForm] = useState(false)
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reviewerNotes, setReviewerNotes] = useState('')
@@ -86,6 +90,18 @@ export default function TradesPage() {
     () => (allUsers ?? []).filter((u) => u.id !== user?.id && u.is_active),
     [allUsers, user?.id],
   )
+
+  const filteredTrades = useMemo(() => {
+    let result = trades ?? []
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
+      result = result.filter((r) =>
+        r.requester_name.toLowerCase().includes(q) ||
+        r.partner_name.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [trades, debouncedSearch])
 
   function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -355,17 +371,20 @@ export default function TradesPage() {
       )}
 
       {/* Status filter tabs */}
-      <div className="flex gap-1 mb-4">
-        {STATUS_TABS.map((tab) => (
-          <Button
-            key={tab.value}
-            size="sm"
-            variant={statusFilter === tab.value ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(tab.value)}
-          >
-            {tab.label}
-          </Button>
-        ))}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex gap-1">
+          {STATUS_TABS.map((tab) => (
+            <Button
+              key={tab.value}
+              size="sm"
+              variant={statusFilter === tab.value ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(tab.value)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-56" />
       </div>
 
       {isError ? (
@@ -373,9 +392,10 @@ export default function TradesPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={trades ?? []}
+          data={filteredTrades}
           isLoading={isLoading}
           emptyMessage="No trade requests"
+          emptyDescription="Use the button above to request a shift trade."
           rowKey={(r) => r.id}
         />
       )}

@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { format, addDays } from 'date-fns'
-import { Hand } from 'lucide-react'
+import { Hand, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { SearchInput } from '@/components/ui/search-input'
+import { useDebounce } from '@/hooks/useDebounce'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
@@ -56,6 +59,14 @@ const CALLOUT_STEPS: { key: CalloutStep; label: string }[] = [
   { key: 'mandatory', label: 'Mandatory' },
 ]
 
+const STEP_DESCRIPTIONS: Record<string, string> = {
+  volunteers: 'Employees who volunteered for this shift',
+  low_ot_hours: 'Employees sorted by lowest overtime hours first',
+  inverse_seniority: 'Least senior employees contacted first',
+  equal_ot_hours: 'Employees with equal OT hours, sorted by seniority',
+  mandatory: 'Mandatory overtime assignment for remaining employees',
+}
+
 function StepIndicator({ currentStep }: { currentStep: CalloutStep | null }) {
   const activeIndex = currentStep
     ? CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
@@ -63,21 +74,38 @@ function StepIndicator({ currentStep }: { currentStep: CalloutStep | null }) {
 
   return (
     <div className="flex items-center gap-1 flex-wrap mb-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+          </TooltipTrigger>
+          <TooltipContent side="right" className="max-w-sm">
+            The callout process contacts employees in order: first volunteers, then by lowest OT hours, inverse seniority, equal OT hours, and finally mandatory assignment.
+          </TooltipContent>
+        </Tooltip>
+      </div>
       {CALLOUT_STEPS.map((step, i) => {
         const isActive = i === activeIndex
         const isPast = i < activeIndex
         return (
           <div key={step.key} className="flex items-center gap-1">
             {i > 0 && <div className={cn("w-4 h-px", isPast ? "bg-primary" : "bg-border")} />}
-            <Badge
-              variant={isActive ? 'default' : isPast ? 'secondary' : 'outline'}
-              className={cn(
-                "text-xs whitespace-nowrap",
-                isActive && "ring-2 ring-primary/30",
-              )}
-            >
-              {i + 1}. {step.label}
-            </Badge>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant={isActive ? 'default' : isPast ? 'secondary' : 'outline'}
+                  className={cn(
+                    "text-xs whitespace-nowrap",
+                    isActive && "ring-2 ring-primary/30",
+                  )}
+                >
+                  {i + 1}. {step.label}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                {STEP_DESCRIPTIONS[step.key]}
+              </TooltipContent>
+            </Tooltip>
           </div>
         )
       })}
@@ -93,6 +121,8 @@ export default function CalloutPage() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [acceptTarget, setAcceptTarget] = useState<AcceptTarget | null>(null)
   const [acceptNotes, setAcceptNotes] = useState('')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
@@ -118,6 +148,15 @@ export default function CalloutPage() {
 
   // Check if current user already volunteered
   const hasVolunteered = (volunteers ?? []).some((v) => v.user_id === user?.id)
+
+  const filteredCalloutList = useMemo(() => {
+    if (!calloutList || !debouncedSearch) return calloutList ?? []
+    const q = debouncedSearch.toLowerCase()
+    return calloutList.filter((r) =>
+      `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) ||
+      `${r.last_name}, ${r.first_name}`.toLowerCase().includes(q)
+    )
+  }, [calloutList, debouncedSearch])
 
   function getNextStep(): CalloutStep | null {
     if (!currentStep) return 'volunteers'
@@ -297,7 +336,7 @@ export default function CalloutPage() {
             <p className="text-sm text-destructive">Failed to load callout events.</p>
           )}
           {!isLoading && !isError && (events ?? []).length === 0 && (
-            <EmptyState title="No callout events" />
+            <EmptyState title="No callout events" description="Initiate a callout when coverage is needed." />
           )}
           <div className="space-y-2">
             {(events ?? []).map((ev) => (
@@ -415,10 +454,13 @@ export default function CalloutPage() {
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
             {selectedEvent ? 'Callout List' : 'Select an event'}
           </h3>
+          {selectedEvent && (
+            <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-56 mb-3" />
+          )}
           {calloutList && (
             <DataTable
               columns={calloutColumns}
-              data={calloutList}
+              data={filteredCalloutList}
               rowKey={(r) => r.user_id}
               emptyMessage="No entries in callout list"
             />

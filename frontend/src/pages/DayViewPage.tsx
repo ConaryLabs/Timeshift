@@ -39,19 +39,20 @@ export default function DayViewPage() {
         description={format(parsedDate, 'EEEE, MMMM d, yyyy')}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => goTo(-1)}>
+            <Button variant="outline" size="sm" onClick={() => goTo(-1)} aria-label="Previous day">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
               size="sm"
+              aria-label="Go to today"
               onClick={() =>
                 navigate(`/schedule/day/${format(new Date(), 'yyyy-MM-dd')}`)
               }
             >
               Today
             </Button>
-            <Button variant="outline" size="sm" onClick={() => goTo(1)}>
+            <Button variant="outline" size="sm" onClick={() => goTo(1)} aria-label="Next day">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

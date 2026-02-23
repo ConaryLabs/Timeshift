@@ -5,10 +5,9 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
-import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -36,6 +35,7 @@ type EditValues = z.infer<typeof editSchema>
 export default function ShiftTemplatesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShiftTemplate | null>(null)
+  const [deactivateTarget, setDeactivateTarget] = useState<ShiftTemplate | null>(null)
 
   const { data: templates, isLoading, isError } = useShiftTemplates()
   const createMut = useCreateTemplate()
@@ -116,7 +116,21 @@ export default function ShiftTemplatesPage() {
     },
     {
       header: 'Status',
-      cell: (r) => <StatusBadge status={r.is_active ? 'active' : 'inactive'} />,
+      cell: (r) => (
+        <Switch
+          checked={r.is_active}
+          onCheckedChange={(checked) => {
+            if (!checked) {
+              setDeactivateTarget(r)
+            } else {
+              updateMut.mutate(
+                { id: r.id, is_active: true },
+                { onSuccess: () => toast.success('Shift template activated') },
+              )
+            }
+          }}
+        />
+      ),
     },
     {
       header: 'Actions',
@@ -235,6 +249,39 @@ export default function ShiftTemplatesPage() {
         </DialogContent>
       </Dialog>
       {confirmDialog}
+
+      {/* Deactivate confirmation dialog */}
+      <Dialog open={!!deactivateTarget} onOpenChange={(open) => !open && setDeactivateTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Shift Template</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate <strong>{deactivateTarget?.name}</strong>?
+              It will no longer be available for scheduling.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeactivateTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                updateMut.mutate(
+                  { id: deactivateTarget!.id, is_active: false },
+                  {
+                    onSuccess: () => {
+                      toast.success('Shift template deactivated')
+                      setDeactivateTarget(null)
+                    },
+                  },
+                )
+              }}
+              disabled={updateMut.isPending}
+            >
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

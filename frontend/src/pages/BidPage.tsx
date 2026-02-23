@@ -250,6 +250,7 @@ export default function BidPage() {
                           className="h-7 w-7 p-0"
                           onClick={() => moveUp(index)}
                           disabled={index === 0}
+                          aria-label="Move up"
                         >
                           <ArrowUp className="w-4 h-4" />
                         </Button>
@@ -259,6 +260,7 @@ export default function BidPage() {
                           className="h-7 w-7 p-0"
                           onClick={() => moveDown(index)}
                           disabled={index === selectedSlots.length - 1}
+                          aria-label="Move down"
                         >
                           <ArrowDown className="w-4 h-4" />
                         </Button>
@@ -267,6 +269,7 @@ export default function BidPage() {
                           variant="ghost"
                           className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
                           onClick={() => toggleSlot(slot)}
+                          aria-label="Remove from preferences"
                         >
                           <XCircle className="w-4 h-4" />
                         </Button>

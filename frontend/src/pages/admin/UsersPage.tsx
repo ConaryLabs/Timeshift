@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
-import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -29,6 +28,8 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/auth'
+import { SearchInput } from '@/components/ui/search-input'
+import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { NO_VALUE } from '@/lib/format'
 import type { UserProfile, Role, EmployeeType } from '@/store/auth'
@@ -83,6 +84,10 @@ export default function UsersPage() {
   const [editingItem, setEditingItem] = useState<UserProfile | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<UserProfile | null>(null)
   const [showInactive, setShowInactive] = useState(false)
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [classFilter, setClassFilter] = useState<string>('all')
+  const debouncedSearch = useDebounce(search)
 
   const { data: users, isLoading, isError } = useUsers({ include_inactive: showInactive })
   const { data: classifications } = useClassifications()
@@ -194,6 +199,26 @@ export default function UsersPage() {
 
   const activeClassifications = (classifications ?? []).filter((c) => c.is_active)
 
+  const filteredUsers = useMemo(() => {
+    let result = users ?? []
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
+      result = result.filter(
+        (u) =>
+          u.first_name.toLowerCase().includes(q) ||
+          u.last_name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q),
+      )
+    }
+    if (roleFilter !== 'all') {
+      result = result.filter((u) => u.role === roleFilter)
+    }
+    if (classFilter !== 'all') {
+      result = result.filter((u) => u.classification_id === classFilter)
+    }
+    return result
+  }, [users, debouncedSearch, roleFilter, classFilter])
+
   const columns: Column<UserProfile>[] = [
     {
       header: 'Name',
@@ -218,26 +243,29 @@ export default function UsersPage() {
     },
     {
       header: 'Status',
-      cell: (r) => <StatusBadge status={r.is_active ? 'active' : 'inactive'} />,
+      cell: (r) => (
+        <Switch
+          checked={r.is_active}
+          onCheckedChange={(checked) => {
+            if (!checked) {
+              setDeactivateTarget(r)
+            } else {
+              updateMut.mutate(
+                { id: r.id, is_active: true },
+                { onSuccess: () => toast.success('User activated') },
+              )
+            }
+          }}
+          disabled={r.id === currentUser?.id}
+        />
+      ),
     },
     {
       header: 'Actions',
       cell: (r) => (
-        <div className="flex gap-1">
-          <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
-            Edit
-          </Button>
-          {r.is_active && r.id !== currentUser?.id && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-red-700 hover:bg-red-50"
-              onClick={() => setDeactivateTarget(r)}
-            >
-              Deactivate
-            </Button>
-          )}
-        </div>
+        <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+          Edit
+        </Button>
       ),
     },
   ]
@@ -255,12 +283,38 @@ export default function UsersPage() {
         <Label htmlFor="show-inactive" className="text-sm">Include inactive users</Label>
       </div>
 
+      <div className="flex items-center gap-3 mb-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email..." className="w-64" />
+        <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            {ROLES.map((r) => (
+              <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={classFilter} onValueChange={setClassFilter}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Classifications</SelectItem>
+            {activeClassifications.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {isError ? (
         <p className="text-sm text-destructive">Failed to load users.</p>
       ) : (
         <DataTable
           columns={columns}
-          data={users ?? []}
+          data={filteredUsers}
           isLoading={isLoading}
           emptyMessage="No users"
           rowKey={(r) => r.id}

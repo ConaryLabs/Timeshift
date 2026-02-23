@@ -110,3 +110,62 @@
     font-family: 'Syne', system-ui, sans-serif;
   }
 }
+
+/* Print styles */
+@media print {
+  /* Hide non-content elements */
+  aside,
+  [data-slot="sheet-content"],
+  header.flex,
+  nav,
+  .no-print,
+  button,
+  [data-slot="popover-content"],
+  [data-slot="dialog-overlay"] {
+    display: none !important;
+  }
+
+  /* Full-width content */
+  .flex.h-screen {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Clean up visual styles for paper */
+  * {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  body {
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  /* Preserve shift color swatches */
+  [style*="background-color"] {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
