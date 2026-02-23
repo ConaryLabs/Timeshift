@@ -17,6 +17,14 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -38,6 +46,7 @@ const FISCAL_YEARS = [currentYear - 1, currentYear, currentYear + 1]
 export default function OTQueuePage() {
   const [selectedClassification, setSelectedClassification] = useState(NO_VALUE)
   const [fiscalYear, setFiscalYear] = useState(currentYear)
+  const [pendingMoveToFront, setPendingMoveToFront] = useState<OtQueueEntry | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<OtHoursEntry | null>(null)
   const [adjustWorked, setAdjustWorked] = useState('')
   const [adjustDeclined, setAdjustDeclined] = useState('')
@@ -50,6 +59,13 @@ export default function OTQueuePage() {
   const adjustMut = useAdjustOtHours()
 
   function handleMoveToFront(entry: OtQueueEntry) {
+    setPendingMoveToFront(entry)
+  }
+
+  function confirmMoveToFront() {
+    if (!pendingMoveToFront) return
+    const entry = pendingMoveToFront
+    setPendingMoveToFront(null)
     setPositionMut.mutate(
       {
         classification_id: classId,
@@ -266,6 +282,23 @@ export default function OTQueuePage() {
           )}
         </div>
       </div>
+
+      {/* Move to Front confirmation */}
+      <AlertDialog open={!!pendingMoveToFront} onOpenChange={(open) => !open && setPendingMoveToFront(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move to Front of Queue?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reset {pendingMoveToFront?.last_name}, {pendingMoveToFront?.first_name}'s
+              queue position. This action is recorded and may be subject to grievance review.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setPendingMoveToFront(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmMoveToFront}>Move to Front</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Adjust hours dialog */}
       <Dialog open={!!adjustTarget} onOpenChange={(open) => !open && setAdjustTarget(null)}>

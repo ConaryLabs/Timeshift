@@ -261,9 +261,16 @@ export default function CalloutPage() {
           <span className="block text-xs text-muted-foreground">
             {r.classification_abbreviation}
             {r.is_cross_class && (
-              <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-amber-700 border-amber-300">
-                cross-class
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-amber-700 border-amber-300">
+                    cross-class
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  This employee is from a different classification and is eligible per LOU 25-10 (within the org's cross-classification window).
+                </TooltipContent>
+              </Tooltip>
             )}
           </span>
         </div>
@@ -291,6 +298,7 @@ export default function CalloutPage() {
                   variant="outline"
                   className="text-green-700 hover:bg-green-50"
                   disabled={recordMut.isPending}
+                  aria-label={`Accept OT for ${r.first_name} ${r.last_name}`}
                   onClick={() => setAcceptTarget({ user_id: r.user_id, name: `${r.last_name}, ${r.first_name}` })}
                 >
                   Accept
@@ -300,6 +308,7 @@ export default function CalloutPage() {
                   variant="outline"
                   className="text-red-700 hover:bg-red-50"
                   disabled={recordMut.isPending}
+                  aria-label={`Record declined for ${r.first_name} ${r.last_name}`}
                   onClick={() => recordResponse(r.user_id, 'declined')}
                 >
                   {busy && (recordMut.variables as { response: string } | undefined)?.response === 'declined' ? '…' : 'Decline'}
@@ -308,6 +317,7 @@ export default function CalloutPage() {
                   size="sm"
                   variant="outline"
                   disabled={recordMut.isPending}
+                  aria-label={`Record no answer for ${r.first_name} ${r.last_name}`}
                   onClick={() => recordResponse(r.user_id, 'no_answer')}
                 >
                   {busy && (recordMut.variables as { response: string } | undefined)?.response === 'no_answer' ? '…' : 'No Answer'}
