@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE trade_requests\n            SET reviewer_notes = COALESCE(reviewer_notes || E'\\n', '') ||\n                    'PAYROLL: Employee separated — deduction may apply',\n                updated_at = NOW()\n            WHERE (requester_id = $1 OR partner_id = $1)\n              AND status IN ('pending_partner', 'pending_approval', 'approved')\n              AND LEAST(requester_date, partner_date) <= $2\n              AND org_id = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "34baae8fb0ee3d2ce2ca0fe25f9be29f87a5c3a59da0dc388f644e5938ba7fb4"
+}

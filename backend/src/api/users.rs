@@ -191,7 +191,9 @@ pub async fn create(
         .to_string();
 
     let employee_type = req.employee_type.unwrap_or(EmployeeType::RegularFullTime);
-    let bargaining_unit = req.bargaining_unit.unwrap_or(BargainingUnit::NonRepresented);
+    let bargaining_unit = req
+        .bargaining_unit
+        .unwrap_or(BargainingUnit::NonRepresented);
 
     let user_id = Uuid::new_v4();
 
@@ -519,6 +521,47 @@ pub async fn update(
             .execute(&mut *tx)
             .await?;
         }
+    }
+
+    // M324: Separation handling — auto-cancel or flag pending trades
+    if matches!(req.employee_status, Some(EmployeeStatus::Separated)) {
+        let today = time::OffsetDateTime::now_utc().date();
+        let cutoff = today + time::Duration::days(30);
+
+        // Auto-cancel trades whose earliest shift is more than 30 days out
+        sqlx::query!(
+            r#"
+            UPDATE trade_requests SET status = 'cancelled', updated_at = NOW()
+            WHERE (requester_id = $1 OR partner_id = $1)
+              AND status IN ('pending_partner', 'pending_approval')
+              AND LEAST(requester_date, partner_date) > $2
+              AND org_id = $3
+            "#,
+            id,
+            cutoff,
+            auth.org_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // Flag trades ≤30 days out for payroll deduction review
+        sqlx::query!(
+            r#"
+            UPDATE trade_requests
+            SET reviewer_notes = COALESCE(reviewer_notes || E'\n', '') ||
+                    'PAYROLL: Employee separated — deduction may apply',
+                updated_at = NOW()
+            WHERE (requester_id = $1 OR partner_id = $1)
+              AND status IN ('pending_partner', 'pending_approval', 'approved')
+              AND LEAST(requester_date, partner_date) <= $2
+              AND org_id = $3
+            "#,
+            id,
+            cutoff,
+            auth.org_id,
+        )
+        .execute(&mut *tx)
+        .await?;
     }
 
     tx.commit().await?;
