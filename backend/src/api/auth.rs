@@ -8,7 +8,10 @@ use uuid::Uuid;
 use crate::{
     auth::{create_token, AuthUser, RefreshTokenCookie, Role},
     error::{AppError, Result},
-    models::user::{EmployeeType, LoginRequest, LoginResponse, User, UserProfile},
+    models::user::{
+        BargainingUnit, EmployeeStatus, EmployeeType, LoginRequest, LoginResponse, User,
+        UserProfile,
+    },
     AppState,
 };
 
@@ -29,7 +32,11 @@ pub async fn login(
                role AS "role: Role",
                classification_id,
                employee_type AS "employee_type: EmployeeType",
-               hire_date, seniority_date, is_active,
+               bargaining_unit AS "bargaining_unit: BargainingUnit",
+               hire_date, cto_designation,
+               admin_training_supervisor_since,
+               employee_status AS "employee_status: EmployeeStatus",
+               is_active,
                created_at, updated_at
         FROM users
         WHERE email = $1 AND is_active = true
@@ -107,6 +114,16 @@ pub async fn login(
         None
     };
 
+    // Fetch seniority record
+    let seniority = sqlx::query!(
+        "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
+                accrual_pause_started_at
+         FROM seniority_records WHERE user_id = $1",
+        user.id
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
 
     let auth_cookie = format!(
@@ -151,8 +168,15 @@ pub async fn login(
                 classification_id: user.classification_id,
                 classification_name,
                 employee_type: user.employee_type,
+                bargaining_unit: user.bargaining_unit,
                 hire_date: user.hire_date,
-                seniority_date: user.seniority_date,
+                overall_seniority_date: seniority.as_ref().and_then(|s| s.overall_seniority_date),
+                bargaining_unit_seniority_date: seniority.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
+                classification_seniority_date: seniority.as_ref().and_then(|s| s.classification_seniority_date),
+                cto_designation: user.cto_designation,
+                admin_training_supervisor_since: user.admin_training_supervisor_since,
+                employee_status: user.employee_status,
+                accrual_paused_since: seniority.as_ref().and_then(|s| s.accrual_pause_started_at),
                 is_active: user.is_active,
             },
         }),
@@ -337,9 +361,18 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
                u.classification_id,
                c.name AS "classification_name?",
                u.employee_type AS "employee_type: EmployeeType",
-               u.hire_date, u.seniority_date, u.is_active
+               u.bargaining_unit AS "bargaining_unit: BargainingUnit",
+               u.hire_date, u.cto_designation,
+               u.admin_training_supervisor_since,
+               u.employee_status AS "employee_status: EmployeeStatus",
+               u.is_active,
+               sr.overall_seniority_date AS "overall_seniority_date?",
+               sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
+               sr.classification_seniority_date AS "classification_seniority_date?",
+               sr.accrual_pause_started_at AS "accrual_paused_since?"
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
+        LEFT JOIN seniority_records sr ON sr.user_id = u.id
         WHERE u.id = $1 AND u.org_id = $2
         "#,
         auth.id,
@@ -361,8 +394,15 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
         classification_id: row.classification_id,
         classification_name: row.classification_name,
         employee_type: row.employee_type,
+        bargaining_unit: row.bargaining_unit,
         hire_date: row.hire_date,
-        seniority_date: row.seniority_date,
+        overall_seniority_date: row.overall_seniority_date,
+        bargaining_unit_seniority_date: row.bargaining_unit_seniority_date,
+        classification_seniority_date: row.classification_seniority_date,
+        cto_designation: row.cto_designation,
+        admin_training_supervisor_since: row.admin_training_supervisor_since,
+        employee_status: row.employee_status,
+        accrual_paused_since: row.accrual_paused_since,
         is_active: row.is_active,
     }))
 }

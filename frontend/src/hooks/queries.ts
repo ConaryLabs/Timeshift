@@ -709,10 +709,10 @@ export function useOtQueue(classificationId: string, fiscalYear?: number) {
   })
 }
 
-export function useReorderOtQueue() {
+export function useSetOtQueuePosition() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: otApi.reorderQueue,
+    mutationFn: otApi.setQueuePosition,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll }),
   })
 }

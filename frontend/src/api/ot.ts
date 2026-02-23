@@ -12,7 +12,7 @@ export interface OtQueueEntry {
   first_name: string
   last_name: string
   employee_id: string | null
-  position: number
+  last_ot_event_at: string | null
   ot_hours_worked: number
   ot_hours_declined: number
 }
@@ -45,11 +45,12 @@ export const otApi = {
       })
       .then((r) => r.data),
 
-  reorderQueue: (body: {
+  setQueuePosition: (body: {
     classification_id: string
     fiscal_year?: number
-    user_ids: string[]
-  }) => api.post('/api/ot/queue/reorder', body).then((r) => r.data),
+    user_id: string
+    last_ot_event_at: string | null
+  }) => api.patch('/api/ot/queue/set-position', body).then((r) => r.data),
 
   getHours: (params?: {
     user_id?: string

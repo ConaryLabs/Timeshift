@@ -8,7 +8,8 @@ export interface CalloutEvent {
   initiated_by: string
   ot_reason_id: string | null
   reason_text: string | null
-  classification_id: string | null
+  classification_id: string
+  classification_name: string
   status: 'open' | 'filled' | 'cancelled'
   current_step: CalloutStep | null
   step_started_at: string | null
@@ -26,10 +27,11 @@ export interface CalloutListEntry {
   first_name: string
   last_name: string
   classification_abbreviation: string | null
-  seniority_date: string | null
+  overall_seniority_date: string | null
   ot_hours: number
   is_available: boolean
   unavailable_reason: string | null
+  is_cross_class: boolean
 }
 
 export interface CalloutAttempt {
@@ -51,7 +53,7 @@ export const calloutApi = {
     scheduled_shift_id: string
     ot_reason_id?: string
     reason_text?: string
-    classification_id?: string
+    classification_id: string
   }) => api.post<CalloutEvent>('/api/callout/events', body).then((r) => r.data),
 
   getList: (event_id: string) =>

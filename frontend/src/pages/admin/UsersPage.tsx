@@ -32,7 +32,7 @@ import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { NO_VALUE } from '@/lib/format'
-import type { UserProfile, Role, EmployeeType } from '@/store/auth'
+import type { UserProfile, Role, EmployeeType, EmployeeStatus } from '@/store/auth'
 
 const ROLES: Role[] = ['admin', 'supervisor', 'employee']
 const EMPLOYEE_TYPES: { value: EmployeeType; label: string }[] = [
@@ -41,6 +41,21 @@ const EMPLOYEE_TYPES: { value: EmployeeType; label: string }[] = [
   { value: 'medical_part_time', label: 'Medical Part Time' },
   { value: 'temp_part_time', label: 'Temp Part Time' },
 ]
+const EMPLOYEE_STATUSES: { value: EmployeeStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'unpaid_loa', label: 'Unpaid LOA' },
+  { value: 'lwop', label: 'LWOP' },
+  { value: 'layoff', label: 'Layoff' },
+  { value: 'separated', label: 'Separated' },
+]
+const PAUSING_STATUSES: EmployeeStatus[] = ['unpaid_loa', 'lwop', 'layoff']
+const STATUS_COLORS: Record<EmployeeStatus, string> = {
+  active: '',
+  unpaid_loa: 'bg-amber-100 text-amber-800 border-amber-200',
+  lwop: 'bg-amber-100 text-amber-800 border-amber-200',
+  layoff: 'bg-red-100 text-red-800 border-red-200',
+  separated: 'bg-slate-100 text-slate-500 border-slate-200',
+}
 
 const createSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
@@ -53,7 +68,7 @@ const createSchema = z.object({
   classification_id: z.string().optional(),
   employee_type: z.enum(['regular_full_time', 'job_share', 'medical_part_time', 'temp_part_time'] as const),
   hire_date: z.string().optional(),
-  seniority_date: z.string().optional(),
+  overall_seniority_date: z.string().optional(),
 })
 
 const editSchema = z.object({
@@ -66,7 +81,9 @@ const editSchema = z.object({
   classification_id: z.string().optional(),
   employee_type: z.enum(['regular_full_time', 'job_share', 'medical_part_time', 'temp_part_time'] as const),
   hire_date: z.string().optional(),
-  seniority_date: z.string().optional(),
+  overall_seniority_date: z.string().optional(),
+  employee_status: z.enum(['active', 'unpaid_loa', 'lwop', 'layoff', 'separated'] as const),
+  seniority_pause_exception: z.boolean().optional(),
 })
 
 type CreateValues = z.infer<typeof createSchema>
@@ -124,7 +141,7 @@ export default function UsersPage() {
       classification_id: undefined,
       employee_type: 'regular_full_time',
       hire_date: '',
-      seniority_date: '',
+      overall_seniority_date: '',
       password: '',
     })
     setDialogOpen(true)
@@ -142,7 +159,9 @@ export default function UsersPage() {
       classification_id: item.classification_id ?? undefined,
       employee_type: item.employee_type,
       hire_date: item.hire_date ?? '',
-      seniority_date: item.seniority_date ?? '',
+      overall_seniority_date: item.overall_seniority_date ?? '',
+      employee_status: item.employee_status,
+      seniority_pause_exception: false,
     })
     setDialogOpen(true)
   }
@@ -155,7 +174,7 @@ export default function UsersPage() {
         phone: values.phone || undefined,
         classification_id: values.classification_id || undefined,
         hire_date: values.hire_date || undefined,
-        seniority_date: values.seniority_date || undefined,
+        overall_seniority_date: values.overall_seniority_date || undefined,
       },
       {
         onSuccess: () => {
@@ -180,7 +199,9 @@ export default function UsersPage() {
         phone: values.phone || null,
         classification_id: values.classification_id || null,
         hire_date: values.hire_date || null,
-        seniority_date: values.seniority_date || null,
+        overall_seniority_date: values.overall_seniority_date || null,
+        employee_status: values.employee_status,
+        seniority_pause_exception: values.seniority_pause_exception ?? false,
       },
       {
         onSuccess: () => {
@@ -256,27 +277,34 @@ export default function UsersPage() {
     {
       header: 'Status',
       cell: (r) => (
-        <Switch
-          checked={r.is_active}
-          onCheckedChange={(checked) => {
-            if (!checked) {
-              setDeactivateTarget(r)
-            } else {
-              updateMut.mutate(
-                { id: r.id, is_active: true },
-                {
-                  onSuccess: () => toast.success('User activated'),
-                  onError: (err: unknown) => {
-                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
-                    toast.error(msg)
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={r.is_active}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                setDeactivateTarget(r)
+              } else {
+                updateMut.mutate(
+                  { id: r.id, is_active: true },
+                  {
+                    onSuccess: () => toast.success('User activated'),
+                    onError: (err: unknown) => {
+                      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                      toast.error(msg)
+                    },
                   },
-                },
-              )
-            }
-          }}
-          disabled={r.id === currentUser?.id}
-          aria-label={`Toggle active status for ${r.first_name} ${r.last_name}`}
-        />
+                )
+              }
+            }}
+            disabled={r.id === currentUser?.id}
+            aria-label={`Toggle active status for ${r.first_name} ${r.last_name}`}
+          />
+          {r.employee_status !== 'active' && (
+            <Badge variant="outline" className={`text-xs capitalize ${STATUS_COLORS[r.employee_status]}`}>
+              {EMPLOYEE_STATUSES.find((s) => s.value === r.employee_status)?.label ?? r.employee_status}
+            </Badge>
+          )}
+        </div>
       ),
     },
     {
@@ -435,9 +463,46 @@ export default function UsersPage() {
                   <Input id="ue-hire" type="date" {...editForm.register('hire_date')} />
                 </FormField>
                 <FormField label="Seniority Date" htmlFor="ue-sen">
-                  <Input id="ue-sen" type="date" {...editForm.register('seniority_date')} />
+                  <Input id="ue-sen" type="date" {...editForm.register('overall_seniority_date')} />
                 </FormField>
               </div>
+              <FormField label="Leave / Employment Status" htmlFor="ue-status">
+                <Select
+                  value={editForm.watch('employee_status')}
+                  onValueChange={(v) => {
+                    editForm.setValue('employee_status', v as EmployeeStatus, { shouldDirty: true })
+                    // Reset exception flag when status changes
+                    editForm.setValue('seniority_pause_exception', false)
+                  }}
+                >
+                  <SelectTrigger id="ue-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EMPLOYEE_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {PAUSING_STATUSES.includes(editForm.watch('employee_status')) && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="ue-exception"
+                      {...editForm.register('seniority_pause_exception')}
+                      className="h-4 w-4 rounded border"
+                    />
+                    <label htmlFor="ue-exception" className="text-xs text-muted-foreground">
+                      Exception — seniority continues (OJI / maternity / military)
+                    </label>
+                  </div>
+                )}
+                {editingItem?.accrual_paused_since && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Accrual paused since {editingItem.accrual_paused_since}
+                  </p>
+                )}
+              </FormField>
               <DialogFooter>
                 <Button type="submit" disabled={updateMut.isPending}>Save Changes</Button>
               </DialogFooter>
@@ -521,7 +586,7 @@ export default function UsersPage() {
                   <Input id="uc-hire" type="date" {...createForm.register('hire_date')} />
                 </FormField>
                 <FormField label="Seniority Date" htmlFor="uc-sen">
-                  <Input id="uc-sen" type="date" {...createForm.register('seniority_date')} />
+                  <Input id="uc-sen" type="date" {...createForm.register('overall_seniority_date')} />
                 </FormField>
               </div>
               <DialogFooter>

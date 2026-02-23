@@ -22,7 +22,9 @@ pub struct CalloutEvent {
     pub initiated_by: Uuid,
     pub ot_reason_id: Option<Uuid>,
     pub reason_text: Option<String>,
-    pub classification_id: Option<Uuid>,
+    /// Which classification list this callout draws from (required).
+    pub classification_id: Uuid,
+    pub classification_name: String,
     pub status: CalloutStatus,
     pub current_step: Option<CalloutStep>,
     #[serde(
@@ -67,10 +69,13 @@ pub struct CalloutListEntry {
     pub first_name: String,
     pub last_name: String,
     pub classification_abbreviation: Option<String>,
-    pub seniority_date: Option<time::Date>,
+    pub overall_seniority_date: Option<time::Date>,
     pub ot_hours: f64,
     pub is_available: bool,
     pub unavailable_reason: Option<String>,
+    /// True when this employee is from a different classification than the primary OT list.
+    /// Only possible when the shift is within the org's cross-class eligibility window.
+    pub is_cross_class: bool,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -79,7 +84,8 @@ pub struct CreateCalloutEventRequest {
     pub ot_reason_id: Option<Uuid>,
     #[validate(length(max = 2000))]
     pub reason_text: Option<String>,
-    pub classification_id: Option<Uuid>,
+    /// Required: specifies which OT list (COI / COII / Supervisor) to call from.
+    pub classification_id: Uuid,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -90,4 +96,36 @@ pub struct RecordAttemptRequest {
     pub response: String,
     #[validate(length(max = 2000))]
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct BumpRequest {
+    pub id: Uuid,
+    pub org_id: Uuid,
+    pub event_id: Uuid,
+    pub requesting_user_id: Uuid,
+    pub displaced_user_id: Uuid,
+    pub status: String,
+    pub reason: Option<String>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub reviewed_at: Option<OffsetDateTime>,
+    pub reviewed_by: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateBumpRequest {
+    pub displaced_user_id: Uuid,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewBumpRequest {
+    pub approved: bool,
+    pub reason: Option<String>,
 }

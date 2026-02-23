@@ -9,6 +9,8 @@ export type EmployeeType =
   | 'medical_part_time'
   | 'temp_part_time'
 
+export type EmployeeStatus = 'active' | 'unpaid_loa' | 'lwop' | 'layoff' | 'separated'
+
 export interface UserProfile {
   id: string
   org_id: string
@@ -22,7 +24,14 @@ export interface UserProfile {
   classification_name: string | null
   employee_type: EmployeeType
   hire_date: string | null
-  seniority_date: string | null
+  overall_seniority_date: string | null
+  bargaining_unit_seniority_date: string | null
+  classification_seniority_date: string | null
+  cto_designation: boolean
+  admin_training_supervisor_since: string | null
+  bargaining_unit: 'vccea' | 'vcsg' | 'non_represented'
+  employee_status: EmployeeStatus
+  accrual_paused_since: string | null
   is_active: boolean
 }
 

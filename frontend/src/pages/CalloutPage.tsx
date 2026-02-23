@@ -193,11 +193,11 @@ export default function CalloutPage() {
   }
 
   function handleInitiate() {
-    if (form.scheduled_shift_id === NO_VALUE) return
+    if (form.scheduled_shift_id === NO_VALUE || form.classification_id === NO_VALUE) return
     createMut.mutate(
       {
         scheduled_shift_id: form.scheduled_shift_id,
-        classification_id: form.classification_id !== NO_VALUE ? form.classification_id : undefined,
+        classification_id: form.classification_id,
         reason_text: form.reason_text || undefined,
       },
       {
@@ -258,11 +258,14 @@ export default function CalloutPage() {
       cell: (r) => (
         <div>
           {r.last_name}, {r.first_name}
-          {r.classification_abbreviation && (
-            <span className="block text-xs text-muted-foreground">
-              {r.classification_abbreviation}
-            </span>
-          )}
+          <span className="block text-xs text-muted-foreground">
+            {r.classification_abbreviation}
+            {r.is_cross_class && (
+              <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-amber-700 border-amber-300">
+                cross-class
+              </Badge>
+            )}
+          </span>
         </div>
       ),
     },
@@ -365,12 +368,13 @@ export default function CalloutPage() {
                     <StatusBadge status={ev.status} />
                   </div>
                 </div>
-                {(ev.shift_template_name || ev.team_name) && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {[ev.team_name, ev.shift_template_name].filter(Boolean).join(' — ')}
-                    {ev.shift_date && ` (${ev.shift_date})`}
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span className="font-medium">{ev.classification_name}</span>
+                  {(ev.shift_template_name || ev.team_name) && (
+                    <> — {[ev.team_name, ev.shift_template_name].filter(Boolean).join(' — ')}</>
+                  )}
+                  {ev.shift_date && ` (${ev.shift_date})`}
+                </p>
                 {ev.reason_text && (
                   <p className="text-xs text-muted-foreground mt-1">{ev.reason_text}</p>
                 )}
@@ -503,16 +507,15 @@ export default function CalloutPage() {
               </Select>
             </FormField>
 
-            <FormField label="Classification Filter" htmlFor="callout-class">
+            <FormField label="OT List (Classification)" htmlFor="callout-class" required>
               <Select
                 value={form.classification_id}
                 onValueChange={(v) => setForm({ ...form, classification_id: v })}
               >
                 <SelectTrigger id="callout-class">
-                  <SelectValue placeholder="Any classification" />
+                  <SelectValue placeholder="Select OT list…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_VALUE}>Any classification</SelectItem>
                   {(classifications ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name} ({c.abbreviation})
@@ -537,7 +540,7 @@ export default function CalloutPage() {
             <Button variant="outline" onClick={() => setShowInitiate(false)}>Cancel</Button>
             <Button
               onClick={handleInitiate}
-              disabled={form.scheduled_shift_id === NO_VALUE || createMut.isPending}
+              disabled={form.scheduled_shift_id === NO_VALUE || form.classification_id === NO_VALUE || createMut.isPending}
             >
               Initiate
             </Button>

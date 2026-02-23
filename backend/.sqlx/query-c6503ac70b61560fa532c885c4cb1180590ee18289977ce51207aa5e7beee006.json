@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE bump_requests\n            SET status = 'denied', reviewed_at = NOW(), reviewed_by = $2, reason = COALESCE($3, reason)\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c6503ac70b61560fa532c885c4cb1180590ee18289977ce51207aa5e7beee006"
+}

@@ -136,10 +136,11 @@ pub async fn open_bidding(
     // Get all active users ordered by seniority
     let users = sqlx::query!(
         r#"
-        SELECT id, first_name, last_name, seniority_date
-        FROM users
-        WHERE org_id = $1 AND is_active = true
-        ORDER BY seniority_date ASC NULLS LAST, last_name, first_name
+        SELECT u.id, u.first_name, u.last_name
+        FROM users u
+        LEFT JOIN seniority_records sr ON sr.user_id = u.id
+        WHERE u.org_id = $1 AND u.is_active = true
+        ORDER BY sr.overall_seniority_date ASC NULLS LAST, u.last_name, u.first_name
         "#,
         auth.org_id,
     )

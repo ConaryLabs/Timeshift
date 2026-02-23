@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Role, EmployeeType, UserProfile } from '../store/auth'
+import type { Role, EmployeeType, EmployeeStatus, UserProfile } from '../store/auth'
 
 export interface CreateUserRequest {
   employee_id?: string
@@ -11,7 +11,9 @@ export interface CreateUserRequest {
   classification_id?: string
   employee_type?: EmployeeType
   hire_date?: string
-  seniority_date?: string
+  overall_seniority_date?: string
+  bargaining_unit_seniority_date?: string
+  classification_seniority_date?: string
   password: string
 }
 
@@ -25,8 +27,13 @@ export interface UpdateUserRequest {
   classification_id?: string | null
   employee_type?: EmployeeType
   hire_date?: string | null
-  seniority_date?: string | null
+  overall_seniority_date?: string | null
+  bargaining_unit_seniority_date?: string | null
+  classification_seniority_date?: string | null
   is_active?: boolean
+  employee_status?: EmployeeStatus
+  /** Pass true when setting a pausing status for OJI/maternity/military (seniority not paused). */
+  seniority_pause_exception?: boolean
 }
 
 export const usersApi = {

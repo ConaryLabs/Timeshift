@@ -19,7 +19,8 @@ pub struct OtQueuePosition {
     pub org_id: Uuid,
     pub classification_id: Uuid,
     pub user_id: Uuid,
-    pub position: i32,
+    /// Timestamp of the last OT callout contact. NULL = never contacted (front of queue).
+    pub last_ot_event_at: Option<OffsetDateTime>,
     pub fiscal_year: i32,
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
@@ -31,7 +32,12 @@ pub struct OtQueueView {
     pub first_name: String,
     pub last_name: String,
     pub employee_id: Option<String>,
-    pub position: i32,
+    /// Timestamp of last OT contact for this classification/year. NULL = never contacted.
+    #[serde(
+        serialize_with = "time::serde::rfc3339::option::serialize",
+        rename = "last_ot_event_at"
+    )]
+    pub last_ot_event_at: Option<OffsetDateTime>,
     pub ot_hours_worked: f64,
     pub ot_hours_declined: f64,
 }
@@ -42,11 +48,15 @@ pub struct OtQueueQuery {
     pub fiscal_year: Option<i32>,
 }
 
+/// Set or clear a user's last_ot_event_at timestamp to control their queue position.
+/// Setting last_ot_event_at = null moves them to the front (as if never contacted).
 #[derive(Debug, Deserialize)]
-pub struct ReorderQueueRequest {
+pub struct SetQueuePositionRequest {
     pub classification_id: Uuid,
     pub fiscal_year: Option<i32>,
-    pub user_ids: Vec<Uuid>,
+    pub user_id: Uuid,
+    /// null = move to front (never contacted); provide a timestamp to set a specific position.
+    pub last_ot_event_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize)]
