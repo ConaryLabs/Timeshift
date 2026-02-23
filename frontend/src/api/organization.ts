@@ -9,10 +9,24 @@ export interface Organization {
   updated_at: string
 }
 
+export interface OrgSetting {
+  id: string
+  org_id: string
+  key: string
+  value: unknown
+  updated_at: string
+}
+
 export const organizationApi = {
   get: () =>
     api.get<Organization>('/api/organization').then((r) => r.data),
 
   update: (body: { name?: string; timezone?: string }) =>
     api.put<Organization>('/api/organization', body).then((r) => r.data),
+
+  listSettings: () =>
+    api.get<OrgSetting[]>('/api/organization/settings').then((r) => r.data),
+
+  setSetting: (body: { key: string; value: unknown }) =>
+    api.put<OrgSetting>('/api/organization/settings', body).then((r) => r.data),
 }

@@ -127,6 +127,12 @@ pub async fn my_schedule(
             "end_date must be >= start_date".into(),
         ));
     }
+    let range_days = (params.end_date - params.start_date).whole_days();
+    if range_days > 365 {
+        return Err(AppError::BadRequest(
+            "Date range cannot exceed 365 days".into(),
+        ));
+    }
 
     let rows = sqlx::query!(
         r#"
@@ -330,8 +336,7 @@ pub async fn my_dashboard(
         auth.id,
     )
     .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     Ok(Json(MyDashboardData {
         today_shift,

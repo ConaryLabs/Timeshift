@@ -30,14 +30,6 @@ export interface LeaveSummaryReport {
   total_hours: number
 }
 
-export interface OrgSetting {
-  id: string
-  org_id: string
-  key: string
-  value: unknown
-  updated_at: string
-}
-
 export const reportsApi = {
   coverage: (params: { start_date: string; end_date: string; team_id?: string }) =>
     api.get<CoverageReport[]>('/api/reports/coverage', { params }).then((r) => r.data),
@@ -47,10 +39,4 @@ export const reportsApi = {
 
   leaveSummary: (params: { start_date: string; end_date: string }) =>
     api.get<LeaveSummaryReport[]>('/api/reports/leave-summary', { params }).then((r) => r.data),
-
-  listSettings: () =>
-    api.get<OrgSetting[]>('/api/organization/settings').then((r) => r.data),
-
-  setSetting: (body: { key: string; value: unknown }) =>
-    api.put<OrgSetting>('/api/organization/settings', body).then((r) => r.data),
 }

@@ -18,7 +18,9 @@ impl Config {
             anyhow::bail!("JWT_SECRET must be at least 32 characters for security");
         }
         if jwt_secret.contains("change_me") {
-            anyhow::bail!("JWT_SECRET contains placeholder value — set a real secret before running");
+            anyhow::bail!(
+                "JWT_SECRET contains placeholder value — set a real secret before running"
+            );
         }
 
         Ok(Self {

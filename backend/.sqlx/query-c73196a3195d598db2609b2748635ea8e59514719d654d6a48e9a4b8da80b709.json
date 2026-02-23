@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, requester_id, partner_id,\n               requester_assignment_id, partner_assignment_id,\n               status AS \"status: TradeStatus\"\n        FROM trade_requests\n        WHERE id = $1 AND org_id = $2\n        ",
+  "query": "\n        SELECT id, org_id, requester_id, partner_id,\n               requester_assignment_id, partner_assignment_id,\n               status AS \"status: TradeStatus\"\n        FROM trade_requests\n        WHERE id = $1 AND org_id = $2\n        FOR UPDATE\n        ",
   "describe": {
     "columns": [
       {
@@ -68,5 +68,5 @@
       false
     ]
   },
-  "hash": "b4b6ed1ee29cc467cb0bcdcdf9bec9b607e87a529689c2fe42dc53030ce12984"
+  "hash": "c73196a3195d598db2609b2748635ea8e59514719d654d6a48e9a4b8da80b709"
 }

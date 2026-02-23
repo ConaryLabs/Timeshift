@@ -7,6 +7,14 @@ import { Star, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
@@ -33,6 +41,7 @@ export default function HolidayCalendarPage() {
   const [year, setYear] = useState(currentYear)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Holiday | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const { data: holidays, isLoading, isError } = useHolidays(year)
   const createMut = useCreateHoliday()
@@ -88,9 +97,15 @@ export default function HolidayCalendarPage() {
   }
 
   function handleDelete(id: string) {
-    if (!confirm('Delete this holiday?')) return
     deleteMut.mutate(id, {
-      onSuccess: () => toast.success('Holiday deleted'),
+      onSuccess: () => {
+        toast.success('Holiday deleted')
+        setDeleteConfirm(null)
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete holiday'
+        toast.error(msg)
+      },
     })
   }
 
@@ -126,7 +141,7 @@ export default function HolidayCalendarPage() {
             size="sm"
             variant="ghost"
             className="text-destructive hover:text-destructive"
-            onClick={() => handleDelete(r.id)}
+            onClick={() => setDeleteConfirm(r.id)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -201,6 +216,28 @@ export default function HolidayCalendarPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Holiday?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this holiday. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+              disabled={deleteMut.isPending}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {confirmDialog}
     </div>
   )

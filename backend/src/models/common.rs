@@ -9,8 +9,8 @@ pub mod time_format {
 /// Serde module: serialize/deserialize `Option<time::Time>` as optional "HH:MM:SS" strings.
 pub mod time_format_option {
     use serde::{self, Deserialize, Deserializer, Serializer};
-    use time::Time;
     use time::format_description;
+    use time::Time;
 
     pub fn serialize<S>(time: &Option<Time>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -18,8 +18,8 @@ pub mod time_format_option {
     {
         match time {
             Some(t) => {
-                let fmt = format_description::parse("[hour]:[minute]:[second]")
-                    .expect("valid format");
+                let fmt =
+                    format_description::parse("[hour]:[minute]:[second]").expect("valid format");
                 let s = t.format(&fmt).map_err(serde::ser::Error::custom)?;
                 serializer.serialize_some(&s)
             }

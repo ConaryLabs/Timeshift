@@ -69,6 +69,7 @@ pub async fn staffing_view(
         LEFT JOIN classifications cl ON cl.id = u.classification_id
         WHERE ss.org_id = $1
           AND ss.date BETWEEN $2 AND $3
+          AND st.is_active = true
           AND ($4::uuid IS NULL OR sl.team_id = $4)
         ORDER BY ss.date, st.start_time, u.last_name
         "#,
@@ -384,10 +385,14 @@ pub async fn grid(
     Query(q): Query<GridQuery>,
 ) -> Result<Json<Vec<GridCell>>> {
     if q.end_date < q.start_date {
-        return Err(AppError::BadRequest("end_date must be >= start_date".into()));
+        return Err(AppError::BadRequest(
+            "end_date must be >= start_date".into(),
+        ));
     }
     if (q.end_date - q.start_date).whole_days() > 90 {
-        return Err(AppError::BadRequest("Date range must not exceed 90 days".into()));
+        return Err(AppError::BadRequest(
+            "Date range must not exceed 90 days".into(),
+        ));
     }
 
     let rows = sqlx::query!(
@@ -413,6 +418,7 @@ pub async fn grid(
         LEFT JOIN classifications cl ON cl.id = u.classification_id
         WHERE ss.org_id = $1
           AND ss.date BETWEEN $2 AND $3
+          AND st.is_active = true
           AND ($4::uuid IS NULL OR sl.team_id = $4)
         ORDER BY ss.date, st.start_time, u.last_name
         "#,
@@ -426,13 +432,18 @@ pub async fn grid(
 
     let leave_rows = sqlx::query!(
         r#"
-        SELECT lr.start_date AS date, COUNT(*) AS "count!"
+        SELECT d::date AS "date!", COUNT(*) AS "count!"
         FROM leave_requests lr
         JOIN users u ON u.id = lr.user_id
+        CROSS JOIN LATERAL generate_series(
+            lr.start_date::timestamp,
+            lr.end_date::timestamp,
+            '1 day'::interval
+        ) AS d
         WHERE u.org_id = $1
           AND lr.status = 'approved'
-          AND lr.start_date BETWEEN $2 AND $3
-        GROUP BY lr.start_date
+          AND d::date BETWEEN $2 AND $3
+        GROUP BY d::date
         "#,
         auth.org_id,
         q.start_date,
@@ -441,10 +452,8 @@ pub async fn grid(
     .fetch_all(&pool)
     .await?;
 
-    let leave_map: HashMap<time::Date, i64> = leave_rows
-        .into_iter()
-        .map(|r| (r.date, r.count))
-        .collect();
+    let leave_map: HashMap<time::Date, i64> =
+        leave_rows.into_iter().map(|r| (r.date, r.count)).collect();
 
     let coverage_rows = sqlx::query!(
         r#"
@@ -591,9 +600,7 @@ pub async fn day_view(
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
             let required = coverage_map.get(&t.id).copied().unwrap_or(0) as i32;
-            let status = if required == 0 {
-                "green"
-            } else if actual >= required {
+            let status = if required == 0 || actual >= required {
                 "green"
             } else if actual > 0 {
                 "yellow"
@@ -621,10 +628,7 @@ pub async fn day_view(
 
 // -- Dashboard --
 
-pub async fn dashboard(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-) -> Result<Json<DashboardData>> {
+pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<DashboardData>> {
     let today = time::OffsetDateTime::now_utc().date();
 
     let templates = sqlx::query!(
@@ -707,9 +711,7 @@ pub async fn dashboard(
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
             let required = coverage_map.get(&t.id).copied().unwrap_or(0) as i32;
-            let status = if required == 0 {
-                "green"
-            } else if actual >= required {
+            let status = if required == 0 || actual >= required {
                 "green"
             } else if actual > 0 {
                 "yellow"

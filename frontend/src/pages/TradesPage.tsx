@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -97,10 +98,15 @@ export default function TradesPage() {
       },
       {
         onSuccess: () => {
+          toast.success('Trade request submitted')
           setShowForm(false)
           setPartnerId('')
           setMyAssignmentId('')
           setPartnerAssignmentId('')
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create trade request'
+          toast.error(msg)
         },
       },
     )
@@ -119,7 +125,16 @@ export default function TradesPage() {
         approve: reviewTarget.action === 'approve',
         reviewer_notes: reviewerNotes || undefined,
       },
-      { onSuccess: () => setReviewTarget(null) },
+      {
+        onSuccess: () => {
+          toast.success(reviewTarget.action === 'approve' ? 'Trade approved' : 'Trade denied')
+          setReviewTarget(null)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review trade'
+          toast.error(msg)
+        },
+      },
     )
   }
 
@@ -167,7 +182,13 @@ export default function TradesPage() {
               size="sm"
               variant="outline"
               className="text-green-700 hover:bg-green-50"
-              onClick={() => respondMut.mutate({ id: r.id, accept: true })}
+              onClick={() => respondMut.mutate({ id: r.id, accept: true }, {
+                onSuccess: () => toast.success('Trade accepted'),
+                onError: (err: unknown) => {
+                  const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to accept trade'
+                  toast.error(msg)
+                },
+              })}
               disabled={respondMut.isPending}
             >
               Accept
@@ -177,7 +198,13 @@ export default function TradesPage() {
               size="sm"
               variant="outline"
               className="text-red-700 hover:bg-red-50"
-              onClick={() => respondMut.mutate({ id: r.id, accept: false })}
+              onClick={() => respondMut.mutate({ id: r.id, accept: false }, {
+                onSuccess: () => toast.success('Trade declined'),
+                onError: (err: unknown) => {
+                  const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to decline trade'
+                  toast.error(msg)
+                },
+              })}
               disabled={respondMut.isPending}
             >
               Decline
@@ -220,7 +247,13 @@ export default function TradesPage() {
               size="sm"
               variant="ghost"
               className="text-muted-foreground"
-              onClick={() => cancelMut.mutate(r.id)}
+              onClick={() => cancelMut.mutate(r.id, {
+                onSuccess: () => toast.success('Trade cancelled'),
+                onError: (err: unknown) => {
+                  const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to cancel trade'
+                  toast.error(msg)
+                },
+              })}
               disabled={cancelMut.isPending}
             >
               Cancel

@@ -1011,14 +1011,14 @@ export function useLeaveSummaryReport(params: { start_date: string; end_date: st
 export function useOrgSettings() {
   return useQuery({
     queryKey: queryKeys.orgSettings.all,
-    queryFn: reportsApi.listSettings,
+    queryFn: organizationApi.listSettings,
   })
 }
 
 export function useSetOrgSetting() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: reportsApi.setSetting,
+    mutationFn: organizationApi.setSetting,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.orgSettings.all }),
   })
 }

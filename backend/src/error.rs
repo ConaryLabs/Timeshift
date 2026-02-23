@@ -21,9 +21,6 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
-    #[error("Not implemented")]
-    NotImplemented,
-
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -59,7 +56,6 @@ impl IntoResponse for AppError {
                     .collect();
                 (StatusCode::BAD_REQUEST, messages.join("; "))
             }
-            AppError::NotImplemented => (StatusCode::NOT_IMPLEMENTED, self.to_string()),
             AppError::Database(e) => {
                 // Map constraint violations to 409 Conflict
                 if let sqlx::Error::Database(ref db_err) = e {

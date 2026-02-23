@@ -91,9 +91,7 @@ pub async fn set_setting(
     }
 
     if req.key.is_empty() || req.key.len() > 100 {
-        return Err(AppError::BadRequest(
-            "key must be 1-100 characters".into(),
-        ));
+        return Err(AppError::BadRequest("key must be 1-100 characters".into()));
     }
 
     let row = sqlx::query_as!(

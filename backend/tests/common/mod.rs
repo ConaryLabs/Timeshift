@@ -189,21 +189,49 @@ pub fn http_client() -> reqwest::Client {
 pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
     // Delete in dependency order (child tables first)
     let cleanup_queries = [
+        // Vacation bidding chain
+        "DELETE FROM vacation_bids WHERE vacation_bid_window_id IN (SELECT vbw.id FROM vacation_bid_windows vbw JOIN vacation_bid_periods vbp ON vbp.id = vbw.vacation_bid_period_id WHERE vbp.org_id = $1)",
+        "DELETE FROM vacation_bid_windows WHERE vacation_bid_period_id IN (SELECT id FROM vacation_bid_periods WHERE org_id = $1)",
+        "DELETE FROM vacation_bid_periods WHERE org_id = $1",
+        // Shift bidding chain
+        "DELETE FROM bid_submissions WHERE bid_window_id IN (SELECT bw.id FROM bid_windows bw JOIN schedule_periods sp ON sp.id = bw.period_id WHERE sp.org_id = $1)",
+        "DELETE FROM bid_windows WHERE period_id IN (SELECT id FROM schedule_periods WHERE org_id = $1)",
+        // Trade requests
+        "DELETE FROM trade_requests WHERE org_id = $1",
+        // Callout chain
+        "DELETE FROM ot_volunteers WHERE callout_event_id IN (SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ss.org_id = $1)",
         "DELETE FROM callout_attempts WHERE event_id IN (SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ss.org_id = $1)",
         "DELETE FROM callout_events WHERE scheduled_shift_id IN (SELECT id FROM scheduled_shifts WHERE org_id = $1)",
+        // Schedule chain
         "DELETE FROM assignments WHERE scheduled_shift_id IN (SELECT id FROM scheduled_shifts WHERE org_id = $1)",
         "DELETE FROM scheduled_shifts WHERE org_id = $1",
         "DELETE FROM slot_assignments WHERE slot_id IN (SELECT ss.id FROM shift_slots ss JOIN teams t ON t.id = ss.team_id WHERE t.org_id = $1)",
         "DELETE FROM shift_slots WHERE team_id IN (SELECT id FROM teams WHERE org_id = $1)",
         "DELETE FROM teams WHERE org_id = $1",
-        "DELETE FROM shift_templates WHERE org_id = $1",
+        "DELETE FROM schedule_annotations WHERE org_id = $1",
         "DELETE FROM schedule_periods WHERE org_id = $1",
+        // Leave chain
+        "DELETE FROM leave_request_lines WHERE leave_request_id IN (SELECT lr.id FROM leave_requests lr JOIN users u ON u.id = lr.user_id WHERE u.org_id = $1)",
+        "DELETE FROM accrual_transactions WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
+        "DELETE FROM leave_balances WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM leave_requests WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
+        "DELETE FROM accrual_schedules WHERE org_id = $1",
         "DELETE FROM leave_types WHERE org_id = $1",
+        // OT chain
+        "DELETE FROM ot_queue_positions WHERE org_id = $1",
         "DELETE FROM ot_hours WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM ot_reasons WHERE org_id = $1",
+        // Coverage & shift templates
+        "DELETE FROM coverage_requirements WHERE org_id = $1",
+        "DELETE FROM shift_templates WHERE org_id = $1",
+        // User-related
+        "DELETE FROM employee_preferences WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
+        "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM seniority_records WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM users WHERE org_id = $1",
+        // Org-level
+        "DELETE FROM holiday_calendar WHERE org_id = $1",
+        "DELETE FROM org_settings WHERE org_id = $1",
         "DELETE FROM classifications WHERE org_id = $1",
         "DELETE FROM organizations WHERE id = $1",
     ];

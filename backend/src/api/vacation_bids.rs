@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -112,26 +114,17 @@ pub async fn open_bidding(
         return Err(AppError::Forbidden);
     }
 
-    // Verify period exists, belongs to org, and is in draft status
-    let period = sqlx::query_as!(
-        VacationBidPeriod,
-        r#"
-        SELECT id, org_id, year, round, status,
-               opens_at, closes_at, created_at
-        FROM vacation_bid_periods
-        WHERE id = $1 AND org_id = $2
-        "#,
+    // Verify period exists and belongs to org
+    let exists = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM vacation_bid_periods WHERE id = $1 AND org_id = $2)",
         id,
         auth.org_id,
     )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Vacation bid period not found".into()))?;
+    .fetch_one(&pool)
+    .await?;
 
-    if period.status != "draft" {
-        return Err(AppError::BadRequest(
-            "Period must be in draft status to open bidding".into(),
-        ));
+    if !exists.unwrap_or(false) {
+        return Err(AppError::NotFound("Vacation bid period not found".into()));
     }
 
     if body.window_duration_hours < 1 {
@@ -154,7 +147,9 @@ pub async fn open_bidding(
     .await?;
 
     if users.is_empty() {
-        return Err(AppError::BadRequest("No active users in organization".into()));
+        return Err(AppError::BadRequest(
+            "No active users in organization".into(),
+        ));
     }
 
     // Parse start_at or default to now
@@ -168,6 +163,25 @@ pub async fn open_bidding(
     let duration = time::Duration::hours(body.window_duration_hours);
 
     let mut tx = pool.begin().await?;
+
+    // Check period is in draft status inside transaction with FOR UPDATE
+    let current_status = sqlx::query_scalar!(
+        r#"
+        SELECT status
+        FROM vacation_bid_periods
+        WHERE id = $1
+        FOR UPDATE
+        "#,
+        id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if current_status != "draft" {
+        return Err(AppError::BadRequest(
+            "Period must be in draft status to open bidding".into(),
+        ));
+    }
 
     // Delete any existing windows (in case of re-open)
     sqlx::query!(
@@ -399,9 +413,7 @@ pub async fn submit_bid(
     }
 
     if w.period_status != "open" {
-        return Err(AppError::BadRequest(
-            "Bidding period is not open".into(),
-        ));
+        return Err(AppError::BadRequest("Bidding period is not open".into()));
     }
 
     // Check window timing
@@ -450,6 +462,17 @@ pub async fn submit_bid(
                     "Round 1 picks must be full weeks (7 days)".into(),
                 ));
             }
+        }
+    }
+
+    // Validate ranks are sequential starting from 1
+    let mut ranks: Vec<i32> = body.picks.iter().map(|p| p.preference_rank).collect();
+    ranks.sort();
+    for (i, rank) in ranks.iter().enumerate() {
+        if *rank != (i as i32 + 1) {
+            return Err(AppError::BadRequest(
+                "Preference ranks must be sequential starting from 1".into(),
+            ));
         }
     }
 
@@ -566,6 +589,9 @@ pub async fn process_bids(
 
     let leave_type_id = leave_type.map(|lt| lt.id);
 
+    // Track all awarded dates across all windows to detect conflicts
+    let mut awarded_dates: HashSet<time::Date> = HashSet::new();
+
     // Process each window in seniority order
     for window in &windows {
         // Get bids ordered by preference
@@ -582,13 +608,35 @@ pub async fn process_bids(
         .await?;
 
         for bid in &bids {
-            // Award the bid (simplified: award all for now)
+            // Check if any date in this bid's range overlaps with already-awarded dates
+            let mut has_conflict = false;
+            let mut d = bid.start_date;
+            while d <= bid.end_date {
+                if awarded_dates.contains(&d) {
+                    has_conflict = true;
+                    break;
+                }
+                d = d.next_day().unwrap();
+            }
+
+            if has_conflict {
+                continue; // Skip this bid, dates already taken
+            }
+
+            // Award the bid
             sqlx::query!(
                 "UPDATE vacation_bids SET awarded = true WHERE id = $1",
                 bid.id,
             )
             .execute(&mut *tx)
             .await?;
+
+            // Add all dates in this bid's range to the awarded set
+            let mut d = bid.start_date;
+            while d <= bid.end_date {
+                awarded_dates.insert(d);
+                d = d.next_day().unwrap();
+            }
 
             // Create approved leave request if we have a vacation leave type
             if let Some(lt_id) = leave_type_id {

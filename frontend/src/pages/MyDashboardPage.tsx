@@ -94,9 +94,10 @@ function DayOffCard({ label }: { label: string }) {
 
 export default function MyDashboardPage() {
   const user = useAuthStore((s) => s.user)
-  const { data: dashboard, isLoading } = useMyDashboard()
+  const { data: dashboard, isLoading, isError } = useMyDashboard()
 
   if (isLoading) return <LoadingState message="Loading dashboard..." />
+  if (isError) return <p className="text-sm text-destructive p-6">Failed to load dashboard data.</p>
 
   const greeting = getGreeting()
 

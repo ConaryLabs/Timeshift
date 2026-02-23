@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ss.org_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1\n        ",
+  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ss.org_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1\n        FOR UPDATE OF ce\n        ",
   "describe": {
     "columns": [
       {
@@ -35,5 +35,5 @@
       false
     ]
   },
-  "hash": "eebc7e620b81c0834d83771bc7b522214b992ce747f2ec5b277e3494f7b42f59"
+  "hash": "9c63267df5896ee47da28e83f6ad0166f97ecd1462c6df11753e332d4f81ba38"
 }

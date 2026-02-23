@@ -34,6 +34,7 @@ import {
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { NO_VALUE } from '@/lib/format'
 import type { CalloutListEntry } from '@/api/callout'
@@ -129,12 +130,27 @@ export default function CalloutPage() {
     if (!selectedEvent) return
     const next = getNextStep()
     if (!next) return
-    advanceStepMut.mutate({ eventId: selectedEvent, step: next })
+    advanceStepMut.mutate(
+      { eventId: selectedEvent, step: next },
+      {
+        onSuccess: () => toast.success('Advanced to next step'),
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to advance step'
+          toast.error(msg)
+        },
+      },
+    )
   }
 
   function handleVolunteer() {
     if (!selectedEvent) return
-    volunteerMut.mutate(selectedEvent)
+    volunteerMut.mutate(selectedEvent, {
+      onSuccess: () => toast.success('Volunteered successfully'),
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to volunteer'
+        toast.error(msg)
+      },
+    })
   }
 
   function handleInitiate() {
@@ -147,9 +163,14 @@ export default function CalloutPage() {
       },
       {
         onSuccess: (ev) => {
+          toast.success('Callout initiated')
           setShowInitiate(false)
           setForm(INITIAL_FORM)
           setSelectedEvent(ev.id)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to initiate callout'
+          toast.error(msg)
         },
       },
     )
@@ -157,7 +178,15 @@ export default function CalloutPage() {
 
   function recordResponse(userId: string, response: 'declined' | 'no_answer') {
     if (!selectedEvent) return
-    recordMut.mutate({ eventId: selectedEvent, user_id: userId, response })
+    recordMut.mutate(
+      { eventId: selectedEvent, user_id: userId, response },
+      {
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to record response'
+          toast.error(msg)
+        },
+      },
+    )
   }
 
   function handleAccept() {
@@ -171,8 +200,13 @@ export default function CalloutPage() {
       },
       {
         onSuccess: () => {
+          toast.success('Acceptance confirmed')
           setAcceptTarget(null)
           setAcceptNotes('')
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to confirm acceptance'
+          toast.error(msg)
         },
       },
     )
@@ -307,7 +341,14 @@ export default function CalloutPage() {
                     onClick={(e) => {
                       e.stopPropagation()
                       cancelMut.mutate(ev.id, {
-                        onSuccess: () => setSelectedEvent(null),
+                        onSuccess: () => {
+                          toast.success('Callout cancelled')
+                          setSelectedEvent(null)
+                        },
+                        onError: (err: unknown) => {
+                          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to cancel callout'
+                          toast.error(msg)
+                        },
                       })
                     }}
                   >
