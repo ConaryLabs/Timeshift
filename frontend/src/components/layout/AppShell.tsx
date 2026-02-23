@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight,
@@ -25,6 +25,7 @@ import {
   BarChart3,
   PartyPopper,
   Target,
+  AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -34,11 +35,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe } from '@/hooks/queries'
+import { useMe, useOrganization, useScheduleGrid } from '@/hooks/queries'
+import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -178,8 +181,24 @@ export default function AppShell() {
   const navigate = useNavigate()
   const { main, admin } = useNavItems()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [coverageOpen, setCoverageOpen] = useState(false)
+  const { isManager } = usePermissions()
 
   useMe()
+  const { data: org } = useOrganization()
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const { data: todayCoverage } = useScheduleGrid(today, today)
+
+  const timezoneAbbr = org?.timezone
+    ? new Intl.DateTimeFormat('en-US', { timeZone: org.timezone, timeZoneName: 'short' })
+        .formatToParts(new Date())
+        .find(p => p.type === 'timeZoneName')?.value ?? org.timezone
+    : null
+
+  const understaffedShifts = useMemo(() => {
+    if (!isManager || !todayCoverage) return []
+    return todayCoverage.filter((c) => c.coverage_required > 0 && c.coverage_actual < c.coverage_required)
+  }, [isManager, todayCoverage])
 
   // L7: Keyboard shortcut Cmd+B / Ctrl+B to toggle sidebar
   useEffect(() => {
@@ -207,6 +226,12 @@ export default function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:bg-background focus:text-foreground focus:px-4 focus:py-2 focus:rounded-md focus:shadow-lg focus:border"
+      >
+        Skip to content
+      </a>
       {/* Desktop sidebar (lg and above) */}
       <aside
         className={cn(
@@ -222,6 +247,7 @@ export default function AppShell() {
         <div className="border-t border-sidebar-border p-2">
           <button
             onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
               "w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-white/[0.06] hover:text-white transition-colors",
               collapsed ? "justify-center px-2" : "justify-start",
@@ -265,6 +291,34 @@ export default function AppShell() {
           <div className="hidden lg:block" />
 
           <div className="flex items-center gap-2">
+            {timezoneAbbr && (
+              <span className="hidden sm:block text-xs text-muted-foreground font-medium">
+                {timezoneAbbr}
+              </span>
+            )}
+            {isManager && understaffedShifts.length > 0 && (
+              <Popover open={coverageOpen} onOpenChange={setCoverageOpen}>
+                <PopoverTrigger asChild>
+                  <button className="relative p-1.5 rounded-md hover:bg-accent transition-colors" aria-label="Coverage alerts">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+                      {understaffedShifts.length}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72">
+                  <p className="text-sm font-medium mb-2">Understaffed Shifts Today</p>
+                  <div className="space-y-1.5">
+                    {understaffedShifts.map((s) => (
+                      <div key={s.shift_template_id} className="flex items-center justify-between text-sm">
+                        <span>{s.shift_name}</span>
+                        <span className="text-destructive font-medium">{s.coverage_actual}/{s.coverage_required}</span>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             {initials && (
               <div className="hidden sm:flex h-7 w-7 rounded-full bg-primary/10 text-primary items-center justify-center text-xs font-semibold shrink-0">
                 {initials}
@@ -285,7 +339,7 @@ export default function AppShell() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main id="main-content" className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,12 +16,21 @@ import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
+import { SearchInput } from '@/components/ui/search-input'
+import { useDebounce } from '@/hooks/useDebounce'
 import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useLeaveBalances } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { LeaveRequest } from '@/api/leave'
 import { Card, CardContent } from '@/components/ui/card'
 
 const INITIAL_FORM = { leave_type_id: '', start_date: '', end_date: '', reason: '' }
+
+const STATUS_TABS: { label: string; value: string }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Denied', value: 'denied' },
+]
 
 type ReviewTarget = { id: string; action: 'approved' | 'denied' }
 
@@ -31,6 +40,9 @@ export default function LeavePage() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reviewerNotes, setReviewerNotes] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const debouncedSearch = useDebounce(search)
 
   const { data: requests, isLoading, isError } = useLeaveRequests()
   const { data: leaveTypes } = useLeaveTypes()
@@ -39,6 +51,19 @@ export default function LeavePage() {
   const reviewMut = useReviewLeave()
 
   const selectedBalance = balances?.find((b) => b.leave_type_id === form.leave_type_id)
+
+  const filteredRequests = useMemo(() => {
+    let result = requests ?? []
+    if (statusFilter !== 'all') result = result.filter((r) => r.status === statusFilter)
+    if (debouncedSearch && isManager) {
+      const q = debouncedSearch.toLowerCase()
+      result = result.filter((r) =>
+        `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) ||
+        `${r.last_name}, ${r.first_name}`.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [requests, statusFilter, debouncedSearch, isManager])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -188,14 +213,38 @@ export default function LeavePage() {
         </form>
       )}
 
+      {isManager && <p className="text-sm text-muted-foreground mb-4">Viewing all employee requests</p>}
+
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex gap-1">
+          {STATUS_TABS.map((tab) => (
+            <Button
+              key={tab.value}
+              size="sm"
+              variant={statusFilter === tab.value ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(tab.value)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+        {isManager && (
+          <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-56" />
+        )}
+      </div>
+
       {isError ? (
         <p className="text-sm text-destructive">Failed to load leave requests.</p>
       ) : (
         <DataTable
           columns={columns}
-          data={requests ?? []}
+          data={filteredRequests}
           isLoading={isLoading}
-          emptyMessage="No leave requests"
+          emptyMessage={isManager ? 'No leave requests to review' : 'No leave requests yet'}
+          emptyDescription={isManager ? 'Employee requests will appear here.' : 'Submit a request using the button above.'}
+          emptyAction={!isManager ? (
+            <Button onClick={() => setShowForm(true)}>+ Request Leave</Button>
+          ) : undefined}
           rowKey={(r) => r.id}
         />
       )}
