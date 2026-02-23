@@ -45,6 +45,32 @@ export interface CalloutAttempt {
   notes: string | null
 }
 
+export interface BumpRequest {
+  id: string
+  event_id: string
+  requesting_user_id: string
+  requesting_user_first_name: string
+  requesting_user_last_name: string
+  displaced_user_id: string
+  displaced_user_first_name: string
+  displaced_user_last_name: string
+  status: 'pending' | 'approved' | 'denied'
+  reason: string | null
+  created_at: string
+  reviewed_at?: string
+  reviewed_by?: string
+}
+
+export interface CreateBumpRequestPayload {
+  displaced_user_id: string
+  reason?: string
+}
+
+export interface ReviewBumpRequestPayload {
+  approved: boolean
+  reason?: string
+}
+
 export const calloutApi = {
   listEvents: (params?: { limit?: number; offset?: number }) =>
     api.get<CalloutEvent[]>('/api/callout/events', { params }).then((r) => r.data),
@@ -70,5 +96,20 @@ export const calloutApi = {
   ) =>
     api
       .post<CalloutAttempt>(`/api/callout/events/${event_id}/attempt`, body)
+      .then((r) => r.data),
+
+  listBumpRequests: (eventId: string) =>
+    api
+      .get<BumpRequest[]>(`/api/callout/events/${eventId}/bump-requests`)
+      .then((r) => r.data),
+
+  createBumpRequest: (eventId: string, payload: CreateBumpRequestPayload) =>
+    api
+      .post<BumpRequest>(`/api/callout/events/${eventId}/bump`, payload)
+      .then((r) => r.data),
+
+  reviewBumpRequest: (requestId: string, payload: ReviewBumpRequestPayload) =>
+    api
+      .patch<BumpRequest>(`/api/callout/bump-requests/${requestId}/review`, payload)
       .then((r) => r.data),
 }

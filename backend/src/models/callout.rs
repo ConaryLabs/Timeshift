@@ -118,6 +118,29 @@ pub struct BumpRequest {
     pub reviewed_by: Option<Uuid>,
 }
 
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct BumpRequestWithNames {
+    pub id: Uuid,
+    pub event_id: Uuid,
+    pub requesting_user_id: Uuid,
+    pub requesting_user_first_name: String,
+    pub requesting_user_last_name: String,
+    pub displaced_user_id: Uuid,
+    pub displaced_user_first_name: String,
+    pub displaced_user_last_name: String,
+    pub status: String,
+    pub reason: Option<String>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub reviewed_at: Option<OffsetDateTime>,
+    pub reviewed_by: Option<Uuid>,
+}
+
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBumpRequest {
     pub displaced_user_id: Uuid,

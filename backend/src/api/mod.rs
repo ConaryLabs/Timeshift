@@ -220,14 +220,14 @@ pub fn router(state: AppState) -> Router {
             "/api/callout/events/:id/cancel-ot",
             post(callout::cancel_ot_assignment),
         )
-        .route("/api/callout/events/:id/volunteer", post(ot::volunteer))
+        // GET /volunteers stays here; POST /volunteer and POST /bump are rate-limited in main.rs
         .route(
             "/api/callout/events/:id/volunteers",
             get(ot::list_volunteers),
         )
         .route(
-            "/api/callout/events/:id/bump",
-            post(callout::create_bump_request),
+            "/api/callout/events/:id/bump-requests",
+            get(callout::list_bump_requests),
         )
         .route(
             "/api/callout/bump-requests/:id/review",
