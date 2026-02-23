@@ -307,6 +307,26 @@ export default function VacationBidPage() {
             </CardContent>
           </Card>
 
+          {/* Allowance info */}
+          {data.allowance_hours != null && (
+            <Card>
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Hours remaining</span>
+                  <span className="font-medium">
+                    {data.allowance_hours - data.hours_used} / {data.allowance_hours}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all"
+                    style={{ width: `${Math.min(100, (data.hours_used / data.allowance_hours) * 100)}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Window timing info */}
           <Card>
             <CardHeader>
@@ -325,6 +345,18 @@ export default function VacationBidPage() {
                 <span className="text-muted-foreground">Round:</span>{' '}
                 {round === 1 ? 'Round 1 (Full Weeks)' : 'Round 2 (Individual Days)'}
               </p>
+              {data.allowance_hours != null && (
+                <p>
+                  <span className="text-muted-foreground">Allowance:</span>{' '}
+                  {data.allowance_hours} hours per round
+                </p>
+              )}
+              {data.min_block_hours != null && (
+                <p>
+                  <span className="text-muted-foreground">Minimum block:</span>{' '}
+                  {data.min_block_hours} hours ({Math.ceil(data.min_block_hours / 8)} days)
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

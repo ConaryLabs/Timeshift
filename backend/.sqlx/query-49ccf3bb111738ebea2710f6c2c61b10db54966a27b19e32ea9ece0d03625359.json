@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT w.id, w.user_id, w.opens_at, w.closes_at,\n               p.round, p.org_id, p.status AS period_status\n        FROM vacation_bid_windows w\n        JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id\n        WHERE w.id = $1\n        ",
+  "query": "\n        SELECT w.id, w.user_id, w.opens_at, w.closes_at,\n               p.round, p.org_id, p.status AS period_status,\n               p.allowance_hours, p.min_block_hours\n        FROM vacation_bid_windows w\n        JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id\n        WHERE w.id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -37,6 +37,16 @@
         "ordinal": 6,
         "name": "period_status",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "allowance_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "min_block_hours",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -51,8 +61,10 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "dab2cc7834cdd1385cf95bf6bdb6f9aacbd50fb865a6cd8d70b99a0e59984e5b"
+  "hash": "49ccf3bb111738ebea2710f6c2c61b10db54966a27b19e32ea9ece0d03625359"
 }

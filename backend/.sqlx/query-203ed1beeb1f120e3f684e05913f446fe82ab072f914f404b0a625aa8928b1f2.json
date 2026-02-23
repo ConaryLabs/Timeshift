@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE vacation_bid_periods\n        SET status = 'completed'\n        WHERE id = $1\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at\n        ",
+  "query": "\n        INSERT INTO vacation_bid_periods (id, org_id, year, round, allowance_hours, min_block_hours, bargaining_unit)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at,\n                  allowance_hours, min_block_hours, bargaining_unit\n        ",
   "describe": {
     "columns": [
       {
@@ -42,11 +42,32 @@
         "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "allowance_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "min_block_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "bargaining_unit",
+        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text"
       ]
     },
     "nullable": [
@@ -57,8 +78,11 @@
       false,
       true,
       true,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "af5ff4c178725a7ecc5b3fefcc155c35488ff0eef3105e807229483fa721aa5e"
+  "hash": "203ed1beeb1f120e3f684e05913f446fe82ab072f914f404b0a625aa8928b1f2"
 }

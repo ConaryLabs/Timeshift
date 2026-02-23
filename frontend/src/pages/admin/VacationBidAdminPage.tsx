@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -41,9 +42,18 @@ import type { VacationBidPeriod, VacationBidWindow } from '@/api/vacationBids'
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + i - 1)
 
+const bargainingUnitOptions = [
+  { value: '', label: '(All employees)' },
+  { value: 'VCCEA', label: 'VCCEA' },
+  { value: 'VCSG', label: 'VCSG' },
+] as const
+
 const createSchema = z.object({
   year: z.coerce.number().min(2000).max(2100),
   round: z.coerce.number().min(1).max(2),
+  allowance_hours: z.coerce.number().positive().optional().or(z.literal('')),
+  min_block_hours: z.coerce.number().positive().optional().or(z.literal('')),
+  bargaining_unit: z.string().optional(),
 })
 
 const openSchema = z.object({
@@ -72,7 +82,7 @@ export default function VacationBidAdminPage() {
 
   const createForm = useForm({
     resolver: zodResolver(createSchema),
-    defaultValues: { year: currentYear, round: 1 },
+    defaultValues: { year: currentYear, round: 1, allowance_hours: '' as const, min_block_hours: '' as const, bargaining_unit: '' },
   })
 
   const openForm = useForm({
@@ -80,8 +90,15 @@ export default function VacationBidAdminPage() {
     defaultValues: { window_duration_hours: 24, start_at: '' },
   })
 
-  function handleCreate(values: { year: number; round: number }) {
-    createMut.mutate(values, {
+  function handleCreate(values: z.infer<typeof createSchema>) {
+    const payload = {
+      year: values.year,
+      round: values.round,
+      allowance_hours: typeof values.allowance_hours === 'number' ? values.allowance_hours : null,
+      min_block_hours: typeof values.min_block_hours === 'number' ? values.min_block_hours : null,
+      bargaining_unit: values.bargaining_unit || null,
+    }
+    createMut.mutate(payload, {
       onSuccess: () => {
         toast.success('Vacation bid period created')
         setCreateOpen(false)
@@ -147,7 +164,14 @@ export default function VacationBidAdminPage() {
     },
     {
       header: 'Round',
-      cell: (r) => `Round ${r.round}`,
+      cell: (r) => (
+        <div className="flex items-center gap-2">
+          <span>Round {r.round}</span>
+          {r.bargaining_unit && (
+            <Badge variant="outline" className="text-xs">{r.bargaining_unit}</Badge>
+          )}
+        </div>
+      ),
     },
     {
       header: 'Status',
@@ -247,7 +271,7 @@ export default function VacationBidAdminPage() {
               </SelectContent>
             </Select>
             <Button onClick={() => {
-              createForm.reset({ year: selectedYear, round: 1 })
+              createForm.reset({ year: selectedYear, round: 1, allowance_hours: '', min_block_hours: '', bargaining_unit: '' })
               setCreateOpen(true)
             }}>
               + New Period
@@ -291,6 +315,26 @@ export default function VacationBidAdminPage() {
                     <SelectItem value="2">Round 2 (Individual Days)</SelectItem>
                   </SelectContent>
                 </Select>
+              </FormField>
+            </div>
+            <FormField label="Bargaining Unit" htmlFor="vbp-bu">
+              <Select value={createForm.watch('bargaining_unit')} onValueChange={(v) => createForm.setValue('bargaining_unit', v)}>
+                <SelectTrigger id="vbp-bu">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {bargainingUnitOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Hour Allowance (per round)" htmlFor="vbp-allowance">
+                <Input id="vbp-allowance" type="number" placeholder="e.g. 120" {...createForm.register('allowance_hours')} />
+              </FormField>
+              <FormField label="Minimum Block Hours" htmlFor="vbp-minblock">
+                <Input id="vbp-minblock" type="number" placeholder="e.g. 40" {...createForm.register('min_block_hours')} />
               </FormField>
             </div>
             <DialogFooter>
