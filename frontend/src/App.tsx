@@ -6,14 +6,27 @@ import LoginPage from '@/pages/LoginPage'
 import SchedulePage from '@/pages/SchedulePage'
 import LeavePage from '@/pages/LeavePage'
 import CalloutPage from '@/pages/CalloutPage'
+import TradesPage from '@/pages/TradesPage'
 import ClassificationsPage from '@/pages/admin/ClassificationsPage'
 import ShiftTemplatesPage from '@/pages/admin/ShiftTemplatesPage'
 import TeamsPage from '@/pages/admin/TeamsPage'
 import TeamDetailPage from '@/pages/admin/TeamDetailPage'
 import UsersPage from '@/pages/admin/UsersPage'
 import OrgSettingsPage from '@/pages/admin/OrgSettingsPage'
+import OTQueuePage from '@/pages/admin/OTQueuePage'
+import LeaveBalancesPage from '@/pages/admin/LeaveBalancesPage'
 import SchedulePeriodsPage from '@/pages/admin/SchedulePeriodsPage'
 import SchedulePeriodDetailPage from '@/pages/admin/SchedulePeriodDetailPage'
+import VacationBidAdminPage from '@/pages/admin/VacationBidAdminPage'
+import HolidayCalendarPage from '@/pages/admin/HolidayCalendarPage'
+import ReportsPage from '@/pages/admin/ReportsPage'
+import DayViewPage from '@/pages/DayViewPage'
+import CoverageRequirementsPage from '@/pages/admin/CoverageRequirementsPage'
+import VacationBidPage from '@/pages/VacationBidPage'
+import BidPage from '@/pages/BidPage'
+import MyDashboardPage from '@/pages/MyDashboardPage'
+import MySchedulePage from '@/pages/MySchedulePage'
+import MyProfilePage from '@/pages/MyProfilePage'
 import AppShell from '@/components/layout/AppShell'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -34,9 +47,14 @@ export default function App() {
           }
         >
           {/* Core pages */}
-          <Route index element={<Navigate to="/schedule" replace />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<MyDashboardPage />} />
+          <Route path="my-schedule" element={<MySchedulePage />} />
+          <Route path="profile" element={<MyProfilePage />} />
           <Route path="schedule" element={<SchedulePage />} />
+          <Route path="schedule/day/:date" element={<DayViewPage />} />
           <Route path="leave" element={<LeavePage />} />
+          <Route path="trades" element={<TradesPage />} />
           <Route
             path="callout"
             element={
@@ -45,6 +63,8 @@ export default function App() {
               </RequireRole>
             }
           />
+          <Route path="vacation-bid/:windowId" element={<VacationBidPage />} />
+          <Route path="bid/:windowId" element={<BidPage />} />
 
           {/* Admin routes */}
           <Route path="admin">
@@ -61,6 +81,14 @@ export default function App() {
               element={
                 <RequireRole roles="admin">
                   <ShiftTemplatesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="coverage"
+              element={
+                <RequireRole roles="admin">
+                  <CoverageRequirementsPage />
                 </RequireRole>
               }
             />
@@ -89,6 +117,22 @@ export default function App() {
               }
             />
             <Route
+              path="ot-queue"
+              element={
+                <RequireRole roles="admin">
+                  <OTQueuePage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="leave-balances"
+              element={
+                <RequireRole roles="admin">
+                  <LeaveBalancesPage />
+                </RequireRole>
+              }
+            />
+            <Route
               path="schedule-periods"
               element={
                 <RequireRole roles="admin">
@@ -105,6 +149,30 @@ export default function App() {
               }
             />
             <Route
+              path="vacation-bids"
+              element={
+                <RequireRole roles="admin">
+                  <VacationBidAdminPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="holidays"
+              element={
+                <RequireRole roles="admin">
+                  <HolidayCalendarPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="reports"
+              element={
+                <RequireRole roles={['admin', 'supervisor']}>
+                  <ReportsPage />
+                </RequireRole>
+              }
+            />
+            <Route
               path="settings"
               element={
                 <RequireRole roles="admin">
@@ -114,7 +182,7 @@ export default function App() {
             />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/schedule" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </ErrorBoundary>
   )

@@ -1,5 +1,7 @@
 import { api } from './client'
 
+import type { CalloutStep } from './ot'
+
 export interface CalloutEvent {
   id: string
   scheduled_shift_id: string
@@ -8,6 +10,8 @@ export interface CalloutEvent {
   reason_text: string | null
   classification_id: string | null
   status: 'open' | 'filled' | 'cancelled'
+  current_step: CalloutStep | null
+  step_started_at: string | null
   shift_template_name?: string
   shift_date?: string
   team_name?: string

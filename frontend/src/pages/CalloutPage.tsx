@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { format, addDays } from 'date-fns'
+import { Hand } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
@@ -26,11 +28,16 @@ import {
   useScheduledShifts,
   useShiftTemplates,
   useClassifications,
+  useCalloutVolunteers,
+  useVolunteer,
+  useAdvanceCalloutStep,
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
 import { NO_VALUE } from '@/lib/format'
 import type { CalloutListEntry } from '@/api/callout'
+import type { CalloutStep } from '@/api/ot'
 
 const INITIAL_FORM = {
   scheduled_shift_id: NO_VALUE,
@@ -40,8 +47,46 @@ const INITIAL_FORM = {
 
 type AcceptTarget = { user_id: string; name: string }
 
+const CALLOUT_STEPS: { key: CalloutStep; label: string }[] = [
+  { key: 'volunteers', label: 'Volunteers' },
+  { key: 'low_ot_hours', label: 'Low OT Hours' },
+  { key: 'inverse_seniority', label: 'Inverse Seniority' },
+  { key: 'equal_ot_hours', label: 'Equal OT Hours' },
+  { key: 'mandatory', label: 'Mandatory' },
+]
+
+function StepIndicator({ currentStep }: { currentStep: CalloutStep | null }) {
+  const activeIndex = currentStep
+    ? CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
+    : -1
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap mb-4">
+      {CALLOUT_STEPS.map((step, i) => {
+        const isActive = i === activeIndex
+        const isPast = i < activeIndex
+        return (
+          <div key={step.key} className="flex items-center gap-1">
+            {i > 0 && <div className={cn("w-4 h-px", isPast ? "bg-primary" : "bg-border")} />}
+            <Badge
+              variant={isActive ? 'default' : isPast ? 'secondary' : 'outline'}
+              className={cn(
+                "text-xs whitespace-nowrap",
+                isActive && "ring-2 ring-primary/30",
+              )}
+            >
+              {i + 1}. {step.label}
+            </Badge>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function CalloutPage() {
   const { isManager } = usePermissions()
+  const user = useAuthStore((s) => s.user)
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
   const [showInitiate, setShowInitiate] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
@@ -53,9 +98,12 @@ export default function CalloutPage() {
 
   const { data: events, isLoading, isError } = useCalloutEvents()
   const { data: calloutList } = useCalloutList(selectedEvent ?? '')
+  const { data: volunteers } = useCalloutVolunteers(selectedEvent ?? '')
   const cancelMut = useCancelCalloutEvent()
   const createMut = useCreateCalloutEvent()
   const recordMut = useRecordAttempt()
+  const volunteerMut = useVolunteer()
+  const advanceStepMut = useAdvanceCalloutStep()
 
   const { data: scheduledShifts } = useScheduledShifts({ start_date: today, end_date: twoWeeksOut })
   const { data: templates } = useShiftTemplates()
@@ -65,6 +113,29 @@ export default function CalloutPage() {
 
   const selectedEventData = (events ?? []).find((e) => e.id === selectedEvent)
   const eventIsOpen = selectedEventData?.status === 'open'
+  const currentStep = selectedEventData?.current_step ?? null
+
+  // Check if current user already volunteered
+  const hasVolunteered = (volunteers ?? []).some((v) => v.user_id === user?.id)
+
+  function getNextStep(): CalloutStep | null {
+    if (!currentStep) return 'volunteers'
+    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
+    if (idx < CALLOUT_STEPS.length - 1) return CALLOUT_STEPS[idx + 1].key
+    return null
+  }
+
+  function handleAdvanceStep() {
+    if (!selectedEvent) return
+    const next = getNextStep()
+    if (!next) return
+    advanceStepMut.mutate({ eventId: selectedEvent, step: next })
+  }
+
+  function handleVolunteer() {
+    if (!selectedEvent) return
+    volunteerMut.mutate(selectedEvent)
+  }
 
   function handleInitiate() {
     if (form.scheduled_shift_id === NO_VALUE) return
@@ -210,7 +281,14 @@ export default function CalloutPage() {
                   <span className="text-sm font-medium">
                     {new Date(ev.created_at).toLocaleDateString()}
                   </span>
-                  <StatusBadge status={ev.status} />
+                  <div className="flex items-center gap-2">
+                    {ev.current_step && ev.status === 'open' && (
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {ev.current_step.replace(/_/g, ' ')}
+                      </Badge>
+                    )}
+                    <StatusBadge status={ev.status} />
+                  </div>
                 </div>
                 {(ev.shift_template_name || ev.team_name) && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -241,8 +319,58 @@ export default function CalloutPage() {
           </div>
         </div>
 
-        {/* Callout list */}
+        {/* Callout list + step indicator */}
         <div>
+          {selectedEvent && eventIsOpen && (
+            <>
+              {/* Step indicator */}
+              <StepIndicator currentStep={currentStep} />
+
+              {/* Controls row */}
+              <div className="flex items-center gap-2 mb-4">
+                {isManager && getNextStep() && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAdvanceStep}
+                    disabled={advanceStepMut.isPending}
+                  >
+                    Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
+                  </Button>
+                )}
+                {!isManager && !hasVolunteered && (
+                  <Button
+                    size="sm"
+                    onClick={handleVolunteer}
+                    disabled={volunteerMut.isPending}
+                  >
+                    <Hand className="h-4 w-4 mr-1" />
+                    Volunteer
+                  </Button>
+                )}
+                {!isManager && hasVolunteered && (
+                  <Badge variant="secondary">You have volunteered</Badge>
+                )}
+              </div>
+
+              {/* Volunteers section */}
+              {(volunteers ?? []).length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-medium text-muted-foreground mb-2">
+                    Volunteers ({(volunteers ?? []).length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {(volunteers ?? []).map((v) => (
+                      <Badge key={v.id} variant="secondary" className="text-xs">
+                        {v.last_name}, {v.first_name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
             {selectedEvent ? 'Callout List' : 'Select an event'}
           </h3>

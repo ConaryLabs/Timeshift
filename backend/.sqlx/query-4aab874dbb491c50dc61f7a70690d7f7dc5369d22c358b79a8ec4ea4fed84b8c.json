@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id AS user_id,\n            u.first_name,\n            u.last_name,\n            c.name AS \"classification_name?\",\n            CAST(COALESCE(SUM(oh.hours_worked), 0) AS FLOAT8) AS \"hours_worked!\",\n            CAST(COALESCE(SUM(oh.hours_declined), 0) AS FLOAT8) AS \"hours_declined!\",\n            CAST(COALESCE(SUM(oh.hours_worked + oh.hours_declined), 0) AS FLOAT8) AS \"total_hours!\"\n        FROM ot_hours oh\n        JOIN users u ON u.id = oh.user_id\n        LEFT JOIN classifications c ON c.id = oh.classification_id\n        WHERE u.org_id = $1\n          AND u.is_active = true\n          AND oh.fiscal_year = $2\n          AND ($3::uuid IS NULL OR oh.classification_id = $3)\n        GROUP BY u.id, u.first_name, u.last_name, c.name\n        ORDER BY \"total_hours!\" DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "classification_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "hours_worked!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "hours_declined!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "total_hours!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "4aab874dbb491c50dc61f7a70690d7f7dc5369d22c358b79a8ec4ea4fed84b8c"
+}

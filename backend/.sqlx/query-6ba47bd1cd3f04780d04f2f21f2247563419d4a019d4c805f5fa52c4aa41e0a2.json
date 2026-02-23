@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, created_by)\n        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'usage', $6, $7)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6ba47bd1cd3f04780d04f2f21f2247563419d4a019d4c805f5fa52c4aa41e0a2"
+}

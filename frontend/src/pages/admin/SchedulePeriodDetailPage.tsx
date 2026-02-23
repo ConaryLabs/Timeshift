@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Play, Users, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
@@ -12,6 +13,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
@@ -23,10 +25,15 @@ import {
   useAssignSlot,
   useRemoveSlotAssignment,
   useUsers,
+  useBidWindows,
+  useOpenBidding,
+  useProcessBids,
 } from '@/hooks/queries'
 import { formatTime } from '@/lib/format'
 import { NO_VALUE } from '@/lib/format'
 import type { SlotAssignmentView } from '@/api/schedulePeriods'
+import type { BidWindow } from '@/api/bidding'
+import type { BidPeriodStatus } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -36,19 +43,56 @@ function formatDate(d: string) {
   })
 }
 
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function StatusBadge({ status }: { status: BidPeriodStatus }) {
+  const config: Record<BidPeriodStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {
+    draft: { label: 'Draft', variant: 'secondary' },
+    open: { label: 'Bidding Open', variant: 'default', className: 'bg-green-600 hover:bg-green-700' },
+    in_progress: { label: 'Processing', variant: 'default', className: 'bg-amber-600 hover:bg-amber-700' },
+    completed: { label: 'Completed', variant: 'default', className: 'bg-blue-600 hover:bg-blue-700' },
+    archived: { label: 'Archived', variant: 'outline' },
+  }
+  const c = config[status]
+  return <Badge variant={c.variant} className={c.className}>{c.label}</Badge>
+}
+
+function getWindowStatus(w: BidWindow) {
+  const now = new Date()
+  const opens = new Date(w.opens_at)
+  const closes = new Date(w.closes_at)
+  if (w.submitted_at) return 'submitted' as const
+  if (now < opens) return 'upcoming' as const
+  if (now > closes) return 'closed' as const
+  return 'active' as const
+}
+
 export default function SchedulePeriodDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [assignTarget, setAssignTarget] = useState<SlotAssignmentView | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string>(NO_VALUE)
   const [removeTarget, setRemoveTarget] = useState<SlotAssignmentView | null>(null)
+  const [openBidDialog, setOpenBidDialog] = useState(false)
+  const [windowDuration, setWindowDuration] = useState('24')
+  const [confirmProcess, setConfirmProcess] = useState(false)
 
   const periodId = id ?? ''
 
   const { data: periods, isLoading: periodsLoading } = useSchedulePeriods()
   const { data: assignments, isLoading: assignmentsLoading, isError } = useSlotAssignments(periodId)
   const { data: users } = useUsers()
+  const { data: bidWindows, isLoading: windowsLoading } = useBidWindows(periodId)
   const assignMut = useAssignSlot()
   const removeMut = useRemoveSlotAssignment()
+  const openBiddingMut = useOpenBidding()
+  const processBidsMut = useProcessBids()
 
   if (!id) return <Navigate to="/admin/schedule-periods" replace />
 
@@ -84,6 +128,40 @@ export default function SchedulePeriodDetailPage() {
         },
       },
     )
+  }
+
+  function handleOpenBidding() {
+    const hours = parseInt(windowDuration, 10)
+    if (!hours || hours < 1) {
+      toast.error('Window duration must be at least 1 hour')
+      return
+    }
+    openBiddingMut.mutate(
+      { periodId, window_duration_hours: hours },
+      {
+        onSuccess: () => {
+          toast.success('Bidding opened successfully')
+          setOpenBidDialog(false)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to open bidding'
+          toast.error(msg)
+        },
+      },
+    )
+  }
+
+  function handleProcessBids() {
+    processBidsMut.mutate(periodId, {
+      onSuccess: (data: { awards_count: number; total_bidders: number }) => {
+        toast.success(`Bids processed: ${data.awards_count} of ${data.total_bidders} users awarded slots`)
+        setConfirmProcess(false)
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to process bids'
+        toast.error(msg)
+      },
+    })
   }
 
   const columns: Column<SlotAssignmentView>[] = [
@@ -145,7 +223,43 @@ export default function SchedulePeriodDetailPage() {
     },
   ]
 
+  // Bid window columns
+  const windowColumns: Column<BidWindow>[] = [
+    {
+      header: 'Rank',
+      cell: (r) => <span className="font-mono font-bold">#{r.seniority_rank}</span>,
+    },
+    {
+      header: 'Employee',
+      cell: (r) => `${r.last_name}, ${r.first_name}`,
+    },
+    {
+      header: 'Opens',
+      cell: (r) => formatDateTime(r.opens_at),
+    },
+    {
+      header: 'Closes',
+      cell: (r) => formatDateTime(r.closes_at),
+    },
+    {
+      header: 'Status',
+      cell: (r) => {
+        const s = getWindowStatus(r)
+        if (s === 'submitted') return <Badge className="bg-blue-600">Submitted</Badge>
+        if (s === 'active') return <Badge className="bg-green-600">Active</Badge>
+        if (s === 'closed') return <Badge variant="outline">Closed</Badge>
+        return <Badge variant="secondary">Upcoming</Badge>
+      },
+    },
+  ]
+
   if (periodsLoading) return <LoadingState />
+
+  const status = period?.status ?? 'draft'
+  const allWindowsClosed = bidWindows?.every((w) => {
+    const closes = new Date(w.closes_at)
+    return w.submitted_at || closes < new Date()
+  })
 
   return (
     <div>
@@ -164,19 +278,125 @@ export default function SchedulePeriodDetailPage() {
             ? `${formatDate(period.start_date)} – ${formatDate(period.end_date)}`
             : undefined
         }
+        actions={
+          <div className="flex items-center gap-2">
+            <StatusBadge status={status} />
+            {status === 'draft' && (
+              <Button onClick={() => setOpenBidDialog(true)}>
+                <Play className="w-4 h-4 mr-2" />
+                Open Bidding
+              </Button>
+            )}
+            {status === 'open' && allWindowsClosed && (
+              <Button onClick={() => setConfirmProcess(true)}>
+                <Zap className="w-4 h-4 mr-2" />
+                Process Bids
+              </Button>
+            )}
+          </div>
+        }
       />
 
-      {isError ? (
-        <p className="text-sm text-destructive">Failed to load slot assignments.</p>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={assignments ?? []}
-          isLoading={assignmentsLoading}
-          emptyMessage="No active shift slots found. Create teams and shift slots first."
-          rowKey={(r) => r.slot_id}
-        />
+      {/* Bid Windows section (when bidding has been opened) */}
+      {(status === 'open' || status === 'completed' || status === 'in_progress') && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Bid Windows
+            </CardTitle>
+            <CardDescription>
+              {status === 'open' && period?.bid_opens_at && period?.bid_closes_at && (
+                <>
+                  Bidding: {formatDateTime(period.bid_opens_at)} – {formatDateTime(period.bid_closes_at)}
+                </>
+              )}
+              {status === 'completed' && 'Bidding complete. Slots have been awarded.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={windowColumns}
+              data={bidWindows ?? []}
+              isLoading={windowsLoading}
+              emptyMessage="No bid windows found."
+              rowKey={(r) => r.id}
+            />
+          </CardContent>
+        </Card>
       )}
+
+      {/* Slot Assignments table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Slot Assignments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isError ? (
+            <p className="text-sm text-destructive">Failed to load slot assignments.</p>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={assignments ?? []}
+              isLoading={assignmentsLoading}
+              emptyMessage="No active shift slots found. Create teams and shift slots first."
+              rowKey={(r) => r.slot_id}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Open Bidding dialog */}
+      <Dialog open={openBidDialog} onOpenChange={setOpenBidDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Open Shift Bidding</DialogTitle>
+            <DialogDescription>
+              Each employee will get a bidding window in seniority order. Set how long each window lasts.
+            </DialogDescription>
+          </DialogHeader>
+          <FormField label="Window Duration (hours)" htmlFor="window-duration" required>
+            <Input
+              id="window-duration"
+              type="number"
+              min={1}
+              value={windowDuration}
+              onChange={(e) => setWindowDuration(e.target.value)}
+              placeholder="24"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {activeUsers.length} active users. Total bidding time: ~{parseInt(windowDuration, 10) * activeUsers.length || 0} hours.
+            </p>
+          </FormField>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenBidDialog(false)}>Cancel</Button>
+            <Button onClick={handleOpenBidding} disabled={openBiddingMut.isPending}>
+              <Play className="w-4 h-4 mr-2" />
+              Open Bidding
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Process Bids confirmation dialog */}
+      <Dialog open={confirmProcess} onOpenChange={setConfirmProcess}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process All Bids</DialogTitle>
+            <DialogDescription>
+              This will award slots to employees based on their ranked preferences and seniority order.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmProcess(false)}>Cancel</Button>
+            <Button onClick={handleProcessBids} disabled={processBidsMut.isPending}>
+              <Zap className="w-4 h-4 mr-2" />
+              Process Bids
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Assign / reassign dialog */}
       <Dialog open={!!assignTarget} onOpenChange={(open) => !open && setAssignTarget(null)}>
@@ -194,7 +414,7 @@ export default function SchedulePeriodDetailPage() {
           <FormField label="Select User" htmlFor="assign-user" required>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
               <SelectTrigger id="assign-user">
-                <SelectValue placeholder="Select a user…" />
+                <SelectValue placeholder="Select a user..." />
               </SelectTrigger>
               <SelectContent>
                 {activeUsers.map((u) => {

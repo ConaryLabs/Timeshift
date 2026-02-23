@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)\n        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())\n        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE\n        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,\n            as_of_date = CURRENT_DATE,\n            updated_at = NOW()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "df95ac42774b4dc38ccda877456b5a07240b4b15fb09a4676bc30b2f76a558f6"
+}

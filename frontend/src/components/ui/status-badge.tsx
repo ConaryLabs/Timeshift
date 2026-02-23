@@ -10,6 +10,12 @@ const STATUS_VARIANTS: Record<string, string> = {
   filled: "bg-blue-100 text-blue-800 border-blue-200",
   active: "bg-green-100 text-green-800 border-green-200",
   inactive: "bg-slate-100 text-slate-600 border-slate-200",
+  pending_partner: "bg-amber-100 text-amber-800 border-amber-200",
+  pending_approval: "bg-blue-100 text-blue-800 border-blue-200",
+  draft: "bg-slate-100 text-slate-600 border-slate-200",
+  in_progress: "bg-blue-100 text-blue-800 border-blue-200",
+  submitted: "bg-green-100 text-green-800 border-green-200",
+  completed: "bg-purple-100 text-purple-800 border-purple-200",
 }
 
 interface StatusBadgeProps {

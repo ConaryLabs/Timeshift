@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE employee_preferences\n        SET notification_email = CASE WHEN $2 THEN $3 ELSE notification_email END,\n            notification_sms   = CASE WHEN $4 THEN $5 ELSE notification_sms END,\n            preferred_view     = CASE WHEN $6 THEN $7 ELSE preferred_view END,\n            updated_at         = NOW()\n        WHERE user_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "64630adc368d4b259cee63fd33bd8f3f0ddb6575bb3ca8fb1a4eb9cc0474fa61"
+}

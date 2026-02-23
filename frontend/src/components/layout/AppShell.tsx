@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
+  ArrowLeftRight,
   Calendar,
   CalendarDays,
   ClipboardList,
@@ -15,6 +16,15 @@ import {
   LogOut,
   Settings,
   Menu,
+  Wallet,
+  ListOrdered,
+  TreePalm,
+  CalendarCheck,
+  UserCircle,
+  LayoutDashboard,
+  BarChart3,
+  PartyPopper,
+  Target,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -41,22 +51,33 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
   const { isManager, isAdmin } = usePermissions()
 
   const main: NavItem[] = [
+    { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+    { to: '/my-schedule', label: 'My Schedule', icon: <CalendarCheck className="h-4 w-4" /> },
     { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
     { to: '/leave', label: 'Leave', icon: <ClipboardList className="h-4 w-4" /> },
+    { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" /> },
   ]
 
   if (isManager) {
     main.push({ to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" /> })
   }
 
+  main.push({ to: '/profile', label: 'Profile', icon: <UserCircle className="h-4 w-4" /> })
+
   const admin: NavItem[] = []
   if (isAdmin) {
     admin.push(
       { to: '/admin/classifications', label: 'Classifications', icon: <Shield className="h-4 w-4" /> },
       { to: '/admin/shift-templates', label: 'Shift Templates', icon: <Clock className="h-4 w-4" /> },
+      { to: '/admin/coverage', label: 'Coverage', icon: <Target className="h-4 w-4" /> },
       { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
       { to: '/admin/users', label: 'Users', icon: <Users className="h-4 w-4" /> },
+      { to: '/admin/ot-queue', label: 'OT Queue', icon: <ListOrdered className="h-4 w-4" /> },
+      { to: '/admin/leave-balances', label: 'Leave Balances', icon: <Wallet className="h-4 w-4" /> },
       { to: '/admin/schedule-periods', label: 'Bid Periods', icon: <CalendarDays className="h-4 w-4" /> },
+      { to: '/admin/vacation-bids', label: 'Vacation Bids', icon: <TreePalm className="h-4 w-4" /> },
+      { to: '/admin/holidays', label: 'Holidays', icon: <PartyPopper className="h-4 w-4" /> },
+      { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
       { to: '/admin/settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
     )
   } else if (isManager) {

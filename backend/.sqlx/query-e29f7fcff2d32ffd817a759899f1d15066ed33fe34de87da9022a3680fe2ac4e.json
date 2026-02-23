@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, org_id, leave_type_id,\n               employee_type::TEXT AS \"employee_type!\",\n               years_of_service_min,\n               years_of_service_max,\n               CAST(hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n               CAST(max_balance_hours AS FLOAT8) AS \"max_balance_hours?\",\n               effective_date, created_at\n        FROM accrual_schedules\n        WHERE org_id = $1\n        ORDER BY leave_type_id, employee_type, years_of_service_min\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "employee_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "years_of_service_min",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "years_of_service_max",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "hours_per_pay_period!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "max_balance_hours?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "effective_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      null,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "e29f7fcff2d32ffd817a759899f1d15066ed33fe34de87da9022a3680fe2ac4e"
+}

@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            bs.id,\n            bs.slot_id,\n            st.name AS shift_template_name,\n            t.name AS team_name,\n            cl.name AS classification_name,\n            sl.days_of_week,\n            bs.preference_rank,\n            bs.awarded\n        FROM bid_submissions bs\n        JOIN shift_slots sl ON sl.id = bs.slot_id\n        JOIN teams t ON t.id = sl.team_id\n        JOIN shift_templates st ON st.id = sl.shift_template_id\n        JOIN classifications cl ON cl.id = sl.classification_id\n        WHERE bs.bid_window_id = $1\n        ORDER BY bs.preference_rank\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slot_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "shift_template_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "team_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "classification_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "days_of_week",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 6,
+        "name": "preference_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "awarded",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b0987fcc49b075c27cc85353829992f2682a5676a75c35becda714cabb1afb5a"
+}

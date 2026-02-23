@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.id, w.vacation_bid_period_id, w.user_id,\n               u.first_name, u.last_name,\n               w.seniority_rank, w.opens_at, w.closes_at, w.submitted_at\n        FROM vacation_bid_windows w\n        JOIN users u ON u.id = w.user_id\n        WHERE w.vacation_bid_period_id = $1\n          AND ($2 OR w.user_id = $3)\n        ORDER BY w.seniority_rank\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "vacation_bid_period_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "seniority_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "opens_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "closes_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "135cfd484694f3f429106c3690f6914fbcf09d8315794bf470047b9222861b5a"
+}

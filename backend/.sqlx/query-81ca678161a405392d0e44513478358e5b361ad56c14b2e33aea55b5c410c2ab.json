@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO bid_windows (id, period_id, user_id, seniority_rank, opens_at, closes_at)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            RETURNING id, period_id, user_id,\n                      $7::text AS \"first_name!\",\n                      $8::text AS \"last_name!\",\n                      seniority_rank, opens_at, closes_at, submitted_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "period_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "seniority_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "opens_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "closes_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "81ca678161a405392d0e44513478358e5b361ad56c14b2e33aea55b5c410c2ab"
+}

@@ -1,10 +1,12 @@
 use axum::{extract::State, Json};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::organization::{Organization, UpdateOrganizationRequest},
+    models::report::{OrgSetting, SetOrgSettingRequest},
 };
 
 /// Get the caller's own organization.
@@ -51,4 +53,65 @@ pub async fn update_own(
     .ok_or_else(|| AppError::NotFound("Organization not found".into()))?;
 
     Ok(Json(org))
+}
+
+/// List all org settings (admin only).
+pub async fn list_settings(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+) -> Result<Json<Vec<OrgSetting>>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    let rows = sqlx::query_as!(
+        OrgSetting,
+        r#"
+        SELECT id, org_id, key, value, updated_at
+        FROM org_settings
+        WHERE org_id = $1
+        ORDER BY key
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    Ok(Json(rows))
+}
+
+/// Set/update an org setting (admin only). Upserts by key.
+pub async fn set_setting(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(req): Json<SetOrgSettingRequest>,
+) -> Result<Json<OrgSetting>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    if req.key.is_empty() || req.key.len() > 100 {
+        return Err(AppError::BadRequest(
+            "key must be 1-100 characters".into(),
+        ));
+    }
+
+    let row = sqlx::query_as!(
+        OrgSetting,
+        r#"
+        INSERT INTO org_settings (id, org_id, key, value, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (org_id, key) DO UPDATE
+        SET value = $4, updated_at = NOW()
+        RETURNING id, org_id, key, value, updated_at
+        "#,
+        Uuid::new_v4(),
+        auth.org_id,
+        req.key,
+        req.value,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(row))
 }

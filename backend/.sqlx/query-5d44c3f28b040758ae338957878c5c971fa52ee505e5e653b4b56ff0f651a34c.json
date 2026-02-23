@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ss.org_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "org_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5d44c3f28b040758ae338957878c5c971fa52ee505e5e653b4b56ff0f651a34c"
+}

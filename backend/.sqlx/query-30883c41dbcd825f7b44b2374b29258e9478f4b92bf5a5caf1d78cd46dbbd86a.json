@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE trade_requests\n            SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "30883c41dbcd825f7b44b2374b29258e9478f4b92bf5a5caf1d78cd46dbbd86a"
+}
