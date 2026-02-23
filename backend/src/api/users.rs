@@ -10,7 +10,10 @@ use uuid::Uuid;
 use crate::{
     auth::{AuthUser, Role},
     error::{AppError, Result},
-    models::user::{CreateUserRequest, EmployeeType, UpdateUserRequest, UserProfile},
+    models::user::{
+        BargainingUnit, CreateUserRequest, EmployeeStatus, EmployeeType, UpdateUserRequest,
+        UserProfile,
+    },
     org_guard,
 };
 
@@ -48,9 +51,18 @@ pub async fn list(
                u.classification_id,
                c.name AS "classification_name?",
                u.employee_type AS "employee_type: EmployeeType",
-               u.hire_date, u.seniority_date, u.is_active
+               u.bargaining_unit AS "bargaining_unit: BargainingUnit",
+               u.hire_date,
+               sr.overall_seniority_date AS "overall_seniority_date?",
+               sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
+               sr.classification_seniority_date AS "classification_seniority_date?",
+               u.cto_designation, u.admin_training_supervisor_since,
+               u.employee_status AS "employee_status: EmployeeStatus",
+               sr.accrual_pause_started_at AS "accrual_paused_since?",
+               u.is_active
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
+        LEFT JOIN seniority_records sr ON sr.user_id = u.id
         WHERE u.org_id = $1 AND ($4 = false OR u.is_active = true)
         ORDER BY u.last_name, u.first_name
         LIMIT $2 OFFSET $3
@@ -77,8 +89,15 @@ pub async fn list(
             classification_id: r.classification_id,
             classification_name: r.classification_name,
             employee_type: r.employee_type,
+            bargaining_unit: r.bargaining_unit,
             hire_date: r.hire_date,
-            seniority_date: r.seniority_date,
+            overall_seniority_date: r.overall_seniority_date,
+            bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
+            classification_seniority_date: r.classification_seniority_date,
+            cto_designation: r.cto_designation,
+            admin_training_supervisor_since: r.admin_training_supervisor_since,
+            employee_status: r.employee_status,
+            accrual_paused_since: r.accrual_paused_since,
             is_active: r.is_active,
         })
         .collect();
@@ -102,9 +121,18 @@ pub async fn get_one(
                u.classification_id,
                c.name AS "classification_name?",
                u.employee_type AS "employee_type: EmployeeType",
-               u.hire_date, u.seniority_date, u.is_active
+               u.bargaining_unit AS "bargaining_unit: BargainingUnit",
+               u.hire_date,
+               sr.overall_seniority_date AS "overall_seniority_date?",
+               sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
+               sr.classification_seniority_date AS "classification_seniority_date?",
+               u.cto_designation, u.admin_training_supervisor_since,
+               u.employee_status AS "employee_status: EmployeeStatus",
+               sr.accrual_pause_started_at AS "accrual_paused_since?",
+               u.is_active
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
+        LEFT JOIN seniority_records sr ON sr.user_id = u.id
         WHERE u.id = $1 AND u.org_id = $2
         "#,
         id,
@@ -126,8 +154,15 @@ pub async fn get_one(
         classification_id: r.classification_id,
         classification_name: r.classification_name,
         employee_type: r.employee_type,
+        bargaining_unit: r.bargaining_unit,
         hire_date: r.hire_date,
-        seniority_date: r.seniority_date,
+        overall_seniority_date: r.overall_seniority_date,
+        bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
+        classification_seniority_date: r.classification_seniority_date,
+        cto_designation: r.cto_designation,
+        admin_training_supervisor_since: r.admin_training_supervisor_since,
+        employee_status: r.employee_status,
+        accrual_paused_since: r.accrual_paused_since,
         is_active: r.is_active,
     }))
 }
@@ -156,19 +191,28 @@ pub async fn create(
         .to_string();
 
     let employee_type = req.employee_type.unwrap_or(EmployeeType::RegularFullTime);
+    let bargaining_unit = req.bargaining_unit.unwrap_or(BargainingUnit::NonRepresented);
+
+    let user_id = Uuid::new_v4();
 
     let r = sqlx::query!(
         r#"
         INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, phone,
-                           password_hash, role, classification_id, employee_type, hire_date, seniority_date)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                           password_hash, role, classification_id, employee_type,
+                           bargaining_unit, hire_date,
+                           cto_designation, admin_training_supervisor_since)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING id, org_id, employee_id, first_name, last_name, email, phone,
                   role AS "role: Role",
                   classification_id,
                   employee_type AS "employee_type: EmployeeType",
-                  hire_date, seniority_date, is_active
+                  bargaining_unit AS "bargaining_unit: BargainingUnit",
+                  hire_date,
+                  cto_designation, admin_training_supervisor_since,
+                  employee_status AS "employee_status: EmployeeStatus",
+                  is_active
         "#,
-        Uuid::new_v4(),
+        user_id,
         auth.org_id,
         req.employee_id,
         req.first_name,
@@ -179,10 +223,50 @@ pub async fn create(
         req.role as Role,
         req.classification_id,
         employee_type as EmployeeType,
+        bargaining_unit as BargainingUnit,
         req.hire_date,
-        req.seniority_date,
+        req.cto_designation.unwrap_or(false),
+        req.admin_training_supervisor_since,
     )
     .fetch_one(&pool)
+    .await?;
+
+    // Upsert seniority_records if any seniority date was provided
+    let (s_overall, s_bu, s_class) = (
+        req.overall_seniority_date,
+        req.bargaining_unit_seniority_date,
+        req.classification_seniority_date,
+    );
+    if s_overall.is_some() || s_bu.is_some() || s_class.is_some() {
+        sqlx::query!(
+            r#"
+            INSERT INTO seniority_records (user_id, org_id, overall_seniority_date,
+                                           bargaining_unit_seniority_date, classification_seniority_date)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id) DO UPDATE SET
+                overall_seniority_date         = EXCLUDED.overall_seniority_date,
+                bargaining_unit_seniority_date = EXCLUDED.bargaining_unit_seniority_date,
+                classification_seniority_date  = EXCLUDED.classification_seniority_date,
+                updated_at                     = NOW()
+            "#,
+            r.id,
+            auth.org_id,
+            s_overall,
+            s_bu,
+            s_class,
+        )
+        .execute(&pool)
+        .await?;
+    }
+
+    // Fetch seniority record for response
+    let sr = sqlx::query!(
+        "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
+                accrual_pause_started_at
+         FROM seniority_records WHERE user_id = $1",
+        r.id
+    )
+    .fetch_optional(&pool)
     .await?;
 
     // Fetch classification name if set
@@ -206,8 +290,15 @@ pub async fn create(
         classification_id: r.classification_id,
         classification_name,
         employee_type: r.employee_type,
+        bargaining_unit: r.bargaining_unit,
         hire_date: r.hire_date,
-        seniority_date: r.seniority_date,
+        overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
+        bargaining_unit_seniority_date: sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
+        classification_seniority_date: sr.as_ref().and_then(|s| s.classification_seniority_date),
+        cto_designation: r.cto_designation,
+        admin_training_supervisor_since: r.admin_training_supervisor_since,
+        employee_status: r.employee_status,
+        accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         is_active: r.is_active,
     }))
 }
@@ -253,8 +344,8 @@ pub async fn update(
     let empid_val = req.employee_id.flatten();
     let hire_provided = req.hire_date.is_some();
     let hire_val = req.hire_date.flatten();
-    let seniority_provided = req.seniority_date.is_some();
-    let seniority_val = req.seniority_date.flatten();
+    let admin_sup_provided = req.admin_training_supervisor_since.is_some();
+    let admin_sup_val = req.admin_training_supervisor_since.flatten();
 
     let mut tx = pool.begin().await?;
 
@@ -280,23 +371,30 @@ pub async fn update(
     let r = sqlx::query!(
         r#"
         UPDATE users
-        SET first_name        = COALESCE($2, first_name),
-            last_name         = COALESCE($3, last_name),
-            email             = COALESCE($4, email),
-            phone             = CASE WHEN $5 THEN $6 ELSE phone END,
-            classification_id = CASE WHEN $7 THEN $8 ELSE classification_id END,
-            employee_id       = CASE WHEN $9 THEN $10 ELSE employee_id END,
-            role              = COALESCE($11, role),
-            employee_type     = COALESCE($12, employee_type),
-            hire_date         = CASE WHEN $13 THEN $14 ELSE hire_date END,
-            seniority_date    = CASE WHEN $15 THEN $16 ELSE seniority_date END,
-            updated_at        = NOW()
-        WHERE id = $1 AND org_id = $17
+        SET first_name                       = COALESCE($2, first_name),
+            last_name                        = COALESCE($3, last_name),
+            email                            = COALESCE($4, email),
+            phone                            = CASE WHEN $5 THEN $6 ELSE phone END,
+            classification_id                = CASE WHEN $7 THEN $8 ELSE classification_id END,
+            employee_id                      = CASE WHEN $9 THEN $10 ELSE employee_id END,
+            role                             = COALESCE($11, role),
+            employee_type                    = COALESCE($12, employee_type),
+            hire_date                        = CASE WHEN $13 THEN $14 ELSE hire_date END,
+            bargaining_unit                  = COALESCE($16, bargaining_unit),
+            cto_designation                  = COALESCE($17, cto_designation),
+            admin_training_supervisor_since  = CASE WHEN $18 THEN $19 ELSE admin_training_supervisor_since END,
+            employee_status                  = COALESCE($20, employee_status),
+            updated_at                       = NOW()
+        WHERE id = $1 AND org_id = $15
         RETURNING id, org_id, employee_id, first_name, last_name, email, phone,
                   role AS "role: Role",
                   classification_id,
                   employee_type AS "employee_type: EmployeeType",
-                  hire_date, seniority_date, is_active
+                  bargaining_unit AS "bargaining_unit: BargainingUnit",
+                  hire_date,
+                  cto_designation, admin_training_supervisor_since,
+                  employee_status AS "employee_status: EmployeeStatus",
+                  is_active
         "#,
         id,
         req.first_name.as_deref(),
@@ -312,15 +410,128 @@ pub async fn update(
         req.employee_type as Option<EmployeeType>,
         hire_provided,
         hire_val,
-        seniority_provided,
-        seniority_val,
         auth.org_id,
+        req.bargaining_unit as Option<BargainingUnit>,
+        req.cto_designation,
+        admin_sup_provided,
+        admin_sup_val,
+        req.employee_status as Option<EmployeeStatus>,
     )
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
+    // Upsert seniority_records if any seniority date was provided
+    let overall_provided = req.overall_seniority_date.is_some();
+    let overall_val = req.overall_seniority_date.flatten();
+    let bu_provided = req.bargaining_unit_seniority_date.is_some();
+    let bu_val = req.bargaining_unit_seniority_date.flatten();
+    let class_s_provided = req.classification_seniority_date.is_some();
+    let class_s_val = req.classification_seniority_date.flatten();
+
+    if overall_provided || bu_provided || class_s_provided {
+        sqlx::query!(
+            r#"
+            INSERT INTO seniority_records (user_id, org_id, overall_seniority_date,
+                                           bargaining_unit_seniority_date, classification_seniority_date)
+            VALUES ($1, $2,
+                CASE WHEN $3 THEN $4::DATE ELSE NULL END,
+                CASE WHEN $5 THEN $6::DATE ELSE NULL END,
+                CASE WHEN $7 THEN $8::DATE ELSE NULL END
+            )
+            ON CONFLICT (user_id) DO UPDATE SET
+                overall_seniority_date         = CASE WHEN $3 THEN $4::DATE ELSE seniority_records.overall_seniority_date END,
+                bargaining_unit_seniority_date = CASE WHEN $5 THEN $6::DATE ELSE seniority_records.bargaining_unit_seniority_date END,
+                classification_seniority_date  = CASE WHEN $7 THEN $8::DATE ELSE seniority_records.classification_seniority_date END,
+                updated_at                     = NOW()
+            "#,
+            r.id,
+            auth.org_id,
+            overall_provided,
+            overall_val,
+            bu_provided,
+            bu_val,
+            class_s_provided,
+            class_s_val,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    // Seniority accrual pause / resume logic
+    if let Some(new_status) = &req.employee_status {
+        let is_pausing = matches!(
+            new_status,
+            EmployeeStatus::UnpaidLoa | EmployeeStatus::Lwop | EmployeeStatus::Layoff
+        );
+        let is_exception = req.seniority_pause_exception.unwrap_or(false);
+
+        if is_pausing && !is_exception {
+            // Start a new pause (only if not already paused — preserve original start date)
+            sqlx::query!(
+                r#"
+                INSERT INTO seniority_records (user_id, org_id, accrual_pause_started_at)
+                VALUES ($1, $2, CURRENT_DATE)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    accrual_pause_started_at = CASE
+                        WHEN seniority_records.accrual_pause_started_at IS NULL
+                        THEN CURRENT_DATE
+                        ELSE seniority_records.accrual_pause_started_at
+                    END,
+                    updated_at = NOW()
+                "#,
+                r.id,
+                auth.org_id,
+            )
+            .execute(&mut *tx)
+            .await?;
+        } else if matches!(new_status, EmployeeStatus::Active) {
+            // Resume: advance seniority dates by the days paused, then clear the pause marker
+            sqlx::query!(
+                r#"
+                UPDATE seniority_records SET
+                    overall_seniority_date = CASE
+                        WHEN accrual_pause_started_at IS NOT NULL AND overall_seniority_date IS NOT NULL
+                        THEN overall_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT
+                        ELSE overall_seniority_date
+                    END,
+                    bargaining_unit_seniority_date = CASE
+                        WHEN accrual_pause_started_at IS NOT NULL AND bargaining_unit_seniority_date IS NOT NULL
+                        THEN bargaining_unit_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT
+                        ELSE bargaining_unit_seniority_date
+                    END,
+                    classification_seniority_date = CASE
+                        WHEN accrual_pause_started_at IS NOT NULL AND classification_seniority_date IS NOT NULL
+                        THEN classification_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT
+                        ELSE classification_seniority_date
+                    END,
+                    accrual_paused_days_total = accrual_paused_days_total + CASE
+                        WHEN accrual_pause_started_at IS NOT NULL
+                        THEN (CURRENT_DATE - accrual_pause_started_at)::INT
+                        ELSE 0
+                    END,
+                    accrual_pause_started_at = NULL,
+                    updated_at = NOW()
+                WHERE user_id = $1
+                "#,
+                r.id,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
     tx.commit().await?;
+
+    // Fetch seniority record for response
+    let sr = sqlx::query!(
+        "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
+                accrual_pause_started_at
+         FROM seniority_records WHERE user_id = $1",
+        r.id
+    )
+    .fetch_optional(&pool)
+    .await?;
 
     let classification_name = if let Some(cid) = r.classification_id {
         sqlx::query_scalar!("SELECT name FROM classifications WHERE id = $1", cid)
@@ -342,8 +553,15 @@ pub async fn update(
         classification_id: r.classification_id,
         classification_name,
         employee_type: r.employee_type,
+        bargaining_unit: r.bargaining_unit,
         hire_date: r.hire_date,
-        seniority_date: r.seniority_date,
+        overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
+        bargaining_unit_seniority_date: sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
+        classification_seniority_date: sr.as_ref().and_then(|s| s.classification_seniority_date),
+        cto_designation: r.cto_designation,
+        admin_training_supervisor_since: r.admin_training_supervisor_since,
+        employee_status: r.employee_status,
+        accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         is_active: r.is_active,
     }))
 }

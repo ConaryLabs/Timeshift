@@ -12,7 +12,7 @@ use crate::{
         callout::CalloutStatus,
         ot::{
             AdjustOtHoursRequest, AdvanceStepRequest, CalloutStep, OtHoursQuery, OtHoursView,
-            OtQueueQuery, OtQueueView, OtVolunteer, ReorderQueueRequest,
+            OtQueueQuery, OtQueueView, OtVolunteer, SetQueuePositionRequest,
         },
     },
     org_guard,
@@ -44,7 +44,7 @@ pub async fn get_queue(
             u.first_name,
             u.last_name,
             u.employee_id,
-            q.position,
+            q.last_ot_event_at,
             COALESCE(CAST(ot.hours_worked AS FLOAT8), 0.0) AS "ot_hours_worked!",
             COALESCE(CAST(ot.hours_declined AS FLOAT8), 0.0) AS "ot_hours_declined!"
         FROM ot_queue_positions q
@@ -56,7 +56,7 @@ pub async fn get_queue(
           AND q.classification_id = $2
           AND q.fiscal_year = $3
           AND u.is_active = true
-        ORDER BY q.position ASC
+        ORDER BY q.last_ot_event_at ASC NULLS FIRST
         "#,
         auth.org_id,
         params.classification_id,
@@ -72,7 +72,7 @@ pub async fn get_queue(
             first_name: r.first_name,
             last_name: r.last_name,
             employee_id: r.employee_id,
-            position: r.position,
+            last_ot_event_at: r.last_ot_event_at,
             ot_hours_worked: r.ot_hours_worked,
             ot_hours_declined: r.ot_hours_declined,
         })
@@ -81,75 +81,40 @@ pub async fn get_queue(
     Ok(Json(views))
 }
 
-pub async fn reorder_queue(
+/// Set or clear a user's last_ot_event_at timestamp to control their queue position.
+/// Pass last_ot_event_at = null to move the user to the front (never contacted).
+pub async fn set_queue_position(
     State(pool): State<PgPool>,
     auth: AuthUser,
-    Json(req): Json<ReorderQueueRequest>,
+    Json(req): Json<SetQueuePositionRequest>,
 ) -> Result<Json<serde_json::Value>> {
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }
 
     org_guard::verify_classification(&pool, req.classification_id, auth.org_id).await?;
-
-    if req.user_ids.is_empty() {
-        return Err(AppError::BadRequest("user_ids must not be empty".into()));
-    }
+    org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
 
     let fiscal_year = req
         .fiscal_year
         .unwrap_or_else(|| time::OffsetDateTime::now_utc().year());
 
-    let mut tx = pool.begin().await?;
-
-    // Delete existing positions for this classification/fiscal_year/org
     sqlx::query!(
         r#"
-        DELETE FROM ot_queue_positions
-        WHERE org_id = $1 AND classification_id = $2 AND fiscal_year = $3
+        INSERT INTO ot_queue_positions
+            (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (org_id, classification_id, user_id, fiscal_year)
+        DO UPDATE SET last_ot_event_at = $4, updated_at = NOW()
         "#,
         auth.org_id,
         req.classification_id,
+        req.user_id,
+        req.last_ot_event_at as Option<time::OffsetDateTime>,
         fiscal_year,
     )
-    .execute(&mut *tx)
+    .execute(&pool)
     .await?;
-
-    // Re-insert with sequential positions
-    for (i, user_id) in req.user_ids.iter().enumerate() {
-        // Verify each user belongs to org
-        let user_ok = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND is_active = true)",
-            user_id,
-            auth.org_id
-        )
-        .fetch_one(&mut *tx)
-        .await?
-        .unwrap_or(false);
-
-        if !user_ok {
-            return Err(AppError::BadRequest(format!(
-                "User {} not found or not active",
-                user_id
-            )));
-        }
-
-        sqlx::query!(
-            r#"
-            INSERT INTO ot_queue_positions (id, org_id, classification_id, user_id, position, fiscal_year, updated_at)
-            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())
-            "#,
-            auth.org_id,
-            req.classification_id,
-            user_id,
-            (i + 1) as i32,
-            fiscal_year,
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -422,7 +387,9 @@ pub async fn advance_step(
     // Verify the event belongs to the org and is open (lock row)
     let event = sqlx::query!(
         r#"
-        SELECT ce.status AS "status: CalloutStatus", ss.org_id
+        SELECT ce.status AS "status: CalloutStatus",
+               ce.current_step AS "current_step?: CalloutStep",
+               ss.org_id
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         WHERE ce.id = $1
@@ -439,6 +406,25 @@ pub async fn advance_step(
     }
     if event.status != CalloutStatus::Open {
         return Err(AppError::BadRequest("Callout event is not open".into()));
+    }
+
+    // Enforce strict 5-step ordering
+    let expected = match event.current_step {
+        None => CalloutStep::Volunteers,
+        Some(CalloutStep::Volunteers) => CalloutStep::LowOtHours,
+        Some(CalloutStep::LowOtHours) => CalloutStep::InverseSeniority,
+        Some(CalloutStep::InverseSeniority) => CalloutStep::EqualOtHours,
+        Some(CalloutStep::EqualOtHours) => CalloutStep::Mandatory,
+        Some(CalloutStep::Mandatory) => {
+            return Err(AppError::BadRequest(
+                "All callout steps have been completed".into(),
+            ))
+        }
+    };
+    if req.step != expected {
+        return Err(AppError::BadRequest(
+            format!("Next step must be {:?}; got {:?}", expected, req.step),
+        ));
     }
 
     sqlx::query!(

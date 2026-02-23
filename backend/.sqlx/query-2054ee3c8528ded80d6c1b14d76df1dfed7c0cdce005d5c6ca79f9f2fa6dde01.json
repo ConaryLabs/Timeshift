@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE seniority_records SET\n                    overall_seniority_date = CASE\n                        WHEN accrual_pause_started_at IS NOT NULL AND overall_seniority_date IS NOT NULL\n                        THEN overall_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT\n                        ELSE overall_seniority_date\n                    END,\n                    bargaining_unit_seniority_date = CASE\n                        WHEN accrual_pause_started_at IS NOT NULL AND bargaining_unit_seniority_date IS NOT NULL\n                        THEN bargaining_unit_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT\n                        ELSE bargaining_unit_seniority_date\n                    END,\n                    classification_seniority_date = CASE\n                        WHEN accrual_pause_started_at IS NOT NULL AND classification_seniority_date IS NOT NULL\n                        THEN classification_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT\n                        ELSE classification_seniority_date\n                    END,\n                    accrual_paused_days_total = accrual_paused_days_total + CASE\n                        WHEN accrual_pause_started_at IS NOT NULL\n                        THEN (CURRENT_DATE - accrual_pause_started_at)::INT\n                        ELSE 0\n                    END,\n                    accrual_pause_started_at = NULL,\n                    updated_at = NOW()\n                WHERE user_id = $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2054ee3c8528ded80d6c1b14d76df1dfed7c0cdce005d5c6ca79f9f2fa6dde01"
+}

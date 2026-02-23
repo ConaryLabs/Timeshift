@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO seniority_records (user_id, org_id, overall_seniority_date,\n                                           bargaining_unit_seniority_date, classification_seniority_date)\n            VALUES ($1, $2,\n                CASE WHEN $3 THEN $4::DATE ELSE NULL END,\n                CASE WHEN $5 THEN $6::DATE ELSE NULL END,\n                CASE WHEN $7 THEN $8::DATE ELSE NULL END\n            )\n            ON CONFLICT (user_id) DO UPDATE SET\n                overall_seniority_date         = CASE WHEN $3 THEN $4::DATE ELSE seniority_records.overall_seniority_date END,\n                bargaining_unit_seniority_date = CASE WHEN $5 THEN $6::DATE ELSE seniority_records.bargaining_unit_seniority_date END,\n                classification_seniority_date  = CASE WHEN $7 THEN $8::DATE ELSE seniority_records.classification_seniority_date END,\n                updated_at                     = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Date",
+        "Bool",
+        "Date",
+        "Bool",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4f1ff76065ed2be8e38d71aea1f5aa9694eb461aa6265ec0e4143bc883743cff"
+}

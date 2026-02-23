@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,7 +25,7 @@ import { DataTable, type Column } from '@/components/ui/data-table'
 import {
   useClassifications,
   useOtQueue,
-  useReorderOtQueue,
+  useSetOtQueuePosition,
   useOtHours,
   useAdjustOtHours,
 } from '@/hooks/queries'
@@ -39,44 +38,27 @@ const FISCAL_YEARS = [currentYear - 1, currentYear, currentYear + 1]
 export default function OTQueuePage() {
   const [selectedClassification, setSelectedClassification] = useState(NO_VALUE)
   const [fiscalYear, setFiscalYear] = useState(currentYear)
-  const [localQueue, setLocalQueue] = useState<OtQueueEntry[] | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<OtHoursEntry | null>(null)
   const [adjustWorked, setAdjustWorked] = useState('')
   const [adjustDeclined, setAdjustDeclined] = useState('')
 
   const { data: classifications } = useClassifications()
   const classId = selectedClassification !== NO_VALUE ? selectedClassification : ''
-  const { data: queueData, isLoading: queueLoading } = useOtQueue(classId, fiscalYear)
-  const reorderMut = useReorderOtQueue()
+  const { data: queue = [], isLoading: queueLoading } = useOtQueue(classId, fiscalYear)
+  const setPositionMut = useSetOtQueuePosition()
   const { data: hoursData, isLoading: hoursLoading } = useOtHours({ fiscal_year: fiscalYear })
   const adjustMut = useAdjustOtHours()
 
-  // Use local ordering state if user has rearranged, otherwise use fetched data
-  const queue = localQueue ?? queueData ?? []
-
-  function moveItem(index: number, direction: 'up' | 'down') {
-    const items = [...queue]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= items.length) return
-    ;[items[index], items[targetIndex]] = [items[targetIndex], items[index]]
-    // Update positions
-    const reordered = items.map((item, i) => ({ ...item, position: i + 1 }))
-    setLocalQueue(reordered)
-  }
-
-  function handleSaveOrder() {
-    if (!localQueue || !classId) return
-    reorderMut.mutate(
+  function handleMoveToFront(entry: OtQueueEntry) {
+    setPositionMut.mutate(
       {
         classification_id: classId,
         fiscal_year: fiscalYear,
-        user_ids: localQueue.map((q) => q.user_id),
+        user_id: entry.user_id,
+        last_ot_event_at: null,
       },
       {
-        onSuccess: () => {
-          toast.success('Queue order saved')
-          setLocalQueue(null)
-        },
+        onSuccess: () => toast.success(`${entry.last_name}, ${entry.first_name} moved to front`),
         onError: (err: unknown) => {
           const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
           toast.error(msg)
@@ -116,23 +98,15 @@ export default function OTQueuePage() {
     )
   }
 
-  // Reset local queue when classification or fiscal year changes
   function handleClassificationChange(value: string) {
     setSelectedClassification(value)
-    setLocalQueue(null)
   }
 
   function handleFiscalYearChange(value: string) {
     setFiscalYear(parseInt(value, 10))
-    setLocalQueue(null)
   }
 
   const queueColumns: Column<OtQueueEntry>[] = [
-    {
-      header: '#',
-      cell: (r) => <span className="font-semibold text-muted-foreground">{r.position}</span>,
-      className: 'w-12',
-    },
     {
       header: 'Name',
       cell: (r) => (
@@ -145,6 +119,13 @@ export default function OTQueuePage() {
       ),
     },
     {
+      header: 'Last Called',
+      cell: (r) =>
+        r.last_ot_event_at
+          ? new Date(r.last_ot_event_at).toLocaleDateString()
+          : <span className="text-muted-foreground">Never</span>,
+    },
+    {
       header: 'OT Worked',
       cell: (r) => r.ot_hours_worked.toFixed(1),
       className: 'text-right',
@@ -155,31 +136,18 @@ export default function OTQueuePage() {
       className: 'text-right',
     },
     {
-      header: 'Reorder',
-      cell: (r) => {
-        const idx = queue.findIndex((q) => q.user_id === r.user_id)
-        return (
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={idx === 0}
-              onClick={() => moveItem(idx, 'up')}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={idx === queue.length - 1}
-              onClick={() => moveItem(idx, 'down')}
-            >
-              <ArrowDown className="h-4 w-4" />
-            </Button>
-          </div>
-        )
-      },
-      className: 'w-24',
+      header: '',
+      cell: (r) => (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={setPositionMut.isPending || r.last_ot_event_at === null}
+          onClick={() => handleMoveToFront(r)}
+        >
+          Move to Front
+        </Button>
+      ),
+      className: 'w-36',
     },
   ]
 
@@ -260,14 +228,7 @@ export default function OTQueuePage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Queue section */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-muted-foreground">Queue Order</h3>
-            {localQueue && (
-              <Button size="sm" onClick={handleSaveOrder} disabled={reorderMut.isPending}>
-                Save Order
-              </Button>
-            )}
-          </div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Queue Order</h3>
 
           {classId === '' ? (
             <EmptyState title="Select a classification" description="Choose a classification to view the OT queue" />

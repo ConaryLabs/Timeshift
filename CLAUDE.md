@@ -99,12 +99,14 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coverage, trades, ot, bidding, vacationBids, employee, holidays, reports
 - `store/auth.ts` — Zustand store: user profile only (no token — auth uses HttpOnly cookies), persisted to localStorage as `timeshift-auth`
 - `store/ui.ts` — Zustand store: sidebar state + selected team/period, persisted as `timeshift-ui`
-- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~50 hooks)
+- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~100 hooks)
 - `hooks/usePermissions.ts` — Role-based access helpers
+- `lib/utils.ts` — `cn()` utility (clsx + tw-merge); `lib/format.ts` — date/time formatting
 - `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage
 - `pages/admin/` — ClassificationsPage, ShiftTemplatesPage, CoverageRequirementsPage, TeamsPage, TeamDetailPage, UsersPage, OTQueuePage, LeaveBalancesPage, SchedulePeriodsPage, SchedulePeriodDetailPage, VacationBidAdminPage, HolidayCalendarPage, ReportsPage, OrgSettingsPage
 - `components/ui/` — shadcn/radix-ui component wrappers (Button, Input, Card, Table, Dialog, etc.)
 - `components/layout/AppShell.tsx` — Main layout: collapsible sidebar + top bar + content area
+- `components/RequireRole.tsx` — Role-based route guard; `components/ErrorBoundary.tsx` — top-level error boundary
 
 ### Key patterns
 
@@ -120,10 +122,10 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ## Database Schema
 
-12 migrations in `backend/migrations/` (0001–0012). Key tables:
+15 migrations in `backend/migrations/` (0001–0015). Key tables:
 
 - `organizations` — Multi-tenant root
-- `users` — With `classification_id` FK, `employee_type_enum`, `is_active` soft-delete
+- `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (type: `bargaining_unit_enum`), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
 - `classifications` — Org-specific job classifications (e.g., dispatcher, call-taker)
 - `shift_templates` — Reusable shift definitions (name, start/end time, hours, color)
 - `teams` — Org divisions with optional `supervisor_id`
@@ -152,9 +154,9 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `holiday_calendar` — Org holiday dates with premium pay flag
 - `org_settings` — Key-value org configuration
 - `refresh_tokens` — JWT refresh token storage
-- `seniority_records` — Historical seniority tracking
+- `seniority_records` — Three-counter seniority per user: `overall_seniority_date`, `bargaining_unit_seniority_date`, `classification_seniority_date`; also tracks accrual pause: `accrual_pause_started_at` (null = running), `accrual_paused_days_total` (cumulative paused days)
 
-PG enums: `app_role`, `employee_type_enum`, `leave_status`, `callout_status`, `trade_status`, `callout_step`, `bid_period_status`
+PG enums: `app_role`, `employee_type_enum`, `bargaining_unit_enum`, `employee_status_enum`, `leave_status`, `callout_status`, `trade_status`, `callout_step`, `bid_period_status`
 
 ## Conventions
 

@@ -1,0 +1,190 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               u.hire_date, u.cto_designation,\n               u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               u.is_active,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\"\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "classification_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "employee_type: EmployeeType",
+        "type_info": {
+          "Custom": {
+            "name": "employee_type_enum",
+            "kind": {
+              "Enum": [
+                "regular_full_time",
+                "job_share",
+                "medical_part_time",
+                "temp_part_time"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "bargaining_unit: BargainingUnit",
+        "type_info": {
+          "Custom": {
+            "name": "bargaining_unit_enum",
+            "kind": {
+              "Enum": [
+                "vccea",
+                "vcsg",
+                "non_represented"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "hire_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "cto_designation",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "admin_training_supervisor_since",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 15,
+        "name": "employee_status: EmployeeStatus",
+        "type_info": {
+          "Custom": {
+            "name": "employee_status_enum",
+            "kind": {
+              "Enum": [
+                "active",
+                "unpaid_loa",
+                "lwop",
+                "layoff",
+                "separated"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 17,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 18,
+        "name": "bargaining_unit_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 19,
+        "name": "classification_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 20,
+        "name": "accrual_paused_since?",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "584208bbf0417dad057bdefffb12639af18c14c8564434bf900e0ec99b90c9f3"
+}

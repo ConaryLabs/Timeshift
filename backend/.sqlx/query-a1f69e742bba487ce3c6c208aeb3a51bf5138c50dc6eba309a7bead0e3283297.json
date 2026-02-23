@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT CAST(value AS BIGINT) FROM org_settings WHERE org_id = $1 AND key = 'ot_cross_class_window_days'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a1f69e742bba487ce3c6c208aeb3a51bf5138c50dc6eba309a7bead0e3283297"
+}

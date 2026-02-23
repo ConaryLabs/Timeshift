@@ -1,0 +1,225 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE users\n        SET first_name                       = COALESCE($2, first_name),\n            last_name                        = COALESCE($3, last_name),\n            email                            = COALESCE($4, email),\n            phone                            = CASE WHEN $5 THEN $6 ELSE phone END,\n            classification_id                = CASE WHEN $7 THEN $8 ELSE classification_id END,\n            employee_id                      = CASE WHEN $9 THEN $10 ELSE employee_id END,\n            role                             = COALESCE($11, role),\n            employee_type                    = COALESCE($12, employee_type),\n            hire_date                        = CASE WHEN $13 THEN $14 ELSE hire_date END,\n            bargaining_unit                  = COALESCE($16, bargaining_unit),\n            cto_designation                  = COALESCE($17, cto_designation),\n            admin_training_supervisor_since  = CASE WHEN $18 THEN $19 ELSE admin_training_supervisor_since END,\n            employee_status                  = COALESCE($20, employee_status),\n            updated_at                       = NOW()\n        WHERE id = $1 AND org_id = $15\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n                  hire_date,\n                  cto_designation, admin_training_supervisor_since,\n                  employee_status AS \"employee_status: EmployeeStatus\",\n                  is_active\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "employee_type: EmployeeType",
+        "type_info": {
+          "Custom": {
+            "name": "employee_type_enum",
+            "kind": {
+              "Enum": [
+                "regular_full_time",
+                "job_share",
+                "medical_part_time",
+                "temp_part_time"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "bargaining_unit: BargainingUnit",
+        "type_info": {
+          "Custom": {
+            "name": "bargaining_unit_enum",
+            "kind": {
+              "Enum": [
+                "vccea",
+                "vcsg",
+                "non_represented"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "hire_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "cto_designation",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "admin_training_supervisor_since",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "employee_status: EmployeeStatus",
+        "type_info": {
+          "Custom": {
+            "name": "employee_status_enum",
+            "kind": {
+              "Enum": [
+                "active",
+                "unpaid_loa",
+                "lwop",
+                "layoff",
+                "separated"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Uuid",
+        "Bool",
+        "Text",
+        {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "employee_type_enum",
+            "kind": {
+              "Enum": [
+                "regular_full_time",
+                "job_share",
+                "medical_part_time",
+                "temp_part_time"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Date",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "bargaining_unit_enum",
+            "kind": {
+              "Enum": [
+                "vccea",
+                "vcsg",
+                "non_represented"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Bool",
+        "Date",
+        {
+          "Custom": {
+            "name": "employee_status_enum",
+            "kind": {
+              "Enum": [
+                "active",
+                "unpaid_loa",
+                "lwop",
+                "layoff",
+                "separated"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f861cd75be5c980e6ff609d967c1e8fcb27cba29eff5fff7520b736c2bd1cd63"
+}

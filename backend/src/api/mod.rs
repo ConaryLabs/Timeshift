@@ -201,11 +201,17 @@ pub fn router(state: AppState) -> Router {
             "/api/callout/events/:id/cancel",
             patch(callout::cancel_event),
         )
+        .route(
+            "/api/callout/events/:id/cancel-ot",
+            post(callout::cancel_ot_assignment),
+        )
         .route("/api/callout/events/:id/volunteer", post(ot::volunteer))
         .route(
             "/api/callout/events/:id/volunteers",
             get(ot::list_volunteers),
         )
+        .route("/api/callout/events/:id/bump", post(callout::create_bump_request))
+        .route("/api/callout/bump-requests/:id/review", patch(callout::review_bump_request))
         .route("/api/callout/events/:id/step", patch(ot::advance_step))
         // Vacation Bids
         .route(
@@ -253,7 +259,7 @@ pub fn router(state: AppState) -> Router {
         )
         // OT Queue & Hours
         .route("/api/ot/queue", get(ot::get_queue))
-        .route("/api/ot/queue/reorder", post(ot::reorder_queue))
+        .route("/api/ot/queue/set-position", patch(ot::set_queue_position))
         .route("/api/ot/hours", get(ot::get_hours))
         .route("/api/ot/hours/adjust", post(ot::adjust_hours))
         .with_state(state)
