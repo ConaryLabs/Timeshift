@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               u.hire_date,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               u.cto_designation, u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\",\n               u.is_active\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.org_id = $1 AND ($4 = false OR u.is_active = true)\n        ORDER BY u.last_name, u.first_name\n        LIMIT $2 OFFSET $3\n        ",
+  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               u.hire_date, u.cto_designation,\n               u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               u.is_active,\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\"\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -104,31 +104,16 @@
       },
       {
         "ordinal": 13,
-        "name": "overall_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 14,
-        "name": "bargaining_unit_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 15,
-        "name": "classification_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 16,
         "name": "cto_designation",
         "type_info": "Bool"
       },
       {
-        "ordinal": 17,
+        "ordinal": 14,
         "name": "admin_training_supervisor_since",
         "type_info": "Date"
       },
       {
-        "ordinal": 18,
+        "ordinal": 15,
         "name": "employee_status: EmployeeStatus",
         "type_info": {
           "Custom": {
@@ -146,22 +131,40 @@
         }
       },
       {
+        "ordinal": 16,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 17,
+        "name": "leave_accrual_paused_at?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 18,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
         "ordinal": 19,
-        "name": "accrual_paused_since?",
+        "name": "bargaining_unit_seniority_date?",
         "type_info": "Date"
       },
       {
         "ordinal": 20,
-        "name": "is_active",
-        "type_info": "Bool"
+        "name": "classification_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 21,
+        "name": "accrual_paused_since?",
+        "type_info": "Date"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Int8",
-        "Int8",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -178,15 +181,16 @@
       false,
       false,
       true,
-      true,
-      true,
-      true,
       false,
       true,
       false,
+      false,
       true,
-      false
+      true,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "06567f1689040061aafab04ab81dce1c3614695991d209552cea69019a85a369"
+  "hash": "93f705bdf172089e8482ccd0c60340d331605cb1c18942e7bae1987a3badeda1"
 }

@@ -36,7 +36,7 @@ pub async fn login(
                hire_date, cto_designation,
                admin_training_supervisor_since,
                employee_status AS "employee_status: EmployeeStatus",
-               is_active,
+               is_active, leave_accrual_paused_at,
                created_at, updated_at
         FROM users
         WHERE email = $1 AND is_active = true
@@ -171,12 +171,17 @@ pub async fn login(
                 bargaining_unit: user.bargaining_unit,
                 hire_date: user.hire_date,
                 overall_seniority_date: seniority.as_ref().and_then(|s| s.overall_seniority_date),
-                bargaining_unit_seniority_date: seniority.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
-                classification_seniority_date: seniority.as_ref().and_then(|s| s.classification_seniority_date),
+                bargaining_unit_seniority_date: seniority
+                    .as_ref()
+                    .and_then(|s| s.bargaining_unit_seniority_date),
+                classification_seniority_date: seniority
+                    .as_ref()
+                    .and_then(|s| s.classification_seniority_date),
                 cto_designation: user.cto_designation,
                 admin_training_supervisor_since: user.admin_training_supervisor_since,
                 employee_status: user.employee_status,
                 accrual_paused_since: seniority.as_ref().and_then(|s| s.accrual_pause_started_at),
+                leave_accrual_paused_at: user.leave_accrual_paused_at,
                 is_active: user.is_active,
             },
         }),
@@ -366,6 +371,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
                u.admin_training_supervisor_since,
                u.employee_status AS "employee_status: EmployeeStatus",
                u.is_active,
+               u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
                sr.overall_seniority_date AS "overall_seniority_date?",
                sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
                sr.classification_seniority_date AS "classification_seniority_date?",
@@ -403,6 +409,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
         admin_training_supervisor_since: row.admin_training_supervisor_since,
         employee_status: row.employee_status,
         accrual_paused_since: row.accrual_paused_since,
+        leave_accrual_paused_at: row.leave_accrual_paused_at,
         is_active: row.is_active,
     }))
 }

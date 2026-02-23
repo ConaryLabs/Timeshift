@@ -30,6 +30,8 @@ pub struct AccrualSchedule {
     pub org_id: Uuid,
     pub leave_type_id: Uuid,
     pub employee_type: String,
+    /// NULL means the schedule applies to all bargaining units.
+    pub bargaining_unit: Option<String>,
     pub years_of_service_min: i32,
     pub years_of_service_max: Option<i32>,
     pub hours_per_pay_period: f64,
@@ -44,6 +46,8 @@ pub struct CreateAccrualScheduleRequest {
     pub leave_type_id: Uuid,
     #[validate(length(max = 100))]
     pub employee_type: Option<String>,
+    /// bargaining_unit to target (null = applies to all units)
+    pub bargaining_unit: Option<String>,
     pub years_of_service_min: Option<i32>,
     pub years_of_service_max: Option<i32>,
     pub hours_per_pay_period: f64,

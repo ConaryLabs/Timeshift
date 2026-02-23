@@ -6,6 +6,8 @@ pub mod employee;
 pub mod holiday;
 pub mod leave;
 pub mod leave_balance;
+pub mod leave_donation;
+pub mod leave_sellback;
 pub mod organization;
 pub mod ot;
 pub mod report;

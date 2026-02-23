@@ -48,6 +48,7 @@ pub struct User {
     pub admin_training_supervisor_since: Option<time::Date>,
     pub employee_status: EmployeeStatus,
     pub is_active: bool,
+    pub leave_accrual_paused_at: Option<time::Date>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -107,6 +108,9 @@ pub struct UserProfile {
     /// Set when seniority accrual is currently paused (non-exception LOA/LWOP/layoff).
     /// The date the current pause began. Cleared on return to active status.
     pub accrual_paused_since: Option<time::Date>,
+    /// Set when leave balance accruals are paused (same triggering conditions as seniority).
+    /// Cleared when employee returns to active status.
+    pub leave_accrual_paused_at: Option<time::Date>,
     pub is_active: bool,
 }
 
