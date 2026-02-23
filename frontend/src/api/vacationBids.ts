@@ -59,17 +59,17 @@ export const vacationBidsApi = {
     api.delete(`/api/vacation-bids/periods/${id}`).then((r) => r.data),
 
   openBidding: (id: string, body: { window_duration_hours: number; start_at?: string }) =>
-    api.post<VacationBidPeriod>(`/api/vacation-bids/periods/${id}/open`, body).then((r) => r.data),
+    api.post<VacationBidPeriod>(`/api/vacation-bids/periods/${id}/open-bidding`, body).then((r) => r.data),
 
   listWindows: (periodId: string) =>
-    api.get<VacationBidWindow[]>(`/api/vacation-bids/periods/${periodId}/windows`).then((r) => r.data),
+    api.get<VacationBidWindow[]>(`/api/vacation-bids/periods/${periodId}/bid-windows`).then((r) => r.data),
 
   getWindow: (windowId: string) =>
-    api.get<VacationWindowDetail>(`/api/vacation-bids/windows/${windowId}`).then((r) => r.data),
+    api.get<VacationWindowDetail>(`/api/vacation-bids/bid-windows/${windowId}`).then((r) => r.data),
 
   submitBid: (windowId: string, body: { picks: VacationPick[] }) =>
-    api.post<VacationBid[]>(`/api/vacation-bids/windows/${windowId}/submit`, body).then((r) => r.data),
+    api.post<VacationBid[]>(`/api/vacation-bids/bid-windows/${windowId}/submit`, body).then((r) => r.data),
 
   processBids: (periodId: string) =>
-    api.post<VacationBidPeriod>(`/api/vacation-bids/periods/${periodId}/process`).then((r) => r.data),
+    api.post<VacationBidPeriod>(`/api/vacation-bids/periods/${periodId}/process-bids`).then((r) => r.data),
 }

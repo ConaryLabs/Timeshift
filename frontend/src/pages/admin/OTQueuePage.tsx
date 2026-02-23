@@ -77,6 +77,10 @@ export default function OTQueuePage() {
           toast.success('Queue order saved')
           setLocalQueue(null)
         },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
+        },
       },
     )
   }
@@ -103,6 +107,10 @@ export default function OTQueuePage() {
           setAdjustTarget(null)
           setAdjustWorked('')
           setAdjustDeclined('')
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
         },
       },
     )

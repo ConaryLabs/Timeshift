@@ -18,5 +18,5 @@ export const classificationsApi = {
     api.post<Classification>('/api/classifications', body).then((r) => r.data),
 
   update: (id: string, body: { name?: string; abbreviation?: string; display_order?: number; is_active?: boolean }) =>
-    api.put<Classification>(`/api/classifications/${id}`, body).then((r) => r.data),
+    api.patch<Classification>(`/api/classifications/${id}`, body).then((r) => r.data),
 }

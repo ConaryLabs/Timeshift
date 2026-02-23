@@ -140,7 +140,7 @@ export default function TradesPage() {
     reviewMut.mutate(
       {
         id: reviewTarget.id,
-        approve: reviewTarget.action === 'approve',
+        status: reviewTarget.action === 'approve' ? 'approved' as const : 'denied' as const,
         reviewer_notes: reviewerNotes || undefined,
       },
       {
@@ -409,7 +409,7 @@ export default function TradesPage() {
                 className="text-green-700 hover:bg-green-50"
                 disabled={bulkReviewMut.isPending}
                 onClick={() => bulkReviewMut.mutate(
-                  { ids: [...selectedKeys], approve: true },
+                  { ids: [...selectedKeys], status: 'approved' as const },
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} trade(s) approved`)
@@ -426,7 +426,7 @@ export default function TradesPage() {
                 className="text-red-700 hover:bg-red-50"
                 disabled={bulkReviewMut.isPending}
                 onClick={() => bulkReviewMut.mutate(
-                  { ids: [...selectedKeys], approve: false },
+                  { ids: [...selectedKeys], status: 'denied' as const },
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} trade(s) denied`)

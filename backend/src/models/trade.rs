@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "trade_status", rename_all = "snake_case")]
@@ -46,16 +47,20 @@ pub struct RespondTradeRequest {
     pub accept: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ReviewTradeRequest {
-    pub approve: bool,
+    #[validate(length(max = 50))]
+    pub status: String,
+    #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct BulkReviewTradeRequest {
     pub ids: Vec<Uuid>,
-    pub approve: bool,
+    #[validate(length(max = 50))]
+    pub status: String,
+    #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }
 

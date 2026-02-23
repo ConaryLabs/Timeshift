@@ -162,6 +162,10 @@ export default function UsersPage() {
           toast.success('User created')
           setDialogOpen(false)
         },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
+        },
       },
     )
   }
@@ -183,6 +187,10 @@ export default function UsersPage() {
           toast.success('User updated')
           setDialogOpen(false)
         },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
+        },
       },
     )
   }
@@ -193,6 +201,10 @@ export default function UsersPage() {
       onSuccess: () => {
         toast.success('User deactivated')
         setDeactivateTarget(null)
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
       },
     })
   }
@@ -252,11 +264,18 @@ export default function UsersPage() {
             } else {
               updateMut.mutate(
                 { id: r.id, is_active: true },
-                { onSuccess: () => toast.success('User activated') },
+                {
+                  onSuccess: () => toast.success('User activated'),
+                  onError: (err: unknown) => {
+                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                    toast.error(msg)
+                  },
+                },
               )
             }
           }}
           disabled={r.id === currentUser?.id}
+          aria-label={`Toggle active status for ${r.first_name} ${r.last_name}`}
         />
       ),
     },

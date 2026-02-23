@@ -17,7 +17,7 @@ export const holidaysApi = {
     api.post<Holiday>('/api/holidays', body).then((r) => r.data),
 
   update: (id: string, body: { name?: string; is_premium_pay?: boolean }) =>
-    api.put<Holiday>(`/api/holidays/${id}`, body).then((r) => r.data),
+    api.patch<Holiday>(`/api/holidays/${id}`, body).then((r) => r.data),
 
   delete: (id: string) =>
     api.delete(`/api/holidays/${id}`).then((r) => r.data),

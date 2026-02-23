@@ -115,6 +115,5 @@ pub struct LoginRequest {
 
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
-    pub token: String,
     pub user: UserProfile,
 }

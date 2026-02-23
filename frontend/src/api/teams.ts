@@ -44,7 +44,7 @@ export const teamsApi = {
     api.post<Team>('/api/teams', body).then((r) => r.data),
 
   update: (id: string, body: { name?: string; supervisor_id?: string | null; is_active?: boolean }) =>
-    api.put<Team>(`/api/teams/${id}`, body).then((r) => r.data),
+    api.patch<Team>(`/api/teams/${id}`, body).then((r) => r.data),
 
   listSlots: (teamId: string) =>
     api.get<ShiftSlotView[]>(`/api/teams/${teamId}/slots`).then((r) => r.data),
@@ -62,5 +62,5 @@ export const teamsApi = {
     days_of_week?: number[]
     label?: string
     is_active?: boolean
-  }) => api.put<ShiftSlotView>(`/api/shift-slots/${slotId}`, body).then((r) => r.data),
+  }) => api.patch<ShiftSlotView>(`/api/shift-slots/${slotId}`, body).then((r) => r.data),
 }

@@ -1,6 +1,7 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::http::StatusCode;
 use axum::{extract::State, http::header, response::IntoResponse, Json};
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -10,6 +11,11 @@ use crate::{
     models::user::{EmployeeType, LoginRequest, LoginResponse, User, UserProfile},
     AppState,
 };
+
+/// Hash a raw refresh token with SHA-256 for secure storage.
+fn hash_token(raw: &str) -> String {
+    hex::encode(Sha256::digest(raw.as_bytes()))
+}
 
 pub async fn login(
     State(state): State<AppState>,
@@ -50,8 +56,9 @@ pub async fn login(
     )
     .map_err(AppError::Internal)?;
 
-    // Generate and store refresh token
+    // Generate and store refresh token (store SHA-256 hash, send raw as cookie)
     let refresh_raw = Uuid::new_v4().to_string();
+    let refresh_hash = hash_token(&refresh_raw);
     let refresh_expires = time::OffsetDateTime::now_utc()
         + time::Duration::days(state.refresh_token_expiry_days as i64);
 
@@ -70,11 +77,26 @@ pub async fn login(
         "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
         user.id,
         user.org_id,
-        refresh_raw,
+        refresh_hash,
         refresh_expires,
     )
     .execute(&state.pool)
     .await?;
+
+    // Cap refresh tokens per user (keep most recent 10)
+    if let Err(e) = sqlx::query!(
+        r#"
+        DELETE FROM refresh_tokens WHERE user_id = $1 AND id NOT IN (
+            SELECT id FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
+        )
+        "#,
+        user.id
+    )
+    .execute(&state.pool)
+    .await
+    {
+        tracing::warn!("Failed to cap refresh tokens: {e}");
+    }
 
     // Fetch classification name if set
     let classification_name = if let Some(cid) = user.classification_id {
@@ -117,7 +139,6 @@ pub async fn login(
     Ok((
         headers,
         Json(LoginResponse {
-            token,
             user: UserProfile {
                 id: user.id,
                 org_id: user.org_id,
@@ -143,7 +164,8 @@ pub async fn logout(
     refresh: Option<RefreshTokenCookie>,
 ) -> Result<impl IntoResponse> {
     if let Some(RefreshTokenCookie(raw)) = refresh {
-        if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", raw)
+        let hashed = hash_token(&raw);
+        if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", hashed)
             .execute(&state.pool)
             .await
         {
@@ -182,6 +204,8 @@ pub async fn refresh(
     State(state): State<AppState>,
     RefreshTokenCookie(raw): RefreshTokenCookie,
 ) -> Result<impl IntoResponse> {
+    let hashed = hash_token(&raw);
+
     struct RefreshRow {
         id: Uuid,
         user_id: Uuid,
@@ -192,7 +216,7 @@ pub async fn refresh(
     let row = sqlx::query_as!(
         RefreshRow,
         r#"SELECT id, user_id, org_id, expires_at FROM refresh_tokens WHERE token = $1"#,
-        raw
+        hashed
     )
     .fetch_optional(&state.pool)
     .await?
@@ -242,8 +266,9 @@ pub async fn refresh(
     )
     .map_err(AppError::Internal)?;
 
-    // Issue new refresh token
+    // Issue new refresh token (store hash, send raw as cookie)
     let new_refresh_raw = Uuid::new_v4().to_string();
+    let new_refresh_hash = hash_token(&new_refresh_raw);
     let refresh_expires = time::OffsetDateTime::now_utc()
         + time::Duration::days(state.refresh_token_expiry_days as i64);
 
@@ -251,11 +276,26 @@ pub async fn refresh(
         "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
         row.user_id,
         row.org_id,
-        new_refresh_raw,
+        new_refresh_hash,
         refresh_expires,
     )
     .execute(&state.pool)
     .await?;
+
+    // Cap refresh tokens per user (keep most recent 10)
+    if let Err(e) = sqlx::query!(
+        r#"
+        DELETE FROM refresh_tokens WHERE user_id = $1 AND id NOT IN (
+            SELECT id FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
+        )
+        "#,
+        row.user_id
+    )
+    .execute(&state.pool)
+    .await
+    {
+        tracing::warn!("Failed to cap refresh tokens: {e}");
+    }
 
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
 

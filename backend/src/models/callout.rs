@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 use super::ot::CalloutStep;
 
@@ -72,18 +73,21 @@ pub struct CalloutListEntry {
     pub unavailable_reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateCalloutEventRequest {
     pub scheduled_shift_id: Uuid,
     pub ot_reason_id: Option<Uuid>,
+    #[validate(length(max = 2000))]
     pub reason_text: Option<String>,
     pub classification_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RecordAttemptRequest {
     pub user_id: Uuid,
     /// Must be one of: "accepted", "declined", "no_answer"
+    #[validate(length(max = 50))]
     pub response: String,
+    #[validate(length(max = 2000))]
     pub notes: Option<String>,
 }

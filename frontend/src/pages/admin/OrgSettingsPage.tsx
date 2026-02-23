@@ -82,7 +82,13 @@ function ConfigSection() {
   function saveSetting(key: string, value: string | number) {
     setMut.mutate(
       { key, value: value },
-      { onSuccess: () => toast.success(`Setting "${key}" saved`) },
+      {
+        onSuccess: () => toast.success(`Setting "${key}" saved`),
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          toast.error(msg)
+        },
+      },
     )
   }
 
@@ -188,6 +194,10 @@ export default function OrgSettingsPage() {
       onSuccess: (data) => {
         toast.success('Organization updated')
         reset({ name: data.name, timezone: data.timezone })
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
       },
     })
   }

@@ -11,6 +11,7 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
+    models::common::PaginationParams,
     models::schedule::{
         AnnotationQuery, Assignment, AssignmentView, CreateAnnotationRequest,
         CreateAssignmentRequest, DashboardData, DayViewEntry, GridAssignment, GridCell,
@@ -112,6 +113,9 @@ pub async fn create_assignment(
     auth: AuthUser,
     Json(req): Json<CreateAssignmentRequest>,
 ) -> Result<Json<Assignment>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
@@ -179,6 +183,7 @@ pub async fn delete_assignment(
 pub async fn list_periods(
     State(pool): State<PgPool>,
     auth: AuthUser,
+    Query(params): Query<PaginationParams>,
 ) -> Result<Json<Vec<SchedulePeriod>>> {
     let rows = sqlx::query_as!(
         SchedulePeriod,
@@ -190,13 +195,41 @@ pub async fn list_periods(
         FROM schedule_periods
         WHERE org_id = $1
         ORDER BY start_date DESC
+        LIMIT $2 OFFSET $3
         "#,
-        auth.org_id
+        auth.org_id,
+        params.limit(),
+        params.offset(),
     )
     .fetch_all(&pool)
     .await?;
 
     Ok(Json(rows))
+}
+
+pub async fn get_period(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SchedulePeriod>> {
+    let row = sqlx::query_as!(
+        SchedulePeriod,
+        r#"
+        SELECT id, org_id, name, start_date, end_date, is_active,
+               status AS "status: BidPeriodStatus",
+               bid_opens_at, bid_closes_at,
+               created_at
+        FROM schedule_periods
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id,
+        auth.org_id
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Schedule period not found".into()))?;
+
+    Ok(Json(row))
 }
 
 pub async fn create_period(
@@ -812,6 +845,9 @@ pub async fn create_annotation(
     auth: AuthUser,
     Json(req): Json<CreateAnnotationRequest>,
 ) -> Result<Json<ScheduleAnnotation>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }

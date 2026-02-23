@@ -50,7 +50,7 @@ export const employeeApi = {
     api.get<EmployeePreferences>('/api/users/me/preferences').then((r) => r.data),
 
   updatePreferences: (body: UpdatePreferencesRequest) =>
-    api.put<EmployeePreferences>('/api/users/me/preferences', body).then((r) => r.data),
+    api.patch<EmployeePreferences>('/api/users/me/preferences', body).then((r) => r.data),
 
   getSchedule: (startDate: string, endDate: string) =>
     api

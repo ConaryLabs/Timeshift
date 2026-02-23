@@ -39,6 +39,9 @@ pub async fn create(
     auth: AuthUser,
     Json(req): Json<CreateHolidayRequest>,
 ) -> Result<Json<Holiday>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }
@@ -70,6 +73,9 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateHolidayRequest>,
 ) -> Result<Json<Holiday>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }

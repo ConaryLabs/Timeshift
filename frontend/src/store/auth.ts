@@ -28,6 +28,7 @@ export interface UserProfile {
 
 interface AuthState {
   user: UserProfile | null
+  /** @deprecated Use setUser instead */
   setAuth: (user: UserProfile) => void
   setUser: (user: UserProfile) => void
   logout: () => void
@@ -35,12 +36,15 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
-      user: null,
-      setAuth: (user) => set({ user }),
-      setUser: (user) => set({ user }),
-      logout: () => set({ user: null }),
-    }),
+    (set) => {
+      const setUser = (user: UserProfile) => set({ user })
+      return {
+        user: null,
+        setAuth: setUser,
+        setUser,
+        logout: () => set({ user: null }),
+      }
+    },
     {
       name: 'timeshift-auth',
       version: 2,

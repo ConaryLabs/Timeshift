@@ -96,8 +96,11 @@ export default function SchedulePage() {
             </Select>
 
             {/* View toggle */}
-            <div className="flex border rounded-md overflow-hidden">
+            <div className="flex border rounded-md overflow-hidden" role="tablist" aria-label="Schedule view">
               <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'week'}
                 onClick={() => setViewMode('week')}
                 className={cn(
                   'flex items-center gap-1 px-2 py-1 text-sm',
@@ -108,6 +111,9 @@ export default function SchedulePage() {
                 Week
               </button>
               <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'board'}
                 onClick={() => setViewMode('board')}
                 className={cn(
                   'flex items-center gap-1 px-2 py-1 text-sm border-l',
@@ -118,6 +124,9 @@ export default function SchedulePage() {
                 Board
               </button>
               <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'month'}
                 onClick={() => setViewMode('month')}
                 className={cn(
                   'flex items-center gap-1 px-2 py-1 text-sm border-l',
@@ -430,11 +439,13 @@ function MonthView({
           const totalAssignments = dayCells.reduce((sum, c) => sum + c.assignments.length, 0)
 
           return (
-            <div
+            <button
               key={dateStr}
+              type="button"
               onClick={() => navigate(`/schedule/day/${dateStr}`)}
+              aria-label={`View ${format(day, 'MMMM d')}`}
               className={cn(
-                'bg-card min-h-[80px] p-1.5 cursor-pointer hover:bg-accent/50 transition-colors',
+                'bg-card min-h-[80px] p-1.5 cursor-pointer hover:bg-accent/50 transition-colors text-left',
                 isToday && 'ring-2 ring-inset ring-primary/50',
               )}
             >
@@ -446,9 +457,10 @@ function MonthView({
               </div>
               {dayCells.length > 0 && (
                 <div className="space-y-0.5">
-                  {/* Mini coverage dots */}
+                  {/* Mini coverage indicators */}
                   <div className="flex flex-wrap gap-0.5">
                     {dayCells.slice(0, 4).map((cell) => {
+                      const isUnder = cell.coverage_required > 0 && cell.coverage_actual < cell.coverage_required
                       const status =
                         cell.coverage_required === 0
                           ? 'bg-muted-foreground/30'
@@ -461,8 +473,12 @@ function MonthView({
                         <div
                           key={cell.shift_template_id}
                           title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required}`}
-                          className={cn('w-2 h-2 rounded-full', status)}
-                        />
+                          className={cn('rounded-full flex items-center justify-center', status, isUnder ? 'w-auto h-4 px-1' : 'w-2 h-2')}
+                        >
+                          {isUnder && (
+                            <span className="text-[8px] font-bold text-white leading-none">{cell.coverage_actual}/{cell.coverage_required}</span>
+                          )}
+                        </div>
                       )
                     })}
                     {dayCells.length > 4 && (
@@ -476,7 +492,7 @@ function MonthView({
                   )}
                 </div>
               )}
-            </div>
+            </button>
           )
         })}
       </div>

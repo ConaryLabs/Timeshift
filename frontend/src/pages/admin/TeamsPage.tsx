@@ -76,6 +76,10 @@ export default function TeamsPage() {
             toast.success('Team updated')
             setDialogOpen(false)
           },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
+          },
         },
       )
     } else {
@@ -85,6 +89,10 @@ export default function TeamsPage() {
           onSuccess: () => {
             toast.success('Team created')
             setDialogOpen(false)
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
           },
         },
       )

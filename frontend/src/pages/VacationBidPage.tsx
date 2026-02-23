@@ -393,6 +393,7 @@ function MonthCalendar({
                 type="button"
                 disabled={!onDayClick || isTaken}
                 onClick={() => onDayClick?.(date)}
+                aria-label={`${isSelected ? 'Deselect' : 'Select'} ${MONTHS[month]} ${date.getDate()}, ${year}`}
                 className={cn(
                   'h-7 w-full text-xs rounded-sm transition-colors',
                   'hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent',

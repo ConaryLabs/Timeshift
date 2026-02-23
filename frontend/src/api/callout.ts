@@ -56,7 +56,7 @@ export const calloutApi = {
 
   getList: (event_id: string) =>
     api
-      .get<CalloutListEntry[]>(`/api/callout/events/${event_id}/list`)
+      .get<CalloutListEntry[]>(`/api/callout/events/${event_id}/queue`)
       .then((r) => r.data),
 
   cancelEvent: (event_id: string) =>

@@ -40,8 +40,11 @@ export const usersApi = {
     api.post<UserProfile>('/api/users', body).then((r) => r.data),
 
   update: (id: string, body: UpdateUserRequest) =>
-    api.put<UserProfile>(`/api/users/${id}`, body).then((r) => r.data),
+    api.patch<UserProfile>(`/api/users/${id}`, body).then((r) => r.data),
 
   deactivate: (id: string) =>
     api.delete(`/api/users/${id}`).then((r) => r.data),
+
+  changePassword: (body: { current_password: string; new_password: string }) =>
+    api.patch<{ ok: boolean }>('/api/users/me/password', body).then((r) => r.data),
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "leave_status", rename_all = "snake_case")]
@@ -51,24 +52,27 @@ pub struct LeaveRequest {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateLeaveRequest {
     pub leave_type_id: Uuid,
     pub start_date: time::Date,
     pub end_date: time::Date,
     pub hours: Option<f64>,
+    #[validate(length(max = 2000))]
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ReviewLeaveRequest {
     pub status: LeaveStatus,
+    #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct BulkReviewLeaveRequest {
     pub ids: Vec<Uuid>,
-    pub action: LeaveStatus,
+    pub status: LeaveStatus,
+    #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }

@@ -194,7 +194,7 @@ pub async fn open_bidding(
     // Create windows for each user
     for (rank, user) in users.iter().enumerate() {
         let rank = (rank as i32) + 1;
-        let window_opens = start + duration * (rank - 1) as i32;
+        let window_opens = start + duration * (rank - 1);
         let window_closes = window_opens + duration;
 
         sqlx::query!(
@@ -616,7 +616,7 @@ pub async fn process_bids(
                     has_conflict = true;
                     break;
                 }
-                d = d.next_day().unwrap();
+                d = d.next_day().ok_or(AppError::BadRequest("Date range exceeds maximum date".into()))?;
             }
 
             if has_conflict {
@@ -635,7 +635,7 @@ pub async fn process_bids(
             let mut d = bid.start_date;
             while d <= bid.end_date {
                 awarded_dates.insert(d);
-                d = d.next_day().unwrap();
+                d = d.next_day().ok_or(AppError::BadRequest("Date range exceeds maximum date".into()))?;
             }
 
             // Create approved leave request if we have a vacation leave type

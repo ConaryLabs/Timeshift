@@ -68,6 +68,10 @@ export default function LeavePage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (form.end_date && form.start_date && form.end_date < form.start_date) {
+      toast.error('End date must be on or after start date')
+      return
+    }
     createMut.mutate(
       {
         leave_type_id: form.leave_type_id,
@@ -257,7 +261,7 @@ export default function LeavePage() {
                 className="text-green-700 hover:bg-green-50"
                 disabled={bulkReviewMut.isPending}
                 onClick={() => bulkReviewMut.mutate(
-                  { ids: [...selectedKeys], action: 'approved' },
+                  { ids: [...selectedKeys], status: 'approved' },
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} request(s) approved`)
@@ -274,7 +278,7 @@ export default function LeavePage() {
                 className="text-red-700 hover:bg-red-50"
                 disabled={bulkReviewMut.isPending}
                 onClick={() => bulkReviewMut.mutate(
-                  { ids: [...selectedKeys], action: 'denied' },
+                  { ids: [...selectedKeys], status: 'denied' },
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} request(s) denied`)

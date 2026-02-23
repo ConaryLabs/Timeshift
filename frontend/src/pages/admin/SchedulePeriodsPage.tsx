@@ -50,6 +50,10 @@ export default function SchedulePeriodsPage() {
         toast.success('Schedule period created')
         setDialogOpen(false)
       },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
+      },
     })
   }
 

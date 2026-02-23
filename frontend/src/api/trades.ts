@@ -43,12 +43,12 @@ export const tradesApi = {
   respond: (id: string, body: { accept: boolean }) =>
     api.patch<TradeRequest>(`/api/trades/${id}/respond`, body).then((r) => r.data),
 
-  review: (id: string, body: { approve: boolean; reviewer_notes?: string }) =>
+  review: (id: string, body: { status: 'approved' | 'denied'; reviewer_notes?: string }) =>
     api.patch<TradeRequest>(`/api/trades/${id}/review`, body).then((r) => r.data),
 
   cancel: (id: string) =>
-    api.delete(`/api/trades/${id}`).then((r) => r.data),
+    api.patch(`/api/trades/${id}/cancel`).then((r) => r.data),
 
-  bulkReview: (body: { ids: string[]; approve: boolean; reviewer_notes?: string }) =>
+  bulkReview: (body: { ids: string[]; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
     api.post<{ ok: boolean; reviewed: number }>('/api/trades/bulk-review', body).then((r) => r.data),
 }

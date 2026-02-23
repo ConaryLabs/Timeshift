@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 /// An assignment of a specific employee to a specific scheduled shift.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -41,15 +42,17 @@ pub struct AssignmentView {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateAssignmentRequest {
     pub scheduled_shift_id: Uuid,
     pub user_id: Uuid,
+    #[validate(length(max = 100))]
     pub position: Option<String>,
     #[serde(default)]
     pub is_overtime: bool,
     #[serde(default)]
     pub is_trade: bool,
+    #[validate(length(max = 2000))]
     pub notes: Option<String>,
 }
 
@@ -116,11 +119,13 @@ pub struct ScheduleAnnotation {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateAnnotationRequest {
     pub date: time::Date,
     pub shift_template_id: Option<Uuid>,
+    #[validate(length(max = 5000))]
     pub content: String,
+    #[validate(length(max = 50))]
     pub annotation_type: String,
 }
 

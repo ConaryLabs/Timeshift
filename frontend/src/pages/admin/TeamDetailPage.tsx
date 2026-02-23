@@ -122,6 +122,10 @@ export default function TeamDetailPage() {
             toast.success('Slot updated')
             setDialogOpen(false)
           },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
+          },
         },
       )
     } else {
@@ -137,6 +141,10 @@ export default function TeamDetailPage() {
           onSuccess: () => {
             toast.success('Slot created')
             setDialogOpen(false)
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            toast.error(msg)
           },
         },
       )

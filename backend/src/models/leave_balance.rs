@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct LeaveBalance {
@@ -38,9 +39,10 @@ pub struct AccrualSchedule {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateAccrualScheduleRequest {
     pub leave_type_id: Uuid,
+    #[validate(length(max = 100))]
     pub employee_type: Option<String>,
     pub years_of_service_min: Option<i32>,
     pub years_of_service_max: Option<i32>,
@@ -71,11 +73,12 @@ pub struct AccrualTransaction {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct AdjustBalanceRequest {
     pub user_id: Uuid,
     pub leave_type_id: Uuid,
     pub hours: f64,
+    #[validate(length(max = 2000))]
     pub note: Option<String>,
 }
 

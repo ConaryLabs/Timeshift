@@ -57,6 +57,15 @@ impl IntoResponse for AppError {
                 (StatusCode::BAD_REQUEST, messages.join("; "))
             }
             AppError::Database(e) => {
+                // Map pool timeout to 503 Service Unavailable
+                if matches!(e, sqlx::Error::PoolTimedOut) {
+                    tracing::warn!("Database pool timed out");
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        Json(json!({ "error": "Service temporarily unavailable" })),
+                    )
+                        .into_response();
+                }
                 // Map constraint violations to 409 Conflict
                 if let sqlx::Error::Database(ref db_err) = e {
                     if let Some(code) = db_err.code() {
