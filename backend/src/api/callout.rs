@@ -627,12 +627,16 @@ pub async fn cancel_ot_assignment(
         }
     }
 
-    // 6. Update: soft-cancel the assignment.
+    // 6+7 must be atomic: if the server crashes between them the event would be
+    // permanently stuck in 'filled' with no active assignment.
+    let mut tx = pool.begin().await?;
+
+    // 6. Soft-cancel the assignment.
     sqlx::query!(
         "UPDATE assignments SET cancelled_at = NOW() WHERE id = $1",
         assignment.id
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
     // 7. Auto-reopen event so it re-enters the callout queue — in 911 dispatch,
@@ -642,8 +646,10 @@ pub async fn cancel_ot_assignment(
         "UPDATE callout_events SET status = 'open', updated_at = NOW() WHERE id = $1",
         event_id
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -1048,6 +1054,10 @@ pub async fn list_bump_requests(
     auth: AuthUser,
     Path(event_id): Path<Uuid>,
 ) -> Result<Json<Vec<BumpRequestWithNames>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
     // Verify event belongs to the user's org
     let event_org = sqlx::query_scalar!(
         "SELECT org_id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ce.id = $1",

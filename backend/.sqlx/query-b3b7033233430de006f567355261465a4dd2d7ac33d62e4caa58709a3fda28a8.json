@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE vacation_bid_periods\n        SET status = 'completed'\n        WHERE id = $1\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at,\n                  allowance_hours, min_block_hours, bargaining_unit\n        ",
+  "query": "\n        INSERT INTO vacation_bid_periods (id, org_id, year, round, allowance_hours, min_block_hours, bargaining_unit)\n        VALUES ($1, $2, $3, $4, $5, $6, $7::TEXT::bargaining_unit_enum)\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at,\n                  allowance_hours, min_block_hours,\n                  bargaining_unit::TEXT AS bargaining_unit\n        ",
   "describe": {
     "columns": [
       {
@@ -61,7 +61,13 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text"
       ]
     },
     "nullable": [
@@ -75,8 +81,8 @@
       false,
       true,
       true,
-      true
+      null
     ]
   },
-  "hash": "cf522e162cb5dbe985847e9c0e9fc87e0d19099fc3f8907bf1559d9730e587f6"
+  "hash": "b3b7033233430de006f567355261465a4dd2d7ac33d62e4caa58709a3fda28a8"
 }

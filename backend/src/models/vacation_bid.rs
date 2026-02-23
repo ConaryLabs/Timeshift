@@ -82,6 +82,7 @@ pub struct VacationWindowDetail {
     pub bids: Vec<VacationBid>,
     pub dates_taken: Vec<time::Date>,
     pub allowance_hours: Option<i32>,
+    pub min_block_hours: Option<i32>,
     pub hours_used: f64,
 }
 

@@ -48,7 +48,7 @@ pub async fn open_bidding(
 
     // M3: Fetch bargaining_unit from schedule period for BU-specific filtering
     let period_bu = sqlx::query_scalar!(
-        "SELECT bargaining_unit FROM schedule_periods WHERE id = $1",
+        "SELECT bargaining_unit::TEXT AS \"bargaining_unit?\" FROM schedule_periods WHERE id = $1",
         period_id
     )
     .fetch_one(&pool)

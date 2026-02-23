@@ -9,7 +9,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
 
 use axum::routing::post;
-use timeshift_backend::{api, AppState};
+use timeshift_backend::{api, AppState, api::callout, api::ot};
 
 fn database_url() -> String {
     std::env::var("TEST_DATABASE_URL")
@@ -42,13 +42,20 @@ pub async fn setup_test_app() -> (SocketAddr, PgPool) {
         cookie_secure: false,
     };
 
-    // Build the app router. The login route was moved to main.rs (with rate
-    // limiting) so we add it here for tests without the rate limiter.
+    // Build the app router. Routes with rate limiting in main.rs are added here
+    // without the rate limiter so tests can exercise them normally.
     let login_router = axum::Router::new()
         .route("/api/auth/login", post(api::auth::login))
         .with_state(state.clone());
 
-    let app = api::router(state).merge(login_router);
+    // Bump and volunteer routes are rate-limited in main.rs; add them without
+    // the limiter for tests.
+    let callout_action_router = axum::Router::new()
+        .route("/api/callout/events/:id/bump", post(callout::create_bump_request))
+        .route("/api/callout/events/:id/volunteer", post(ot::volunteer))
+        .with_state(state.clone());
+
+    let app = api::router(state).merge(login_router).merge(callout_action_router);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
