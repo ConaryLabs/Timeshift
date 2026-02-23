@@ -69,7 +69,7 @@ cd frontend && npm run build
 
 **Multi-tenancy**: Every query filters by `org_id` from JWT claims. `org_guard::verify_*` functions return `NotFound` for resources in other orgs.
 
-**Error handling**: `AppError` enum with variants for Unauthorized (401), Forbidden (403), NotFound (404), BadRequest (400), Validation (400 with field errors), Conflict (409), NotImplemented (501), Database (constraint-aware), Internal (500). DB constraint violations 23505/23503 map to 409.
+**Error handling**: `AppError` enum with variants for Unauthorized (401), Forbidden (403), NotFound (404), BadRequest (400), Validation (400 with field errors), Conflict (409), Database (constraint-aware), Internal (500). DB constraint violations 23505/23503 map to 409.
 
 **Soft-delete**: Users use `is_active = false` instead of deletion. List queries filter by `is_active = true`.
 
