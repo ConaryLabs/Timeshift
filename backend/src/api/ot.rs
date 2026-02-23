@@ -55,6 +55,7 @@ pub async fn get_queue(
         WHERE q.org_id = $1
           AND q.classification_id = $2
           AND q.fiscal_year = $3
+          AND u.is_active = true
         ORDER BY q.position ASC
         "#,
         auth.org_id,
@@ -416,17 +417,20 @@ pub async fn advance_step(
         return Err(AppError::Forbidden);
     }
 
-    // Verify the event belongs to the org and is open
+    let mut tx = pool.begin().await?;
+
+    // Verify the event belongs to the org and is open (lock row)
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus", ss.org_id
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         WHERE ce.id = $1
+        FOR UPDATE OF ce
         "#,
         event_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
 
@@ -446,8 +450,10 @@ pub async fn advance_step(
         event_id,
         req.step as CalloutStep,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

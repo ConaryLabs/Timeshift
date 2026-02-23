@@ -1,6 +1,6 @@
-use axum::{extract::State, http::header, response::IntoResponse, Json};
-use axum::http::StatusCode;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use axum::http::StatusCode;
+use axum::{extract::State, http::header, response::IntoResponse, Json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -56,12 +56,15 @@ pub async fn login(
         + time::Duration::days(state.refresh_token_expiry_days as i64);
 
     // Clean up expired refresh tokens for this user (best-effort)
-    let _ = sqlx::query!(
+    if let Err(e) = sqlx::query!(
         "DELETE FROM refresh_tokens WHERE user_id = $1 AND expires_at < NOW()",
         user.id
     )
     .execute(&state.pool)
-    .await;
+    .await
+    {
+        tracing::warn!("Failed to clean up expired refresh tokens: {e}");
+    }
 
     sqlx::query!(
         "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
@@ -100,15 +103,15 @@ pub async fn login(
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        auth_cookie
-            .parse()
-            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+        auth_cookie.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
     );
     headers.append(
         header::SET_COOKIE,
-        refresh_cookie
-            .parse()
-            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+        refresh_cookie.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
     );
 
     Ok((
@@ -138,11 +141,14 @@ pub async fn login(
 pub async fn logout(
     State(state): State<AppState>,
     refresh: Option<RefreshTokenCookie>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse> {
     if let Some(RefreshTokenCookie(raw)) = refresh {
-        let _ = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", raw)
+        if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", raw)
             .execute(&state.pool)
-            .await;
+            .await
+        {
+            tracing::warn!("Failed to delete refresh token on logout: {e}");
+        }
     }
 
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
@@ -158,14 +164,18 @@ pub async fn logout(
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        clear_auth.parse().unwrap(),
+        clear_auth.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
     );
     headers.append(
         header::SET_COOKIE,
-        clear_refresh.parse().unwrap(),
+        clear_refresh.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
     );
 
-    (headers, StatusCode::NO_CONTENT)
+    Ok((headers, StatusCode::NO_CONTENT))
 }
 
 pub async fn refresh(
@@ -189,9 +199,12 @@ pub async fn refresh(
     .ok_or(AppError::Unauthorized)?;
 
     if row.expires_at < time::OffsetDateTime::now_utc() {
-        let _ = sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
+        if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
             .execute(&state.pool)
-            .await;
+            .await
+        {
+            tracing::warn!("Failed to delete expired refresh token: {e}");
+        }
         return Err(AppError::Unauthorized);
     }
 
@@ -262,15 +275,15 @@ pub async fn refresh(
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        auth_cookie
-            .parse()
-            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+        auth_cookie.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
     );
     headers.append(
         header::SET_COOKIE,
-        refresh_cookie
-            .parse()
-            .map_err(|_| AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header")))?,
+        refresh_cookie.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
     );
 
     Ok((headers, StatusCode::NO_CONTENT))

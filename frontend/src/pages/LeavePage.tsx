@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -50,8 +51,13 @@ export default function LeavePage() {
       },
       {
         onSuccess: () => {
+          toast.success('Leave request submitted')
           setForm(INITIAL_FORM)
           setShowForm(false)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit leave request'
+          toast.error(msg)
         },
       },
     )
@@ -66,7 +72,16 @@ export default function LeavePage() {
     if (!reviewTarget) return
     reviewMut.mutate(
       { id: reviewTarget.id, status: reviewTarget.action, reviewer_notes: reviewerNotes || undefined },
-      { onSuccess: () => setReviewTarget(null) },
+      {
+        onSuccess: () => {
+          toast.success(reviewTarget.action === 'approved' ? 'Leave request approved' : 'Leave request denied')
+          setReviewTarget(null)
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review leave request'
+          toast.error(msg)
+        },
+      },
     )
   }
 

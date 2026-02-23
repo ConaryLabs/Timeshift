@@ -5,6 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
@@ -44,6 +52,8 @@ export default function CoverageRequirementsPage() {
   })
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
   const createMut = useCreateCoverageRequirement()
   const updateMut = useUpdateCoverageRequirement()
   const deleteMut = useDeleteCoverageRequirement()
@@ -125,7 +135,14 @@ export default function CoverageRequirementsPage() {
 
   function handleDelete(id: string) {
     deleteMut.mutate(id, {
-      onSuccess: () => toast.success('Deleted'),
+      onSuccess: () => {
+        toast.success('Deleted')
+        setDeleteConfirm(null)
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete'
+        toast.error(msg)
+      },
     })
   }
 
@@ -169,7 +186,7 @@ export default function CoverageRequirementsPage() {
             size="sm"
             variant="ghost"
             className="text-destructive"
-            onClick={() => handleDelete(r.id)}
+            onClick={() => setDeleteConfirm(r.id)}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -323,6 +340,28 @@ export default function CoverageRequirementsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Requirement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this coverage requirement. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+              disabled={deleteMut.isPending}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

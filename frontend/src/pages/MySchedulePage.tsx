@@ -72,7 +72,7 @@ export default function MySchedulePage() {
     }
   }, [anchor, activeView])
 
-  const { data: entries, isLoading } = useMySchedule(startDate, endDate)
+  const { data: entries, isLoading, isError } = useMySchedule(startDate, endDate)
 
   const entryMap = useMemo(() => {
     const map = new Map<string, MyScheduleEntry[]>()
@@ -152,12 +152,15 @@ export default function MySchedulePage() {
       </div>
 
       {isLoading && <LoadingState />}
+      {!isLoading && isError && (
+        <p className="text-sm text-destructive p-6">Failed to load schedule data.</p>
+      )}
 
-      {!isLoading && activeView === 'week' && (
+      {!isLoading && !isError && activeView === 'week' && (
         <WeekView days={displayDays} entryMap={entryMap} todayStr={todayStr} />
       )}
 
-      {!isLoading && activeView === 'month' && (
+      {!isLoading && !isError && activeView === 'month' && (
         <MonthView
           days={displayDays}
           entryMap={entryMap}

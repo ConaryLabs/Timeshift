@@ -107,7 +107,6 @@ pub struct UpdateUserRequest {
     pub seniority_date: Option<Option<time::Date>>,
 }
 
-
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub email: String,

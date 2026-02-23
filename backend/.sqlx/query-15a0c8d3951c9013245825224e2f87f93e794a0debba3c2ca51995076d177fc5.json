@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            a.id            AS assignment_id,\n            ss.date,\n            st.name         AS shift_name,\n            st.color        AS shift_color,\n            st.start_time,\n            st.end_time,\n            st.crosses_midnight,\n            u.id            AS user_id,\n            u.employee_id,\n            u.first_name,\n            u.last_name,\n            a.position,\n            a.is_overtime,\n            a.is_trade,\n            a.notes,\n            t.name          AS \"team_name?\",\n            cl.abbreviation AS \"classification_abbreviation?\"\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates  st ON st.id = ss.shift_template_id\n        JOIN users            u  ON u.id  = a.user_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN teams       t  ON t.id  = sl.team_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE ss.org_id = $1\n          AND ss.date BETWEEN $2 AND $3\n          AND ($4::uuid IS NULL OR sl.team_id = $4)\n        ORDER BY ss.date, st.start_time, u.last_name\n        ",
+  "query": "\n        SELECT\n            a.id            AS assignment_id,\n            ss.date,\n            st.name         AS shift_name,\n            st.color        AS shift_color,\n            st.start_time,\n            st.end_time,\n            st.crosses_midnight,\n            u.id            AS user_id,\n            u.employee_id,\n            u.first_name,\n            u.last_name,\n            a.position,\n            a.is_overtime,\n            a.is_trade,\n            a.notes,\n            t.name          AS \"team_name?\",\n            cl.abbreviation AS \"classification_abbreviation?\"\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates  st ON st.id = ss.shift_template_id\n        JOIN users            u  ON u.id  = a.user_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN teams       t  ON t.id  = sl.team_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE ss.org_id = $1\n          AND ss.date BETWEEN $2 AND $3\n          AND st.is_active = true\n          AND ($4::uuid IS NULL OR sl.team_id = $4)\n        ORDER BY ss.date, st.start_time, u.last_name\n        ",
   "describe": {
     "columns": [
       {
@@ -117,5 +117,5 @@
       false
     ]
   },
-  "hash": "10caa621e373e79893bc3d9ead280f65b4c4266327771572fa80906c63412a0f"
+  "hash": "15a0c8d3951c9013245825224e2f87f93e794a0debba3c2ca51995076d177fc5"
 }

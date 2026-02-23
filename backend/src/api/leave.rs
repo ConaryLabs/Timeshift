@@ -249,6 +249,24 @@ pub async fn create(
         return Err(AppError::NotFound("Leave type not found".into()));
     }
 
+    // Get leave type code/name (already validated above) and user name
+    let lt = sqlx::query!(
+        "SELECT code, name FROM leave_types WHERE id = $1",
+        body.leave_type_id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let creator = sqlx::query!(
+        "SELECT first_name, last_name FROM users WHERE id = $1",
+        auth.id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    // Wrap overlap check + INSERT in a transaction to prevent TOCTOU race
+    let mut tx = pool.begin().await?;
+
     // Check for overlapping leave requests (only pending/approved block new ones)
     let overlap = sqlx::query_scalar!(
         r#"
@@ -264,28 +282,13 @@ pub async fn create(
         body.start_date,
         body.end_date,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
     if overlap.unwrap_or(false) {
         return Err(AppError::Conflict(
             "Leave request overlaps with an existing request".into(),
         ));
     }
-
-    // Get leave type code/name (already validated above) and user name
-    let lt = sqlx::query!(
-        "SELECT code, name FROM leave_types WHERE id = $1",
-        body.leave_type_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    let creator = sqlx::query!(
-        "SELECT first_name, last_name FROM users WHERE id = $1",
-        auth.id
-    )
-    .fetch_one(&pool)
-    .await?;
 
     let r = sqlx::query!(
         r#"
@@ -304,8 +307,10 @@ pub async fn create(
         body.hours,
         body.reason,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,

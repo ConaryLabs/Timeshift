@@ -49,7 +49,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof User; label: strin
 
 export default function MyProfilePage() {
   const user = useAuthStore((s) => s.user)
-  const { data: prefs, isLoading: prefsLoading } = useMyPreferences()
+  const { data: prefs, isLoading: prefsLoading, isError: prefsError } = useMyPreferences()
   const updatePrefsMut = useUpdateMyPreferences()
 
   const [emailNotif, setEmailNotif] = useState(true)
@@ -77,6 +77,10 @@ export default function MyProfilePage() {
         onSuccess: () => {
           setDirty(false)
           toast.success('Preferences saved')
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save preferences'
+          toast.error(msg)
         },
       },
     )
@@ -124,6 +128,8 @@ export default function MyProfilePage() {
         <CardContent>
           {prefsLoading ? (
             <LoadingState message="Loading preferences..." />
+          ) : prefsError ? (
+            <p className="text-sm text-destructive p-4">Failed to load preferences.</p>
           ) : (
             <div className="space-y-5">
               <div className="flex items-center justify-between">

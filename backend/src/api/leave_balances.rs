@@ -262,11 +262,13 @@ pub async fn create_accrual_schedule(
         return Err(AppError::NotFound("Leave type not found".into()));
     }
 
-    let employee_type = body.employee_type.unwrap_or_else(|| "regular_full_time".to_string());
+    let employee_type = body
+        .employee_type
+        .unwrap_or_else(|| "regular_full_time".to_string());
     let years_min = body.years_of_service_min.unwrap_or(0);
-    let effective = body.effective_date.unwrap_or_else(|| {
-        time::OffsetDateTime::now_utc().date()
-    });
+    let effective = body
+        .effective_date
+        .unwrap_or_else(|| time::OffsetDateTime::now_utc().date());
 
     let r = sqlx::query!(
         r#"

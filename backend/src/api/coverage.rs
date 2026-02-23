@@ -54,7 +54,9 @@ pub async fn create(
         return Err(AppError::BadRequest("day_of_week must be 0-6".into()));
     }
     if req.min_headcount < 0 || req.target_headcount < 0 || req.max_headcount < 0 {
-        return Err(AppError::BadRequest("Headcounts must be non-negative".into()));
+        return Err(AppError::BadRequest(
+            "Headcounts must be non-negative".into(),
+        ));
     }
     if req.min_headcount > req.target_headcount || req.target_headcount > req.max_headcount {
         return Err(AppError::BadRequest(
@@ -65,9 +67,9 @@ pub async fn create(
     org_guard::verify_shift_template(&pool, req.shift_template_id, auth.org_id).await?;
     org_guard::verify_classification(&pool, req.classification_id, auth.org_id).await?;
 
-    let effective = req.effective_date.unwrap_or_else(|| {
-        time::OffsetDateTime::now_utc().date()
-    });
+    let effective = req
+        .effective_date
+        .unwrap_or_else(|| time::OffsetDateTime::now_utc().date());
 
     let row = sqlx::query_as!(
         CoverageRequirement,
@@ -105,6 +107,8 @@ pub async fn update(
         return Err(AppError::Forbidden);
     }
 
+    let mut tx = pool.begin().await?;
+
     let row = sqlx::query_as!(
         CoverageRequirement,
         r#"
@@ -122,9 +126,17 @@ pub async fn update(
         req.target_headcount,
         req.max_headcount,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Coverage requirement not found".into()))?;
+
+    if row.min_headcount > row.target_headcount || row.target_headcount > row.max_headcount {
+        return Err(AppError::BadRequest(
+            "Must have min <= target <= max".into(),
+        ));
+    }
+
+    tx.commit().await?;
 
     Ok(Json(row))
 }

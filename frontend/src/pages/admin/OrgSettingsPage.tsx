@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useOrganization, useUpdateOrganization, useOrgSettings, useSetOrgSetting } from '@/hooks/queries'
-import type { OrgSetting } from '@/api/reports'
+import type { OrgSetting } from '@/api/organization'
 
 const BASE_US_TIMEZONES = [
   'America/New_York',

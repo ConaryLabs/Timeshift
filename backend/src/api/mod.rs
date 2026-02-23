@@ -129,10 +129,7 @@ pub fn router(state: AppState) -> Router {
             post(bidding::process_bids),
         )
         .route("/api/bid-windows/:id", get(bidding::get_bid_window))
-        .route(
-            "/api/bid-windows/:id/submit",
-            post(bidding::submit_bid),
-        )
+        .route("/api/bid-windows/:id/submit", post(bidding::submit_bid))
         // Schedule views
         .route("/api/schedule/grid", get(schedule::grid))
         .route("/api/schedule/day/:date", get(schedule::day_view))
@@ -147,10 +144,7 @@ pub fn router(state: AppState) -> Router {
             delete(schedule::delete_annotation),
         )
         // Coverage requirements
-        .route(
-            "/api/coverage",
-            get(coverage::list).post(coverage::create),
-        )
+        .route("/api/coverage", get(coverage::list).post(coverage::create))
         .route(
             "/api/coverage/:id",
             put(coverage::update).delete(coverage::delete),
@@ -180,10 +174,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/leave/:id", get(leave::get_one).delete(leave::cancel))
         .route("/api/leave/:id/review", patch(leave::review))
         // Trades
-        .route(
-            "/api/trades",
-            get(trades::list).post(trades::create),
-        )
+        .route("/api/trades", get(trades::list).post(trades::create))
         .route(
             "/api/trades/:id",
             get(trades::get_one).delete(trades::cancel),
@@ -205,18 +196,12 @@ pub fn router(state: AppState) -> Router {
             "/api/callout/events/:id/cancel",
             patch(callout::cancel_event),
         )
-        .route(
-            "/api/callout/events/:id/volunteer",
-            post(ot::volunteer),
-        )
+        .route("/api/callout/events/:id/volunteer", post(ot::volunteer))
         .route(
             "/api/callout/events/:id/volunteers",
             get(ot::list_volunteers),
         )
-        .route(
-            "/api/callout/events/:id/step",
-            patch(ot::advance_step),
-        )
+        .route("/api/callout/events/:id/step", patch(ot::advance_step))
         // Vacation Bids
         .route(
             "/api/vacation-bids/periods",
@@ -247,10 +232,7 @@ pub fn router(state: AppState) -> Router {
             post(vacation_bids::submit_bid),
         )
         // Holidays
-        .route(
-            "/api/holidays",
-            get(holidays::list).post(holidays::create),
-        )
+        .route("/api/holidays", get(holidays::list).post(holidays::create))
         .route(
             "/api/holidays/:id",
             put(holidays::update).delete(holidays::delete),

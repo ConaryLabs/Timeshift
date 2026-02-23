@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT d::date AS \"date!\", COUNT(*) AS \"count!\"\n        FROM leave_requests lr\n        JOIN users u ON u.id = lr.user_id\n        CROSS JOIN LATERAL generate_series(\n            lr.start_date::timestamp,\n            lr.end_date::timestamp,\n            '1 day'::interval\n        ) AS d\n        WHERE u.org_id = $1\n          AND lr.status = 'approved'\n          AND d::date BETWEEN $2 AND $3\n        GROUP BY d::date\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "a2c223776ee44209cd3c426605e90d2822fab0762ca3ec6098607fc39df31492"
+}

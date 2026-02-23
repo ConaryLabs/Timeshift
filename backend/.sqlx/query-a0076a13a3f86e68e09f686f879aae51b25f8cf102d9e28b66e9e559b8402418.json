@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE trade_requests SET status = 'cancelled', updated_at = NOW()\n        WHERE (requester_id = $1 OR partner_id = $1)\n          AND status IN ('pending_partner', 'pending_approval')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a0076a13a3f86e68e09f686f879aae51b25f8cf102d9e28b66e9e559b8402418"
+}

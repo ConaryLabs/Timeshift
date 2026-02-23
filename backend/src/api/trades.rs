@@ -83,6 +83,18 @@ pub async fn create(
         ));
     }
 
+    // Both assignments must be for future dates
+    let today = time::OffsetDateTime::now_utc().date();
+    if req_assignment.date < today {
+        return Err(AppError::BadRequest("Cannot trade past assignments".into()));
+    }
+    if partner_assignment.date < today {
+        return Err(AppError::BadRequest("Cannot trade past assignments".into()));
+    }
+
+    // Wrap conflict check + INSERT in a transaction to prevent TOCTOU race
+    let mut tx = pool.begin().await?;
+
     // Check for existing pending/approved trades on target dates for either user
     let conflict = sqlx::query_scalar!(
         r#"
@@ -104,7 +116,7 @@ pub async fn create(
         body.partner_id,
         partner_assignment.date,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if conflict.unwrap_or(false) {
@@ -130,8 +142,10 @@ pub async fn create(
         req_assignment.date,
         partner_assignment.date,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     // Fetch back the full trade with names
     fetch_trade(&pool, id, auth.org_id).await
@@ -235,18 +249,21 @@ pub async fn respond(
     Path(id): Path<Uuid>,
     Json(body): Json<RespondTradeRequest>,
 ) -> Result<Json<TradeRequest>> {
-    // Fetch trade
+    let mut tx = pool.begin().await?;
+
+    // Fetch trade with FOR UPDATE to prevent TOCTOU race
     let r = sqlx::query!(
         r#"
         SELECT id, org_id, requester_id, partner_id,
                status AS "status: TradeStatus"
         FROM trade_requests
         WHERE id = $1 AND org_id = $2
+        FOR UPDATE
         "#,
         id,
         auth.org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Trade request not found".into()))?;
 
@@ -277,8 +294,10 @@ pub async fn respond(
         id,
         new_status as TradeStatus,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     fetch_trade(&pool, id, auth.org_id).await
 }
@@ -293,7 +312,9 @@ pub async fn review(
         return Err(AppError::Forbidden);
     }
 
-    // Fetch trade
+    // Entire review is one transaction — fetch with FOR UPDATE to prevent TOCTOU race
+    let mut tx = pool.begin().await?;
+
     let r = sqlx::query!(
         r#"
         SELECT id, org_id, requester_id, partner_id,
@@ -301,11 +322,12 @@ pub async fn review(
                status AS "status: TradeStatus"
         FROM trade_requests
         WHERE id = $1 AND org_id = $2
+        FOR UPDATE
         "#,
         id,
         auth.org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Trade request not found".into()))?;
 
@@ -316,9 +338,6 @@ pub async fn review(
     }
 
     if body.approve {
-        // Use a transaction to swap assignments atomically
-        let mut tx = pool.begin().await?;
-
         // Swap user_ids on both assignments and set is_trade = true
         // Guard: verify assignments still belong to expected users (prevents stale swap)
         let req_rows = sqlx::query!(
@@ -350,7 +369,8 @@ pub async fn review(
         if req_rows == 0 || partner_rows == 0 {
             // Rollback happens automatically when tx is dropped
             return Err(AppError::Conflict(
-                "Assignments have changed since the trade was created. Trade cannot be approved.".into(),
+                "Assignments have changed since the trade was created. Trade cannot be approved."
+                    .into(),
             ));
         }
 
@@ -366,8 +386,6 @@ pub async fn review(
         )
         .execute(&mut *tx)
         .await?;
-
-        tx.commit().await?;
     } else {
         sqlx::query!(
             r#"
@@ -379,9 +397,11 @@ pub async fn review(
             auth.id,
             body.reviewer_notes,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
     }
+
+    tx.commit().await?;
 
     fetch_trade(&pool, id, auth.org_id).await
 }

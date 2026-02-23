@@ -386,18 +386,45 @@ pub async fn deactivate(
         }
     }
 
+    let mut tx = pool.begin().await?;
+
     let rows = sqlx::query!(
         "UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?
     .rows_affected();
 
     if rows == 0 {
         return Err(AppError::NotFound("User not found".into()));
     }
+
+    // Cancel pending trade requests involving this user
+    sqlx::query!(
+        r#"
+        UPDATE trade_requests SET status = 'cancelled', updated_at = NOW()
+        WHERE (requester_id = $1 OR partner_id = $1)
+          AND status IN ('pending_partner', 'pending_approval')
+        "#,
+        id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Cancel pending leave requests for this user
+    sqlx::query!(
+        r#"
+        UPDATE leave_requests SET status = 'cancelled', updated_at = NOW()
+        WHERE user_id = $1 AND status = 'pending'
+        "#,
+        id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

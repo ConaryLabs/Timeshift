@@ -10,8 +10,8 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::{
-        AvailableSlot, BidPeriodStatus, BidSubmissionView, BidWindow,
-        BidWindowDetail, BidWindowRow, OpenBiddingRequest, SubmitBidRequest,
+        AvailableSlot, BidPeriodStatus, BidSubmissionView, BidWindow, BidWindowDetail,
+        BidWindowRow, OpenBiddingRequest, SubmitBidRequest,
     },
     org_guard,
 };
@@ -33,20 +33,6 @@ pub async fn open_bidding(
     if req.window_duration_hours < 1 {
         return Err(AppError::BadRequest(
             "window_duration_hours must be at least 1".into(),
-        ));
-    }
-
-    // Check period is in draft status
-    let current_status = sqlx::query_scalar!(
-        r#"SELECT status AS "status: BidPeriodStatus" FROM schedule_periods WHERE id = $1"#,
-        period_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if current_status != BidPeriodStatus::Draft {
-        return Err(AppError::BadRequest(
-            "Bidding can only be opened for periods in 'draft' status".into(),
         ));
     }
 
@@ -78,6 +64,20 @@ pub async fn open_bidding(
     }
 
     let mut tx = pool.begin().await?;
+
+    // Check period is in draft status inside transaction with FOR UPDATE
+    let current_status = sqlx::query_scalar!(
+        r#"SELECT status AS "status: BidPeriodStatus" FROM schedule_periods WHERE id = $1 FOR UPDATE"#,
+        period_id
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if current_status != BidPeriodStatus::Draft {
+        return Err(AppError::BadRequest(
+            "Bidding can only be opened for periods in 'draft' status".into(),
+        ));
+    }
 
     // Delete any existing bid windows for this period (re-open scenario shouldn't happen
     // since we check for draft, but be safe)
@@ -459,7 +459,9 @@ pub async fn submit_bid(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true, "submitted_at": now.to_string() })))
+    Ok(Json(
+        serde_json::json!({ "ok": true, "submitted_at": now.to_string() }),
+    ))
 }
 
 /// POST /api/schedule/periods/:id/process-bids
