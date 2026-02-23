@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ss.date AS shift_date, st.start_time,\n               ce.status AS \"status: CalloutStatus\"\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "shift_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 2,
+        "name": "status: CalloutStatus",
+        "type_info": {
+          "Custom": {
+            "name": "callout_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "229b32998db0f1059e7ff9031c6a75d54f3c93893d079c5abf34ee8ee97464a1"
+}

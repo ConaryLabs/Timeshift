@@ -11,8 +11,7 @@ use crate::{
     models::{
         callout::{
             BumpRequest, CalloutAttempt, CalloutEvent, CalloutListEntry, CalloutStatus,
-            CreateBumpRequest, CreateCalloutEventRequest, RecordAttemptRequest,
-            ReviewBumpRequest,
+            CreateBumpRequest, CreateCalloutEventRequest, RecordAttemptRequest, ReviewBumpRequest,
         },
         common::PaginationParams,
         ot::CalloutStep,
@@ -351,7 +350,7 @@ pub async fn record_attempt(
         return Err(AppError::NotFound("Callout event not found".into()));
     }
     if ctx.status != CalloutStatus::Open {
-        return Err(AppError::Conflict("Callout event is no longer open".into()));
+        return Err(AppError::Conflict("Callout event is not open".into()));
     }
 
     // 2. Validate the target user belongs to this org and is active.
@@ -416,29 +415,29 @@ pub async fn record_attempt(
     .execute(&mut *tx)
     .await?;
 
-    // 6. Update OT queue position: stamp last_ot_event_at = NOW() so this user
-    //    moves toward the back of the queue for next callout.
-    sqlx::query!(
-        r#"
-        INSERT INTO ot_queue_positions
-            (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
-        VALUES (gen_random_uuid(), $1, $2, $3, NOW(), $4, NOW())
-        ON CONFLICT (org_id, classification_id, user_id, fiscal_year)
-        DO UPDATE SET last_ot_event_at = NOW(), updated_at = NOW()
-        "#,
-        auth.org_id,
-        ctx.classification_id,
-        req.user_id,
-        fiscal_year,
-    )
-    .execute(&mut *tx)
-    .await?;
-
     // Shift duration in hours for OT accounting.
     let shift_hours = ctx.duration_minutes as f64 / 60.0;
 
     match req.response.as_str() {
         "accepted" => {
+            // Update OT queue position: stamp last_ot_event_at = NOW() so this user
+            // moves toward the back of the queue for next callout.
+            sqlx::query!(
+                r#"
+                INSERT INTO ot_queue_positions
+                    (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
+                VALUES (gen_random_uuid(), $1, $2, $3, NOW(), $4, NOW())
+                ON CONFLICT (org_id, classification_id, user_id, fiscal_year)
+                DO UPDATE SET last_ot_event_at = NOW(), updated_at = NOW()
+                "#,
+                auth.org_id,
+                ctx.classification_id,
+                req.user_id,
+                fiscal_year,
+            )
+            .execute(&mut *tx)
+            .await?;
+
             // Mark the event filled.
             sqlx::query!(
                 "UPDATE callout_events SET status = 'filled', updated_at = NOW() WHERE id = $1",
@@ -491,6 +490,23 @@ pub async fn record_attempt(
             .await?;
         }
         "declined" => {
+            // Update OT queue position for declined too.
+            sqlx::query!(
+                r#"
+                INSERT INTO ot_queue_positions
+                    (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
+                VALUES (gen_random_uuid(), $1, $2, $3, NOW(), $4, NOW())
+                ON CONFLICT (org_id, classification_id, user_id, fiscal_year)
+                DO UPDATE SET last_ot_event_at = NOW(), updated_at = NOW()
+                "#,
+                auth.org_id,
+                ctx.classification_id,
+                req.user_id,
+                fiscal_year,
+            )
+            .execute(&mut *tx)
+            .await?;
+
             // Upsert OT hours_declined for this user/year.
             sqlx::query!(
                 r#"
@@ -511,7 +527,7 @@ pub async fn record_attempt(
             .execute(&mut *tx)
             .await?;
         }
-        _ => {} // no_answer: no OT accounting change
+        _ => {} // no_answer: no OT accounting change, no queue stamp
     }
 
     tx.commit().await?;
@@ -562,13 +578,14 @@ pub async fn cancel_ot_assignment(
         return Err(AppError::NotFound("No filled callout event found".into()));
     }
 
-    // 2. Find the active OT assignment.
+    // 2. Find the active OT assignment for the user who accepted THIS callout event.
     let assignment = sqlx::query!(
         r#"
         SELECT a.id, a.user_id, a.ot_type, a.cancelled_at
         FROM assignments a
-        JOIN callout_events ce ON ce.scheduled_shift_id = a.scheduled_shift_id
-        WHERE ce.id = $1 AND a.is_overtime = true AND a.cancelled_at IS NULL
+        JOIN callout_events ce ON ce.id = $1 AND ce.scheduled_shift_id = a.scheduled_shift_id
+        JOIN callout_attempts ca ON ca.event_id = $1 AND ca.user_id = a.user_id AND ca.response = 'accepted'
+        WHERE a.is_overtime = true AND a.cancelled_at IS NULL
         "#,
         event_id
     )
@@ -660,6 +677,9 @@ pub async fn create_bump_request(
     Path(event_id): Path<Uuid>,
     Json(req): Json<CreateBumpRequest>,
 ) -> Result<Json<BumpRequest>> {
+    use validator::Validate;
+    req.validate()?;
+
     // 1. Fetch event context
     let event = sqlx::query!(
         r#"
@@ -684,6 +704,7 @@ pub async fn create_bump_request(
     if req.displaced_user_id == auth.id {
         return Err(AppError::BadRequest("Cannot bump yourself".into()));
     }
+    org_guard::verify_user(&pool, req.displaced_user_id, auth.org_id).await?;
 
     // 2. Verify displaced user has an active OT assignment for this event
     let has_ot = sqlx::query_scalar!(
@@ -730,7 +751,10 @@ pub async fn create_bump_request(
     .fetch_one(&pool)
     .await?;
 
-    let shift_start = event.shift_date.with_time(shift_info.start_time).assume_utc();
+    let shift_start = event
+        .shift_date
+        .with_time(shift_info.start_time)
+        .assume_utc();
     if time::OffsetDateTime::now_utc() >= shift_start {
         return Err(AppError::Conflict(
             "Cannot request a bump after the shift has started".into(),
@@ -764,7 +788,7 @@ pub async fn create_bump_request(
     let requester_outranks = if (priority.req_hours - priority.dis_hours).abs() < f64::EPSILON {
         // Equal hours: check queue position
         match (&priority.req_queue, &priority.dis_queue) {
-            (None, Some(_)) => true,   // requester never called = higher priority
+            (None, Some(_)) => true,         // requester never called = higher priority
             (Some(rq), Some(dq)) => rq < dq, // earlier timestamp = higher priority
             _ => false,
         }
@@ -811,6 +835,9 @@ pub async fn review_bump_request(
         return Err(AppError::Forbidden);
     }
 
+    use validator::Validate;
+    req.validate()?;
+
     let mut tx = pool.begin().await?;
 
     // 1. Fetch + lock the bump request
@@ -845,6 +872,36 @@ pub async fn review_bump_request(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Verify shift hasn't started and event is still filled
+    let shift_check = sqlx::query!(
+        r#"
+        SELECT ss.date AS shift_date, st.start_time,
+               ce.status AS "status: CalloutStatus"
+        FROM callout_events ce
+        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE ce.id = $1
+        "#,
+        br.event_id
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if shift_check.status != CalloutStatus::Filled {
+        return Err(AppError::Conflict(
+            "Callout event is no longer filled".into(),
+        ));
+    }
+    let shift_start = shift_check
+        .shift_date
+        .with_time(shift_check.start_time)
+        .assume_utc();
+    if time::OffsetDateTime::now_utc() >= shift_start {
+        return Err(AppError::Conflict(
+            "Cannot approve bump after the shift has started".into(),
+        ));
+    }
+
     if req.approved {
         // 3a. Re-verify requesting user is still active in this org.
         let requester_ok = sqlx::query_scalar!(
@@ -876,7 +933,7 @@ pub async fn review_bump_request(
         .await?
         .flatten();
 
-        sqlx::query!(
+        let cancelled = sqlx::query!(
             r#"
             UPDATE assignments SET cancelled_at = NOW()
             WHERE scheduled_shift_id = $1 AND user_id = $2
@@ -888,8 +945,14 @@ pub async fn review_bump_request(
         .execute(&mut *tx)
         .await?;
 
+        if cancelled.rows_affected() == 0 {
+            return Err(AppError::Conflict(
+                "Displaced user's OT assignment is no longer active".into(),
+            ));
+        }
+
         // 3c. Insert new OT assignment for requester, copying ot_type from displaced.
-        sqlx::query!(
+        let inserted = sqlx::query!(
             r#"
             INSERT INTO assignments (id, scheduled_shift_id, user_id, is_overtime, created_by, ot_type)
             VALUES (gen_random_uuid(), $1, $2, true, $3, $4)
@@ -903,7 +966,13 @@ pub async fn review_bump_request(
         .execute(&mut *tx)
         .await?;
 
-        // 3c. Update bump request to approved
+        if inserted.rows_affected() == 0 {
+            return Err(AppError::Conflict(
+                "Requesting user already has an assignment for this shift".into(),
+            ));
+        }
+
+        // 3d. Update bump request to approved
         sqlx::query!(
             r#"
             UPDATE bump_requests
