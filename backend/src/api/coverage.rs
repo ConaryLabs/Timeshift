@@ -130,6 +130,11 @@ pub async fn update(
     .await?
     .ok_or_else(|| AppError::NotFound("Coverage requirement not found".into()))?;
 
+    if row.min_headcount < 0 || row.target_headcount < 0 || row.max_headcount < 0 {
+        return Err(AppError::BadRequest(
+            "Headcounts must be non-negative".into(),
+        ));
+    }
     if row.min_headcount > row.target_headcount || row.target_headcount > row.max_headcount {
         return Err(AppError::BadRequest(
             "Must have min <= target <= max".into(),
