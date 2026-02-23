@@ -18,7 +18,7 @@ use crate::{
 
 /// Deduct hours from leave balance when a leave request is approved.
 async fn deduct_leave_balance(
-    pool: &PgPool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
     user_id: Uuid,
     leave_type_id: Uuid,
@@ -40,7 +40,7 @@ async fn deduct_leave_balance(
         leave_request_id,
         reviewer_id,
     )
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
 
     // Upsert balance (subtract)
@@ -59,7 +59,7 @@ async fn deduct_leave_balance(
         leave_type_id,
         -hours.abs(),
     )
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
 
     Ok(())
@@ -67,7 +67,7 @@ async fn deduct_leave_balance(
 
 /// Refund hours to leave balance when a previously approved leave request is cancelled.
 async fn refund_leave_balance(
-    pool: &PgPool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
     user_id: Uuid,
     leave_type_id: Uuid,
@@ -89,7 +89,7 @@ async fn refund_leave_balance(
         leave_request_id,
         canceller_id,
     )
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
 
     // Upsert balance (add back)
@@ -108,7 +108,7 @@ async fn refund_leave_balance(
         leave_type_id,
         hours.abs(),
     )
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
 
     Ok(())
@@ -361,6 +361,8 @@ pub async fn cancel(
 
     let was_approved = request.status == LeaveStatus::Approved;
 
+    let mut tx = pool.begin().await?;
+
     sqlx::query!(
         r#"
         UPDATE leave_requests
@@ -369,15 +371,15 @@ pub async fn cancel(
         "#,
         id,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
-    // If the request was previously approved, refund the hours
+    // If the request was previously approved, refund the hours (within same transaction)
     if was_approved {
         if let Some(hours) = request.hours {
             if hours > 0.0 {
                 refund_leave_balance(
-                    &pool,
+                    &mut tx,
                     auth.org_id,
                     request.user_id,
                     request.leave_type_id,
@@ -389,6 +391,8 @@ pub async fn cancel(
             }
         }
     }
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -411,6 +415,8 @@ pub async fn review(
 
     let status = body.status;
 
+    let mut tx = pool.begin().await?;
+
     let rows_affected = sqlx::query!(
         r#"
         UPDATE leave_requests
@@ -428,7 +434,7 @@ pub async fn review(
         body.reviewer_notes,
         auth.org_id,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?
     .rows_affected();
 
@@ -456,15 +462,15 @@ pub async fn review(
         "#,
         id
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
-    // On approve: deduct hours from leave balance
+    // On approve: deduct hours from leave balance (within same transaction)
     if status == LeaveStatus::Approved {
         if let Some(hours) = r.hours {
             if hours > 0.0 {
                 deduct_leave_balance(
-                    &pool,
+                    &mut tx,
                     auth.org_id,
                     r.user_id,
                     r.leave_type_id,
@@ -476,6 +482,8 @@ pub async fn review(
             }
         }
     }
+
+    tx.commit().await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,

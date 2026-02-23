@@ -24,7 +24,9 @@ pub struct AssignmentView {
     pub date: time::Date,
     pub shift_name: String,
     pub shift_color: String,
+    #[serde(with = "crate::models::common::time_format")]
     pub start_time: time::Time,
+    #[serde(with = "crate::models::common::time_format")]
     pub end_time: time::Time,
     pub crosses_midnight: bool,
     pub user_id: Uuid,

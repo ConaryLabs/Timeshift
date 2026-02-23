@@ -475,12 +475,14 @@ pub async fn process_bids(
 
     org_guard::verify_period(&pool, period_id, auth.org_id).await?;
 
-    // Check period status
+    let mut tx = pool.begin().await?;
+
+    // Check period status inside transaction with FOR UPDATE to prevent concurrent processing
     let current_status = sqlx::query_scalar!(
-        r#"SELECT status AS "status: BidPeriodStatus" FROM schedule_periods WHERE id = $1"#,
+        r#"SELECT status AS "status: BidPeriodStatus" FROM schedule_periods WHERE id = $1 FOR UPDATE"#,
         period_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if current_status != BidPeriodStatus::Open {
@@ -488,8 +490,6 @@ pub async fn process_bids(
             "Bids can only be processed for periods in 'open' status".into(),
         ));
     }
-
-    let mut tx = pool.begin().await?;
 
     // Set status to in_progress during processing
     sqlx::query!(

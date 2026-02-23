@@ -6,6 +6,45 @@ pub mod time_format {
     pub use inner::{deserialize, serialize};
 }
 
+/// Serde module: serialize/deserialize `Option<time::Time>` as optional "HH:MM:SS" strings.
+pub mod time_format_option {
+    use serde::{self, Deserialize, Deserializer, Serializer};
+    use time::Time;
+    use time::format_description;
+
+    pub fn serialize<S>(time: &Option<Time>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match time {
+            Some(t) => {
+                let fmt = format_description::parse("[hour]:[minute]:[second]")
+                    .expect("valid format");
+                let s = t.format(&fmt).map_err(serde::ser::Error::custom)?;
+                serializer.serialize_some(&s)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Time>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt: Option<String> = Option::deserialize(deserializer)?;
+        match opt {
+            Some(s) => {
+                let fmt = format_description::parse("[hour]:[minute]:[second]")
+                    .map_err(serde::de::Error::custom)?;
+                Time::parse(&s, &fmt)
+                    .map(Some)
+                    .map_err(serde::de::Error::custom)
+            }
+            None => Ok(None),
+        }
+    }
+}
+
 /// Deserializes a field as `Some(value)` when present (even if null) and `None` when absent.
 /// Used for the double-Option pattern: `None` = field not sent, `Some(None)` = explicitly null,
 /// `Some(Some(v))` = set to value.

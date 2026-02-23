@@ -72,6 +72,7 @@ pub struct VacationPick {
 #[derive(Debug, Serialize)]
 pub struct VacationWindowDetail {
     pub window: VacationBidWindow,
+    pub round: i32,
     pub bids: Vec<VacationBid>,
     pub dates_taken: Vec<time::Date>,
 }

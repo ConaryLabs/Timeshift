@@ -320,27 +320,39 @@ pub async fn review(
         let mut tx = pool.begin().await?;
 
         // Swap user_ids on both assignments and set is_trade = true
-        sqlx::query!(
+        // Guard: verify assignments still belong to expected users (prevents stale swap)
+        let req_rows = sqlx::query!(
             r#"
             UPDATE assignments SET user_id = $2, is_trade = true
-            WHERE id = $1
+            WHERE id = $1 AND user_id = $3
             "#,
             r.requester_assignment_id,
             r.partner_id,
-        )
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            UPDATE assignments SET user_id = $2, is_trade = true
-            WHERE id = $1
-            "#,
-            r.partner_assignment_id,
             r.requester_id,
         )
         .execute(&mut *tx)
-        .await?;
+        .await?
+        .rows_affected();
+
+        let partner_rows = sqlx::query!(
+            r#"
+            UPDATE assignments SET user_id = $2, is_trade = true
+            WHERE id = $1 AND user_id = $3
+            "#,
+            r.partner_assignment_id,
+            r.requester_id,
+            r.partner_id,
+        )
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+        if req_rows == 0 || partner_rows == 0 {
+            // Rollback happens automatically when tx is dropped
+            return Err(AppError::Conflict(
+                "Assignments have changed since the trade was created. Trade cannot be approved.".into(),
+            ));
+        }
 
         sqlx::query!(
             r#"

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE assignments SET user_id = $2, is_trade = true\n            WHERE id = $1 AND user_id = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d754f1accc225b57f7d125531f5755a52b951c84320f71c143bfe10a1fa0b991"
+}
