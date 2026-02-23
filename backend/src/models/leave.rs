@@ -65,3 +65,10 @@ pub struct ReviewLeaveRequest {
     pub status: LeaveStatus,
     pub reviewer_notes: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct BulkReviewLeaveRequest {
+    pub ids: Vec<Uuid>,
+    pub action: LeaveStatus,
+    pub reviewer_notes: Option<String>,
+}

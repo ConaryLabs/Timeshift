@@ -18,7 +18,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
-import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useLeaveBalances } from '@/hooks/queries'
+import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useBulkReviewLeave, useLeaveBalances } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { LeaveRequest } from '@/api/leave'
 import { Card, CardContent } from '@/components/ui/card'
@@ -49,6 +49,7 @@ export default function LeavePage() {
   const { data: balances } = useLeaveBalances()
   const createMut = useCreateLeave()
   const reviewMut = useReviewLeave()
+  const bulkReviewMut = useBulkReviewLeave()
 
   const selectedBalance = balances?.find((b) => b.leave_type_id === form.leave_type_id)
 
@@ -246,6 +247,46 @@ export default function LeavePage() {
             <Button onClick={() => setShowForm(true)}>+ Request Leave</Button>
           ) : undefined}
           rowKey={(r) => r.id}
+          selectable={isManager && statusFilter === 'pending'}
+          toolbar={isManager && statusFilter === 'pending' ? (selectedKeys) => (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{selectedKeys.size} selected</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-green-700 hover:bg-green-50"
+                disabled={bulkReviewMut.isPending}
+                onClick={() => bulkReviewMut.mutate(
+                  { ids: [...selectedKeys], action: 'approved' },
+                  {
+                    onSuccess: (data) => {
+                      toast.success(`${data.reviewed} request(s) approved`)
+                    },
+                    onError: () => toast.error('Failed to bulk approve'),
+                  },
+                )}
+              >
+                Approve All
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-700 hover:bg-red-50"
+                disabled={bulkReviewMut.isPending}
+                onClick={() => bulkReviewMut.mutate(
+                  { ids: [...selectedKeys], action: 'denied' },
+                  {
+                    onSuccess: (data) => {
+                      toast.success(`${data.reviewed} request(s) denied`)
+                    },
+                    onError: () => toast.error('Failed to bulk deny'),
+                  },
+                )}
+              >
+                Deny All
+              </Button>
+            </div>
+          ) : undefined}
         />
       )}
 

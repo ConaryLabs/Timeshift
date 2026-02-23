@@ -11,7 +11,8 @@ use crate::{
     models::{
         common::PaginationParams,
         leave::{
-            CreateLeaveRequest, LeaveRequest, LeaveStatus, LeaveTypeRecord, ReviewLeaveRequest,
+            BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveStatus,
+            LeaveTypeRecord, ReviewLeaveRequest,
         },
     },
 };
@@ -509,6 +510,97 @@ pub async fn review(
         created_at: r.created_at,
         updated_at: r.updated_at,
     }))
+}
+
+pub async fn bulk_review(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(body): Json<BulkReviewLeaveRequest>,
+) -> Result<Json<serde_json::Value>> {
+    if !auth.role.can_approve_leave() {
+        return Err(AppError::Forbidden);
+    }
+
+    if !matches!(body.action, LeaveStatus::Approved | LeaveStatus::Denied) {
+        return Err(AppError::BadRequest(
+            "action must be 'approved' or 'denied'".into(),
+        ));
+    }
+
+    if body.ids.is_empty() {
+        return Err(AppError::BadRequest("ids must not be empty".into()));
+    }
+
+    if body.ids.len() > 100 {
+        return Err(AppError::BadRequest(
+            "Cannot bulk review more than 100 requests at once".into(),
+        ));
+    }
+
+    let mut tx = pool.begin().await?;
+    let mut reviewed = 0u64;
+
+    for id in &body.ids {
+        let rows_affected = sqlx::query!(
+            r#"
+            UPDATE leave_requests
+            SET status         = $2,
+                reviewed_by    = $3,
+                reviewer_notes = $4,
+                updated_at     = NOW()
+            WHERE id = $1
+              AND status = 'pending'
+              AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $5)
+            "#,
+            id,
+            body.action as LeaveStatus,
+            auth.id,
+            body.reviewer_notes,
+            auth.org_id,
+        )
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+        if rows_affected == 0 {
+            continue;
+        }
+
+        reviewed += rows_affected;
+
+        // On approve: deduct hours from leave balance
+        if body.action == LeaveStatus::Approved {
+            let r = sqlx::query!(
+                r#"
+                SELECT user_id, leave_type_id, hours::FLOAT8 AS hours
+                FROM leave_requests
+                WHERE id = $1
+                "#,
+                id,
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+
+            if let Some(hours) = r.hours {
+                if hours > 0.0 {
+                    deduct_leave_balance(
+                        &mut tx,
+                        auth.org_id,
+                        r.user_id,
+                        r.leave_type_id,
+                        hours,
+                        *id,
+                        auth.id,
+                    )
+                    .await?;
+                }
+            }
+        }
+    }
+
+    tx.commit().await?;
+
+    Ok(Json(serde_json::json!({ "ok": true, "reviewed": reviewed })))
 }
 
 // -- Leave Types --

@@ -9,8 +9,8 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::trade::{
-        CreateTradeRequest, RespondTradeRequest, ReviewTradeRequest, TradeListQuery, TradeRequest,
-        TradeStatus,
+        BulkReviewTradeRequest, CreateTradeRequest, RespondTradeRequest, ReviewTradeRequest,
+        TradeListQuery, TradeRequest, TradeStatus,
     },
     org_guard,
 };
@@ -435,6 +435,118 @@ pub async fn cancel(
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn bulk_review(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(body): Json<BulkReviewTradeRequest>,
+) -> Result<Json<serde_json::Value>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    if body.ids.is_empty() {
+        return Err(AppError::BadRequest("ids must not be empty".into()));
+    }
+
+    if body.ids.len() > 100 {
+        return Err(AppError::BadRequest(
+            "Cannot bulk review more than 100 trades at once".into(),
+        ));
+    }
+
+    let mut tx = pool.begin().await?;
+    let mut reviewed = 0u64;
+
+    for id in &body.ids {
+        // Lock and fetch the trade
+        let trade = sqlx::query!(
+            r#"
+            SELECT id, org_id, requester_id, partner_id,
+                   requester_assignment_id, partner_assignment_id,
+                   status AS "status: TradeStatus"
+            FROM trade_requests
+            WHERE id = $1 AND org_id = $2
+            FOR UPDATE
+            "#,
+            id,
+            auth.org_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let trade = match trade {
+            Some(t) if t.status == TradeStatus::PendingApproval => t,
+            _ => continue, // skip non-existent or non-pending trades
+        };
+
+        if body.approve {
+            // Swap user_ids on both assignments
+            let req_rows = sqlx::query!(
+                r#"
+                UPDATE assignments SET user_id = $2, is_trade = true
+                WHERE id = $1 AND user_id = $3
+                "#,
+                trade.requester_assignment_id,
+                trade.partner_id,
+                trade.requester_id,
+            )
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+            let partner_rows = sqlx::query!(
+                r#"
+                UPDATE assignments SET user_id = $2, is_trade = true
+                WHERE id = $1 AND user_id = $3
+                "#,
+                trade.partner_assignment_id,
+                trade.requester_id,
+                trade.partner_id,
+            )
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+            if req_rows == 0 || partner_rows == 0 {
+                // Assignments changed — skip this trade but don't fail the whole batch
+                continue;
+            }
+
+            sqlx::query!(
+                r#"
+                UPDATE trade_requests
+                SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                WHERE id = $1
+                "#,
+                id,
+                auth.id,
+                body.reviewer_notes,
+            )
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query!(
+                r#"
+                UPDATE trade_requests
+                SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                WHERE id = $1
+                "#,
+                id,
+                auth.id,
+                body.reviewer_notes,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        reviewed += 1;
+    }
+
+    tx.commit().await?;
+
+    Ok(Json(serde_json::json!({ "ok": true, "reviewed": reviewed })))
 }
 
 /// Helper: fetch a single trade with joined user names.

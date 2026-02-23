@@ -59,4 +59,7 @@ export const leaveApi = {
     id: string,
     body: { status: 'approved' | 'denied'; reviewer_notes?: string },
   ) => api.patch<LeaveRequest>(`/api/leave/${id}/review`, body).then((r) => r.data),
+
+  bulkReview: (body: { ids: string[]; action: 'approved' | 'denied'; reviewer_notes?: string }) =>
+    api.post<{ ok: boolean; reviewed: number }>('/api/leave/bulk-review', body).then((r) => r.data),
 }

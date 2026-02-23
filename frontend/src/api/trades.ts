@@ -48,4 +48,7 @@ export const tradesApi = {
 
   cancel: (id: string) =>
     api.delete(`/api/trades/${id}`).then((r) => r.data),
+
+  bulkReview: (body: { ids: string[]; approve: boolean; reviewer_notes?: string }) =>
+    api.post<{ ok: boolean; reviewed: number }>('/api/trades/bulk-review', body).then((r) => r.data),
 }

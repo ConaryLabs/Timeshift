@@ -53,6 +53,13 @@ pub struct ReviewTradeRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct BulkReviewTradeRequest {
+    pub ids: Vec<Uuid>,
+    pub approve: bool,
+    pub reviewer_notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct TradeListQuery {
     pub status: Option<String>,
     pub user_id: Option<Uuid>,
