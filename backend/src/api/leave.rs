@@ -334,7 +334,9 @@ pub async fn cancel(
 ) -> Result<Json<serde_json::Value>> {
     let can_cancel_others = auth.role.can_approve_leave();
 
-    // Fetch the request first so we know its status and hours for potential refund
+    let mut tx = pool.begin().await?;
+
+    // Fetch inside transaction with FOR UPDATE to prevent double-refund race
     let request = sqlx::query!(
         r#"
         SELECT lr.id, lr.user_id, lr.leave_type_id,
@@ -345,13 +347,14 @@ pub async fn cancel(
         WHERE lr.id = $1 AND u.org_id = $2
           AND lr.status IN ('pending', 'approved')
           AND ($3 OR lr.user_id = $4)
+        FOR UPDATE OF lr
         "#,
         id,
         auth.org_id,
         can_cancel_others,
         auth.id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| {
         AppError::NotFound(
@@ -360,8 +363,6 @@ pub async fn cancel(
     })?;
 
     let was_approved = request.status == LeaveStatus::Approved;
-
-    let mut tx = pool.begin().await?;
 
     sqlx::query!(
         r#"

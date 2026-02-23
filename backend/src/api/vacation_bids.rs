@@ -517,29 +517,28 @@ pub async fn process_bids(
         return Err(AppError::Forbidden);
     }
 
-    // Verify period
-    let period = sqlx::query_as!(
-        VacationBidPeriod,
+    let mut tx = pool.begin().await?;
+
+    // Lock period row inside transaction to prevent concurrent processing
+    let period_status = sqlx::query_scalar!(
         r#"
-        SELECT id, org_id, year, round, status,
-               opens_at, closes_at, created_at
+        SELECT status
         FROM vacation_bid_periods
         WHERE id = $1 AND org_id = $2
+        FOR UPDATE
         "#,
         period_id,
         auth.org_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Vacation bid period not found".into()))?;
 
-    if period.status != "open" {
+    if period_status != "open" {
         return Err(AppError::BadRequest(
             "Period must be in open status to process bids".into(),
         ));
     }
-
-    let mut tx = pool.begin().await?;
 
     // Get all windows in seniority order
     let windows = sqlx::query!(

@@ -12,6 +12,5 @@ CREATE UNIQUE INDEX uq_ot_queue_position
 CREATE UNIQUE INDEX uq_leave_request_lines_date
     ON leave_request_lines (leave_request_id, date);
 
--- Issue 15: callout_events.current_step default to first step for new events
-ALTER TABLE callout_events
-    ALTER COLUMN current_step SET DEFAULT 'volunteers';
+-- Issue 15: backfill any callout_events rows with NULL current_step
+UPDATE callout_events SET current_step = 'volunteers' WHERE current_step IS NULL;
