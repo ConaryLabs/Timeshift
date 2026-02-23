@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                (SELECT ss.date FROM assignments a\n                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n                 WHERE a.id = $1) AS req_date,\n                (SELECT st.start_time FROM assignments a\n                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n                 JOIN shift_templates st ON st.id = ss.shift_template_id\n                 WHERE a.id = $1) AS req_start,\n                (SELECT ss.date FROM assignments a\n                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n                 WHERE a.id = $2) AS par_date,\n                (SELECT st.start_time FROM assignments a\n                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n                 JOIN shift_templates st ON st.id = ss.shift_template_id\n                 WHERE a.id = $2) AS par_start\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "req_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "req_start",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 2,
+        "name": "par_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "par_start",
+        "type_info": "Time"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "9f1dd7b7277436b116230ad2b1f1cd2a543e056a3ae85b87b478e1f736b63436"
+}

@@ -92,7 +92,7 @@ pub async fn create(
         return Err(AppError::BadRequest("Cannot trade past assignments".into()));
     }
 
-    // Wrap conflict check + INSERT in a transaction to prevent TOCTOU race
+    // Wrap all checks + INSERT in a transaction to prevent TOCTOU race
     let mut tx = pool.begin().await?;
 
     // Check for existing pending/approved trades on target dates for either user
@@ -122,6 +122,50 @@ pub async fn create(
     if conflict.unwrap_or(false) {
         return Err(AppError::Conflict(
             "A pending or approved trade already exists for one of these dates".into(),
+        ));
+    }
+
+    // M306: Block if either assignment has already been traded (is_trade = true)
+    let already_traded = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM assignments
+            WHERE id = ANY(ARRAY[$1::uuid, $2::uuid]) AND is_trade = true
+        ) AS "exists!"
+        "#,
+        body.requester_assignment_id,
+        body.partner_assignment_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if already_traded {
+        return Err(AppError::Conflict(
+            "One or both shifts have already been traded".into(),
+        ));
+    }
+
+    // M306: Block if either assignment is already in an active trade request
+    let already_in_trade = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM trade_requests
+            WHERE (requester_assignment_id = ANY(ARRAY[$1::uuid, $2::uuid])
+                OR partner_assignment_id = ANY(ARRAY[$1::uuid, $2::uuid]))
+              AND status IN ('pending_partner', 'pending_approval')
+              AND org_id = $3
+        ) AS "exists!"
+        "#,
+        body.requester_assignment_id,
+        body.partner_assignment_id,
+        auth.org_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if already_in_trade {
+        return Err(AppError::Conflict(
+            "One or both shifts already have an active trade request".into(),
         ));
     }
 
@@ -255,6 +299,7 @@ pub async fn respond(
     let r = sqlx::query!(
         r#"
         SELECT id, org_id, requester_id, partner_id,
+               requester_assignment_id, partner_assignment_id,
                status AS "status: TradeStatus"
         FROM trade_requests
         WHERE id = $1 AND org_id = $2
@@ -296,6 +341,41 @@ pub async fn respond(
     )
     .execute(&mut *tx)
     .await?;
+
+    // M312: When partner accepts, seed the trade_approvals table with all
+    // supervisors of the two affected shifts (via slot → team → supervisor_id).
+    // If no supervisors found, no rows are inserted → legacy single-supervisor flow.
+    if body.accept {
+        let supervisor_ids = sqlx::query_scalar!(
+            r#"
+            SELECT DISTINCT t.supervisor_id AS "supervisor_id!"
+            FROM assignments a
+            JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+            JOIN shift_slots slot ON slot.id = ss.slot_id
+            JOIN teams t ON t.id = slot.team_id
+            WHERE a.id = ANY(ARRAY[$1::uuid, $2::uuid]) AND t.supervisor_id IS NOT NULL
+            "#,
+            r.requester_assignment_id,
+            r.partner_assignment_id,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        for supervisor_id in &supervisor_ids {
+            sqlx::query!(
+                r#"
+                INSERT INTO trade_approvals (org_id, trade_id, supervisor_id)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (trade_id, supervisor_id) DO NOTHING
+                "#,
+                r.org_id,
+                id,
+                supervisor_id,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
 
     tx.commit().await?;
 
@@ -346,68 +426,225 @@ pub async fn review(
         ));
     }
 
-    if body.status == "approved" {
-        // Swap user_ids on both assignments and set is_trade = true
-        // Guard: verify assignments still belong to expected users (prevents stale swap)
-        let req_rows = sqlx::query!(
-            r#"
-            UPDATE assignments SET user_id = $2, is_trade = true
-            WHERE id = $1 AND user_id = $3
-            "#,
-            r.requester_assignment_id,
-            r.partner_id,
-            r.requester_id,
-        )
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
+    // M318: 1-hour approval cutoff — fetch shift dates and start times for both assignments
+    let timing = sqlx::query!(
+        r#"
+        SELECT
+            (SELECT ss.date FROM assignments a
+             JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+             WHERE a.id = $1) AS req_date,
+            (SELECT st.start_time FROM assignments a
+             JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+             JOIN shift_templates st ON st.id = ss.shift_template_id
+             WHERE a.id = $1) AS req_start,
+            (SELECT ss.date FROM assignments a
+             JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+             WHERE a.id = $2) AS par_date,
+            (SELECT st.start_time FROM assignments a
+             JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+             JOIN shift_templates st ON st.id = ss.shift_template_id
+             WHERE a.id = $2) AS par_start
+        "#,
+        r.requester_assignment_id,
+        r.partner_assignment_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
 
-        let partner_rows = sqlx::query!(
-            r#"
-            UPDATE assignments SET user_id = $2, is_trade = true
-            WHERE id = $1 AND user_id = $3
-            "#,
-            r.partner_assignment_id,
-            r.requester_id,
-            r.partner_id,
-        )
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-        if req_rows == 0 || partner_rows == 0 {
-            // Rollback happens automatically when tx is dropped
-            return Err(AppError::Conflict(
-                "Assignments have changed since the trade was created. Trade cannot be approved."
-                    .into(),
-            ));
+    let now_utc = time::OffsetDateTime::now_utc();
+    for (date_opt, time_opt) in [
+        (timing.req_date, timing.req_start),
+        (timing.par_date, timing.par_start),
+    ] {
+        if let (Some(d), Some(t)) = (date_opt, time_opt) {
+            let shift_start = time::PrimitiveDateTime::new(d, t).assume_utc();
+            let minutes_until = (shift_start - now_utc).whole_minutes();
+            if minutes_until < 60 {
+                return Err(AppError::Conflict(
+                    "Cannot approve a trade within 1 hour of shift start".into(),
+                ));
+            }
         }
+    }
 
-        sqlx::query!(
-            r#"
-            UPDATE trade_requests
-            SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-            WHERE id = $1
-            "#,
-            id,
-            auth.id,
-            body.reviewer_notes,
-        )
-        .execute(&mut *tx)
-        .await?;
+    // M312: Check for trade_approvals rows to determine which review path to use
+    let approval_count = sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "count!" FROM trade_approvals WHERE trade_id = $1"#,
+        id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if approval_count == 0 {
+        // Legacy path: any supervisor can approve/deny directly
+        if body.status == "approved" {
+            // Swap user_ids on both assignments and set is_trade = true
+            // Guard: verify assignments still belong to expected users (prevents stale swap)
+            let req_rows = sqlx::query!(
+                r#"
+                UPDATE assignments SET user_id = $2, is_trade = true
+                WHERE id = $1 AND user_id = $3
+                "#,
+                r.requester_assignment_id,
+                r.partner_id,
+                r.requester_id,
+            )
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+            let partner_rows = sqlx::query!(
+                r#"
+                UPDATE assignments SET user_id = $2, is_trade = true
+                WHERE id = $1 AND user_id = $3
+                "#,
+                r.partner_assignment_id,
+                r.requester_id,
+                r.partner_id,
+            )
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+            if req_rows == 0 || partner_rows == 0 {
+                // Rollback happens automatically when tx is dropped
+                return Err(AppError::Conflict(
+                    "Assignments have changed since the trade was created. Trade cannot be approved."
+                        .into(),
+                ));
+            }
+
+            sqlx::query!(
+                r#"
+                UPDATE trade_requests
+                SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                WHERE id = $1
+                "#,
+                id,
+                auth.id,
+                body.reviewer_notes,
+            )
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query!(
+                r#"
+                UPDATE trade_requests
+                SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                WHERE id = $1
+                "#,
+                id,
+                auth.id,
+                body.reviewer_notes,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
     } else {
-        sqlx::query!(
+        // Multi-supervisor path: only supervisors with a pending approval row can act
+        let my_approval = sqlx::query!(
             r#"
-            UPDATE trade_requests
-            SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-            WHERE id = $1
+            SELECT id FROM trade_approvals
+            WHERE trade_id = $1 AND supervisor_id = $2 AND status = 'pending'
             "#,
             id,
             auth.id,
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+        // Record this supervisor's decision
+        sqlx::query!(
+            r#"
+            UPDATE trade_approvals
+            SET status = $2, reviewed_at = NOW(), reviewer_notes = $3
+            WHERE id = $1
+            "#,
+            my_approval.id,
+            body.status,
             body.reviewer_notes,
         )
         .execute(&mut *tx)
         .await?;
+
+        if body.status == "denied" {
+            // Any supervisor denial immediately denies the trade
+            sqlx::query!(
+                r#"
+                UPDATE trade_requests
+                SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                WHERE id = $1
+                "#,
+                id,
+                auth.id,
+                body.reviewer_notes,
+            )
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            // Check whether all supervisors have now approved
+            let remaining = sqlx::query_scalar!(
+                r#"
+                SELECT COUNT(*) AS "count!"
+                FROM trade_approvals
+                WHERE trade_id = $1 AND status != 'approved'
+                "#,
+                id,
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+
+            if remaining == 0 {
+                // All supervisors approved — do the assignment swap
+                let req_rows = sqlx::query!(
+                    r#"
+                    UPDATE assignments SET user_id = $2, is_trade = true
+                    WHERE id = $1 AND user_id = $3
+                    "#,
+                    r.requester_assignment_id,
+                    r.partner_id,
+                    r.requester_id,
+                )
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
+
+                let partner_rows = sqlx::query!(
+                    r#"
+                    UPDATE assignments SET user_id = $2, is_trade = true
+                    WHERE id = $1 AND user_id = $3
+                    "#,
+                    r.partner_assignment_id,
+                    r.requester_id,
+                    r.partner_id,
+                )
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
+
+                if req_rows == 0 || partner_rows == 0 {
+                    return Err(AppError::Conflict(
+                        "Assignments have changed since the trade was created. Trade cannot be approved."
+                            .into(),
+                    ));
+                }
+
+                sqlx::query!(
+                    r#"
+                    UPDATE trade_requests
+                    SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                    WHERE id = $1
+                    "#,
+                    id,
+                    auth.id,
+                    body.reviewer_notes,
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+            // else: still waiting on other supervisors — trade stays pending_approval
+        }
     }
 
     tx.commit().await?;
@@ -499,76 +736,248 @@ pub async fn bulk_review(
             _ => continue, // skip non-existent or non-pending trades
         };
 
-        if body.status == "approved" {
-            // Swap user_ids on both assignments
-            let req_rows = sqlx::query!(
-                r#"
-                UPDATE assignments SET user_id = $2, is_trade = true
-                WHERE id = $1 AND user_id = $3
-                "#,
-                trade.requester_assignment_id,
-                trade.partner_id,
-                trade.requester_id,
-            )
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+        // M318: Skip trades within 1 hour of a shift start
+        let timing = sqlx::query!(
+            r#"
+            SELECT
+                (SELECT ss.date FROM assignments a
+                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+                 WHERE a.id = $1) AS req_date,
+                (SELECT st.start_time FROM assignments a
+                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+                 JOIN shift_templates st ON st.id = ss.shift_template_id
+                 WHERE a.id = $1) AS req_start,
+                (SELECT ss.date FROM assignments a
+                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+                 WHERE a.id = $2) AS par_date,
+                (SELECT st.start_time FROM assignments a
+                 JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+                 JOIN shift_templates st ON st.id = ss.shift_template_id
+                 WHERE a.id = $2) AS par_start
+            "#,
+            trade.requester_assignment_id,
+            trade.partner_assignment_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
 
-            let partner_rows = sqlx::query!(
-                r#"
-                UPDATE assignments SET user_id = $2, is_trade = true
-                WHERE id = $1 AND user_id = $3
-                "#,
-                trade.partner_assignment_id,
-                trade.requester_id,
-                trade.partner_id,
-            )
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+        let now_utc = time::OffsetDateTime::now_utc();
+        let mut timing_blocked = false;
+        for (date_opt, time_opt) in [
+            (timing.req_date, timing.req_start),
+            (timing.par_date, timing.par_start),
+        ] {
+            if let (Some(d), Some(t)) = (date_opt, time_opt) {
+                let shift_start = time::PrimitiveDateTime::new(d, t).assume_utc();
+                if (shift_start - now_utc).whole_minutes() < 60 {
+                    timing_blocked = true;
+                    break;
+                }
+            }
+        }
+        if timing_blocked {
+            continue; // leave trade in pending_approval for manual review
+        }
 
-            if req_rows == 0 || partner_rows == 0 {
-                // Assignments changed — deny with explanation instead of silently skipping
+        // M312: Check for trade_approvals rows
+        let approval_count = sqlx::query_scalar!(
+            r#"SELECT COUNT(*) AS "count!" FROM trade_approvals WHERE trade_id = $1"#,
+            id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if approval_count == 0 {
+            // Legacy path
+            if body.status == "approved" {
+                let req_rows = sqlx::query!(
+                    r#"
+                    UPDATE assignments SET user_id = $2, is_trade = true
+                    WHERE id = $1 AND user_id = $3
+                    "#,
+                    trade.requester_assignment_id,
+                    trade.partner_id,
+                    trade.requester_id,
+                )
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
+
+                let partner_rows = sqlx::query!(
+                    r#"
+                    UPDATE assignments SET user_id = $2, is_trade = true
+                    WHERE id = $1 AND user_id = $3
+                    "#,
+                    trade.partner_assignment_id,
+                    trade.requester_id,
+                    trade.partner_id,
+                )
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
+
+                if req_rows == 0 || partner_rows == 0 {
+                    // Assignments changed — deny with explanation
+                    sqlx::query!(
+                        r#"
+                        UPDATE trade_requests
+                        SET status = 'denied', reviewed_by = $2,
+                            reviewer_notes = 'Assignments changed since trade was created',
+                            updated_at = NOW()
+                        WHERE id = $1
+                        "#,
+                        id,
+                        auth.id,
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                    reviewed += 1;
+                    continue;
+                }
+
                 sqlx::query!(
                     r#"
                     UPDATE trade_requests
-                    SET status = 'denied', reviewed_by = $2, reviewer_notes = 'Assignments changed since trade was created', updated_at = NOW()
+                    SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
                     WHERE id = $1
                     "#,
                     id,
                     auth.id,
+                    body.reviewer_notes,
                 )
                 .execute(&mut *tx)
                 .await?;
-                reviewed += 1;
-                continue;
+            } else {
+                sqlx::query!(
+                    r#"
+                    UPDATE trade_requests
+                    SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                    WHERE id = $1
+                    "#,
+                    id,
+                    auth.id,
+                    body.reviewer_notes,
+                )
+                .execute(&mut *tx)
+                .await?;
             }
+        } else {
+            // Multi-supervisor path: only process if this supervisor has a pending row
+            let my_approval = sqlx::query!(
+                r#"
+                SELECT id FROM trade_approvals
+                WHERE trade_id = $1 AND supervisor_id = $2 AND status = 'pending'
+                "#,
+                id,
+                auth.id,
+            )
+            .fetch_optional(&mut *tx)
+            .await?;
+
+            let my_approval = match my_approval {
+                Some(a) => a,
+                None => continue, // not required to approve this trade — skip
+            };
 
             sqlx::query!(
                 r#"
-                UPDATE trade_requests
-                SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                UPDATE trade_approvals
+                SET status = $2, reviewed_at = NOW(), reviewer_notes = $3
                 WHERE id = $1
                 "#,
-                id,
-                auth.id,
+                my_approval.id,
+                body.status,
                 body.reviewer_notes,
             )
             .execute(&mut *tx)
             .await?;
-        } else {
-            sqlx::query!(
-                r#"
-                UPDATE trade_requests
-                SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-                WHERE id = $1
-                "#,
-                id,
-                auth.id,
-                body.reviewer_notes,
-            )
-            .execute(&mut *tx)
-            .await?;
+
+            if body.status == "denied" {
+                sqlx::query!(
+                    r#"
+                    UPDATE trade_requests
+                    SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                    WHERE id = $1
+                    "#,
+                    id,
+                    auth.id,
+                    body.reviewer_notes,
+                )
+                .execute(&mut *tx)
+                .await?;
+            } else {
+                // Check if all supervisors have approved
+                let remaining = sqlx::query_scalar!(
+                    r#"
+                    SELECT COUNT(*) AS "count!"
+                    FROM trade_approvals
+                    WHERE trade_id = $1 AND status != 'approved'
+                    "#,
+                    id,
+                )
+                .fetch_one(&mut *tx)
+                .await?;
+
+                if remaining == 0 {
+                    let req_rows = sqlx::query!(
+                        r#"
+                        UPDATE assignments SET user_id = $2, is_trade = true
+                        WHERE id = $1 AND user_id = $3
+                        "#,
+                        trade.requester_assignment_id,
+                        trade.partner_id,
+                        trade.requester_id,
+                    )
+                    .execute(&mut *tx)
+                    .await?
+                    .rows_affected();
+
+                    let partner_rows = sqlx::query!(
+                        r#"
+                        UPDATE assignments SET user_id = $2, is_trade = true
+                        WHERE id = $1 AND user_id = $3
+                        "#,
+                        trade.partner_assignment_id,
+                        trade.requester_id,
+                        trade.partner_id,
+                    )
+                    .execute(&mut *tx)
+                    .await?
+                    .rows_affected();
+
+                    if req_rows == 0 || partner_rows == 0 {
+                        sqlx::query!(
+                            r#"
+                            UPDATE trade_requests
+                            SET status = 'denied', reviewed_by = $2,
+                                reviewer_notes = 'Assignments changed since trade was created',
+                                updated_at = NOW()
+                            WHERE id = $1
+                            "#,
+                            id,
+                            auth.id,
+                        )
+                        .execute(&mut *tx)
+                        .await?;
+                        reviewed += 1;
+                        continue;
+                    }
+
+                    sqlx::query!(
+                        r#"
+                        UPDATE trade_requests
+                        SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
+                        WHERE id = $1
+                        "#,
+                        id,
+                        auth.id,
+                        body.reviewer_notes,
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                }
+                // else: still waiting on other supervisors — trade stays pending_approval
+            }
         }
 
         reviewed += 1;
@@ -576,7 +985,9 @@ pub async fn bulk_review(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true, "reviewed": reviewed })))
+    Ok(Json(
+        serde_json::json!({ "ok": true, "reviewed": reviewed }),
+    ))
 }
 
 /// Helper: fetch a single trade with joined user names.
