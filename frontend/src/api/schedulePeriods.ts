@@ -12,6 +12,7 @@ export interface SchedulePeriod {
   status: BidPeriodStatus
   bid_opens_at: string | null
   bid_closes_at: string | null
+  bargaining_unit: string | null
   created_at: string
 }
 
@@ -47,7 +48,7 @@ export const schedulePeriodsApi = {
   list: () =>
     api.get<SchedulePeriod[]>('/api/schedule/periods').then((r) => r.data),
 
-  create: (body: { name: string; start_date: string; end_date: string }) =>
+  create: (body: { name: string; start_date: string; end_date: string; bargaining_unit?: string | null }) =>
     api.post<SchedulePeriod>('/api/schedule/periods', body).then((r) => r.data),
 
   assignSlot: (periodId: string, body: { slot_id: string; user_id: string }) =>

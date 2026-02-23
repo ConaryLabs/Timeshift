@@ -12,6 +12,10 @@ export interface BidWindow {
   opens_at: string
   closes_at: string
   submitted_at: string | null
+  unlocked_at: string | null
+  approved_at: string | null
+  approved_by: string | null
+  is_job_share: boolean
 }
 
 export interface AvailableSlot {
@@ -25,6 +29,7 @@ export interface AvailableSlot {
   days_of_week: number[]
   label: string | null
   already_awarded: boolean
+  is_flex: boolean
 }
 
 export interface BidSubmissionView {
@@ -64,4 +69,7 @@ export const biddingApi = {
 
   processBids: (periodId: string) =>
     api.post(`/api/schedule/periods/${periodId}/process-bids`).then((r) => r.data),
+
+  approveBidWindow: (windowId: string) =>
+    api.post(`/api/bid-windows/${windowId}/approve`).then((r) => r.data),
 }

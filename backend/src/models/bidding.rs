@@ -25,8 +25,14 @@ pub struct BidWindow {
     pub opens_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub closes_at: OffsetDateTime,
-    #[serde(with = "time::serde::rfc3339::option")]
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub submitted_at: Option<OffsetDateTime>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub unlocked_at: Option<OffsetDateTime>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub approved_at: Option<OffsetDateTime>,
+    pub approved_by: Option<Uuid>,
+    pub is_job_share: bool,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -40,6 +46,10 @@ pub struct BidWindowRow {
     pub opens_at: OffsetDateTime,
     pub closes_at: OffsetDateTime,
     pub submitted_at: Option<OffsetDateTime>,
+    pub unlocked_at: Option<OffsetDateTime>,
+    pub approved_at: Option<OffsetDateTime>,
+    pub approved_by: Option<Uuid>,
+    pub is_job_share: bool,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -96,6 +106,7 @@ pub struct AvailableSlot {
     pub days_of_week: Vec<i32>,
     pub label: Option<String>,
     pub already_awarded: bool,
+    pub is_flex: bool,
 }
 
 #[derive(Debug, Serialize)]

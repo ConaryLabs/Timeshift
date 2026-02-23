@@ -987,6 +987,16 @@ export function useProcessBids() {
   })
 }
 
+export function useApproveBidWindow() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (windowId: string) => biddingApi.approveBidWindow(windowId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.bidding.all })
+    },
+  })
+}
+
 // -- Employee Portal --
 
 export function useMyPreferences() {

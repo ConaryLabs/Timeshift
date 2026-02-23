@@ -14,12 +14,12 @@ import type { AvailableSlot } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function getWindowStatus(window: { opens_at: string; closes_at: string; submitted_at: string | null }) {
+function getWindowStatus(window: { opens_at: string; closes_at: string; submitted_at: string | null; unlocked_at: string | null }) {
+  if (!window.unlocked_at) return 'locked'
+  if (window.submitted_at) return 'submitted'
   const now = new Date()
   const opens = new Date(window.opens_at)
   const closes = new Date(window.closes_at)
-
-  if (window.submitted_at) return 'submitted'
   if (now < opens) return 'upcoming'
   if (now > closes) return 'closed'
   return 'open'
@@ -114,6 +114,7 @@ export default function BidPage() {
   }
 
   const statusBadge = {
+    locked: <Badge variant="secondary"><Lock className="w-3 h-3 mr-1" />Locked</Badge>,
     upcoming: <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />Upcoming</Badge>,
     open: <Badge className="bg-green-600 hover:bg-green-700"><Clock className="w-3 h-3 mr-1" />Open</Badge>,
     submitted: <Badge className="bg-blue-600 hover:bg-blue-700"><Check className="w-3 h-3 mr-1" />Submitted</Badge>,
@@ -128,8 +129,29 @@ export default function BidPage() {
       <PageHeader
         title="Shift Bid"
         description={`Seniority Rank #${bidWindow.seniority_rank} - ${bidWindow.first_name} ${bidWindow.last_name}`}
-        actions={statusBadge}
+        actions={
+          <div className="flex items-center gap-2">
+            {bidWindow.is_job_share && (
+              <Badge variant="outline" className="border-purple-300 text-purple-700">Job Share</Badge>
+            )}
+            {statusBadge}
+          </div>
+        }
       />
+
+      {/* Locked banner */}
+      {status === 'locked' && (
+        <Card className="mb-6 border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-amber-800">
+              <Lock className="w-5 h-5 shrink-0" />
+              <p className="text-sm">
+                Your bid window is locked. A supervisor must approve the previous employee's bid before you can submit.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Timing info */}
       <Card className="mb-6">
@@ -228,7 +250,12 @@ export default function BidPage() {
                         #{index + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{slot.shift_template_name}</div>
+                        <div className="font-medium text-sm flex items-center gap-1.5">
+                          {slot.shift_template_name}
+                          {slot.is_flex && (
+                            <Badge variant="outline" className="text-xs border-teal-300 text-teal-700 py-0 h-5">Flex</Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {slot.team_name} · {formatTime(slot.start_time)} - {formatTime(slot.end_time)} · {slot.classification_abbreviation}
                         </div>
@@ -315,10 +342,13 @@ export default function BidPage() {
                         }`}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">
+                          <div className="font-medium text-sm flex items-center gap-1.5">
                             {slot.shift_template_name}
                             {slot.label && (
-                              <span className="ml-2 text-muted-foreground">({slot.label})</span>
+                              <span className="text-muted-foreground">({slot.label})</span>
+                            )}
+                            {slot.is_flex && (
+                              <Badge variant="outline" className="text-xs border-teal-300 text-teal-700 py-0 h-5">Flex</Badge>
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground">

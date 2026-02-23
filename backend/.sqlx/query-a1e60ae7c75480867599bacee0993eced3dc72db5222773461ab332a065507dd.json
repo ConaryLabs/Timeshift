@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT bs.id, bs.slot_id, bs.preference_rank,\n                   ss.is_flex AS \"is_flex!\", ss.classification_id\n            FROM bid_submissions bs\n            JOIN shift_slots ss ON ss.id = bs.slot_id\n            WHERE bs.bid_window_id = $1\n            ORDER BY bs.preference_rank ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slot_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "preference_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_flex!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a1e60ae7c75480867599bacee0993eced3dc72db5222773461ab332a065507dd"
+}

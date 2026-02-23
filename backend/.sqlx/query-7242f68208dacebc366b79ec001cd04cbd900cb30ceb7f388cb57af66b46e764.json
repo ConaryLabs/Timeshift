@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT bw.id, bw.period_id, bw.user_id,\n                   u.first_name, u.last_name,\n                   bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at\n            FROM bid_windows bw\n            JOIN users u ON u.id = bw.user_id\n            WHERE bw.period_id = $1\n            ORDER BY bw.seniority_rank\n            ",
+  "query": "\n            SELECT bw.id, bw.period_id, bw.user_id,\n                   u.first_name, u.last_name,\n                   bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,\n                   bw.unlocked_at, bw.approved_at,\n                   bw.approved_by AS \"approved_by?\",\n                   (u.employee_type::TEXT = 'job_share') AS \"is_job_share!\"\n            FROM bid_windows bw\n            JOIN users u ON u.id = bw.user_id\n            WHERE bw.period_id = $1\n            ORDER BY bw.seniority_rank\n            ",
   "describe": {
     "columns": [
       {
@@ -47,6 +47,26 @@
         "ordinal": 8,
         "name": "submitted_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "unlocked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "approved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "approved_by?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "is_job_share!",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -63,8 +83,12 @@
       false,
       false,
       false,
-      true
+      true,
+      true,
+      true,
+      true,
+      null
     ]
   },
-  "hash": "ff233b65e4b65382b06bb7b95a18a6a841a21bc17f66dfbdb90c7da1543bb456"
+  "hash": "7242f68208dacebc366b79ec001cd04cbd900cb30ceb7f388cb57af66b46e764"
 }

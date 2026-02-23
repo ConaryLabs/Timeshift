@@ -191,6 +191,7 @@ pub async fn list_periods(
         SELECT id, org_id, name, start_date, end_date, is_active,
                status AS "status: BidPeriodStatus",
                bid_opens_at, bid_closes_at,
+               bargaining_unit,
                created_at
         FROM schedule_periods
         WHERE org_id = $1
@@ -218,6 +219,7 @@ pub async fn get_period(
         SELECT id, org_id, name, start_date, end_date, is_active,
                status AS "status: BidPeriodStatus",
                bid_opens_at, bid_closes_at,
+               bargaining_unit,
                created_at
         FROM schedule_periods
         WHERE id = $1 AND org_id = $2
@@ -247,11 +249,12 @@ pub async fn create_period(
     let row = sqlx::query_as!(
         SchedulePeriod,
         r#"
-        INSERT INTO schedule_periods (id, org_id, name, start_date, end_date)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO schedule_periods (id, org_id, name, start_date, end_date, bargaining_unit)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, org_id, name, start_date, end_date, is_active,
                   status AS "status: BidPeriodStatus",
                   bid_opens_at, bid_closes_at,
+                  bargaining_unit,
                   created_at
         "#,
         Uuid::new_v4(),
@@ -259,6 +262,7 @@ pub async fn create_period(
         req.name,
         req.start_date,
         req.end_date,
+        req.bargaining_unit,
     )
     .fetch_one(&pool)
     .await?;
