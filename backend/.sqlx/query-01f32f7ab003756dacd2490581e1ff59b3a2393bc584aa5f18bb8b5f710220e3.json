@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            r.id, r.org_id, r.date, r.start_time, r.end_time,\n            CAST(r.hours AS FLOAT8) AS \"hours!\",\n            r.classification_id,\n            cl.name AS classification_name,\n            r.ot_reason_id,\n            orr.name AS \"ot_reason_name?\",\n            r.location,\n            r.is_fixed_coverage,\n            r.notes,\n            r.status,\n            r.created_by,\n            (cu.first_name || ' ' || cu.last_name) AS \"created_by_name!\",\n            r.created_at,\n            r.updated_at,\n            r.cancelled_at,\n            r.cancelled_by,\n            (SELECT COUNT(*) FROM ot_request_volunteers v\n             WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS \"volunteer_count!\",\n            (SELECT COUNT(*) FROM ot_request_assignments a\n             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS \"assignment_count!\"\n        FROM ot_requests r\n        JOIN classifications cl ON cl.id = r.classification_id\n        JOIN users cu ON cu.id = r.created_by\n        LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id\n        WHERE r.id = $1\n        ",
+  "query": "\n        SELECT\n            r.id, r.org_id, r.date, r.start_time, r.end_time,\n            CAST(r.hours AS FLOAT8) AS \"hours!\",\n            r.classification_id,\n            cl.name AS classification_name,\n            r.ot_reason_id,\n            orr.name AS \"ot_reason_name?\",\n            r.location,\n            r.is_fixed_coverage,\n            r.notes,\n            r.status,\n            r.created_by,\n            (cu.first_name || ' ' || cu.last_name) AS \"created_by_name!\",\n            r.created_at,\n            r.updated_at,\n            r.cancelled_at,\n            r.cancelled_by,\n            (SELECT COUNT(*) FROM ot_request_volunteers v\n             WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS \"volunteer_count!\",\n            (SELECT COUNT(*) FROM ot_request_assignments a\n             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS \"assignment_count!\"\n        FROM ot_requests r\n        JOIN classifications cl ON cl.id = r.classification_id\n        JOIN users cu ON cu.id = r.created_by\n        LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id\n        WHERE r.id = $1 AND r.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -116,6 +116,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -144,5 +145,5 @@
       null
     ]
   },
-  "hash": "364a1161da09bce7e9bef818ede48bcea4e89a5807dae33b5d525a097d3d0aa5"
+  "hash": "01f32f7ab003756dacd2490581e1ff59b3a2393bc584aa5f18bb8b5f710220e3"
 }

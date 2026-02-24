@@ -294,15 +294,19 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/api/ot-requests/:id",
-            get(ot_request::get_one).put(ot_request::update),
+            get(ot_request::get_one).patch(ot_request::update),
         )
         .route(
             "/api/ot-requests/:id/cancel",
-            delete(ot_request::cancel),
+            patch(ot_request::cancel),
         )
         .route(
             "/api/ot-requests/:id/volunteer",
-            post(ot_request::volunteer).delete(ot_request::withdraw_volunteer),
+            post(ot_request::volunteer),
+        )
+        .route(
+            "/api/ot-requests/:id/volunteer/withdraw",
+            patch(ot_request::withdraw_volunteer),
         )
         .route(
             "/api/ot-requests/:id/assign",

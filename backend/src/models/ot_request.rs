@@ -116,6 +116,8 @@ pub struct OtRequestQuery {
     pub date_from: Option<time::Date>,
     pub date_to: Option<time::Date>,
     pub classification_id: Option<Uuid>,
+    /// When true, only return requests where the calling user has an active volunteer entry.
+    pub volunteered_by_me: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }

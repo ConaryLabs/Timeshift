@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_requests SET\n            status = 'filled',\n            updated_at = NOW()\n        WHERE id = $1 AND org_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7d8bab647801e591f4617a4b943c759f9c90101c7b4e9b1fa607831ab8dd5c91"
+}

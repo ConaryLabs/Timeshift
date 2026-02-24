@@ -70,7 +70,7 @@ export default function AvailableOTPage() {
   const apiParams = useMemo(() => {
     const params: { status?: string; date_from?: string; date_to?: string; classification_id?: string } = {}
     if (statusFilter === 'available') {
-      params.status = 'open'
+      // Don't send status filter — fetch all, then client-side filter for open + partially_filled
     } else if (statusFilter !== 'all') {
       params.status = statusFilter
     }
@@ -99,11 +99,14 @@ export default function AvailableOTPage() {
   function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.date || !form.start_time || !form.end_time || !form.classification_id) return
+    // HTML time inputs return "HH:MM"; backend expects "HH:MM:SS"
+    const startTime = form.start_time.length === 5 ? form.start_time + ':00' : form.start_time
+    const endTime = form.end_time.length === 5 ? form.end_time + ':00' : form.end_time
     createMut.mutate(
       {
         date: form.date,
-        start_time: form.start_time,
-        end_time: form.end_time,
+        start_time: startTime,
+        end_time: endTime,
         classification_id: form.classification_id,
         location: form.location || undefined,
         is_fixed_coverage: form.is_fixed_coverage,
