@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE coverage_plans SET is_default = FALSE, updated_at = NOW()\n             WHERE org_id = $1 AND is_default = TRUE AND id != $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fff7235444f70aa110963a6706ce652866247ecf5e453cd939e50405121c1b2f"
+}

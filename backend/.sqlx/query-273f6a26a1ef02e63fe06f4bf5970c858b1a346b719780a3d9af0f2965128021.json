@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT plan_id AS \"plan_id!\"\n        FROM coverage_plan_assignments cpa\n        JOIN coverage_plans cp ON cp.id = cpa.plan_id\n        WHERE cpa.org_id = $1\n          AND cpa.start_date <= $2\n          AND (cpa.end_date IS NULL OR cpa.end_date >= $2)\n          AND cp.is_active = TRUE\n        ORDER BY cpa.start_date DESC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "plan_id!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "273f6a26a1ef02e63fe06f4bf5970c858b1a346b719780a3d9af0f2965128021"
+}

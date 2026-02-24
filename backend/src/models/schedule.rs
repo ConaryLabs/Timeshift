@@ -63,45 +63,116 @@ pub struct StaffingQuery {
     pub team_id: Option<Uuid>,
 }
 
-// -- Coverage Requirements --
+// -- Coverage Plans (per-half-hour-slot system) --
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct CoverageRequirement {
+pub struct CoveragePlan {
     pub id: Uuid,
     pub org_id: Uuid,
-    pub shift_template_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_default: bool,
+    pub is_active: bool,
+    pub created_by: Uuid,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CoveragePlanView {
+    pub id: Uuid,
+    pub org_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_default: bool,
+    pub is_active: bool,
+    pub slot_count: i64,
+    pub assignment_count: i64,
+    pub created_by: Uuid,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct CoveragePlanSlot {
+    pub id: Uuid,
+    pub plan_id: Uuid,
     pub classification_id: Uuid,
-    pub day_of_week: i32,
-    pub min_headcount: i32,
-    pub target_headcount: i32,
-    pub max_headcount: i32,
-    pub effective_date: time::Date,
+    pub day_of_week: i16,
+    pub slot_index: i16,
+    pub min_headcount: i16,
+    pub target_headcount: i16,
+    pub max_headcount: i16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct CoveragePlanAssignment {
+    pub id: Uuid,
+    pub org_id: Uuid,
+    pub plan_id: Uuid,
+    pub start_date: time::Date,
+    pub end_date: Option<time::Date>,
+    pub notes: Option<String>,
+    pub created_by: Uuid,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateCoveragePlanRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+    #[validate(length(max = 500))]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
 #[derive(Debug, Deserialize)]
-pub struct CreateCoverageRequirementRequest {
-    pub shift_template_id: Uuid,
+pub struct UpdateCoveragePlanRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub is_default: Option<bool>,
+    pub is_active: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SlotEntry {
     pub classification_id: Uuid,
-    pub day_of_week: i32,
-    pub min_headcount: i32,
-    pub target_headcount: i32,
-    pub max_headcount: i32,
-    pub effective_date: Option<time::Date>,
+    pub day_of_week: i16,
+    pub slot_index: i16,
+    pub min_headcount: i16,
+    pub target_headcount: i16,
+    pub max_headcount: i16,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateCoverageRequirementRequest {
-    pub min_headcount: Option<i32>,
-    pub target_headcount: Option<i32>,
-    pub max_headcount: Option<i32>,
+pub struct BulkUpsertSlotsRequest {
+    pub slots: Vec<SlotEntry>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CoverageQuery {
-    pub shift_template_id: Option<Uuid>,
-    pub classification_id: Option<Uuid>,
+pub struct CreateCoveragePlanAssignmentRequest {
+    pub plan_id: Uuid,
+    pub start_date: time::Date,
+    pub end_date: Option<time::Date>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SlotCoverage {
+    pub slot_index: i16,
+    pub classification_id: Uuid,
+    pub classification_abbreviation: String,
+    pub min_headcount: i16,
+    pub target_headcount: i16,
+    pub max_headcount: i16,
+    pub actual_headcount: i32,
+    pub status: String,
 }
 
 // -- Schedule Annotations --

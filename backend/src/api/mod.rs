@@ -2,7 +2,7 @@ pub mod auth;
 pub mod bidding;
 pub mod callout;
 pub mod classifications;
-pub mod coverage;
+pub mod coverage_plans;
 pub mod employee;
 pub mod holidays;
 pub mod leave;
@@ -154,11 +154,37 @@ pub fn router(state: AppState) -> Router {
             "/api/schedule/annotations/:id",
             delete(schedule::delete_annotation),
         )
-        // Coverage requirements
-        .route("/api/coverage", get(coverage::list).post(coverage::create))
+        // Coverage plans (per-half-hour-slot system)
+        // Static sub-paths before /:id to avoid param capture
         .route(
-            "/api/coverage/:id",
-            patch(coverage::update).delete(coverage::delete),
+            "/api/coverage-plans",
+            get(coverage_plans::list_plans).post(coverage_plans::create_plan),
+        )
+        .route(
+            "/api/coverage-plans/assignments",
+            get(coverage_plans::list_assignments).post(coverage_plans::create_assignment),
+        )
+        .route(
+            "/api/coverage-plans/assignments/:id",
+            delete(coverage_plans::delete_assignment),
+        )
+        .route(
+            "/api/coverage-plans/resolved/:date",
+            get(coverage_plans::resolved_coverage),
+        )
+        .route(
+            "/api/coverage-plans/:id",
+            get(coverage_plans::get_plan)
+                .patch(coverage_plans::update_plan)
+                .delete(coverage_plans::delete_plan),
+        )
+        .route(
+            "/api/coverage-plans/:id/slots",
+            get(coverage_plans::list_slots),
+        )
+        .route(
+            "/api/coverage-plans/:id/slots/bulk",
+            post(coverage_plans::bulk_upsert_slots),
         )
         // Leave types
         .route("/api/leave/types", get(leave::list_types))
