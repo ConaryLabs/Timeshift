@@ -35,6 +35,7 @@ pub async fn list_events(
         SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,
                ce.ot_reason_id, ce.reason_text, ce.classification_id,
                cl.name AS classification_name,
+               ce.ot_request_id AS "ot_request_id?",
                ce.status AS "status: CalloutStatus",
                ce.current_step AS "current_step?: CalloutStep",
                ce.step_started_at AS "step_started_at?",
@@ -77,6 +78,7 @@ pub async fn get_event(
         SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,
                ce.ot_reason_id, ce.reason_text, ce.classification_id,
                cl.name AS classification_name,
+               ce.ot_request_id AS "ot_request_id?",
                ce.status AS "status: CalloutStatus",
                ce.current_step AS "current_step?: CalloutStep",
                ce.step_started_at AS "step_started_at?",
@@ -120,12 +122,15 @@ pub async fn create_event(
         org_guard::verify_ot_reason(&pool, reason_id, auth.org_id).await?;
     }
     org_guard::verify_classification(&pool, req.classification_id, auth.org_id).await?;
+    if let Some(ot_req_id) = req.ot_request_id {
+        org_guard::verify_ot_request(&pool, ot_req_id, auth.org_id).await?;
+    }
 
     let new_id = Uuid::new_v4();
     sqlx::query!(
         r#"
-        INSERT INTO callout_events (id, scheduled_shift_id, initiated_by, ot_reason_id, reason_text, classification_id, status)
-        VALUES ($1, $2, $3, $4, $5, $6, 'open')
+        INSERT INTO callout_events (id, scheduled_shift_id, initiated_by, ot_reason_id, reason_text, classification_id, ot_request_id, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'open')
         "#,
         new_id,
         req.scheduled_shift_id,
@@ -133,6 +138,7 @@ pub async fn create_event(
         req.ot_reason_id,
         req.reason_text,
         req.classification_id,
+        req.ot_request_id,
     )
     .execute(&pool)
     .await?;
@@ -143,6 +149,7 @@ pub async fn create_event(
         SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,
                ce.ot_reason_id, ce.reason_text, ce.classification_id,
                cl.name AS classification_name,
+               ce.ot_request_id AS "ot_request_id?",
                ce.status AS "status: CalloutStatus",
                ce.current_step AS "current_step?: CalloutStep",
                ce.step_started_at AS "step_started_at?",
@@ -331,6 +338,7 @@ pub async fn record_attempt(
         SELECT ce.status AS "status: CalloutStatus", ce.scheduled_shift_id,
                ce.classification_id,
                ce.current_step AS "current_step?: CalloutStep",
+               ce.ot_request_id,
                ss.date AS shift_date, st.duration_minutes
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
@@ -485,6 +493,20 @@ pub async fn record_attempt(
             )
             .execute(&mut *tx)
             .await?;
+
+            // If this callout is linked to an OT request, mark it as filled.
+            if let Some(ot_req_id) = ctx.ot_request_id {
+                sqlx::query!(
+                    r#"
+                    UPDATE ot_requests
+                    SET status = 'filled', updated_at = NOW()
+                    WHERE id = $1 AND status != 'cancelled'
+                    "#,
+                    ot_req_id,
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
         }
         "declined" => {
             // Update OT queue position for declined too.
@@ -557,6 +579,7 @@ pub async fn cancel_ot_assignment(
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus",
+               ce.ot_request_id,
                ss.date AS shift_date, st.start_time
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
@@ -642,6 +665,20 @@ pub async fn cancel_ot_assignment(
     )
     .execute(&mut *tx)
     .await?;
+
+    // 8. If linked to an OT request, reopen it so it can be re-filled.
+    if let Some(ot_req_id) = event.ot_request_id {
+        sqlx::query!(
+            r#"
+            UPDATE ot_requests
+            SET status = 'open', updated_at = NOW()
+            WHERE id = $1 AND status = 'filled'
+            "#,
+            ot_req_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
 

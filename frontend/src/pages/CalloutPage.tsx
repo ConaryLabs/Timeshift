@@ -45,6 +45,7 @@ import {
   useBumpRequests,
   useCreateBumpRequest,
   useReviewBumpRequest,
+  useOtRequests,
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
@@ -58,6 +59,7 @@ const INITIAL_FORM = {
   scheduled_shift_id: NO_VALUE,
   classification_id: NO_VALUE,
   reason_text: '',
+  ot_request_id: NO_VALUE,
 }
 
 type AcceptTarget = { user_id: string; name: string }
@@ -158,6 +160,7 @@ export default function CalloutPage() {
   const { data: scheduledShifts } = useScheduledShifts({ start_date: today, end_date: twoWeeksOut })
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
+  const { data: otRequests } = useOtRequests({ status: 'open' })
 
   const templateMap = Object.fromEntries((templates ?? []).map((t) => [t.id, t]))
 
@@ -219,6 +222,7 @@ export default function CalloutPage() {
         scheduled_shift_id: form.scheduled_shift_id,
         classification_id: form.classification_id,
         reason_text: form.reason_text || undefined,
+        ot_request_id: form.ot_request_id !== NO_VALUE ? form.ot_request_id : undefined,
       },
       {
         onSuccess: (ev) => {
@@ -439,6 +443,11 @@ export default function CalloutPage() {
                   )}
                   {ev.shift_date && ` (${ev.shift_date})`}
                 </p>
+                {ev.ot_request_id && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Linked OT Request: <span className="font-medium">{ev.ot_request_id.slice(0, 8)}...</span>
+                  </p>
+                )}
                 {ev.reason_text && (
                   <p className="text-xs text-muted-foreground mt-1">{ev.reason_text}</p>
                 )}
@@ -643,6 +652,25 @@ export default function CalloutPage() {
                   {(classifications ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name} ({c.abbreviation})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Link OT Request" htmlFor="callout-ot-request">
+              <Select
+                value={form.ot_request_id}
+                onValueChange={(v) => setForm({ ...form, ot_request_id: v })}
+              >
+                <SelectTrigger id="callout-ot-request">
+                  <SelectValue placeholder="None (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_VALUE}>None</SelectItem>
+                  {(otRequests ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.date} {r.start_time}-{r.end_time} ({r.classification_name})
                     </SelectItem>
                   ))}
                 </SelectContent>

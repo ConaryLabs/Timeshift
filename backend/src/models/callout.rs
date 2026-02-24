@@ -25,6 +25,8 @@ pub struct CalloutEvent {
     /// Which classification list this callout draws from (required).
     pub classification_id: Uuid,
     pub classification_name: String,
+    /// Optional link to an OT request that triggered this callout.
+    pub ot_request_id: Option<Uuid>,
     pub status: CalloutStatus,
     pub current_step: Option<CalloutStep>,
     #[serde(
@@ -86,6 +88,8 @@ pub struct CreateCalloutEventRequest {
     pub reason_text: Option<String>,
     /// Required: specifies which OT list (COI / COII / Supervisor) to call from.
     pub classification_id: Uuid,
+    /// Optional link to an OT request that triggered this callout.
+    pub ot_request_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

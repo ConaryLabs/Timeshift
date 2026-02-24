@@ -667,7 +667,10 @@ export function useCreateCalloutEvent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: calloutApi.createEvent,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.callout.events }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+    },
   })
 }
 
@@ -682,6 +685,7 @@ export function useRecordAttempt() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: queryKeys.callout.list(vars.eventId) })
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
     },
   })
 }
@@ -1227,6 +1231,15 @@ export function useAssignOtRequest() {
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'fixed_coverage' }) =>
       otRequestsApi.assign(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+export function useUpdateOtRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; notes?: string; location?: string; status?: string }) =>
+      otRequestsApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
   })
 }
