@@ -42,7 +42,7 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe, useOrganization, useScheduleGrid } from '@/hooks/queries'
+import { useMe, useOrganization, useScheduleGrid, useNavBadges } from '@/hooks/queries'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -50,6 +50,7 @@ interface NavItem {
   to: string
   label: string
   icon: React.ReactNode
+  badgeKey?: 'pending_leave' | 'pending_trades' | 'open_callouts'
 }
 
 function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
@@ -59,14 +60,14 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
     { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
     { to: '/my-schedule', label: 'My Schedule', icon: <CalendarCheck className="h-4 w-4" /> },
     { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
-    { to: '/leave', label: 'Leave', icon: <ClipboardList className="h-4 w-4" /> },
-    { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" /> },
+    { to: '/leave', label: 'Leave', icon: <ClipboardList className="h-4 w-4" />, badgeKey: 'pending_leave' },
+    { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
     { to: '/leave/sellback', label: 'Sellback', icon: <Banknote className="h-4 w-4" /> },
     { to: '/leave/donations', label: 'Donations', icon: <HeartHandshake className="h-4 w-4" /> },
   ]
 
   if (isManager) {
-    main.push({ to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" /> })
+    main.push({ to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" />, badgeKey: 'open_callouts' })
   }
 
   main.push({ to: '/profile', label: 'Profile', icon: <UserCircle className="h-4 w-4" /> })
@@ -103,23 +104,54 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
   return { main, admin }
 }
 
-function SidebarLink({ item, collapsed, onClick }: { item: NavItem; collapsed: boolean; onClick?: () => void }) {
+function NavBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span className="nav-badge flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white leading-none">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+function SidebarLink({
+  item,
+  collapsed,
+  onClick,
+  badgeCount,
+}: {
+  item: NavItem
+  collapsed: boolean
+  onClick?: () => void
+  badgeCount?: number
+}) {
   const link = (
     <NavLink
       to={item.to}
       onClick={onClick}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          "flex items-center gap-3 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors relative",
           isActive
-            ? "bg-sidebar-primary/20 text-white"
+            ? "nav-link-active bg-sidebar-accent text-white"
             : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",
           collapsed && "justify-center px-2",
         )
       }
     >
-      {item.icon}
-      {!collapsed && <span>{item.label}</span>}
+      <span className="relative shrink-0">
+        {item.icon}
+        {collapsed && badgeCount && badgeCount > 0 ? (
+          <span className="nav-badge absolute -top-1.5 -right-2 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-destructive px-0.5 text-[8px] font-bold text-white leading-none">
+            {badgeCount > 9 ? '9+' : badgeCount}
+          </span>
+        ) : null}
+      </span>
+      {!collapsed && (
+        <>
+          <span className="flex-1">{item.label}</span>
+          {badgeCount && badgeCount > 0 ? <NavBadge count={badgeCount} /> : null}
+        </>
+      )}
     </NavLink>
   )
 
@@ -127,7 +159,14 @@ function SidebarLink({ item, collapsed, onClick }: { item: NavItem; collapsed: b
     return (
       <Tooltip>
         <TooltipTrigger asChild>{link}</TooltipTrigger>
-        <TooltipContent side="right">{item.label}</TooltipContent>
+        <TooltipContent side="right" className="flex items-center gap-2">
+          {item.label}
+          {badgeCount && badgeCount > 0 ? (
+            <span className="flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white leading-none">
+              {badgeCount}
+            </span>
+          ) : null}
+        </TooltipContent>
       </Tooltip>
     )
   }
@@ -135,23 +174,30 @@ function SidebarLink({ item, collapsed, onClick }: { item: NavItem; collapsed: b
   return link
 }
 
-function SidebarNav({ main, admin, collapsed, onLinkClick }: {
+function SidebarNav({ main, admin, collapsed, onLinkClick, badges }: {
   main: NavItem[]
   admin: NavItem[]
   collapsed: boolean
   onLinkClick?: () => void
+  badges?: Record<string, number>
 }) {
   return (
-    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
       {main.map((item) => (
-        <SidebarLink key={item.to} item={item} collapsed={collapsed} onClick={onLinkClick} />
+        <SidebarLink
+          key={item.to}
+          item={item}
+          collapsed={collapsed}
+          onClick={onLinkClick}
+          badgeCount={item.badgeKey && badges ? badges[item.badgeKey] : undefined}
+        />
       ))}
 
       {admin.length > 0 && (
         <>
-          <div className="my-3 h-px bg-sidebar-border" />
+          <div className="my-2.5 mx-1 h-px bg-sidebar-border" />
           {!collapsed && (
-            <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest mb-1">
+            <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest mb-1">
               Admin
             </p>
           )}
@@ -166,12 +212,15 @@ function SidebarNav({ main, admin, collapsed, onLinkClick }: {
 
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
   return (
-    <div className={cn("flex items-center gap-2.5 px-3 h-14 border-b border-sidebar-border", collapsed && "justify-center")}>
-      <div className="h-7 w-7 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+    <div className={cn(
+      "flex items-center gap-2.5 px-3 h-14 border-b border-sidebar-border",
+      collapsed && "justify-center",
+    )}>
+      <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-sidebar-primary to-sidebar-primary/70 flex items-center justify-center shrink-0 shadow-sm shadow-sidebar-primary/25">
         <Building2 className="h-4 w-4 text-white" />
       </div>
       {!collapsed && (
-        <span className="font-brand text-xl text-white tracking-tight">Timeshift</span>
+        <span className="font-brand text-[19px] text-white tracking-tight">Timeshift</span>
       )}
     </div>
   )
@@ -192,6 +241,16 @@ export default function AppShell() {
   const { data: org } = useOrganization()
   const today = format(new Date(), 'yyyy-MM-dd')
   const { data: todayCoverage } = useScheduleGrid(today, today)
+  const { data: navBadges } = useNavBadges()
+
+  const badges = useMemo(() => {
+    if (!navBadges) return undefined
+    return {
+      pending_leave: navBadges.pending_leave,
+      pending_trades: navBadges.pending_trades,
+      open_callouts: navBadges.open_callouts,
+    }
+  }, [navBadges])
 
   const timezoneAbbr = org?.timezone
     ? new Intl.DateTimeFormat('en-US', { timeZone: org.timezone, timeZoneName: 'short' })
@@ -228,6 +287,10 @@ export default function AppShell() {
 
   const initials = [user?.first_name?.[0], user?.last_name?.[0]].filter(Boolean).join('')
 
+  const totalBadgeCount = navBadges
+    ? navBadges.pending_leave + navBadges.pending_trades + navBadges.open_callouts
+    : 0
+
   return (
     <div className="flex h-screen overflow-hidden">
       <a
@@ -245,7 +308,7 @@ export default function AppShell() {
       >
         <SidebarLogo collapsed={collapsed} />
 
-        <SidebarNav main={main} admin={admin} collapsed={collapsed} />
+        <SidebarNav main={main} admin={admin} collapsed={collapsed} badges={badges} />
 
         {/* Footer: collapse toggle */}
         <div className="border-t border-sidebar-border p-2">
@@ -253,7 +316,7 @@ export default function AppShell() {
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-white/[0.06] hover:text-white transition-colors",
+              "w-full flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] text-sidebar-foreground hover:bg-white/[0.06] hover:text-white transition-colors",
               collapsed ? "justify-center px-2" : "justify-start",
             )}
           >
@@ -267,27 +330,32 @@ export default function AppShell() {
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-64 p-0 bg-sidebar border-sidebar-border gap-0" showCloseButton={false}>
           <SheetHeader className="border-b border-sidebar-border px-3 h-14 flex-row items-center gap-2.5 p-0">
-            <div className="h-7 w-7 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-sidebar-primary to-sidebar-primary/70 flex items-center justify-center shrink-0 shadow-sm shadow-sidebar-primary/25">
               <Building2 className="h-4 w-4 text-white" />
             </div>
-            <SheetTitle className="font-brand text-xl text-white tracking-tight">Timeshift</SheetTitle>
+            <SheetTitle className="font-brand text-[19px] text-white tracking-tight">Timeshift</SheetTitle>
           </SheetHeader>
-          <SidebarNav main={main} admin={admin} collapsed={false} onLinkClick={() => setMobileOpen(false)} />
+          <SidebarNav main={main} admin={admin} collapsed={false} onLinkClick={() => setMobileOpen(false)} badges={badges} />
         </SheetContent>
       </Sheet>
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex items-center justify-between gap-3 h-14 border-b px-4 bg-card">
+        <header className="flex items-center justify-between gap-3 h-14 border-b px-4 bg-card shadow-[0_1px_3px_0_oklch(0_0_0/0.04)]">
           {/* Mobile hamburger (below lg) */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden"
+            className="lg:hidden relative"
           >
             <Menu className="h-5 w-5" />
+            {totalBadgeCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-destructive px-0.5 text-[8px] font-bold text-white leading-none">
+                {totalBadgeCount > 9 ? '9+' : totalBadgeCount}
+              </span>
+            )}
             <span className="sr-only">Open menu</span>
           </Button>
 
@@ -296,7 +364,7 @@ export default function AppShell() {
 
           <div className="flex items-center gap-2">
             {timezoneAbbr && (
-              <span className="hidden sm:block text-xs text-muted-foreground font-medium">
+              <span className="hidden sm:block text-xs text-muted-foreground font-medium tabular-nums">
                 {timezoneAbbr}
               </span>
             )}
@@ -316,21 +384,23 @@ export default function AppShell() {
                     {understaffedShifts.map((s) => (
                       <div key={s.shift_template_id} className="flex items-center justify-between text-sm">
                         <span>{s.shift_name}</span>
-                        <span className="text-destructive font-medium">{s.coverage_actual}/{s.coverage_required}</span>
+                        <span className="text-destructive font-medium tabular-nums">{s.coverage_actual}/{s.coverage_required}</span>
                       </div>
                     ))}
                   </div>
                 </PopoverContent>
               </Popover>
             )}
-            {initials && (
-              <div className="hidden sm:flex h-7 w-7 rounded-full bg-primary/10 text-primary items-center justify-center text-xs font-semibold shrink-0">
-                {initials}
-              </div>
-            )}
-            <span className="hidden sm:block text-sm font-medium text-foreground">
-              {user?.first_name} {user?.last_name}
-            </span>
+            <div className="hidden sm:flex items-center gap-2 ml-1">
+              {initials && (
+                <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
+                  {initials}
+                </div>
+              )}
+              <span className="text-sm font-medium text-foreground">
+                {user?.first_name} {user?.last_name}
+              </span>
+            </div>
             <Button
               variant="ghost"
               size="sm"

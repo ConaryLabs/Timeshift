@@ -9,6 +9,7 @@ pub mod leave;
 pub mod leave_balances;
 pub mod leave_donation;
 pub mod leave_sellback;
+pub mod nav;
 pub mod organizations;
 pub mod ot;
 pub mod reports;
@@ -63,6 +64,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/users/me/schedule", get(employee::my_schedule))
         .route("/api/users/me/dashboard", get(employee::my_dashboard))
+        .route("/api/nav/badges", get(nav::badges))
         .route("/api/users/me/password", patch(users::change_password))
         // Users
         .route("/api/users", get(users::list).post(users::create))

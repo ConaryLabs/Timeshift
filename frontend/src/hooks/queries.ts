@@ -21,6 +21,7 @@ import { holidaysApi } from '@/api/holidays'
 import { reportsApi } from '@/api/reports'
 import { leaveSellbackApi } from '@/api/leaveSellback'
 import { sickDonationApi } from '@/api/sickDonation'
+import { navApi } from '@/api/nav'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -144,6 +145,9 @@ export const queryKeys = {
   },
   donation: {
     all: ['donation'] as const,
+  },
+  nav: {
+    badges: ['nav', 'badges'] as const,
   },
 } as const
 
@@ -1190,5 +1194,16 @@ export function useCancelDonation() {
   return useMutation({
     mutationFn: sickDonationApi.cancel,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.donation.all }),
+  })
+}
+
+// -- Nav badges --
+
+export function useNavBadges() {
+  return useQuery({
+    queryKey: queryKeys.nav.badges,
+    queryFn: navApi.badges,
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
   })
 }
