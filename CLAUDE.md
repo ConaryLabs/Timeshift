@@ -48,7 +48,15 @@ cd frontend && npm run build
 
 ### Seed credentials
 
-- Email: `admin@valleycom.org` / Password: `admin123`
+All accounts use password `admin123`:
+
+| Role | Email | Classification | Bargaining Unit |
+|------|-------|---------------|-----------------|
+| Admin | `admin@valleycom.org` | Supervisor | Non-represented |
+| Supervisor | `sarah.chen@valleycom.org` | Supervisor | VCSG |
+| Employee | `mike.johnson@valleycom.org` | COII | VCCEA |
+| Employee | `lisa.park@valleycom.org` | COI | VCCEA |
+| Employee | `james.rivera@valleycom.org` | COII | VCCEA |
 
 ## Backend Architecture
 
