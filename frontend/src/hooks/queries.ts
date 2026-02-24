@@ -24,6 +24,7 @@ import { navApi } from '@/api/nav'
 import { otRequestsApi, type OtRequestListParams } from '@/api/otRequests'
 import { coveragePlansApi } from '@/api/coveragePlans'
 import type { SlotEntry } from '@/api/coveragePlans'
+import notificationsApi, { type NotificationListParams } from '@/api/notifications'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -159,6 +160,11 @@ export const queryKeys = {
   },
   nav: {
     badges: ['nav', 'badges'] as const,
+  },
+  notifications: {
+    all: ['notifications'] as const,
+    list: (params?: NotificationListParams) => ['notifications', params] as const,
+    unreadCount: ['notifications', 'unread-count'] as const,
   },
 } as const
 
@@ -1365,5 +1371,52 @@ export function useNavBadges() {
     queryFn: navApi.badges,
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
+  })
+}
+
+// -- Notifications --
+
+export function useNotifications(params?: NotificationListParams) {
+  return useQuery({
+    queryKey: queryKeys.notifications.list(params),
+    queryFn: () => notificationsApi.list(params),
+  })
+}
+
+export function useUnreadCount() {
+  return useQuery({
+    queryKey: queryKeys.notifications.unreadCount,
+    queryFn: notificationsApi.unreadCount,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: notificationsApi.markRead,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
+    },
+  })
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: notificationsApi.markAllRead,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
+    },
+  })
+}
+
+export function useDeleteNotification() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: notificationsApi.delete,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
+    },
   })
 }

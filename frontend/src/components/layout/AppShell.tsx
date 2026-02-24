@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight,
+  Bell,
   Calendar,
   CalendarDays,
   ClipboardList,
@@ -44,7 +45,7 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe, useOrganization, useScheduleGrid, useNavBadges } from '@/hooks/queries'
+import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount } from '@/hooks/queries'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -246,6 +247,8 @@ export default function AppShell() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const { data: todayCoverage } = useScheduleGrid(today, today)
   const { data: navBadges } = useNavBadges()
+  const { data: unreadCountData } = useUnreadCount()
+  const notificationCount = unreadCountData?.count ?? 0
 
   const badges = useMemo(() => {
     if (!navBadges) return undefined
@@ -372,6 +375,18 @@ export default function AppShell() {
                 {timezoneAbbr}
               </span>
             )}
+            <button
+              onClick={() => navigate('/notifications')}
+              className="relative p-1.5 rounded-md hover:bg-accent transition-colors"
+              aria-label="Notifications"
+            >
+              <Bell className="h-4 w-4 text-muted-foreground" />
+              {notificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-0.5 text-[10px] font-bold text-white leading-none">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </span>
+              )}
+            </button>
             {isManager && understaffedShifts.length > 0 && (
               <Popover open={coverageOpen} onOpenChange={setCoverageOpen}>
                 <PopoverTrigger asChild>

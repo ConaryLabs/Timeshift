@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO notifications (id, org_id, user_id, notification_type, title, message, link, source_type, source_id)\n        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Varchar",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f0050320d808ffb07381343f483d5580ad6b9df5be2d51e4e3fa438b57f32286"
+}

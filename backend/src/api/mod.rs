@@ -10,6 +10,7 @@ pub mod leave_balances;
 pub mod leave_donation;
 pub mod leave_sellback;
 pub mod nav;
+pub mod notifications;
 pub mod organizations;
 pub mod ot;
 pub mod ot_request;
@@ -317,6 +318,27 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/holidays/:id",
             patch(holidays::update).delete(holidays::delete),
+        )
+        // Notifications (static sub-paths before /:id to avoid param capture)
+        .route(
+            "/api/notifications",
+            get(notifications::list),
+        )
+        .route(
+            "/api/notifications/unread-count",
+            get(notifications::unread_count),
+        )
+        .route(
+            "/api/notifications/read-all",
+            post(notifications::mark_all_read),
+        )
+        .route(
+            "/api/notifications/:id/read",
+            patch(notifications::mark_read),
+        )
+        .route(
+            "/api/notifications/:id",
+            delete(notifications::delete),
         )
         // Reports
         .route("/api/reports/coverage", get(reports::coverage))
