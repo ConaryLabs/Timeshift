@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, UserPlus, X, Clock, MapPin, FileText, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,9 +42,12 @@ import {
   useCancelOtRequest,
   useCancelOtAssignment,
   useUpdateOtRequest,
+  queryKeys,
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
+import { ConflictDialog } from '@/components/ConflictDialog'
 import { formatTime, formatDate, extractApiError } from '@/lib/format'
+import { isConflictError } from '@/lib/utils'
 import type { OtRequestVolunteer, OtRequestAssignment, OtType } from '@/api/otRequests'
 
 function formatDateTime(iso: string): string {
@@ -73,6 +77,7 @@ function otTypeLabel(ot: OtType): string {
 export default function OtRequestDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { isManager } = usePermissions()
 
   const { data: request, isLoading, isError, refetch } = useOtRequest(id ?? '')
@@ -88,6 +93,8 @@ export default function OtRequestDetailPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editNotes, setEditNotes] = useState('')
   const [editLocation, setEditLocation] = useState('')
+  const [conflictOpen, setConflictOpen] = useState(false)
+  const pendingEditVars = useRef<Parameters<typeof updateMut.mutate>[0] | null>(null)
 
   if (isLoading) {
     return <LoadingState />
@@ -174,19 +181,49 @@ export default function OtRequestDetailPage() {
   }
 
   function handleSaveEdit() {
-    if (!id) return
-    updateMut.mutate(
-      { id, notes: editNotes || undefined, location: editLocation || undefined },
-      {
-        onSuccess: () => {
-          toast.success('OT request updated')
-          setShowEditDialog(false)
-        },
-        onError: (err: unknown) => {
-          toast.error(extractApiError(err, 'Failed to update'))
-        },
+    if (!id || !request) return
+    const vars = {
+      id,
+      notes: editNotes || undefined,
+      location: editLocation || undefined,
+      expected_updated_at: request.updated_at,
+    }
+    pendingEditVars.current = vars
+    updateMut.mutate(vars, {
+      onSuccess: () => {
+        toast.success('OT request updated')
+        setShowEditDialog(false)
       },
-    )
+      onError: (err: unknown) => {
+        if (isConflictError(err)) {
+          setConflictOpen(true)
+          return
+        }
+        toast.error(extractApiError(err, 'Failed to update'))
+      },
+    })
+  }
+
+  function handleConflictReload() {
+    setConflictOpen(false)
+    setShowEditDialog(false)
+    if (id) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.otRequests.detail(id) })
+    }
+  }
+
+  function handleConflictForceSave() {
+    setConflictOpen(false)
+    if (!pendingEditVars.current) return
+    updateMut.mutate({ ...pendingEditVars.current, expected_updated_at: undefined }, {
+      onSuccess: () => {
+        toast.success('OT request updated')
+        setShowEditDialog(false)
+      },
+      onError: (err: unknown) => {
+        toast.error(extractApiError(err, 'Failed to update'))
+      },
+    })
   }
 
   return (
@@ -560,6 +597,13 @@ export default function OtRequestDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConflictDialog
+        open={conflictOpen}
+        onReload={handleConflictReload}
+        onForceSave={handleConflictForceSave}
+        onCancel={() => setConflictOpen(false)}
+      />
     </div>
   )
 }

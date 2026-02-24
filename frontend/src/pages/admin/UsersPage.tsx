@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -24,6 +25,7 @@ import {
   useUpdateUser,
   useDeactivateUser,
   useClassifications,
+  queryKeys,
 } from '@/hooks/queries'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -31,7 +33,9 @@ import { useAuthStore } from '@/store/auth'
 import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { ConflictDialog } from '@/components/ConflictDialog'
 import { NO_VALUE } from '@/lib/format'
+import { isConflictError } from '@/lib/utils'
 import type { UserProfile, Role, EmployeeType, EmployeeStatus } from '@/store/auth'
 
 const ROLES: Role[] = ['admin', 'supervisor', 'employee']
@@ -97,6 +101,7 @@ const ROLE_COLORS: Record<Role, string> = {
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user)
+  const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<UserProfile | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<UserProfile | null>(null)
@@ -105,11 +110,13 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [classFilter, setClassFilter] = useState<string>('all')
   const debouncedSearch = useDebounce(search)
+  const [conflictOpen, setConflictOpen] = useState(false)
 
   const { data: users, isLoading, isError } = useUsers({ include_inactive: showInactive })
   const { data: classifications } = useClassifications()
   const createMut = useCreateUser()
   const updateMut = useUpdateUser()
+  const pendingEditVars = useRef<Parameters<typeof updateMut.mutate>[0] | null>(null)
   const deactivateMut = useDeactivateUser()
 
   const { confirmClose, confirmDialog } = useConfirmClose()
@@ -191,29 +198,54 @@ export default function UsersPage() {
 
   function onEditSubmit(values: EditValues) {
     if (!editingItem) return
-    updateMut.mutate(
-      {
-        id: editingItem.id,
-        ...values,
-        employee_id: values.employee_id || null,
-        phone: values.phone || null,
-        classification_id: values.classification_id || null,
-        hire_date: values.hire_date || null,
-        overall_seniority_date: values.overall_seniority_date || null,
-        employee_status: values.employee_status,
-        seniority_pause_exception: values.seniority_pause_exception ?? false,
+    const vars = {
+      id: editingItem.id,
+      ...values,
+      employee_id: values.employee_id || null,
+      phone: values.phone || null,
+      classification_id: values.classification_id || null,
+      hire_date: values.hire_date || null,
+      overall_seniority_date: values.overall_seniority_date || null,
+      employee_status: values.employee_status,
+      seniority_pause_exception: values.seniority_pause_exception ?? false,
+      expected_updated_at: editingItem.updated_at,
+    }
+    pendingEditVars.current = vars
+    updateMut.mutate(vars, {
+      onSuccess: () => {
+        toast.success('User updated')
+        setDialogOpen(false)
       },
-      {
-        onSuccess: () => {
-          toast.success('User updated')
-          setDialogOpen(false)
-        },
-        onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
-          toast.error(msg)
-        },
+      onError: (err: unknown) => {
+        if (isConflictError(err)) {
+          setConflictOpen(true)
+          return
+        }
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
       },
-    )
+    })
+  }
+
+  function handleConflictReload() {
+    setConflictOpen(false)
+    setDialogOpen(false)
+    queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+  }
+
+  function handleConflictForceSave() {
+    setConflictOpen(false)
+    if (!pendingEditVars.current) return
+    updateMut.mutate({ ...pendingEditVars.current, expected_updated_at: undefined }, {
+      onSuccess: () => {
+        toast.success('User updated')
+        setDialogOpen(false)
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
+      },
+    })
   }
 
   function handleDeactivate() {
@@ -618,6 +650,13 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConflictDialog
+        open={conflictOpen}
+        onReload={handleConflictReload}
+        onForceSave={handleConflictForceSave}
+        onCancel={() => setConflictOpen(false)}
+      />
     </div>
   )
 }

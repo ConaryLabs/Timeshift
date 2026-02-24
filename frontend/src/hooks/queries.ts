@@ -238,7 +238,7 @@ export function useCreateTeam() {
 export function useUpdateTeam() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; is_active?: boolean }) =>
+    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
       teamsApi.update(id, body),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.teams.all })
@@ -516,7 +516,7 @@ export function useCreateTemplate() {
 export function useUpdateTemplate() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string; is_active?: boolean }) =>
+    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string; is_active?: boolean; expected_updated_at?: string }) =>
       scheduleApi.updateTemplate(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shifts.templates }),
   })
@@ -1244,7 +1244,7 @@ export function useAssignOtRequest() {
 export function useUpdateOtRequest() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; notes?: string; location?: string; status?: string }) =>
+    mutationFn: ({ id, ...data }: { id: string; notes?: string; location?: string; status?: string; expected_updated_at?: string }) =>
       otRequestsApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
   })

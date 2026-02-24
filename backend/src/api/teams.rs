@@ -59,7 +59,7 @@ pub async fn get_team(
     let team = sqlx::query_as!(
         Team,
         r#"
-        SELECT id, org_id, name, supervisor_id, is_active, created_at
+        SELECT id, org_id, name, supervisor_id, is_active, created_at, updated_at
         FROM teams WHERE id = $1 AND org_id = $2
         "#,
         id,
@@ -95,7 +95,7 @@ pub async fn create_team(
         r#"
         INSERT INTO teams (id, org_id, name, supervisor_id)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, org_id, name, supervisor_id, is_active, created_at
+        RETURNING id, org_id, name, supervisor_id, is_active, created_at, updated_at
         "#,
         Uuid::new_v4(),
         auth.org_id,
@@ -118,6 +118,25 @@ pub async fn update_team(
         return Err(AppError::Forbidden);
     }
 
+    // Optimistic locking: check if the record has been modified since the client last fetched it
+    if let Some(expected) = req.expected_updated_at {
+        let current = sqlx::query_scalar!(
+            "SELECT updated_at FROM teams WHERE id = $1 AND org_id = $2",
+            id,
+            auth.org_id
+        )
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Team not found".into()))?;
+
+        if current != expected {
+            return Err(AppError::Conflict(
+                "This record has been modified by another user. Please refresh and try again."
+                    .into(),
+            ));
+        }
+    }
+
     // Verify optional supervisor belongs to caller's org
     if let Some(Some(sup_id)) = req.supervisor_id {
         org_guard::verify_user(&pool, sup_id, auth.org_id).await?;
@@ -132,9 +151,10 @@ pub async fn update_team(
         UPDATE teams
         SET name          = COALESCE($2, name),
             supervisor_id = CASE WHEN $3 THEN $4 ELSE supervisor_id END,
-            is_active     = COALESCE($5, is_active)
+            is_active     = COALESCE($5, is_active),
+            updated_at    = NOW()
         WHERE id = $1 AND org_id = $6
-        RETURNING id, org_id, name, supervisor_id, is_active, created_at
+        RETURNING id, org_id, name, supervisor_id, is_active, created_at, updated_at
         "#,
         id,
         req.name,

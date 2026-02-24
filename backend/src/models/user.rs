@@ -112,6 +112,8 @@ pub struct UserProfile {
     /// Cleared when employee returns to active status.
     pub leave_accrual_paused_at: Option<time::Date>,
     pub is_active: bool,
+    #[serde(with = "time::serde::rfc3339")]
+    pub updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -180,6 +182,10 @@ pub struct UpdateUserRequest {
     /// When setting a pausing status (unpaid_loa / lwop / layoff), pass true to indicate
     /// the absence is an exception (OJI / pregnancy / military) so seniority is NOT paused.
     pub seniority_pause_exception: Option<bool>,
+    /// Optimistic locking: the `updated_at` timestamp from the last GET.
+    /// If provided and the record has been modified since, returns 409 Conflict.
+    #[serde(default)]
+    pub expected_updated_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Deserialize)]

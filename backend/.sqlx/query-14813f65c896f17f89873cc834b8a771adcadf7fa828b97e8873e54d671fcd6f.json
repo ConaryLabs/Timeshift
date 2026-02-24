@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE users\n        SET first_name                       = COALESCE($2, first_name),\n            last_name                        = COALESCE($3, last_name),\n            email                            = COALESCE($4, email),\n            phone                            = CASE WHEN $5 THEN $6 ELSE phone END,\n            classification_id                = CASE WHEN $7 THEN $8 ELSE classification_id END,\n            employee_id                      = CASE WHEN $9 THEN $10 ELSE employee_id END,\n            role                             = COALESCE($11, role),\n            employee_type                    = COALESCE($12, employee_type),\n            hire_date                        = CASE WHEN $13 THEN $14 ELSE hire_date END,\n            bargaining_unit                  = COALESCE($16, bargaining_unit),\n            cto_designation                  = COALESCE($17, cto_designation),\n            admin_training_supervisor_since  = CASE WHEN $18 THEN $19 ELSE admin_training_supervisor_since END,\n            employee_status                  = COALESCE($20, employee_status),\n            updated_at                       = NOW()\n        WHERE id = $1 AND org_id = $15\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n                  hire_date,\n                  cto_designation, admin_training_supervisor_since,\n                  employee_status AS \"employee_status: EmployeeStatus\",\n                  is_active\n        ",
+  "query": "\n        UPDATE users\n        SET first_name                       = COALESCE($2, first_name),\n            last_name                        = COALESCE($3, last_name),\n            email                            = COALESCE($4, email),\n            phone                            = CASE WHEN $5 THEN $6 ELSE phone END,\n            classification_id                = CASE WHEN $7 THEN $8 ELSE classification_id END,\n            employee_id                      = CASE WHEN $9 THEN $10 ELSE employee_id END,\n            role                             = COALESCE($11, role),\n            employee_type                    = COALESCE($12, employee_type),\n            hire_date                        = CASE WHEN $13 THEN $14 ELSE hire_date END,\n            bargaining_unit                  = COALESCE($16, bargaining_unit),\n            cto_designation                  = COALESCE($17, cto_designation),\n            admin_training_supervisor_since  = CASE WHEN $18 THEN $19 ELSE admin_training_supervisor_since END,\n            employee_status                  = COALESCE($20, employee_status),\n            updated_at                       = NOW()\n        WHERE id = $1 AND org_id = $15\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n                  hire_date,\n                  cto_designation, admin_training_supervisor_since,\n                  employee_status AS \"employee_status: EmployeeStatus\",\n                  is_active,\n                  updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -129,6 +129,11 @@
         "ordinal": 15,
         "name": "is_active",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -218,8 +223,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "f861cd75be5c980e6ff609d967c1e8fcb27cba29eff5fff7520b736c2bd1cd63"
+  "hash": "14813f65c896f17f89873cc834b8a771adcadf7fa828b97e8873e54d671fcd6f"
 }

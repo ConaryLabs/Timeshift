@@ -11,6 +11,8 @@ export interface ShiftTemplate {
   color: string
   is_active: boolean
   created_at: string
+  /** Present when backend returns it; used for optimistic locking. */
+  updated_at?: string
 }
 
 export interface AssignmentView {
@@ -100,7 +102,7 @@ export const scheduleApi = {
     color?: string
   }) => api.post<ShiftTemplate>('/api/shifts/templates', body).then((r) => r.data),
 
-  updateTemplate: (id: string, body: { name?: string; color?: string; is_active?: boolean }) =>
+  updateTemplate: (id: string, body: { name?: string; color?: string; is_active?: boolean; expected_updated_at?: string }) =>
     api.patch<ShiftTemplate>(`/api/shifts/templates/${id}`, body).then((r) => r.data),
 
   getStaffing: (start_date: string, end_date: string, team_id?: string) =>

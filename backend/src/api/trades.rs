@@ -449,6 +449,25 @@ pub async fn review(
         ));
     }
 
+    // Optimistic locking: check if the record has been modified since the client last fetched it
+    if let Some(expected) = body.expected_updated_at {
+        let current = sqlx::query_scalar!(
+            "SELECT updated_at FROM trade_requests WHERE id = $1 AND org_id = $2",
+            id,
+            auth.org_id
+        )
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Trade request not found".into()))?;
+
+        if current != expected {
+            return Err(AppError::Conflict(
+                "This record has been modified by another user. Please refresh and try again."
+                    .into(),
+            ));
+        }
+    }
+
     // Entire review is one transaction — fetch with FOR UPDATE to prevent TOCTOU race
     let mut tx = pool.begin().await?;
 

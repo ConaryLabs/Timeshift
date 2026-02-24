@@ -248,6 +248,7 @@ pub async fn login(
                 accrual_paused_since: seniority.as_ref().and_then(|s| s.accrual_pause_started_at),
                 leave_accrual_paused_at: user.leave_accrual_paused_at,
                 is_active: user.is_active,
+                updated_at: user.updated_at,
             },
         }),
     ))
@@ -468,6 +469,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
                u.employee_status AS "employee_status: EmployeeStatus",
                u.is_active,
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
+               u.updated_at,
                sr.overall_seniority_date AS "overall_seniority_date?",
                sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
                sr.classification_seniority_date AS "classification_seniority_date?",
@@ -507,6 +509,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
         accrual_paused_since: row.accrual_paused_since,
         leave_accrual_paused_at: row.leave_accrual_paused_at,
         is_active: row.is_active,
+        updated_at: row.updated_at,
     }))
 }
 

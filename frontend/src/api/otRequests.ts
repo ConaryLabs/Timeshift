@@ -89,7 +89,7 @@ export const otRequestsApi = {
   create: (data: CreateOtRequest) =>
     api.post<OtRequest>('/api/ot-requests', data).then((r) => r.data),
 
-  update: (id: string, data: Partial<CreateOtRequest & { status: string }>) =>
+  update: (id: string, data: Partial<CreateOtRequest & { status: string; expected_updated_at?: string }>) =>
     api.patch<OtRequest>(`/api/ot-requests/${id}`, data).then((r) => r.data),
 
   cancel: (id: string) =>
