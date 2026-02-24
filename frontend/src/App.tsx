@@ -34,7 +34,9 @@ const SchedulePeriodDetailPage = lazy(() => import('@/pages/admin/SchedulePeriod
 const VacationBidAdminPage = lazy(() => import('@/pages/admin/VacationBidAdminPage'))
 const HolidayCalendarPage = lazy(() => import('@/pages/admin/HolidayCalendarPage'))
 const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
-const CoverageRequirementsPage = lazy(() => import('@/pages/admin/CoverageRequirementsPage'))
+const CoveragePlansPage = lazy(() => import('@/pages/admin/CoveragePlansPage'))
+const CoveragePlanDetailPage = lazy(() => import('@/pages/admin/CoveragePlanDetailPage'))
+const CoveragePlanAssignmentsPage = lazy(() => import('@/pages/admin/CoveragePlanAssignmentsPage'))
 const AvailableOTPage = lazy(() => import('@/pages/AvailableOTPage'))
 const VolunteeredOTPage = lazy(() => import('@/pages/VolunteeredOTPage'))
 
@@ -102,10 +104,26 @@ export default function App() {
               }
             />
             <Route
-              path="coverage"
+              path="coverage-plans"
               element={
                 <RequireRole roles="admin">
-                  <PageSuspense><CoverageRequirementsPage /></PageSuspense>
+                  <PageSuspense><CoveragePlansPage /></PageSuspense>
+                </RequireRole>
+              }
+            />
+            <Route
+              path="coverage-plans/assignments"
+              element={
+                <RequireRole roles="admin">
+                  <PageSuspense><CoveragePlanAssignmentsPage /></PageSuspense>
+                </RequireRole>
+              }
+            />
+            <Route
+              path="coverage-plans/:id"
+              element={
+                <RequireRole roles="admin">
+                  <PageSuspense><CoveragePlanDetailPage /></PageSuspense>
                 </RequireRole>
               }
             />

@@ -252,8 +252,9 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
         "DELETE FROM ot_queue_positions WHERE org_id = $1",
         "DELETE FROM ot_hours WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM ot_reasons WHERE org_id = $1",
-        // Coverage & shift templates
-        "DELETE FROM coverage_requirements WHERE org_id = $1",
+        // Coverage plans & shift templates
+        "DELETE FROM coverage_plan_assignments WHERE org_id = $1",
+        "DELETE FROM coverage_plans WHERE org_id = $1",
         "DELETE FROM shift_templates WHERE org_id = $1",
         // User-related
         "DELETE FROM employee_preferences WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",

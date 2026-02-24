@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO coverage_plan_slots\n            (id, plan_id, classification_id, day_of_week, slot_index,\n             min_headcount, target_headcount, max_headcount)\n        SELECT * FROM UNNEST(\n            $1::uuid[], $2::uuid[], $3::uuid[],\n            $4::smallint[], $5::smallint[],\n            $6::smallint[], $7::smallint[], $8::smallint[]\n        )\n        RETURNING id, plan_id, classification_id, day_of_week, slot_index,\n                  min_headcount, target_headcount, max_headcount\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "plan_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "day_of_week",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "slot_index",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "min_headcount",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "target_headcount",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "max_headcount",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "Int2Array",
+        "Int2Array",
+        "Int2Array",
+        "Int2Array",
+        "Int2Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "540bfc9eb66ef83855449274627a468027731e2b133c41462503946afd0b63f9"
+}

@@ -87,7 +87,7 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
     admin.push(
       { to: '/admin/classifications', label: 'Classifications', icon: <Shield className="h-4 w-4" /> },
       { to: '/admin/shift-templates', label: 'Shift Templates', icon: <Clock className="h-4 w-4" /> },
-      { to: '/admin/coverage', label: 'Coverage', icon: <Target className="h-4 w-4" /> },
+      { to: '/admin/coverage-plans', label: 'Coverage Plans', icon: <Target className="h-4 w-4" /> },
       { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
       { to: '/admin/users', label: 'Users', icon: <Users className="h-4 w-4" /> },
       { to: '/admin/ot-queue', label: 'OT Queue', icon: <ListOrdered className="h-4 w-4" /> },

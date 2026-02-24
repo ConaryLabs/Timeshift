@@ -12,7 +12,6 @@ import { calloutApi } from '@/api/callout'
 import { otApi } from '@/api/ot'
 import type { CalloutStep } from '@/api/ot'
 import { leaveBalancesApi } from '@/api/leaveBalances'
-import { coverageApi } from '@/api/coverage'
 import { tradesApi, type TradeListParams } from '@/api/trades'
 import { vacationBidsApi } from '@/api/vacationBids'
 import { biddingApi } from '@/api/bidding'
@@ -23,6 +22,8 @@ import { leaveSellbackApi } from '@/api/leaveSellback'
 import { sickDonationApi } from '@/api/sickDonation'
 import { navApi } from '@/api/nav'
 import { otRequestsApi, type OtRequestListParams } from '@/api/otRequests'
+import { coveragePlansApi } from '@/api/coveragePlans'
+import type { SlotEntry } from '@/api/coveragePlans'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -61,10 +62,13 @@ export const queryKeys = {
     annotationsRange: (start: string, end: string) =>
       ['schedule', 'annotations', start, end] as const,
   },
-  coverage: {
-    all: ['coverage'] as const,
-    list: (params?: { shift_template_id?: string; classification_id?: string }) =>
-      ['coverage', params] as const,
+  coveragePlans: {
+    all: ['coverage-plans'] as const,
+    list: ['coverage-plans', 'list'] as const,
+    detail: (id: string) => ['coverage-plans', id] as const,
+    slots: (planId: string) => ['coverage-plans', planId, 'slots'] as const,
+    assignments: ['coverage-plans', 'assignments'] as const,
+    resolved: (date: string) => ['coverage-plans', 'resolved', date] as const,
   },
   periods: {
     all: ['schedule-periods'] as const,
@@ -436,40 +440,6 @@ export function useDeleteAnnotation() {
       qc.invalidateQueries({ queryKey: queryKeys.schedule.annotations })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
     },
-  })
-}
-
-// -- Coverage Requirements --
-
-export function useCoverageRequirements(params?: { shift_template_id?: string; classification_id?: string }) {
-  return useQuery({
-    queryKey: queryKeys.coverage.list(params),
-    queryFn: () => coverageApi.list(params),
-  })
-}
-
-export function useCreateCoverageRequirement() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: coverageApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coverage.all }),
-  })
-}
-
-export function useUpdateCoverageRequirement() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; min_headcount?: number; target_headcount?: number; max_headcount?: number }) =>
-      coverageApi.update(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coverage.all }),
-  })
-}
-
-export function useDeleteCoverageRequirement() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: coverageApi.delete,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coverage.all }),
   })
 }
 
@@ -1275,6 +1245,102 @@ export function useCancelOtAssignment() {
     mutationFn: ({ id, userId }: { id: string; userId: string }) =>
       otRequestsApi.cancelAssignment(id, userId),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+// -- Coverage Plans --
+
+export function useCoveragePlans() {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.list,
+    queryFn: coveragePlansApi.listPlans,
+  })
+}
+
+export function useCoveragePlan(id: string) {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.detail(id),
+    queryFn: () => coveragePlansApi.getPlan(id),
+    enabled: !!id,
+  })
+}
+
+export function useCreateCoveragePlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: coveragePlansApi.createPlan,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.list }),
+  })
+}
+
+export function useUpdateCoveragePlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; description?: string; is_default?: boolean; is_active?: boolean }) =>
+      coveragePlansApi.updatePlan(id, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.list })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.detail(vars.id) })
+    },
+  })
+}
+
+export function useDeleteCoveragePlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: coveragePlansApi.deletePlan,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.list }),
+  })
+}
+
+export function useCoveragePlanSlots(planId: string) {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.slots(planId),
+    queryFn: () => coveragePlansApi.listSlots(planId),
+    enabled: !!planId,
+  })
+}
+
+export function useBulkUpsertSlots() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ planId, slots }: { planId: string; slots: SlotEntry[] }) =>
+      coveragePlansApi.bulkUpsertSlots(planId, slots),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.slots(vars.planId) })
+    },
+  })
+}
+
+export function useCoveragePlanAssignments() {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.assignments,
+    queryFn: coveragePlansApi.listAssignments,
+  })
+}
+
+export function useCreateCoveragePlanAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: coveragePlansApi.createAssignment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments }),
+  })
+}
+
+export function useDeleteCoveragePlanAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: coveragePlansApi.deleteAssignment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments }),
+  })
+}
+
+export function useResolvedCoverage(date: string) {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.resolved(date),
+    queryFn: () => coveragePlansApi.getResolved(date),
+    enabled: !!date,
+    staleTime: 30_000,
   })
 }
 

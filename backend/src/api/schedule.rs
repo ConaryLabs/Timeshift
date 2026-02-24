@@ -5,9 +5,12 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
+    api::coverage_plans::{
+        coverage_required_for_shifts, fetch_slot_totals, resolve_plan_id,
+    },
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -492,21 +495,84 @@ pub async fn grid(
     let leave_map: HashMap<time::Date, i64> =
         leave_rows.into_iter().map(|r| (r.date, r.count)).collect();
 
-    let coverage_rows = sqlx::query!(
+    // Resolve coverage from coverage plans for all dates in range
+    let shift_templates = sqlx::query!(
         r#"
-        SELECT shift_template_id, day_of_week, SUM(target_headcount) AS "total!"
-        FROM coverage_requirements
-        WHERE org_id = $1
-        GROUP BY shift_template_id, day_of_week
+        SELECT id, start_time, end_time, crosses_midnight
+        FROM shift_templates
+        WHERE org_id = $1 AND is_active = true
         "#,
         auth.org_id,
     )
     .fetch_all(&pool)
     .await?;
 
-    let mut coverage_map: HashMap<(Uuid, i32), i64> = HashMap::new();
-    for r in coverage_rows {
-        coverage_map.insert((r.shift_template_id, r.day_of_week), r.total);
+    let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = shift_templates
+        .iter()
+        .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+        .collect();
+
+    // Batch resolve plans: fetch all assignments overlapping the range
+    let plan_assignments = sqlx::query!(
+        r#"
+        SELECT cpa.plan_id, cpa.start_date, cpa.end_date AS "end_date?"
+        FROM coverage_plan_assignments cpa
+        JOIN coverage_plans cp ON cp.id = cpa.plan_id
+        WHERE cpa.org_id = $1
+          AND cpa.start_date <= $2
+          AND (cpa.end_date IS NULL OR cpa.end_date >= $3)
+          AND cp.is_active = TRUE
+        ORDER BY cpa.start_date DESC
+        "#,
+        auth.org_id,
+        q.end_date,
+        q.start_date,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let default_plan_id = sqlx::query_scalar!(
+        r#"
+        SELECT id AS "id!"
+        FROM coverage_plans
+        WHERE org_id = $1 AND is_default = TRUE AND is_active = TRUE
+        LIMIT 1
+        "#,
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    // Build date -> plan_id mapping in memory
+    let pa_tuples: Vec<(Uuid, time::Date, Option<time::Date>)> = plan_assignments
+        .iter()
+        .map(|r| (r.plan_id, r.start_date, r.end_date))
+        .collect();
+
+    let mut plan_dows: HashSet<(Uuid, i16)> = HashSet::new();
+    let mut date_plan: HashMap<time::Date, Option<Uuid>> = HashMap::new();
+
+    let mut d = q.start_date;
+    while d <= q.end_date {
+        let plan = pa_tuples
+            .iter()
+            .find(|(_, start, end)| *start <= d && end.map_or(true, |e| e >= d))
+            .map(|(pid, _, _)| *pid)
+            .or(default_plan_id);
+        if let Some(pid) = plan {
+            let dow = d.weekday().number_days_from_sunday() as i16;
+            plan_dows.insert((pid, dow));
+        }
+        date_plan.insert(d, plan);
+        d = d.next_day().unwrap();
+    }
+
+    // Fetch slot totals for each unique (plan_id, dow) and compute per-shift coverage
+    let mut coverage_cache: HashMap<(Uuid, i16), HashMap<Uuid, i32>> = HashMap::new();
+    for (pid, dow) in &plan_dows {
+        let slot_totals = fetch_slot_totals(&pool, *pid, *dow).await?;
+        let per_shift = coverage_required_for_shifts(&slot_totals, &shift_info);
+        coverage_cache.insert((*pid, *dow), per_shift);
     }
 
     let mut cells_map: HashMap<(time::Date, Uuid), GridCell> = HashMap::new();
@@ -514,11 +580,14 @@ pub async fn grid(
     for r in rows {
         let key = (r.date, r.shift_template_id);
         let cell = cells_map.entry(key).or_insert_with(|| {
-            let dow = r.date.weekday().number_days_from_sunday() as i32;
-            let required = coverage_map
-                .get(&(r.shift_template_id, dow))
+            let dow = r.date.weekday().number_days_from_sunday() as i16;
+            let required = date_plan
+                .get(&r.date)
+                .and_then(|plan| *plan)
+                .and_then(|pid| coverage_cache.get(&(pid, dow)))
+                .and_then(|m| m.get(&r.shift_template_id))
                 .copied()
-                .unwrap_or(0) as i32;
+                .unwrap_or(0);
             GridCell {
                 date: r.date,
                 shift_template_id: r.shift_template_id,
@@ -619,31 +688,28 @@ pub async fn day_view(
             });
     }
 
-    let dow = date.weekday().number_days_from_sunday() as i32;
-    let coverage_rows = sqlx::query!(
-        r#"
-        SELECT shift_template_id, SUM(target_headcount) AS "total!"
-        FROM coverage_requirements
-        WHERE org_id = $1 AND day_of_week = $2
-        GROUP BY shift_template_id
-        "#,
-        auth.org_id,
-        dow,
-    )
-    .fetch_all(&pool)
-    .await?;
+    let dow = date.weekday().number_days_from_sunday() as i16;
 
-    let coverage_map: HashMap<Uuid, i64> = coverage_rows
-        .into_iter()
-        .map(|r| (r.shift_template_id, r.total))
-        .collect();
+    // Resolve coverage from coverage plans
+    let coverage_map: HashMap<Uuid, i32> = if let Some(plan_id) =
+        resolve_plan_id(&pool, auth.org_id, date).await?
+    {
+        let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
+        let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
+            .iter()
+            .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+            .collect();
+        coverage_required_for_shifts(&slot_totals, &shift_info)
+    } else {
+        HashMap::new()
+    };
 
     let entries: Vec<DayViewEntry> = templates
         .into_iter()
         .map(|t| {
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
-            let required = coverage_map.get(&t.id).copied().unwrap_or(0) as i32;
+            let required = coverage_map.get(&t.id).copied().unwrap_or(0);
             let status = if required == 0 || actual >= required {
                 "green"
             } else if actual > 0 {
@@ -731,31 +797,28 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
             });
     }
 
-    let dow = today.weekday().number_days_from_sunday() as i32;
-    let coverage_rows = sqlx::query!(
-        r#"
-        SELECT shift_template_id, SUM(target_headcount) AS "total!"
-        FROM coverage_requirements
-        WHERE org_id = $1 AND day_of_week = $2
-        GROUP BY shift_template_id
-        "#,
-        auth.org_id,
-        dow,
-    )
-    .fetch_all(&pool)
-    .await?;
+    let dow = today.weekday().number_days_from_sunday() as i16;
 
-    let coverage_map: HashMap<Uuid, i64> = coverage_rows
-        .into_iter()
-        .map(|r| (r.shift_template_id, r.total))
-        .collect();
+    // Resolve coverage from coverage plans
+    let coverage_map: HashMap<Uuid, i32> = if let Some(plan_id) =
+        resolve_plan_id(&pool, auth.org_id, today).await?
+    {
+        let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
+        let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
+            .iter()
+            .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+            .collect();
+        coverage_required_for_shifts(&slot_totals, &shift_info)
+    } else {
+        HashMap::new()
+    };
 
     let current_coverage: Vec<DayViewEntry> = templates
         .into_iter()
         .map(|t| {
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
-            let required = coverage_map.get(&t.id).copied().unwrap_or(0) as i32;
+            let required = coverage_map.get(&t.id).copied().unwrap_or(0);
             let status = if required == 0 || actual >= required {
                 "green"
             } else if actual > 0 {
