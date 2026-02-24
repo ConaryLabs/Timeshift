@@ -94,10 +94,19 @@ function DayOffCard({ label }: { label: string }) {
 
 export default function MyDashboardPage() {
   const user = useAuthStore((s) => s.user)
-  const { data: dashboard, isLoading, isError } = useMyDashboard()
+  const { data: dashboard, isLoading, isError, refetch } = useMyDashboard()
 
   if (isLoading) return <LoadingState message="Loading dashboard..." />
-  if (isError) return <p className="text-sm text-destructive p-6">Failed to load dashboard data.</p>
+  if (isError) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <p className="text-sm text-destructive">Failed to load dashboard data.</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Try again
+        </Button>
+      </div>
+    )
+  }
 
   const greeting = getGreeting()
 

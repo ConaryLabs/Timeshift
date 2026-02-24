@@ -47,7 +47,7 @@ export default function BidPage() {
   const { windowId } = useParams<{ windowId: string }>()
   const [selectedSlots, setSelectedSlots] = useState<AvailableSlot[]>([])
 
-  const { data: detail, isLoading, isError } = useBidWindow(windowId ?? '')
+  const { data: detail, isLoading, isError, refetch } = useBidWindow(windowId ?? '')
   const submitMut = useSubmitBid()
 
   const moveUp = useCallback((index: number) => {
@@ -79,7 +79,14 @@ export default function BidPage() {
   if (!windowId) return <Navigate to="/schedule" replace />
   if (isLoading) return <LoadingState message="Loading bid window..." />
   if (isError || !detail) {
-    return <EmptyState title="Bid window not found" description="The bid window could not be loaded." />
+    return (
+      <div className="p-6 text-center space-y-4">
+        <p className="text-sm text-destructive">Failed to load bid window.</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Try again
+        </Button>
+      </div>
+    )
   }
 
   const { window: bidWindow, available_slots, submissions } = detail

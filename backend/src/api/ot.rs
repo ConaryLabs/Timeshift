@@ -278,20 +278,17 @@ pub async fn volunteer(
     // Any authenticated user can volunteer for their org's callout
     let event = sqlx::query!(
         r#"
-        SELECT ce.id, ce.status AS "status: CalloutStatus", ss.org_id
+        SELECT ce.id, ce.status AS "status: CalloutStatus"
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event.org_id != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
     if event.status != CalloutStatus::Open {
         return Err(AppError::BadRequest(
             "Callout event is not open for volunteers".into(),
@@ -320,22 +317,19 @@ pub async fn list_volunteers(
     Path(event_id): Path<Uuid>,
 ) -> Result<Json<Vec<OtVolunteer>>> {
     // Verify event belongs to org
-    let event_org = sqlx::query_scalar!(
+    sqlx::query_scalar!(
         r#"
-        SELECT ss.org_id
+        SELECT ce.id
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event_org != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
 
     let volunteers = sqlx::query!(
         r#"
@@ -388,22 +382,18 @@ pub async fn advance_step(
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus",
-               ce.current_step AS "current_step?: CalloutStep",
-               ss.org_id
+               ce.current_step AS "current_step?: CalloutStep"
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         FOR UPDATE OF ce
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event.org_id != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
     if event.status != CalloutStatus::Open {
         return Err(AppError::BadRequest("Callout event is not open".into()));
     }

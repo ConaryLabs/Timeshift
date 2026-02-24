@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.id, ce.status AS \"status: CalloutStatus\", ss.org_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1\n        ",
+  "query": "\n        SELECT ce.id, ce.status AS \"status: CalloutStatus\"\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -23,23 +23,18 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 2,
-        "name": "org_id",
-        "type_info": "Uuid"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
     "nullable": [
       false,
-      false,
       false
     ]
   },
-  "hash": "15545e1a31f3fdedcc6ea79d80073c35d850822ec8e824c14247529fb55dc2da"
+  "hash": "4fb8639b595e6fd42d6b93496384636e2e55431b00a2db373d164651ea533a32"
 }

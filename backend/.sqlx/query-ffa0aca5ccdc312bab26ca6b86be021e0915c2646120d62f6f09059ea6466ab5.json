@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE coverage_requirements\n        SET min_headcount = COALESCE($3, min_headcount),\n            target_headcount = COALESCE($4, target_headcount),\n            max_headcount = COALESCE($5, max_headcount)\n        WHERE id = $1 AND org_id = $2\n        RETURNING id, org_id, shift_template_id, classification_id, day_of_week,\n                  min_headcount, target_headcount, max_headcount, effective_date, created_at\n        ",
+  "query": "\n        SELECT id, org_id, shift_template_id, classification_id, day_of_week,\n               min_headcount, target_headcount, max_headcount, effective_date, created_at\n        FROM coverage_requirements\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -57,10 +57,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Int4",
-        "Int4",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -76,5 +73,5 @@
       false
     ]
   },
-  "hash": "8549ccfb2610b15a923a7728c655eb6f96e8b2adb9fe7be003bdf7065c6d0d46"
+  "hash": "ffa0aca5ccdc312bab26ca6b86be021e0915c2646120d62f6f09059ea6466ab5"
 }

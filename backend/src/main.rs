@@ -5,8 +5,9 @@ use std::time::Duration;
 use axum::{
     http::{
         header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-        HeaderValue, Method,
+        HeaderValue, Method, Request,
     },
+    middleware,
     routing::post,
     Router,
 };
@@ -148,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(login_router)
         .merge(refresh_router)
         .merge(callout_action_router)
+        .layer(middleware::from_fn(security_headers))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new());
@@ -162,4 +164,15 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     Ok(())
+}
+
+async fn security_headers(
+    req: Request<axum::body::Body>,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let mut response = next.run(req).await;
+    let headers = response.headers_mut();
+    headers.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
+    response
 }

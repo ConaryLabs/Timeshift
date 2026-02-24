@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\",\n               ss.org_id, ss.date AS shift_date, st.start_time\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1\n        ",
+  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ce.classification_id,\n               ss.date AS shift_date, ce.scheduled_shift_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -21,7 +21,7 @@
       },
       {
         "ordinal": 1,
-        "name": "org_id",
+        "name": "classification_id",
         "type_info": "Uuid"
       },
       {
@@ -31,12 +31,13 @@
       },
       {
         "ordinal": 3,
-        "name": "start_time",
-        "type_info": "Time"
+        "name": "scheduled_shift_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -47,5 +48,5 @@
       false
     ]
   },
-  "hash": "cc844232fb953132324ffdd33b135e035a0339624ba168c897c6ccf847092ae9"
+  "hash": "eec9925da0e8fb96642b6209d87aad74eca9be5bd4b0525300f2b1db7a914fcb"
 }

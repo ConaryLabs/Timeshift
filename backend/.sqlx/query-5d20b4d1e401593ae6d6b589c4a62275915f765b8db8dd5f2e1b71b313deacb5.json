@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ce.scheduled_shift_id,\n               ce.classification_id,\n               ce.current_step AS \"current_step?: CalloutStep\",\n               ss.org_id, ss.date AS shift_date, st.duration_minutes\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates  st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1\n        FOR UPDATE OF ce\n        ",
+  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ce.scheduled_shift_id,\n               ce.classification_id,\n               ce.current_step AS \"current_step?: CalloutStep\",\n               ss.date AS shift_date, st.duration_minutes\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates  st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        FOR UPDATE OF ce\n        ",
   "describe": {
     "columns": [
       {
@@ -49,22 +49,18 @@
       },
       {
         "ordinal": 4,
-        "name": "org_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 5,
         "name": "shift_date",
         "type_info": "Date"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "duration_minutes",
         "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -74,9 +70,8 @@
       false,
       true,
       false,
-      false,
       false
     ]
   },
-  "hash": "eaf54a5d2aaeb6eb1bf5402479dc9283be3019ca5dc181efefa08f06da49bf18"
+  "hash": "5d20b4d1e401593ae6d6b589c4a62275915f765b8db8dd5f2e1b71b313deacb5"
 }
