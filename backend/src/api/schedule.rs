@@ -556,8 +556,12 @@ pub async fn grid(
 pub async fn day_view(
     State(pool): State<PgPool>,
     auth: AuthUser,
-    Path(date): Path<time::Date>,
+    Path(date_str): Path<String>,
 ) -> Result<Json<Vec<DayViewEntry>>> {
+    let format = time::format_description::parse("[year]-[month]-[day]")
+        .map_err(|_| AppError::BadRequest("invalid date format".into()))?;
+    let date = time::Date::parse(&date_str, &format)
+        .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
     let templates = sqlx::query!(
         r#"
         SELECT id, name, color, start_time, end_time, crosses_midnight
