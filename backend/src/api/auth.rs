@@ -75,6 +75,23 @@ pub async fn login(
         }
     };
 
+    // H3: Account lockout — check recent failed login attempts before password verification.
+    // login_audit_log tracks by user_id/event_type (no email column), so we check after user lookup.
+    let recent_failures = sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "count!" FROM login_audit_log
+         WHERE user_id = $1 AND event_type = 'login_failed'
+         AND created_at > NOW() - INTERVAL '15 minutes'"#,
+        user.id,
+    )
+    .fetch_one(&state.pool)
+    .await?;
+
+    if recent_failures >= 5 {
+        return Err(AppError::BadRequest(
+            "Account temporarily locked due to too many failed login attempts. Try again in 15 minutes.".into(),
+        ));
+    }
+
     let parsed = PasswordHash::new(&user.password_hash)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
 
@@ -82,7 +99,13 @@ pub async fn login(
         .verify_password(req.password.as_bytes(), &parsed)
         .is_err()
     {
-        log_audit(&state.pool, Some(user.id), Some(user.org_id), "login_failed").await;
+        log_audit(
+            &state.pool,
+            Some(user.id),
+            Some(user.org_id),
+            "login_failed",
+        )
+        .await;
         return Err(AppError::Unauthorized);
     }
 
@@ -124,7 +147,13 @@ pub async fn login(
     .execute(&state.pool)
     .await?;
 
-    log_audit(&state.pool, Some(user.id), Some(user.org_id), "login_success").await;
+    log_audit(
+        &state.pool,
+        Some(user.id),
+        Some(user.org_id),
+        "login_success",
+    )
+    .await;
 
     // Cap refresh tokens per user (keep most recent 10)
     if let Err(e) = sqlx::query!(

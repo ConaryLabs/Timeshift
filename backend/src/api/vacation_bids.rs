@@ -511,8 +511,7 @@ pub async fn submit_bid(
             if hours < min_block as f64 {
                 return Err(AppError::BadRequest(format!(
                     "Each vacation block must be at least {} hours; got {:.0} hours",
-                    min_block,
-                    hours,
+                    min_block, hours,
                 )));
             }
         }
@@ -521,7 +520,9 @@ pub async fn submit_bid(
     // Enforce allowance_hours: total hours across all picks must not exceed the limit.
     // Uses calculate_hours for consistency with process_bids.
     if let Some(allowance) = w.allowance_hours {
-        let total_hours: f64 = body.picks.iter()
+        let total_hours: f64 = body
+            .picks
+            .iter()
             .map(|p| calculate_hours(p.start_date, p.end_date, &hours_lookup))
             .sum();
         if total_hours > allowance as f64 {

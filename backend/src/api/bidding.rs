@@ -676,7 +676,10 @@ pub async fn process_bids(
         for sub in &submissions {
             // M4: Check flex slot constraint (max 2 flex slots per classification per cycle)
             if sub.is_flex {
-                let count = flex_awards.get(&sub.classification_id).copied().unwrap_or(0);
+                let count = flex_awards
+                    .get(&sub.classification_id)
+                    .copied()
+                    .unwrap_or(0);
                 if count >= 2 {
                     continue; // Flex cap reached for this classification
                 }

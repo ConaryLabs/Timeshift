@@ -251,7 +251,7 @@ pub async fn callout_list(
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
         LEFT JOIN ot_hours ot ON ot.user_id = u.id
             AND ot.fiscal_year = $3
-            AND ot.classification_id IS NULL
+            AND ot.classification_id = $4
         LEFT JOIN ot_queue_positions oq ON
             oq.org_id = $2
             AND oq.user_id = u.id
@@ -370,10 +370,11 @@ pub async fn record_attempt(
         r#"
         SELECT CAST(hours_worked AS FLOAT8)
         FROM ot_hours
-        WHERE user_id = $1 AND fiscal_year = $2 AND classification_id IS NULL
+        WHERE user_id = $1 AND fiscal_year = $2 AND classification_id = $3
         "#,
         req.user_id,
         fiscal_year,
+        ctx.classification_id,
     )
     .fetch_optional(&mut *tx)
     .await?
@@ -464,12 +465,12 @@ pub async fn record_attempt(
             .execute(&mut *tx)
             .await?;
 
-            // Upsert OT hours_worked for this user/year.
+            // Upsert OT hours_worked for this user/year/classification.
             sqlx::query!(
                 r#"
                 INSERT INTO ot_hours
                     (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-                VALUES (gen_random_uuid(), $1, $2, NULL, $3::FLOAT8::NUMERIC, 0)
+                VALUES (gen_random_uuid(), $1, $2, $4, $3::FLOAT8::NUMERIC, 0)
                 ON CONFLICT (user_id, fiscal_year,
                     COALESCE(classification_id,
                              '00000000-0000-0000-0000-000000000000'::uuid))
@@ -480,6 +481,7 @@ pub async fn record_attempt(
                 req.user_id,
                 fiscal_year,
                 shift_hours,
+                ctx.classification_id,
             )
             .execute(&mut *tx)
             .await?;
@@ -502,12 +504,12 @@ pub async fn record_attempt(
             .execute(&mut *tx)
             .await?;
 
-            // Upsert OT hours_declined for this user/year.
+            // Upsert OT hours_declined for this user/year/classification.
             sqlx::query!(
                 r#"
                 INSERT INTO ot_hours
                     (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-                VALUES (gen_random_uuid(), $1, $2, NULL, 0, $3::FLOAT8::NUMERIC)
+                VALUES (gen_random_uuid(), $1, $2, $4, 0, $3::FLOAT8::NUMERIC)
                 ON CONFLICT (user_id, fiscal_year,
                     COALESCE(classification_id,
                              '00000000-0000-0000-0000-000000000000'::uuid))
@@ -518,6 +520,7 @@ pub async fn record_attempt(
                 req.user_id,
                 fiscal_year,
                 shift_hours,
+                ctx.classification_id,
             )
             .execute(&mut *tx)
             .await?;
@@ -794,11 +797,11 @@ pub async fn create_bump_request(
         r#"
         SELECT
             COALESCE((SELECT CAST(hours_worked AS FLOAT8) FROM ot_hours
-                      WHERE user_id = $1 AND fiscal_year = $3 AND classification_id IS NULL), 0.0) AS "req_hours!",
+                      WHERE user_id = $1 AND fiscal_year = $3 AND classification_id = $4), 0.0) AS "req_hours!",
             (SELECT last_ot_event_at FROM ot_queue_positions
              WHERE user_id = $1 AND classification_id = $4 AND org_id = $2 AND fiscal_year = $3) AS req_queue,
             COALESCE((SELECT CAST(hours_worked AS FLOAT8) FROM ot_hours
-                      WHERE user_id = $5 AND fiscal_year = $3 AND classification_id IS NULL), 0.0) AS "dis_hours!",
+                      WHERE user_id = $5 AND fiscal_year = $3 AND classification_id = $4), 0.0) AS "dis_hours!",
             (SELECT last_ot_event_at FROM ot_queue_positions
              WHERE user_id = $5 AND classification_id = $4 AND org_id = $2 AND fiscal_year = $3) AS dis_queue
         "#,

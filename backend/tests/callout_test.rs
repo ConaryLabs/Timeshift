@@ -16,9 +16,14 @@ async fn test_create_callout_event() {
     let org_id = common::create_test_org(&pool, "callout-create").await;
     let classification_id = common::create_test_classification(&pool, org_id).await;
     let email = unique_email("callout-create-admin");
-    let (_, password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &email)
-            .await;
+    let (_, password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &email,
+    )
+    .await;
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
     let future_date = time::Date::from_calendar_date(2027, time::Month::June, 15).unwrap();
     let scheduled_shift_id =
@@ -42,7 +47,10 @@ async fn test_create_callout_event() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["status"].as_str().unwrap(), "open");
-    assert_eq!(body["classification_id"].as_str().unwrap(), classification_id.to_string());
+    assert_eq!(
+        body["classification_id"].as_str().unwrap(),
+        classification_id.to_string()
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -56,9 +64,14 @@ async fn test_advance_step_ordering() {
     let org_id = common::create_test_org(&pool, "callout-step").await;
     let classification_id = common::create_test_classification(&pool, org_id).await;
     let email = unique_email("callout-step-admin");
-    let (admin_id, password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &email)
-            .await;
+    let (admin_id, password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &email,
+    )
+    .await;
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
     let future_date = time::Date::from_calendar_date(2027, time::Month::June, 15).unwrap();
     let scheduled_shift_id =
@@ -80,7 +93,11 @@ async fn test_advance_step_ordering() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 200, "Advancing to 'low_ot_hours' should succeed");
+    assert_eq!(
+        resp.status(),
+        200,
+        "Advancing to 'low_ot_hours' should succeed"
+    );
 
     // Step 2: inverse_seniority (correct next step)
     let resp = client
@@ -90,7 +107,11 @@ async fn test_advance_step_ordering() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 200, "Advancing to 'inverse_seniority' should succeed");
+    assert_eq!(
+        resp.status(),
+        200,
+        "Advancing to 'inverse_seniority' should succeed"
+    );
 
     // Step 3: trying to go back to 'low_ot_hours' should fail
     let resp = client
@@ -100,7 +121,11 @@ async fn test_advance_step_ordering() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "Going back to 'low_ot_hours' should return 400");
+    assert_eq!(
+        resp.status(),
+        400,
+        "Going back to 'low_ot_hours' should return 400"
+    );
 
     // Step 4: skipping to 'mandatory' should fail (must go to equal_ot_hours first)
     let resp = client
@@ -110,7 +135,11 @@ async fn test_advance_step_ordering() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "Skipping to 'mandatory' should return 400");
+    assert_eq!(
+        resp.status(),
+        400,
+        "Skipping to 'mandatory' should return 400"
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -125,14 +154,24 @@ async fn test_record_attempt_no_answer_no_queue_stamp() {
     let classification_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("callout-attempt-admin");
-    let (admin_id, admin_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &admin_email)
-            .await;
+    let (admin_id, admin_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &admin_email,
+    )
+    .await;
 
     let emp_email = unique_email("callout-attempt-emp");
-    let (emp_id, _) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &emp_email)
-            .await;
+    let (emp_id, _) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &emp_email,
+    )
+    .await;
 
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
     let future_date = time::Date::from_calendar_date(2027, time::Month::June, 15).unwrap();
@@ -168,7 +207,10 @@ async fn test_record_attempt_no_answer_no_queue_stamp() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(queue_count, 0, "no_answer should NOT stamp OT queue position");
+    assert_eq!(
+        queue_count, 0,
+        "no_answer should NOT stamp OT queue position"
+    );
 
     // Now record declined -- SHOULD stamp the OT queue
     let resp = client
@@ -207,15 +249,25 @@ async fn test_create_bump_request_self_bump_rejected() {
     let classification_id = common::create_test_classification(&pool, org_id).await;
 
     let emp_email = unique_email("callout-bump-self-emp");
-    let (emp_id, emp_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &emp_email)
-            .await;
+    let (emp_id, emp_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &emp_email,
+    )
+    .await;
 
     // Need an admin to create the event
     let admin_email = unique_email("callout-bump-self-admin");
-    let (admin_id, _) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &admin_email)
-            .await;
+    let (admin_id, _) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &admin_email,
+    )
+    .await;
 
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
     let future_date = time::Date::from_calendar_date(2027, time::Month::June, 15).unwrap();
@@ -248,7 +300,10 @@ async fn test_create_bump_request_self_bump_rejected() {
 
     // Try to bump yourself -> should get 400
     let resp = client
-        .post(format!("http://{}/api/callout/events/{}/bump", addr, event_id))
+        .post(format!(
+            "http://{}/api/callout/events/{}/bump",
+            addr, event_id
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .json(&serde_json::json!({
             "displaced_user_id": emp_id,
@@ -271,21 +326,36 @@ async fn test_review_bump_request_approve() {
     let classification_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("callout-bump-approve-admin");
-    let (admin_id, admin_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &admin_email)
-            .await;
+    let (admin_id, admin_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &admin_email,
+    )
+    .await;
 
     // Displaced user (higher OT hours)
     let displaced_email = unique_email("callout-bump-displaced");
-    let (displaced_id, _) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &displaced_email)
-            .await;
+    let (displaced_id, _) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &displaced_email,
+    )
+    .await;
 
     // Requesting user (lower OT hours)
     let requester_email = unique_email("callout-bump-requester");
-    let (requester_id, requester_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &requester_email)
-            .await;
+    let (requester_id, requester_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &requester_email,
+    )
+    .await;
 
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
     let future_date = time::Date::from_calendar_date(2027, time::Month::June, 15).unwrap();
@@ -333,7 +403,10 @@ async fn test_review_bump_request_approve() {
     let client = common::http_client();
 
     let resp = client
-        .post(format!("http://{}/api/callout/events/{}/bump", addr, event_id))
+        .post(format!(
+            "http://{}/api/callout/events/{}/bump",
+            addr, event_id
+        ))
         .header("Authorization", format!("Bearer {}", requester_token))
         .json(&serde_json::json!({
             "displaced_user_id": displaced_id,
@@ -352,7 +425,10 @@ async fn test_review_bump_request_approve() {
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_password).await;
 
     let resp = client
-        .patch(format!("http://{}/api/callout/bump-requests/{}/review", addr, bump_id))
+        .patch(format!(
+            "http://{}/api/callout/bump-requests/{}/review",
+            addr, bump_id
+        ))
         .header("Authorization", format!("Bearer {}", admin_token))
         .json(&serde_json::json!({
             "approved": true,
@@ -386,7 +462,10 @@ async fn test_review_bump_request_approve() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(requester_assigned, "Requester should have an active OT assignment");
+    assert!(
+        requester_assigned,
+        "Requester should have an active OT assignment"
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -401,14 +480,24 @@ async fn test_cancel_ot_assignment_voluntary_24h_block() {
     let classification_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("callout-cancel-admin");
-    let (admin_id, admin_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &admin_email)
-            .await;
+    let (admin_id, admin_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &admin_email,
+    )
+    .await;
 
     let emp_email = unique_email("callout-cancel-emp");
-    let (emp_id, emp_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &emp_email)
-            .await;
+    let (emp_id, emp_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &emp_email,
+    )
+    .await;
 
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
 
@@ -458,22 +547,36 @@ async fn test_cancel_ot_assignment_voluntary_24h_block() {
     // Employee tries to cancel within 24h -> should get 409
     let emp_token = common::get_auth_token(addr, &emp_email, &emp_password).await;
     let resp = client
-        .post(format!("http://{}/api/callout/events/{}/cancel-ot", addr, event_id))
+        .post(format!(
+            "http://{}/api/callout/events/{}/cancel-ot",
+            addr, event_id
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 409, "Employee should not be able to cancel voluntary OT within 24h");
+    assert_eq!(
+        resp.status(),
+        409,
+        "Employee should not be able to cancel voluntary OT within 24h"
+    );
 
     // Admin/supervisor can always cancel
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_password).await;
     let resp = client
-        .post(format!("http://{}/api/callout/events/{}/cancel-ot", addr, event_id))
+        .post(format!(
+            "http://{}/api/callout/events/{}/cancel-ot",
+            addr, event_id
+        ))
         .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 200, "Admin should be able to cancel OT regardless of 24h window");
+    assert_eq!(
+        resp.status(),
+        200,
+        "Admin should be able to cancel OT regardless of 24h window"
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -488,20 +591,35 @@ async fn test_callout_list_ordering() {
     let classification_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("callout-list-admin");
-    let (admin_id, admin_password) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "admin", &admin_email)
-            .await;
+    let (admin_id, admin_password) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "admin",
+        &admin_email,
+    )
+    .await;
 
     // Create two employees in the same classification
     let emp1_email = unique_email("callout-list-emp1");
-    let (_, _) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &emp1_email)
-            .await;
+    let (_, _) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &emp1_email,
+    )
+    .await;
 
     let emp2_email = unique_email("callout-list-emp2");
-    let (_, _) =
-        common::create_test_user_with_classification(&pool, org_id, classification_id, "employee", &emp2_email)
-            .await;
+    let (_, _) = common::create_test_user_with_classification(
+        &pool,
+        org_id,
+        classification_id,
+        "employee",
+        &emp2_email,
+    )
+    .await;
 
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
     let future_date = time::Date::from_calendar_date(2027, time::Month::June, 15).unwrap();
@@ -515,7 +633,10 @@ async fn test_callout_list_ordering() {
     let client = common::http_client();
 
     let resp = client
-        .get(format!("http://{}/api/callout/events/{}/queue", addr, event_id))
+        .get(format!(
+            "http://{}/api/callout/events/{}/queue",
+            addr, event_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -524,7 +645,10 @@ async fn test_callout_list_ordering() {
 
     let entries: Vec<serde_json::Value> = resp.json().await.unwrap();
     // Should have at least 3 users (admin + 2 employees, all with classification)
-    assert!(entries.len() >= 3, "Callout list should include at least 3 users (admin + 2 employees)");
+    assert!(
+        entries.len() >= 3,
+        "Callout list should include at least 3 users (admin + 2 employees)"
+    );
 
     // All entries should have position, user_id, is_available
     for entry in &entries {

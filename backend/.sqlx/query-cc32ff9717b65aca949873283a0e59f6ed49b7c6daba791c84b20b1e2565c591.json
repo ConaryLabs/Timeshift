@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            r.id, r.org_id, r.date, r.start_time, r.end_time,\n            CAST(r.hours AS FLOAT8) AS \"hours!\",\n            r.classification_id,\n            cl.name AS classification_name,\n            r.ot_reason_id,\n            orr.name AS \"ot_reason_name?\",\n            r.location,\n            r.is_fixed_coverage,\n            r.notes,\n            r.status,\n            r.created_by,\n            (cu.first_name || ' ' || cu.last_name) AS \"created_by_name!\",\n            r.created_at,\n            r.updated_at,\n            r.cancelled_at,\n            r.cancelled_by,\n            (SELECT COUNT(*) FROM ot_request_volunteers v\n             WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS \"volunteer_count!\",\n            (SELECT COUNT(*) FROM ot_request_assignments a\n             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS \"assignment_count!\"\n        FROM ot_requests r\n        JOIN classifications cl ON cl.id = r.classification_id\n        JOIN users cu ON cu.id = r.created_by\n        LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id\n        WHERE r.org_id = $1\n          AND ($2::TEXT IS NULL OR r.status = $2)\n          AND ($3::DATE IS NULL OR r.date >= $3)\n          AND ($4::DATE IS NULL OR r.date <= $4)\n          AND ($5::UUID IS NULL OR r.classification_id = $5)\n          AND (NOT $8::BOOL OR EXISTS (\n            SELECT 1 FROM ot_request_volunteers v\n            WHERE v.ot_request_id = r.id AND v.user_id = $9 AND v.withdrawn_at IS NULL\n          ))\n        ORDER BY r.date DESC, r.start_time ASC\n        LIMIT $6 OFFSET $7\n        ",
+  "query": "\n        SELECT\n            r.id, r.org_id, r.date, r.start_time, r.end_time,\n            CAST(r.hours AS FLOAT8) AS \"hours!\",\n            r.classification_id,\n            cl.name AS classification_name,\n            r.ot_reason_id,\n            orr.name AS \"ot_reason_name?\",\n            r.location,\n            r.is_fixed_coverage,\n            r.notes,\n            r.status,\n            r.created_by,\n            (cu.first_name || ' ' || cu.last_name) AS \"created_by_name!\",\n            r.created_at,\n            r.updated_at,\n            r.cancelled_at,\n            r.cancelled_by,\n            (SELECT COUNT(*) FROM ot_request_volunteers v\n             WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS \"volunteer_count!\",\n            (SELECT COUNT(*) FROM ot_request_assignments a\n             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS \"assignment_count!\",\n            EXISTS(SELECT 1 FROM ot_request_volunteers v\n             WHERE v.ot_request_id = r.id AND v.user_id = $3 AND v.withdrawn_at IS NULL) AS \"user_volunteered!\"\n        FROM ot_requests r\n        JOIN classifications cl ON cl.id = r.classification_id\n        JOIN users cu ON cu.id = r.created_by\n        LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id\n        WHERE r.id = $1 AND r.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -112,18 +112,17 @@
         "ordinal": 21,
         "name": "assignment_count!",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 22,
+        "name": "user_volunteered!",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Date",
-        "Date",
         "Uuid",
-        "Int8",
-        "Int8",
-        "Bool",
         "Uuid"
       ]
     },
@@ -149,8 +148,9 @@
       true,
       true,
       null,
+      null,
       null
     ]
   },
-  "hash": "fac7ab1d426fab2346a5dbcc844b27ffb98b0014c4c8a13d229d08f1b50bfc2b"
+  "hash": "cc32ff9717b65aca949873283a0e59f6ed49b7c6daba791c84b20b1e2565c591"
 }

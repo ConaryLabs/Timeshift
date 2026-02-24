@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) AS \"count!\" FROM login_audit_log\n         WHERE user_id = $1 AND event_type = 'login_failed'\n         AND created_at > NOW() - INTERVAL '15 minutes'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "09a047b8f9cc6ef9070ad5907d9079fd9507e75ebf87f6811690d6f1ecda78b4"
+}

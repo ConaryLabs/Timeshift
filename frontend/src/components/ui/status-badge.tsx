@@ -25,16 +25,17 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const displayLabel = status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   return (
     <Badge
       variant="outline"
       className={cn(
-        "text-xs font-medium capitalize",
+        "text-xs font-medium",
         STATUS_VARIANTS[status] ?? "bg-slate-100 text-slate-600 border-slate-200",
         className,
       )}
     >
-      {status}
+      {displayLabel}
     </Badge>
   )
 }

@@ -136,7 +136,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/bid-windows/:id", get(bidding::get_bid_window))
         .route("/api/bid-windows/:id/submit", post(bidding::submit_bid))
-        .route("/api/bid-windows/:id/approve", post(bidding::approve_bid_window))
+        .route(
+            "/api/bid-windows/:id/approve",
+            post(bidding::approve_bid_window),
+        )
         // Schedule views
         .route("/api/schedule/grid", get(schedule::grid))
         .route("/api/schedule/day/:date", get(schedule::day_view))
@@ -179,22 +182,37 @@ pub fn router(state: AppState) -> Router {
         // Leave requests
         .route("/api/leave", get(leave::list).post(leave::create))
         .route("/api/leave/bulk-review", post(leave::bulk_review))
-        .route("/api/leave/carryover-enforcement", post(leave::carryover_enforcement))
+        .route(
+            "/api/leave/carryover-enforcement",
+            post(leave::carryover_enforcement),
+        )
         .route("/api/leave/longevity-credit", post(leave::longevity_credit))
         // Holiday sellback
         .route(
             "/api/leave/sellback",
             get(leave_sellback::list).post(leave_sellback::create),
         )
-        .route("/api/leave/sellback/:id/review", patch(leave_sellback::review))
-        .route("/api/leave/sellback/:id/cancel", patch(leave_sellback::cancel))
+        .route(
+            "/api/leave/sellback/:id/review",
+            patch(leave_sellback::review),
+        )
+        .route(
+            "/api/leave/sellback/:id/cancel",
+            patch(leave_sellback::cancel),
+        )
         // Sick leave donations
         .route(
             "/api/leave/donations",
             get(leave_donation::list).post(leave_donation::create),
         )
-        .route("/api/leave/donations/:id/review", patch(leave_donation::review))
-        .route("/api/leave/donations/:id/cancel", patch(leave_donation::cancel))
+        .route(
+            "/api/leave/donations/:id/review",
+            patch(leave_donation::review),
+        )
+        .route(
+            "/api/leave/donations/:id/cancel",
+            patch(leave_donation::cancel),
+        )
         .route("/api/leave/:id", get(leave::get_one))
         .route("/api/leave/:id/cancel", patch(leave::cancel))
         .route("/api/leave/:id/review", patch(leave::review))
@@ -296,10 +314,7 @@ pub fn router(state: AppState) -> Router {
             "/api/ot-requests/:id",
             get(ot_request::get_one).patch(ot_request::update),
         )
-        .route(
-            "/api/ot-requests/:id/cancel",
-            patch(ot_request::cancel),
-        )
+        .route("/api/ot-requests/:id/cancel", patch(ot_request::cancel))
         .route(
             "/api/ot-requests/:id/volunteer",
             post(ot_request::volunteer),
@@ -308,10 +323,7 @@ pub fn router(state: AppState) -> Router {
             "/api/ot-requests/:id/volunteer/withdraw",
             patch(ot_request::withdraw_volunteer),
         )
-        .route(
-            "/api/ot-requests/:id/assign",
-            post(ot_request::assign),
-        )
+        .route("/api/ot-requests/:id/assign", post(ot_request::assign))
         .route(
             "/api/ot-requests/:id/assign/:user_id",
             delete(ot_request::cancel_assignment),

@@ -450,7 +450,8 @@ pub async fn create(
     let is_fmla = lt.code.starts_with("fmla_");
     if is_fmla {
         if let Some(total_hours) = body.hours {
-            create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours).await?;
+            create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours)
+                .await?;
         }
     }
 
@@ -675,6 +676,26 @@ pub async fn review(
             // Original single-type deduction
             if let Some(hours) = r.hours {
                 if hours > 0.0 {
+                    // H4: Lock balance row and verify sufficient balance before deduction
+                    let current_balance = sqlx::query_scalar!(
+                        r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
+                         FROM leave_balances
+                         WHERE user_id = $1 AND leave_type_id = $2
+                         FOR UPDATE"#,
+                        r.user_id,
+                        r.leave_type_id,
+                    )
+                    .fetch_optional(&mut *tx)
+                    .await?;
+
+                    if let Some(balance) = current_balance {
+                        if balance < hours {
+                            return Err(AppError::Conflict(
+                                "Insufficient leave balance to approve this request".into(),
+                            ));
+                        }
+                    }
+
                     deduct_leave_balance(
                         &mut tx,
                         auth.org_id,
@@ -689,8 +710,28 @@ pub async fn review(
             }
         } else {
             // Deduct from each segment's leave type (skip LWOP — no balance)
-            for seg in segments {
+            for seg in &segments {
                 if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                    // H4: Lock balance row and verify sufficient balance before deduction
+                    let current_balance = sqlx::query_scalar!(
+                        r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
+                         FROM leave_balances
+                         WHERE user_id = $1 AND leave_type_id = $2
+                         FOR UPDATE"#,
+                        r.user_id,
+                        seg.leave_type_id,
+                    )
+                    .fetch_optional(&mut *tx)
+                    .await?;
+
+                    if let Some(balance) = current_balance {
+                        if balance < seg.hours {
+                            return Err(AppError::Conflict(
+                                "Insufficient leave balance to approve this request".into(),
+                            ));
+                        }
+                    }
+
                     deduct_leave_balance(
                         &mut tx,
                         auth.org_id,
@@ -982,7 +1023,10 @@ pub async fn carryover_enforcement(
                 user.id,
                 row.leave_type_id,
                 -deduct,
-                format!("FY{} carryover cap enforcement — excess cashed out", body.fiscal_year),
+                format!(
+                    "FY{} carryover cap enforcement — excess cashed out",
+                    body.fiscal_year
+                ),
                 auth.id,
             )
             .execute(&mut *tx)

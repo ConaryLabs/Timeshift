@@ -43,6 +43,7 @@ pub struct OtRequestRow {
     pub cancelled_by: Option<Uuid>,
     pub volunteer_count: i64,
     pub assignment_count: i64,
+    pub user_volunteered: bool,
 }
 
 /// Single OT request detail with nested volunteers and assignments.

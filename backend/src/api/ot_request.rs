@@ -49,7 +49,9 @@ pub async fn list(
             (SELECT COUNT(*) FROM ot_request_volunteers v
              WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS "volunteer_count!",
             (SELECT COUNT(*) FROM ot_request_assignments a
-             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS "assignment_count!"
+             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS "assignment_count!",
+            EXISTS(SELECT 1 FROM ot_request_volunteers v
+             WHERE v.ot_request_id = r.id AND v.user_id = $9 AND v.withdrawn_at IS NULL) AS "user_volunteered!"
         FROM ot_requests r
         JOIN classifications cl ON cl.id = r.classification_id
         JOIN users cu ON cu.id = r.created_by
@@ -104,6 +106,7 @@ pub async fn list(
             cancelled_by: r.cancelled_by,
             volunteer_count: r.volunteer_count,
             assignment_count: r.assignment_count,
+            user_volunteered: r.user_volunteered,
         })
         .collect();
 
@@ -277,6 +280,13 @@ pub async fn create(
         org_guard::verify_ot_reason(&pool, reason_id, auth.org_id).await?;
     }
 
+    // Reject identical start and end times (would compute as 24h due to midnight-crossing branch)
+    if req.start_time == req.end_time {
+        return Err(AppError::BadRequest(
+            "Start time and end time cannot be the same".into(),
+        ));
+    }
+
     // Compute hours from start_time and end_time
     let start_secs = req.start_time.hour() as f64 * 3600.0
         + req.start_time.minute() as f64 * 60.0
@@ -379,6 +389,7 @@ pub async fn create(
         cancelled_by: row.cancelled_by,
         volunteer_count: 0,
         assignment_count: 0,
+        user_volunteered: false,
     }))
 }
 
@@ -397,6 +408,22 @@ pub async fn update(
 
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
+    }
+
+    // Manual length validation for double-Option fields (derive(Validate) can't reach inner strings)
+    if let Some(Some(ref loc)) = req.location {
+        if loc.len() > 500 {
+            return Err(AppError::BadRequest(
+                "Location too long (max 500 chars)".into(),
+            ));
+        }
+    }
+    if let Some(Some(ref n)) = req.notes {
+        if n.len() > 2000 {
+            return Err(AppError::BadRequest(
+                "Notes too long (max 2000 chars)".into(),
+            ));
+        }
     }
 
     // Verify request exists and belongs to org
@@ -488,7 +515,9 @@ pub async fn update(
             (SELECT COUNT(*) FROM ot_request_volunteers v
              WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS "volunteer_count!",
             (SELECT COUNT(*) FROM ot_request_assignments a
-             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS "assignment_count!"
+             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS "assignment_count!",
+            EXISTS(SELECT 1 FROM ot_request_volunteers v
+             WHERE v.ot_request_id = r.id AND v.user_id = $3 AND v.withdrawn_at IS NULL) AS "user_volunteered!"
         FROM ot_requests r
         JOIN classifications cl ON cl.id = r.classification_id
         JOIN users cu ON cu.id = r.created_by
@@ -497,6 +526,7 @@ pub async fn update(
         "#,
         id,
         auth.org_id,
+        auth.id,
     )
     .fetch_one(&pool)
     .await?;
@@ -524,6 +554,7 @@ pub async fn update(
         cancelled_by: row.cancelled_by,
         volunteer_count: row.volunteer_count,
         assignment_count: row.assignment_count,
+        user_volunteered: row.user_volunteered,
     }))
 }
 
@@ -586,10 +617,7 @@ pub async fn volunteer(
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
-    if !matches!(
-        request.status.as_str(),
-        "open" | "partially_filled"
-    ) {
+    if !matches!(request.status.as_str(), "open" | "partially_filled") {
         return Err(AppError::Conflict(
             "OT request is not accepting volunteers".into(),
         ));
@@ -719,7 +747,7 @@ pub async fn assign(
 
     // Verify request exists, belongs to org, and is not cancelled/filled
     let request = sqlx::query!(
-        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id
+        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -735,9 +763,7 @@ pub async fn assign(
     }
 
     if request.status == "filled" {
-        return Err(AppError::Conflict(
-            "OT request is already filled".into(),
-        ));
+        return Err(AppError::Conflict("OT request is already filled".into()));
     }
 
     // Verify user belongs to org and is active
@@ -764,7 +790,10 @@ pub async fn assign(
     let ot_type = req.ot_type.unwrap_or_else(|| "voluntary".to_string());
 
     // Validate ot_type
-    if !matches!(ot_type.as_str(), "voluntary" | "mandatory" | "fixed_coverage") {
+    if !matches!(
+        ot_type.as_str(),
+        "voluntary" | "mandatory" | "fixed_coverage"
+    ) {
         return Err(AppError::BadRequest(
             "ot_type must be one of: voluntary, mandatory, fixed_coverage".into(),
         ));
@@ -786,18 +815,24 @@ pub async fn assign(
     .execute(&mut *tx)
     .await?;
 
-    // Update request status based on assignment count
-    // For now, a single assignment fills the request (one slot per OT request).
-    // This can be extended later for multi-slot requests.
+    // Update request status based on coverage type:
+    // Fixed coverage = single-slot, so one assignment fills it.
+    // Non-fixed coverage = may need more assignments, so mark partially_filled.
+    let new_status = if request.is_fixed_coverage {
+        "filled"
+    } else {
+        "partially_filled"
+    };
     sqlx::query!(
         r#"
         UPDATE ot_requests SET
-            status = 'filled',
+            status = $3,
             updated_at = NOW()
         WHERE id = $1 AND org_id = $2
         "#,
         id,
         auth.org_id,
+        new_status,
     )
     .execute(&mut *tx)
     .await?;
