@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT lr.id, lr.user_id,\n               u.first_name, u.last_name,\n               lr.leave_type_id,\n               lt.code AS leave_type_code, lt.name AS leave_type_name,\n               lr.start_date, lr.end_date,\n               lr.hours::FLOAT8 AS hours,\n               lr.reason,\n               lr.status AS \"status: LeaveStatus\",\n               lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE lr.id = $1 AND u.org_id = $2\n        ",
+  "query": "\n        SELECT lr.id, lr.user_id,\n               u.first_name, u.last_name,\n               lr.leave_type_id,\n               lt.code AS leave_type_code, lt.name AS leave_type_name,\n               lr.start_date, lr.end_date,\n               lr.hours::FLOAT8 AS hours,\n               lr.start_time,\n               lr.scheduled_shift_id,\n               lr.is_rdo,\n               lr.reason,\n               lr.emergency_contact,\n               lr.bereavement_relationship,\n               lr.bereavement_name,\n               lr.status AS \"status: LeaveStatus\",\n               lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE u.org_id = $1\n          AND ($2 OR lr.user_id = $3)\n        ORDER BY lr.created_at DESC\n        LIMIT $4 OFFSET $5\n        ",
   "describe": {
     "columns": [
       {
@@ -55,11 +55,41 @@
       },
       {
         "ordinal": 10,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 11,
+        "name": "scheduled_shift_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "is_rdo",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
         "name": "reason",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 14,
+        "name": "emergency_contact",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "bereavement_relationship",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "bereavement_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
         "name": "status: LeaveStatus",
         "type_info": {
           "Custom": {
@@ -76,22 +106,22 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 18,
         "name": "reviewed_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 13,
+        "ordinal": 19,
         "name": "reviewer_notes",
         "type_info": "Text"
       },
       {
-        "ordinal": 14,
+        "ordinal": 20,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 15,
+        "ordinal": 21,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -99,7 +129,10 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Bool",
+        "Uuid",
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
@@ -114,6 +147,12 @@
       false,
       null,
       true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
       false,
       true,
       true,
@@ -121,5 +160,5 @@
       false
     ]
   },
-  "hash": "286b46d03680252b02227db21bde899823a28d07415c52b079a324075aed3aa0"
+  "hash": "f8e7ec53a907e5cab66e4d767a06dea85bdd0025a57bb36b51585498ee8b1d5b"
 }

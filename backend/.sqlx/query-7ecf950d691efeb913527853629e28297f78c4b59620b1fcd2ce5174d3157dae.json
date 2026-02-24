@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(\n                SELECT 1 FROM scheduled_shifts ss\n                JOIN shift_templates st ON st.id = ss.shift_template_id\n                WHERE ss.id = $1 AND st.org_id = $2\n            )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7ecf950d691efeb913527853629e28297f78c4b59620b1fcd2ce5174d3157dae"
+}
