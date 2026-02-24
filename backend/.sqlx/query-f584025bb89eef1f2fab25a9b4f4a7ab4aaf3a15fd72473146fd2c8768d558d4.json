@@ -1,0 +1,154 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            r.id, r.org_id, r.date, r.start_time, r.end_time,\n            CAST(r.hours AS FLOAT8) AS \"hours!\",\n            r.classification_id,\n            cl.name AS classification_name,\n            r.ot_reason_id,\n            orr.name AS \"ot_reason_name?\",\n            r.location,\n            r.is_fixed_coverage,\n            r.notes,\n            r.status,\n            r.created_by,\n            (cu.first_name || ' ' || cu.last_name) AS \"created_by_name!\",\n            r.created_at,\n            r.updated_at,\n            r.cancelled_at,\n            r.cancelled_by,\n            (SELECT COUNT(*) FROM ot_request_volunteers v\n             WHERE v.ot_request_id = r.id AND v.withdrawn_at IS NULL) AS \"volunteer_count!\",\n            (SELECT COUNT(*) FROM ot_request_assignments a\n             WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS \"assignment_count!\"\n        FROM ot_requests r\n        JOIN classifications cl ON cl.id = r.classification_id\n        JOIN users cu ON cu.id = r.created_by\n        LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id\n        WHERE r.org_id = $1\n          AND ($2::TEXT IS NULL OR r.status = $2)\n          AND ($3::DATE IS NULL OR r.date >= $3)\n          AND ($4::DATE IS NULL OR r.date <= $4)\n          AND ($5::UUID IS NULL OR r.classification_id = $5)\n        ORDER BY r.date DESC, r.start_time ASC\n        LIMIT $6 OFFSET $7\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "hours!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "classification_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "ot_reason_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "ot_reason_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "location",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "is_fixed_coverage",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_by_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "cancelled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "cancelled_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 20,
+        "name": "volunteer_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
+        "name": "assignment_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Date",
+        "Date",
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "f584025bb89eef1f2fab25a9b4f4a7ab4aaf3a15fd72473146fd2c8768d558d4"
+}

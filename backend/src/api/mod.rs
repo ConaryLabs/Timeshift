@@ -12,6 +12,7 @@ pub mod leave_sellback;
 pub mod nav;
 pub mod organizations;
 pub mod ot;
+pub mod ot_request;
 pub mod reports;
 pub mod schedule;
 pub mod shifts;
@@ -286,5 +287,30 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ot/queue/set-position", patch(ot::set_queue_position))
         .route("/api/ot/hours", get(ot::get_hours))
         .route("/api/ot/hours/adjust", post(ot::adjust_hours))
+        // OT Requests (standalone, decoupled from callout)
+        .route(
+            "/api/ot-requests",
+            get(ot_request::list).post(ot_request::create),
+        )
+        .route(
+            "/api/ot-requests/:id",
+            get(ot_request::get_one).put(ot_request::update),
+        )
+        .route(
+            "/api/ot-requests/:id/cancel",
+            delete(ot_request::cancel),
+        )
+        .route(
+            "/api/ot-requests/:id/volunteer",
+            post(ot_request::volunteer).delete(ot_request::withdraw_volunteer),
+        )
+        .route(
+            "/api/ot-requests/:id/assign",
+            post(ot_request::assign),
+        )
+        .route(
+            "/api/ot-requests/:id/assign/:user_id",
+            delete(ot_request::cancel_assignment),
+        )
         .with_state(state)
 }

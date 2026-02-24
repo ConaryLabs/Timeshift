@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ot_request_assignments\n            (id, ot_request_id, user_id, ot_type, assigned_by)\n        VALUES ($1, $2, $3, $4, $5)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d902726f056a767154ba9a88b3ca2c78fc91f67c59328dd2ec8309538d7a7b9"
+}

@@ -35,6 +35,8 @@ const VacationBidAdminPage = lazy(() => import('@/pages/admin/VacationBidAdminPa
 const HolidayCalendarPage = lazy(() => import('@/pages/admin/HolidayCalendarPage'))
 const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
 const CoverageRequirementsPage = lazy(() => import('@/pages/admin/CoverageRequirementsPage'))
+const AvailableOTPage = lazy(() => import('@/pages/AvailableOTPage'))
+const VolunteeredOTPage = lazy(() => import('@/pages/VolunteeredOTPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -68,6 +70,8 @@ export default function App() {
           <Route path="leave/sellback" element={<PageSuspense><LeaveSellbackPage /></PageSuspense>} />
           <Route path="leave/donations" element={<PageSuspense><SickDonationPage /></PageSuspense>} />
           <Route path="trades" element={<PageSuspense><TradesPage /></PageSuspense>} />
+          <Route path="available-ot" element={<PageSuspense><AvailableOTPage /></PageSuspense>} />
+          <Route path="volunteered-ot" element={<PageSuspense><VolunteeredOTPage /></PageSuspense>} />
           <Route
             path="callout"
             element={

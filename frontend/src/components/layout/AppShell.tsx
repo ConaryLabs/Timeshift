@@ -28,6 +28,8 @@ import {
   AlertTriangle,
   Banknote,
   HeartHandshake,
+  Timer,
+  Hand,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -64,6 +66,8 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
     { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
     { to: '/leave/sellback', label: 'Sellback', icon: <Banknote className="h-4 w-4" /> },
     { to: '/leave/donations', label: 'Donations', icon: <HeartHandshake className="h-4 w-4" /> },
+    { to: '/available-ot', label: 'Available OT', icon: <Timer className="h-4 w-4" /> },
+    { to: '/volunteered-ot', label: 'My Volunteered OT', icon: <Hand className="h-4 w-4" /> },
   ]
 
   if (isManager) {

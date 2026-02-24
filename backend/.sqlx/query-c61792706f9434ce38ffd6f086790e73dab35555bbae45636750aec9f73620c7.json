@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO ot_request_volunteers (id, ot_request_id, user_id)\n            VALUES (gen_random_uuid(), $1, $2)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c61792706f9434ce38ffd6f086790e73dab35555bbae45636750aec9f73620c7"
+}
