@@ -145,10 +145,7 @@ async fn test_create_trade_request() {
         body["partner_assignment_id"].as_str().unwrap(),
         par_assignment_id.to_string()
     );
-    assert_eq!(
-        body["partner_id"].as_str().unwrap(),
-        partner_id.to_string()
-    );
+    assert_eq!(body["partner_id"].as_str().unwrap(), partner_id.to_string());
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -276,43 +273,47 @@ async fn test_review_trade_approve() {
     assert!(reviewed["reviewed_by"].as_str().is_some());
 
     // Verify assignments were swapped: requester's assignment now belongs to partner
-    let req_user_id: Uuid = sqlx::query_scalar(
-        "SELECT user_id FROM assignments WHERE id = $1",
-    )
-    .bind(req_assignment_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(req_user_id, partner_id, "Requester's assignment should now belong to partner");
+    let req_user_id: Uuid = sqlx::query_scalar("SELECT user_id FROM assignments WHERE id = $1")
+        .bind(req_assignment_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        req_user_id, partner_id,
+        "Requester's assignment should now belong to partner"
+    );
 
     // Partner's assignment now belongs to requester
-    let par_user_id: Uuid = sqlx::query_scalar(
-        "SELECT user_id FROM assignments WHERE id = $1",
-    )
-    .bind(par_assignment_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(par_user_id, _requester_id, "Partner's assignment should now belong to requester");
+    let par_user_id: Uuid = sqlx::query_scalar("SELECT user_id FROM assignments WHERE id = $1")
+        .bind(par_assignment_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        par_user_id, _requester_id,
+        "Partner's assignment should now belong to requester"
+    );
 
     // Both assignments should have is_trade = true
-    let req_is_trade: bool = sqlx::query_scalar(
-        "SELECT is_trade FROM assignments WHERE id = $1",
-    )
-    .bind(req_assignment_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(req_is_trade, "Requester's assignment should have is_trade = true");
+    let req_is_trade: bool = sqlx::query_scalar("SELECT is_trade FROM assignments WHERE id = $1")
+        .bind(req_assignment_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(
+        req_is_trade,
+        "Requester's assignment should have is_trade = true"
+    );
 
-    let par_is_trade: bool = sqlx::query_scalar(
-        "SELECT is_trade FROM assignments WHERE id = $1",
-    )
-    .bind(par_assignment_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(par_is_trade, "Partner's assignment should have is_trade = true");
+    let par_is_trade: bool = sqlx::query_scalar("SELECT is_trade FROM assignments WHERE id = $1")
+        .bind(par_assignment_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(
+        par_is_trade,
+        "Partner's assignment should have is_trade = true"
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }

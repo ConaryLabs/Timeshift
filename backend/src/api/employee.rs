@@ -145,11 +145,13 @@ pub async fn my_schedule(
         LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date BETWEEN $2 AND $3
+          AND ss.org_id = $4
         ORDER BY ss.date, st.start_time
         "#,
         auth.id,
         params.start_date,
         params.end_date,
+        auth.org_id,
     )
     .fetch_all(&pool)
     .await?;
@@ -194,11 +196,13 @@ pub async fn my_dashboard(
         LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date = $2
+          AND ss.org_id = $3
         ORDER BY st.start_time
         LIMIT 1
         "#,
         auth.id,
         today,
+        auth.org_id,
     )
     .fetch_optional(&pool)
     .await?
@@ -228,11 +232,13 @@ pub async fn my_dashboard(
         LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date > $2
+          AND ss.org_id = $3
         ORDER BY ss.date, st.start_time
         LIMIT 1
         "#,
         auth.id,
         today,
+        auth.org_id,
     )
     .fetch_optional(&pool)
     .await?
@@ -262,11 +268,13 @@ pub async fn my_dashboard(
         LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date BETWEEN $2 AND $3
+          AND ss.org_id = $4
         ORDER BY ss.date, st.start_time
         "#,
         auth.id,
         today,
         week_end,
+        auth.org_id,
     )
     .fetch_all(&pool)
     .await?;

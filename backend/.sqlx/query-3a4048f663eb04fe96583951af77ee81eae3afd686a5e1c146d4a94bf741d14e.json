@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT CAST(hours_worked AS FLOAT8)\n        FROM ot_hours\n        WHERE user_id = $1 AND fiscal_year = $2 AND classification_id IS NULL\n        ",
+  "query": "\n        SELECT CAST(hours_worked AS FLOAT8)\n        FROM ot_hours\n        WHERE user_id = $1 AND fiscal_year = $2 AND classification_id = $3\n        ",
   "describe": {
     "columns": [
       {
@@ -12,12 +12,13 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Int4"
+        "Int4",
+        "Uuid"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "5a0d8d00f868291eb4ccb2da61baa7b44f274a16ed2085677654e9eaecc40947"
+  "hash": "3a4048f663eb04fe96583951af77ee81eae3afd686a5e1c146d4a94bf741d14e"
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -70,14 +70,14 @@ function ConfigSection() {
   const [fiscalMonth, setFiscalMonth] = useState('')
   const [payPeriod, setPayPeriod] = useState('')
   const [bidCycle, setBidCycle] = useState('')
+  const [syncedSettings, setSyncedSettings] = useState(settings)
 
-  useEffect(() => {
-    if (settings) {
-      setFiscalMonth(getSettingValue(settings, 'fiscal_year_start_month') || '1')
-      setPayPeriod(getSettingValue(settings, 'pay_period_type') || 'biweekly')
-      setBidCycle(getSettingValue(settings, 'bid_cycle_months') || '6')
-    }
-  }, [settings])
+  if (settings && settings !== syncedSettings) {
+    setSyncedSettings(settings)
+    setFiscalMonth(getSettingValue(settings, 'fiscal_year_start_month') || '1')
+    setPayPeriod(getSettingValue(settings, 'pay_period_type') || 'biweekly')
+    setBidCycle(getSettingValue(settings, 'bid_cycle_months') || '6')
+  }
 
   function saveSetting(key: string, value: string | number) {
     setMut.mutate(

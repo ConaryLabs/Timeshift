@@ -10,12 +10,8 @@ fn unique_email(prefix: &str) -> String {
 /// Convert a (year, month, day) to the serde_json value that `time::Date` serializes to.
 /// time 0.3 with `serde` feature (no `serde-human-readable`) uses `[year, ordinal_day]`.
 fn date_json(year: i32, month: u8, day: u8) -> serde_json::Value {
-    let d = time::Date::from_calendar_date(
-        year,
-        time::Month::try_from(month).unwrap(),
-        day,
-    )
-    .unwrap();
+    let d =
+        time::Date::from_calendar_date(year, time::Month::try_from(month).unwrap(), day).unwrap();
     serde_json::json!([d.year(), d.ordinal()])
 }
 
@@ -26,8 +22,7 @@ fn date_json(year: i32, month: u8, day: u8) -> serde_json::Value {
 async fn test_create_leave_request() {
     let (addr, pool) = common::setup_test_app().await;
     let org_id = common::create_test_org(&pool, "leave-create").await;
-    let leave_type_id =
-        common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
+    let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
     let email = unique_email("leave-create-emp");
     let (_, password) = common::create_test_user(&pool, org_id, "employee", &email).await;
 
@@ -50,7 +45,11 @@ async fn test_create_leave_request() {
 
     let status = resp.status();
     let body_text = resp.text().await.unwrap();
-    assert_eq!(status, 200, "Create leave request should return 200, body: {}", body_text);
+    assert_eq!(
+        status, 200,
+        "Create leave request should return 200, body: {}",
+        body_text
+    );
 
     let body: serde_json::Value = serde_json::from_str(&body_text).unwrap();
     assert_eq!(body["status"].as_str().unwrap(), "pending");
@@ -70,8 +69,7 @@ async fn test_create_leave_request() {
 async fn test_create_leave_request_overlapping_dates() {
     let (addr, pool) = common::setup_test_app().await;
     let org_id = common::create_test_org(&pool, "leave-overlap").await;
-    let leave_type_id =
-        common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
+    let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
     let email = unique_email("leave-overlap-emp");
     let (_, password) = common::create_test_user(&pool, org_id, "employee", &email).await;
 
@@ -122,15 +120,13 @@ async fn test_create_leave_request_overlapping_dates() {
 async fn test_review_leave_request_approve() {
     let (addr, pool) = common::setup_test_app().await;
     let org_id = common::create_test_org(&pool, "leave-approve").await;
-    let leave_type_id =
-        common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
+    let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
 
     let emp_email = unique_email("leave-approve-emp");
     let (_, emp_password) = common::create_test_user(&pool, org_id, "employee", &emp_email).await;
 
     let sup_email = unique_email("leave-approve-sup");
-    let (_, sup_password) =
-        common::create_test_user(&pool, org_id, "supervisor", &sup_email).await;
+    let (_, sup_password) = common::create_test_user(&pool, org_id, "supervisor", &sup_email).await;
 
     let client = common::http_client();
 
@@ -185,15 +181,13 @@ async fn test_review_leave_request_approve() {
 async fn test_review_leave_request_deny() {
     let (addr, pool) = common::setup_test_app().await;
     let org_id = common::create_test_org(&pool, "leave-deny").await;
-    let leave_type_id =
-        common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
+    let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
 
     let emp_email = unique_email("leave-deny-emp");
     let (_, emp_password) = common::create_test_user(&pool, org_id, "employee", &emp_email).await;
 
     let sup_email = unique_email("leave-deny-sup");
-    let (_, sup_password) =
-        common::create_test_user(&pool, org_id, "supervisor", &sup_email).await;
+    let (_, sup_password) = common::create_test_user(&pool, org_id, "supervisor", &sup_email).await;
 
     let client = common::http_client();
 
@@ -246,8 +240,7 @@ async fn test_review_leave_request_deny() {
 async fn test_employee_cannot_review_own_request() {
     let (addr, pool) = common::setup_test_app().await;
     let org_id = common::create_test_org(&pool, "leave-self-review").await;
-    let leave_type_id =
-        common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
+    let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
 
     let emp_email = unique_email("leave-self-review-emp");
     let (_, emp_password) = common::create_test_user(&pool, org_id, "employee", &emp_email).await;
@@ -298,8 +291,7 @@ async fn test_employee_cannot_review_own_request() {
 async fn test_cancel_pending_leave_request() {
     let (addr, pool) = common::setup_test_app().await;
     let org_id = common::create_test_org(&pool, "leave-cancel").await;
-    let leave_type_id =
-        common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
+    let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
 
     let emp_email = unique_email("leave-cancel-emp");
     let (_, emp_password) = common::create_test_user(&pool, org_id, "employee", &emp_email).await;
@@ -335,7 +327,7 @@ async fn test_cancel_pending_leave_request() {
     assert_eq!(resp.status(), 200, "Cancel pending leave should return 200");
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["ok"].as_bool().unwrap(), true);
+    assert!(body["ok"].as_bool().unwrap());
 
     // Verify the leave request is now cancelled by fetching it
     let resp = client

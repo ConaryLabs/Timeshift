@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
+import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -26,7 +27,7 @@ import {
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
-import { formatTime } from '@/lib/format'
+import { formatTime, formatDate, extractApiError } from '@/lib/format'
 import type { OtRequest, OtRequestStatus } from '@/api/otRequests'
 
 const STATUS_TABS: { label: string; value: OtRequestStatus | 'available' | 'all' }[] = [
@@ -49,7 +50,7 @@ function computeHours(start: string, end: string): number {
   if (!start || !end) return 0
   const [sh, sm] = start.split(':').map(Number)
   const [eh, em] = end.split(':').map(Number)
-  let startMin = sh * 60 + sm
+  const startMin = sh * 60 + sm
   let endMin = eh * 60 + em
   if (endMin <= startMin) endMin += 24 * 60 // handle overnight
   return Math.round(((endMin - startMin) / 60) * 100) / 100
@@ -64,6 +65,9 @@ export default function AvailableOTPage() {
   const [dateTo, setDateTo] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
+
+  const [pendingVolunteerId, setPendingVolunteerId] = useState<string | null>(null)
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null)
 
   const { data: classifications } = useClassifications()
 
@@ -80,7 +84,7 @@ export default function AvailableOTPage() {
     return params
   }, [statusFilter, dateFrom, dateTo, classFilter])
 
-  const { data: requests, isLoading, isError } = useOtRequests(apiParams)
+  const { data: requests, isLoading, isError, refetch } = useOtRequests(apiParams)
   const createMut = useCreateOtRequest()
   const volunteerMut = useVolunteerOtRequest()
   const cancelMut = useCancelOtRequest()
@@ -119,44 +123,31 @@ export default function AvailableOTPage() {
           setForm(INITIAL_FORM)
         },
         onError: (err: unknown) => {
-          const msg =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            'Failed to create OT request'
-          toast.error(msg)
+          toast.error(extractApiError(err, 'Failed to create OT request'))
         },
       },
     )
   }
 
   function handleVolunteer(id: string) {
+    setPendingVolunteerId(id)
     volunteerMut.mutate(id, {
       onSuccess: () => toast.success('Volunteered for OT'),
       onError: (err: unknown) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          'Failed to volunteer'
-        toast.error(msg)
+        toast.error(extractApiError(err, 'Failed to volunteer'))
       },
+      onSettled: () => setPendingVolunteerId(null),
     })
   }
 
   function handleCancel(id: string) {
+    setPendingCancelId(id)
     cancelMut.mutate(id, {
       onSuccess: () => toast.success('OT request cancelled'),
       onError: (err: unknown) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          'Failed to cancel OT request'
-        toast.error(msg)
+        toast.error(extractApiError(err, 'Failed to cancel OT request'))
       },
-    })
-  }
-
-  function formatDate(d: string) {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
+      onSettled: () => setPendingCancelId(null),
     })
   }
 
@@ -204,18 +195,35 @@ export default function AvailableOTPage() {
       cell: (r) => {
         const actions: React.ReactNode[] = []
         if ((r.status === 'open' || r.status === 'partially_filled') && user) {
-          actions.push(
-            <Button
-              key="volunteer"
-              size="sm"
-              variant="outline"
-              className="text-green-700 hover:bg-green-50"
-              onClick={() => handleVolunteer(r.id)}
-              disabled={volunteerMut.isPending}
-            >
-              Volunteer
-            </Button>,
-          )
+          if (r.user_volunteered) {
+            actions.push(
+              <Button
+                key="volunteered"
+                size="sm"
+                variant="outline"
+                className="text-green-700 border-green-200 bg-green-50 cursor-default"
+                disabled
+                aria-label={`Already volunteered for OT on ${formatDate(r.date)}`}
+              >
+                <Check className="h-3.5 w-3.5 mr-1" />
+                Volunteered
+              </Button>,
+            )
+          } else {
+            actions.push(
+              <Button
+                key="volunteer"
+                size="sm"
+                variant="outline"
+                className="text-green-700 hover:bg-green-50"
+                onClick={() => handleVolunteer(r.id)}
+                disabled={pendingVolunteerId === r.id}
+                aria-label={`Volunteer for OT on ${formatDate(r.date)}`}
+              >
+                Volunteer
+              </Button>,
+            )
+          }
         }
         if (isManager && (r.status === 'open' || r.status === 'partially_filled')) {
           actions.push(
@@ -225,7 +233,8 @@ export default function AvailableOTPage() {
               variant="ghost"
               className="text-muted-foreground"
               onClick={() => handleCancel(r.id)}
-              disabled={cancelMut.isPending}
+              disabled={pendingCancelId === r.id}
+              aria-label={`Cancel OT request for ${formatDate(r.date)}`}
             >
               Cancel
             </Button>,
@@ -293,7 +302,10 @@ export default function AvailableOTPage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load OT requests.</p>
+        <div className="text-sm text-destructive flex items-center gap-2">
+          Failed to load OT requests.
+          <Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
+        </div>
       ) : (
         <DataTable
           columns={columns}
@@ -386,6 +398,7 @@ export default function AvailableOTPage() {
                 Fixed coverage
               </label>
             </div>
+            <p className="text-xs text-muted-foreground ml-6">Single-slot coverage — marks as filled after one assignment</p>
             <FormField label="Notes" htmlFor="ot-notes">
               <Textarea
                 id="ot-notes"

@@ -1,40 +1,28 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useOtRequests, useWithdrawVolunteerOtRequest } from '@/hooks/queries'
-import { formatTime } from '@/lib/format'
+import { formatTime, formatDate, formatDay, extractApiError } from '@/lib/format'
 import type { OtRequest } from '@/api/otRequests'
 
 export default function VolunteeredOTPage() {
   // Fetch only requests where the current user has an active volunteer entry
-  const { data: requests, isLoading, isError } = useOtRequests({ volunteered_by_me: true })
+  const { data: requests, isLoading, isError, refetch } = useOtRequests({ volunteered_by_me: true })
   const withdrawMut = useWithdrawVolunteerOtRequest()
+  const [pendingWithdrawId, setPendingWithdrawId] = useState<string | null>(null)
 
   function handleWithdraw(id: string) {
+    setPendingWithdrawId(id)
     withdrawMut.mutate(id, {
       onSuccess: () => toast.success('Volunteer entry withdrawn'),
       onError: (err: unknown) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          'Failed to withdraw'
-        toast.error(msg)
+        toast.error(extractApiError(err, 'Failed to withdraw'))
       },
-    })
-  }
-
-  function formatDate(d: string) {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
-
-  function formatDay(d: string) {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'long',
+      onSettled: () => setPendingWithdrawId(null),
     })
   }
 
@@ -78,7 +66,8 @@ export default function VolunteeredOTPage() {
             variant="outline"
             className="text-red-700 hover:bg-red-50"
             onClick={() => handleWithdraw(r.id)}
-            disabled={withdrawMut.isPending}
+            disabled={pendingWithdrawId === r.id}
+            aria-label={`Withdraw volunteer for OT on ${formatDate(r.date)}`}
           >
             Withdraw
           </Button>
@@ -91,7 +80,10 @@ export default function VolunteeredOTPage() {
       <PageHeader title="My Volunteered OT" />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load volunteered OT.</p>
+        <div className="text-sm text-destructive flex items-center gap-2">
+          Failed to load volunteered OT.
+          <Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
+        </div>
       ) : (
         <DataTable
           columns={columns}
@@ -99,6 +91,11 @@ export default function VolunteeredOTPage() {
           isLoading={isLoading}
           emptyMessage="No volunteered overtime"
           emptyDescription="You have not volunteered for any OT slots. Browse available overtime to volunteer."
+          emptyAction={
+            <Button asChild size="sm" variant="outline">
+              <Link to="/available-ot">Browse Available OT</Link>
+            </Button>
+          }
           rowKey={(r) => r.id}
         />
       )}

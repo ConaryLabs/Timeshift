@@ -8,9 +8,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
-    models::leave_donation::{
-        CreateDonationRequest, ReviewDonationRequest, SickLeaveDonation,
-    },
+    models::leave_donation::{CreateDonationRequest, ReviewDonationRequest, SickLeaveDonation},
     org_guard,
 };
 
@@ -283,7 +281,10 @@ pub async fn review(
             donation.donor_id,
             donation.leave_type_id,
             -donation.hours,
-            format!("Sick leave donation to recipient (FY{})", donation.fiscal_year),
+            format!(
+                "Sick leave donation to recipient (FY{})",
+                donation.fiscal_year
+            ),
             auth.id,
         )
         .execute(&mut *tx)

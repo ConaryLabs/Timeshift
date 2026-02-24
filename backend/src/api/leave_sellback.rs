@@ -72,7 +72,9 @@ pub async fn create(
     body.validate()?;
 
     if body.hours_requested <= 0.0 {
-        return Err(AppError::BadRequest("hours_requested must be positive".into()));
+        return Err(AppError::BadRequest(
+            "hours_requested must be positive".into(),
+        ));
     }
 
     if !["june", "december"].contains(&body.period.as_str()) {
@@ -373,4 +375,3 @@ pub async fn cancel(
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
-

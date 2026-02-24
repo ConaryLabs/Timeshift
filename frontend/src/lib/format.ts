@@ -15,5 +15,23 @@ export function formatDuration(minutes: number) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
+export function formatDate(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+export function formatDay(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+  })
+}
+
+export function extractApiError(err: unknown, fallback: string): string {
+  return (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback
+}
+
 /** Sentinel value for Select dropdowns representing "no selection" / clear field */
 export const NO_VALUE = '__none__'

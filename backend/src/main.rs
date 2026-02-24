@@ -145,6 +145,10 @@ async fn main() -> anyhow::Result<()> {
         })
         .with_state(state.clone());
 
+    // TODO(M5): /api/users/me/password should be rate-limited (e.g., 5 req/min per IP)
+    // similar to login. Currently registered in api/mod.rs; to add rate limiting it
+    // needs to be moved here with its own GovernorLayer, like the login/refresh routes.
+
     let app = api::router(state)
         .merge(login_router)
         .merge(refresh_router)
@@ -172,7 +176,14 @@ async fn security_headers(
 ) -> axum::response::Response {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
-    headers.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
+    headers.insert(
+        "strict-transport-security",
+        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+    );
     response
 }

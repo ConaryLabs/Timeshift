@@ -9,7 +9,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
 
 use axum::routing::post;
-use timeshift_backend::{api, AppState, api::callout, api::ot};
+use timeshift_backend::{api, api::callout, api::ot, AppState};
 
 fn database_url() -> String {
     std::env::var("TEST_DATABASE_URL")
@@ -51,11 +51,16 @@ pub async fn setup_test_app() -> (SocketAddr, PgPool) {
     // Bump and volunteer routes are rate-limited in main.rs; add them without
     // the limiter for tests.
     let callout_action_router = axum::Router::new()
-        .route("/api/callout/events/:id/bump", post(callout::create_bump_request))
+        .route(
+            "/api/callout/events/:id/bump",
+            post(callout::create_bump_request),
+        )
         .route("/api/callout/events/:id/volunteer", post(ot::volunteer))
         .with_state(state.clone());
 
-    let app = api::router(state).merge(login_router).merge(callout_action_router);
+    let app = api::router(state)
+        .merge(login_router)
+        .merge(callout_action_router);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -414,14 +419,12 @@ pub async fn create_test_assignment(
 /// Create a test team. Returns the team ID.
 pub async fn create_test_team(pool: &PgPool, org_id: Uuid, name: &str) -> Uuid {
     let id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO teams (id, org_id, name) VALUES ($1, $2, $3)",
-    )
-    .bind(id)
-    .bind(org_id)
-    .bind(name)
-    .execute(pool)
-    .await
-    .expect("Failed to create test team");
+    sqlx::query("INSERT INTO teams (id, org_id, name) VALUES ($1, $2, $3)")
+        .bind(id)
+        .bind(org_id)
+        .bind(name)
+        .execute(pool)
+        .await
+        .expect("Failed to create test team");
     id
 }

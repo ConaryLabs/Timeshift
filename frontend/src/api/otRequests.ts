@@ -22,6 +22,7 @@ export interface OtRequest {
   created_by_name: string
   volunteer_count: number
   assignment_count: number
+  user_volunteered: boolean
   created_at: string
   updated_at: string
   cancelled_at: string | null

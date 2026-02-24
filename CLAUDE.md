@@ -61,7 +61,7 @@ cd frontend && npm run build
 - `auth/mod.rs` — `AuthUser` extractor (FromRequestParts), JWT Claims, Role enum with permission methods, `RefreshTokenCookie` extractor
 - `org_guard.rs` — Helpers that verify a resource belongs to the user's org before operations
 - `models/` — Request/response DTOs, DB row types, PG enum mappings
-- `api/` — Route handlers organized by domain: auth, users, teams, shifts, schedule, leave, leave_balances, callout, classifications, organizations, coverage, trades, ot, bidding, vacation_bids, holidays, employee, reports
+- `api/` — Route handlers organized by domain: auth, users, teams, shifts, schedule, leave, leave_balances, callout, classifications, organizations, coverage, trades, ot, ot_request, bidding, vacation_bids, holidays, employee, leave_sellback, leave_donation, nav, reports
 
 ### Key patterns
 
@@ -96,13 +96,13 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 ### Source layout (`frontend/src/`)
 
 - `api/client.ts` — Axios instance with 401 auto-logout (credentials included for HttpOnly cookies)
-- `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coverage, trades, ot, bidding, vacationBids, employee, holidays, reports
+- `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coverage, trades, ot, otRequests, bidding, vacationBids, employee, holidays, leaveSellback, sickDonation, nav, reports
 - `store/auth.ts` — Zustand store: user profile only (no token — auth uses HttpOnly cookies), persisted to localStorage as `timeshift-auth`
 - `store/ui.ts` — Zustand store: sidebar state + selected team/period, persisted as `timeshift-ui`
-- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~100 hooks)
+- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~110 hooks)
 - `hooks/usePermissions.ts` — Role-based access helpers
 - `lib/utils.ts` — `cn()` utility (clsx + tw-merge); `lib/format.ts` — date/time formatting
-- `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage
+- `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage, AvailableOTPage, VolunteeredOTPage
 - `pages/admin/` — ClassificationsPage, ShiftTemplatesPage, CoverageRequirementsPage, TeamsPage, TeamDetailPage, UsersPage, OTQueuePage, LeaveBalancesPage, SchedulePeriodsPage, SchedulePeriodDetailPage, VacationBidAdminPage, HolidayCalendarPage, ReportsPage, OrgSettingsPage
 - `components/ui/` — shadcn/radix-ui component wrappers (Button, Input, Card, Table, Dialog, etc.)
 - `components/layout/AppShell.tsx` — Main layout: collapsible sidebar + top bar + content area
@@ -142,7 +142,10 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `leave_request_lines` — Per-day leave request breakdown
 - `callout_events` + `callout_attempts` — Callout process tracking
 - `ot_hours` — OT tracking per user/fiscal_year/classification
-- `ot_reasons` — Reasons for OT callout
+- `ot_reasons` — Reasons for overtime (29 Valleycom-specific reasons)
+- `ot_requests` — Standalone OT request slots (date, times, classification, status workflow)
+- `ot_request_volunteers` — Employee volunteers for OT requests
+- `ot_request_assignments` — Supervisor assignments to OT requests
 - `ot_queue_positions` — OT queue ordering per user/classification/year; ordered by `last_ot_event_at` timestamp (NULL = never called = highest priority)
 - `ot_volunteers` — Callout event volunteers
 - `bump_requests` — OT bump requests (requesting_user displaces displaced_user, supervisor review)
