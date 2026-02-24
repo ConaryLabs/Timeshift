@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)\n                VALUES ($1, $2, $3, NULL, $4::FLOAT8::NUMERIC)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Time",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ae290727774c176c71c77a4745385d7911cbac629205fcce1d51b0a4b15e1feb"
+}

@@ -7,12 +7,9 @@ fn unique_email(prefix: &str) -> String {
     format!("{}+{}@test.local", prefix, &Uuid::new_v4().to_string()[..8])
 }
 
-/// Convert a (year, month, day) to the serde_json value that `time::Date` serializes to.
-/// time 0.3 with `serde` feature (no `serde-human-readable`) uses `[year, ordinal_day]`.
-fn date_json(year: i32, month: u8, day: u8) -> serde_json::Value {
-    let d =
-        time::Date::from_calendar_date(year, time::Month::try_from(month).unwrap(), day).unwrap();
-    serde_json::json!([d.year(), d.ordinal()])
+/// Convert a (year, month, day) to an ISO date string for JSON payloads and assertions.
+fn date_str(year: i32, month: u8, day: u8) -> String {
+    format!("{:04}-{:02}-{:02}", year, month, day)
 }
 
 // ---------------------------------------------------------------------------
@@ -34,8 +31,8 @@ async fn test_create_leave_request() {
         .header("Authorization", format!("Bearer {}", token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 7, 1),
-            "end_date": date_json(2027, 7, 5),
+            "start_date": date_str(2027, 7, 1),
+            "end_date": date_str(2027, 7, 5),
             "hours": 40.0,
             "reason": "Family vacation",
         }))
@@ -54,8 +51,8 @@ async fn test_create_leave_request() {
     let body: serde_json::Value = serde_json::from_str(&body_text).unwrap();
     assert_eq!(body["status"].as_str().unwrap(), "pending");
     assert_eq!(body["leave_type_code"].as_str().unwrap(), "vacation");
-    assert_eq!(body["start_date"], date_json(2027, 7, 1));
-    assert_eq!(body["end_date"], date_json(2027, 7, 5));
+    assert_eq!(body["start_date"].as_str().unwrap(), date_str(2027, 7, 1));
+    assert_eq!(body["end_date"].as_str().unwrap(), date_str(2027, 7, 5));
     assert!(body["hours"].as_f64().is_some());
     assert_eq!(body["reason"].as_str().unwrap(), "Family vacation");
 
@@ -82,8 +79,8 @@ async fn test_create_leave_request_overlapping_dates() {
         .header("Authorization", format!("Bearer {}", token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 8, 1),
-            "end_date": date_json(2027, 8, 10),
+            "start_date": date_str(2027, 8, 1),
+            "end_date": date_str(2027, 8, 10),
             "hours": 80.0,
         }))
         .send()
@@ -97,8 +94,8 @@ async fn test_create_leave_request_overlapping_dates() {
         .header("Authorization", format!("Bearer {}", token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 8, 5),
-            "end_date": date_json(2027, 8, 15),
+            "start_date": date_str(2027, 8, 5),
+            "end_date": date_str(2027, 8, 15),
             "hours": 80.0,
         }))
         .send()
@@ -137,8 +134,8 @@ async fn test_review_leave_request_approve() {
         .header("Authorization", format!("Bearer {}", emp_token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 9, 1),
-            "end_date": date_json(2027, 9, 3),
+            "start_date": date_str(2027, 9, 1),
+            "end_date": date_str(2027, 9, 3),
             "hours": 24.0,
         }))
         .send()
@@ -198,8 +195,8 @@ async fn test_review_leave_request_deny() {
         .header("Authorization", format!("Bearer {}", emp_token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 10, 1),
-            "end_date": date_json(2027, 10, 3),
+            "start_date": date_str(2027, 10, 1),
+            "end_date": date_str(2027, 10, 3),
             "hours": 24.0,
         }))
         .send()
@@ -254,8 +251,8 @@ async fn test_employee_cannot_review_own_request() {
         .header("Authorization", format!("Bearer {}", emp_token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 11, 1),
-            "end_date": date_json(2027, 11, 2),
+            "start_date": date_str(2027, 11, 1),
+            "end_date": date_str(2027, 11, 2),
             "hours": 12.0,
         }))
         .send()
@@ -305,8 +302,8 @@ async fn test_cancel_pending_leave_request() {
         .header("Authorization", format!("Bearer {}", emp_token))
         .json(&serde_json::json!({
             "leave_type_id": leave_type_id,
-            "start_date": date_json(2027, 12, 1),
-            "end_date": date_json(2027, 12, 5),
+            "start_date": date_str(2027, 12, 1),
+            "end_date": date_str(2027, 12, 5),
             "hours": 40.0,
         }))
         .send()

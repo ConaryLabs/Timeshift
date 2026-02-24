@@ -11,8 +11,8 @@ use crate::{
     models::{
         common::PaginationParams,
         leave::{
-            BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveSegment, LeaveStatus,
-            LeaveTypeRecord, ReviewLeaveRequest,
+            BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveRequestLine,
+            LeaveSegment, LeaveStatus, LeaveTypeRecord, ReviewLeaveRequest,
         },
     },
 };
@@ -140,6 +140,32 @@ async fn fetch_segments(pool: &PgPool, leave_request_id: Uuid) -> Result<Vec<Lea
         .collect())
 }
 
+/// Fetch per-day lines for a leave request (empty vec if none).
+async fn fetch_lines(pool: &PgPool, leave_request_id: Uuid) -> Result<Vec<LeaveRequestLine>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, date, start_time, end_time, CAST(hours AS FLOAT8) AS "hours!"
+        FROM leave_request_lines
+        WHERE leave_request_id = $1
+        ORDER BY date
+        "#,
+        leave_request_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| LeaveRequestLine {
+            id: r.id,
+            date: r.date,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            hours: r.hours,
+        })
+        .collect())
+}
+
 /// M6: Auto-create FMLA priority segments inside an open transaction.
 /// Priority order: sick → comp → holiday → vacation → lwop.
 /// Draws on the user's existing balances; LWOP covers any remainder.
@@ -244,7 +270,13 @@ pub async fn list(
                lt.code AS leave_type_code, lt.name AS leave_type_name,
                lr.start_date, lr.end_date,
                lr.hours::FLOAT8 AS hours,
+               lr.start_time,
+               lr.scheduled_shift_id,
+               lr.is_rdo,
                lr.reason,
+               lr.emergency_contact,
+               lr.bereavement_relationship,
+               lr.bereavement_name,
                lr.status AS "status: LeaveStatus",
                lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at
         FROM leave_requests lr
@@ -277,13 +309,20 @@ pub async fn list(
             start_date: r.start_date,
             end_date: r.end_date,
             hours: r.hours,
+            start_time: r.start_time,
+            scheduled_shift_id: r.scheduled_shift_id,
+            is_rdo: r.is_rdo,
             reason: r.reason,
+            emergency_contact: r.emergency_contact,
+            bereavement_relationship: r.bereavement_relationship,
+            bereavement_name: r.bereavement_name,
             status: r.status,
             reviewed_by: r.reviewed_by,
             reviewer_notes: r.reviewer_notes,
             created_at: r.created_at,
             updated_at: r.updated_at,
             segments: vec![],
+            lines: vec![],
         })
         .collect();
 
@@ -303,7 +342,13 @@ pub async fn get_one(
                lt.code AS leave_type_code, lt.name AS leave_type_name,
                lr.start_date, lr.end_date,
                lr.hours::FLOAT8 AS hours,
+               lr.start_time,
+               lr.scheduled_shift_id,
+               lr.is_rdo,
                lr.reason,
+               lr.emergency_contact,
+               lr.bereavement_relationship,
+               lr.bereavement_name,
                lr.status AS "status: LeaveStatus",
                lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at
         FROM leave_requests lr
@@ -323,6 +368,7 @@ pub async fn get_one(
     }
 
     let segments = fetch_segments(&pool, r.id).await?;
+    let lines = fetch_lines(&pool, r.id).await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,
@@ -335,13 +381,20 @@ pub async fn get_one(
         start_date: r.start_date,
         end_date: r.end_date,
         hours: r.hours,
+        start_time: r.start_time,
+        scheduled_shift_id: r.scheduled_shift_id,
+        is_rdo: r.is_rdo,
         reason: r.reason,
+        emergency_contact: r.emergency_contact,
+        bereavement_relationship: r.bereavement_relationship,
+        bereavement_name: r.bereavement_name,
         status: r.status,
         reviewed_by: r.reviewed_by,
         reviewer_notes: r.reviewer_notes,
         created_at: r.created_at,
         updated_at: r.updated_at,
         segments,
+        lines,
     }))
 }
 
@@ -373,6 +426,55 @@ pub async fn create(
         ));
     }
 
+    // Validate manual segments if provided
+    if let Some(ref segments) = body.segments {
+        if segments.is_empty() {
+            return Err(AppError::BadRequest(
+                "segments array must not be empty if provided".into(),
+            ));
+        }
+        if segments.len() > 5 {
+            return Err(AppError::BadRequest(
+                "Maximum 5 segments allowed".into(),
+            ));
+        }
+        for seg in segments {
+            if seg.hours <= 0.0 {
+                return Err(AppError::BadRequest(
+                    "Each segment must have hours > 0".into(),
+                ));
+            }
+        }
+        // Segment hours must sum to request hours
+        if let Some(total_hours) = body.hours {
+            let seg_total: f64 = segments.iter().map(|s| s.hours).sum();
+            if (seg_total - total_hours).abs() > 0.01 {
+                return Err(AppError::BadRequest(
+                    format!(
+                        "Segment hours ({:.2}) must equal request hours ({:.2})",
+                        seg_total, total_hours
+                    ),
+                ));
+            }
+        }
+    }
+
+    // Validate lines if provided
+    if let Some(ref lines) = body.lines {
+        for line in lines {
+            if line.hours <= 0.0 {
+                return Err(AppError::BadRequest(
+                    "Each line must have hours > 0".into(),
+                ));
+            }
+            if line.date < body.start_date || line.date > body.end_date {
+                return Err(AppError::BadRequest(
+                    format!("Line date {} is outside request range", line.date),
+                ));
+            }
+        }
+    }
+
     // Verify leave type belongs to caller's org and is active
     let lt_ok = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true)",
@@ -383,6 +485,42 @@ pub async fn create(
     .await?;
     if !lt_ok.unwrap_or(false) {
         return Err(AppError::NotFound("Leave type not found".into()));
+    }
+
+    // Verify scheduled_shift_id if provided
+    if let Some(shift_id) = body.scheduled_shift_id {
+        let shift_ok = sqlx::query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM scheduled_shifts ss
+                JOIN shift_templates st ON st.id = ss.shift_template_id
+                WHERE ss.id = $1 AND st.org_id = $2
+            )"#,
+            shift_id,
+            auth.org_id,
+        )
+        .fetch_one(&pool)
+        .await?;
+        if !shift_ok.unwrap_or(false) {
+            return Err(AppError::NotFound("Scheduled shift not found".into()));
+        }
+    }
+
+    // Verify segment leave types belong to caller's org
+    if let Some(ref segments) = body.segments {
+        for seg in segments {
+            let seg_ok = sqlx::query_scalar!(
+                "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true)",
+                seg.leave_type_id,
+                auth.org_id,
+            )
+            .fetch_one(&pool)
+            .await?;
+            if !seg_ok.unwrap_or(false) {
+                return Err(AppError::NotFound(
+                    format!("Segment leave type {} not found", seg.leave_type_id),
+                ));
+            }
+        }
     }
 
     // Get leave type code/name and creator name
@@ -428,10 +566,19 @@ pub async fn create(
     let leave_request_id = Uuid::new_v4();
     let r = sqlx::query!(
         r#"
-        INSERT INTO leave_requests (id, user_id, leave_type_id, start_date, end_date, hours, reason, status)
-        VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC, $7, 'pending')
+        INSERT INTO leave_requests
+            (id, user_id, leave_type_id, start_date, end_date, hours,
+             start_time, scheduled_shift_id, is_rdo,
+             reason, emergency_contact, bereavement_relationship, bereavement_name,
+             status)
+        VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC,
+                $7, $8, $9,
+                $10, $11, $12, $13,
+                'pending')
         RETURNING id, user_id, leave_type_id, start_date, end_date,
-                  hours::FLOAT8 AS hours, reason,
+                  hours::FLOAT8 AS hours, start_time,
+                  scheduled_shift_id, is_rdo,
+                  reason, emergency_contact, bereavement_relationship, bereavement_name,
                   status AS "status: LeaveStatus",
                   reviewed_by, reviewer_notes, created_at, updated_at
         "#,
@@ -441,23 +588,97 @@ pub async fn create(
         body.start_date,
         body.end_date,
         body.hours,
+        body.start_time,
+        body.scheduled_shift_id,
+        body.is_rdo,
         body.reason,
+        body.emergency_contact,
+        body.bereavement_relationship,
+        body.bereavement_name,
     )
     .fetch_one(&mut *tx)
     .await?;
 
-    // M6: Auto-create FMLA priority segments for FMLA leave types when hours are specified
-    let is_fmla = lt.code.starts_with("fmla_");
-    if is_fmla {
-        if let Some(total_hours) = body.hours {
-            create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours)
+    // Handle segments: manual split coding takes priority over auto-FMLA
+    if let Some(ref segments) = body.segments {
+        for (i, seg) in segments.iter().enumerate() {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
+                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
+                "#,
+                leave_request_id,
+                seg.leave_type_id,
+                seg.hours,
+                i as i32,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+    } else {
+        // Auto-create FMLA priority segments for FMLA leave types when hours are specified
+        let is_fmla = lt.code.starts_with("fmla_");
+        if is_fmla {
+            if let Some(total_hours) = body.hours {
+                create_fmla_segments(
+                    &mut tx,
+                    leave_request_id,
+                    auth.org_id,
+                    auth.id,
+                    total_hours,
+                )
                 .await?;
+            }
+        }
+    }
+
+    // Generate leave_request_lines
+    if let Some(ref lines) = body.lines {
+        // Use client-provided lines
+        for line in lines {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)
+                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC)
+                "#,
+                leave_request_id,
+                line.date,
+                line.start_time,
+                line.end_time,
+                line.hours,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+    } else if let Some(total_hours) = body.hours {
+        // Auto-generate lines: distribute hours across each date in the range
+        let days = (body.end_date - body.start_date).whole_days() + 1;
+        let per_day = total_hours / days as f64;
+        let mut current = body.start_date;
+        while current <= body.end_date {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)
+                VALUES ($1, $2, $3, NULL, $4::FLOAT8::NUMERIC)
+                "#,
+                leave_request_id,
+                current,
+                body.start_time,
+                per_day,
+            )
+            .execute(&mut *tx)
+            .await?;
+            current = current.next_day().unwrap_or(current);
+            if current <= body.start_date {
+                break; // safety: overflow guard
+            }
         }
     }
 
     tx.commit().await?;
 
     let segments = fetch_segments(&pool, leave_request_id).await?;
+    let lines = fetch_lines(&pool, leave_request_id).await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,
@@ -470,13 +691,20 @@ pub async fn create(
         start_date: r.start_date,
         end_date: r.end_date,
         hours: r.hours,
+        start_time: r.start_time,
+        scheduled_shift_id: r.scheduled_shift_id,
+        is_rdo: r.is_rdo,
         reason: r.reason,
+        emergency_contact: r.emergency_contact,
+        bereavement_relationship: r.bereavement_relationship,
+        bereavement_name: r.bereavement_name,
         status: r.status,
         reviewed_by: r.reviewed_by,
         reviewer_notes: r.reviewer_notes,
         created_at: r.created_at,
         updated_at: r.updated_at,
         segments,
+        lines,
     }))
 }
 
@@ -642,7 +870,13 @@ pub async fn review(
                lt.code AS leave_type_code, lt.name AS leave_type_name,
                lr.start_date, lr.end_date,
                lr.hours::FLOAT8 AS hours,
+               lr.start_time,
+               lr.scheduled_shift_id,
+               lr.is_rdo,
                lr.reason,
+               lr.emergency_contact,
+               lr.bereavement_relationship,
+               lr.bereavement_name,
                lr.status AS "status: LeaveStatus",
                lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at
         FROM leave_requests lr
@@ -750,6 +984,7 @@ pub async fn review(
     tx.commit().await?;
 
     let segments = fetch_segments(&pool, id).await?;
+    let lines = fetch_lines(&pool, id).await?;
 
     Ok(Json(LeaveRequest {
         id: r.id,
@@ -762,13 +997,20 @@ pub async fn review(
         start_date: r.start_date,
         end_date: r.end_date,
         hours: r.hours,
+        start_time: r.start_time,
+        scheduled_shift_id: r.scheduled_shift_id,
+        is_rdo: r.is_rdo,
         reason: r.reason,
+        emergency_contact: r.emergency_contact,
+        bereavement_relationship: r.bereavement_relationship,
+        bereavement_name: r.bereavement_name,
         status: r.status,
         reviewed_by: r.reviewed_by,
         reviewer_notes: r.reviewer_notes,
         created_at: r.created_at,
         updated_at: r.updated_at,
         segments,
+        lines,
     }))
 }
 

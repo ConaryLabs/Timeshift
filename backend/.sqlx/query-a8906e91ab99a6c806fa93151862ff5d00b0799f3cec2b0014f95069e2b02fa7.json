@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO leave_requests\n            (id, user_id, leave_type_id, start_date, end_date, hours,\n             start_time, scheduled_shift_id, is_rdo,\n             reason, emergency_contact, bereavement_relationship, bereavement_name,\n             status)\n        VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC,\n                $7, $8, $9,\n                $10, $11, $12, $13,\n                'pending')\n        RETURNING id, user_id, leave_type_id, start_date, end_date,\n                  hours::FLOAT8 AS hours, start_time,\n                  scheduled_shift_id, is_rdo,\n                  reason, emergency_contact, bereavement_relationship, bereavement_name,\n                  status AS \"status: LeaveStatus\",\n                  reviewed_by, reviewer_notes, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "hours",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 7,
+        "name": "scheduled_shift_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_rdo",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "emergency_contact",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "bereavement_relationship",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "bereavement_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "status: LeaveStatus",
+        "type_info": {
+          "Custom": {
+            "name": "leave_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "approved",
+                "denied",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "reviewed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "reviewer_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Date",
+        "Float8",
+        "Time",
+        "Uuid",
+        "Bool",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "a8906e91ab99a6c806fa93151862ff5d00b0799f3cec2b0014f95069e2b02fa7"
+}

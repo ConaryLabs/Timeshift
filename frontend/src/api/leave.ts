@@ -15,6 +15,23 @@ export interface LeaveTypeRecord {
   created_at: string
 }
 
+export interface LeaveSegment {
+  id: string
+  leave_type_id: string
+  leave_type_code: string
+  leave_type_name: string
+  hours: number
+  sort_order: number
+}
+
+export interface LeaveRequestLine {
+  id: string
+  date: string
+  start_time: string | null
+  end_time: string | null
+  hours: number
+}
+
 export interface LeaveRequest {
   id: string
   user_id: string
@@ -26,12 +43,48 @@ export interface LeaveRequest {
   start_date: string
   end_date: string
   hours: number | null
+  start_time: string | null
+  scheduled_shift_id: string | null
+  is_rdo: boolean
   reason: string | null
+  emergency_contact: string | null
+  bereavement_relationship: string | null
+  bereavement_name: string | null
   status: LeaveStatus
   reviewed_by: string | null
   reviewer_notes: string | null
   created_at: string
   updated_at: string
+  segments: LeaveSegment[]
+  lines: LeaveRequestLine[]
+}
+
+export interface CreateLeaveSegment {
+  leave_type_id: string
+  hours: number
+}
+
+export interface CreateLeaveRequestLine {
+  date: string
+  start_time?: string
+  end_time?: string
+  hours: number
+}
+
+export interface CreateLeaveBody {
+  leave_type_id: string
+  start_date: string
+  end_date: string
+  hours?: number
+  start_time?: string
+  scheduled_shift_id?: string
+  is_rdo?: boolean
+  reason?: string
+  emergency_contact?: string
+  bereavement_relationship?: string
+  bereavement_name?: string
+  segments?: CreateLeaveSegment[]
+  lines?: CreateLeaveRequestLine[]
 }
 
 export const leaveApi = {
@@ -44,13 +97,8 @@ export const leaveApi = {
   get: (id: string) =>
     api.get<LeaveRequest>(`/api/leave/${id}`).then((r) => r.data),
 
-  create: (body: {
-    leave_type_id: string
-    start_date: string
-    end_date: string
-    hours?: number
-    reason?: string
-  }) => api.post<LeaveRequest>('/api/leave', body).then((r) => r.data),
+  create: (body: CreateLeaveBody) =>
+    api.post<LeaveRequest>('/api/leave', body).then((r) => r.data),
 
   cancel: (id: string) =>
     api.patch(`/api/leave/${id}/cancel`).then((r) => r.data),
