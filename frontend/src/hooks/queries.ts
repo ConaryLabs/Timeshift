@@ -22,6 +22,7 @@ import { reportsApi } from '@/api/reports'
 import { leaveSellbackApi } from '@/api/leaveSellback'
 import { sickDonationApi } from '@/api/sickDonation'
 import { navApi } from '@/api/nav'
+import { otRequestsApi, type OtRequestListParams } from '@/api/otRequests'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -145,6 +146,11 @@ export const queryKeys = {
   },
   donation: {
     all: ['donation'] as const,
+  },
+  otRequests: {
+    all: ['ot-requests'] as const,
+    list: (params?: OtRequestListParams) => ['ot-requests', params] as const,
+    detail: (id: string) => ['ot-requests', id] as const,
   },
   nav: {
     badges: ['nav', 'badges'] as const,
@@ -1194,6 +1200,73 @@ export function useCancelDonation() {
   return useMutation({
     mutationFn: sickDonationApi.cancel,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.donation.all }),
+  })
+}
+
+// -- OT Requests --
+
+export function useOtRequests(params?: OtRequestListParams) {
+  return useQuery({
+    queryKey: queryKeys.otRequests.list(params),
+    queryFn: () => otRequestsApi.list(params),
+  })
+}
+
+export function useOtRequest(id: string) {
+  return useQuery({
+    queryKey: queryKeys.otRequests.detail(id),
+    queryFn: () => otRequestsApi.get(id),
+    enabled: !!id,
+  })
+}
+
+export function useCreateOtRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otRequestsApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+export function useVolunteerOtRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otRequestsApi.volunteer,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+export function useWithdrawVolunteerOtRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otRequestsApi.withdrawVolunteer,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+export function useAssignOtRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'fixed_coverage' }) =>
+      otRequestsApi.assign(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+export function useCancelOtRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: otRequestsApi.cancel,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+  })
+}
+
+export function useCancelOtAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+      otRequestsApi.cancelAssignment(id, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
   })
 }
 

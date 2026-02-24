@@ -10,6 +10,7 @@ pub mod leave_donation;
 pub mod leave_sellback;
 pub mod organization;
 pub mod ot;
+pub mod ot_request;
 pub mod report;
 pub mod schedule;
 pub mod shift;

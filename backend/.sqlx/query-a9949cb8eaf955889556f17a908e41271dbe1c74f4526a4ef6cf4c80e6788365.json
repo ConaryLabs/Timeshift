@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_requests SET\n            ot_reason_id = CASE WHEN $3 THEN $4 ELSE ot_reason_id END,\n            location = CASE WHEN $5 THEN $6 ELSE location END,\n            is_fixed_coverage = COALESCE($7, is_fixed_coverage),\n            notes = CASE WHEN $8 THEN $9 ELSE notes END,\n            status = COALESCE($10, status),\n            updated_at = NOW()\n        WHERE id = $1 AND org_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Uuid",
+        "Bool",
+        "Text",
+        "Bool",
+        "Bool",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a9949cb8eaf955889556f17a908e41271dbe1c74f4526a4ef6cf4c80e6788365"
+}

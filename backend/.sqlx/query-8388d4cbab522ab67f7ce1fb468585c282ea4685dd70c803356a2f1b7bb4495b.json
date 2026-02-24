@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_request_assignments\n        SET cancelled_at = NOW(), cancelled_by = $3\n        WHERE ot_request_id = $1 AND user_id = $2 AND cancelled_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8388d4cbab522ab67f7ce1fb468585c282ea4685dd70c803356a2f1b7bb4495b"
+}
