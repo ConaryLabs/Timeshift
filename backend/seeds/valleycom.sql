@@ -15,19 +15,65 @@ INSERT INTO classifications (id, org_id, name, abbreviation, display_order) VALU
     ('00000000-0000-0000-0000-000000000c02', '00000000-0000-0000-0000-000000000a01', 'Communications Officer II', 'COII', 2),
     ('00000000-0000-0000-0000-000000000c03', '00000000-0000-0000-0000-000000000a01', 'Supervisor',                'SUP',  3);
 
--- ── Admin User ──────────────────────────────────────────────────────────────
--- password: "admin123" (argon2 hash)
+-- ── Users ───────────────────────────────────────────────────────────────────
+-- All passwords: "admin123" (argon2 hash)
 
-INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, seniority_date) VALUES
+-- Admin
+INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-0000000000a1',
      '00000000-0000-0000-0000-000000000a01',
-     'ADMIN001',
-     'System', 'Admin',
+     'ADMIN001', 'System', 'Admin',
      'admin@valleycom.org',
      '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
      'admin',
      '00000000-0000-0000-0000-000000000c03',
-     '2000-01-01');
+     '2000-01-01', 'non_represented');
+
+-- Supervisor
+INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit, phone) VALUES
+    ('00000000-0000-0000-0000-0000000000a2',
+     '00000000-0000-0000-0000-000000000a01',
+     'SUP001', 'Sarah', 'Chen',
+     'sarah.chen@valleycom.org',
+     '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor',
+     '00000000-0000-0000-0000-000000000c03',
+     '2012-03-15', 'vcsg', '253-555-0102');
+
+-- Employees
+INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit, phone) VALUES
+    ('00000000-0000-0000-0000-0000000000a3',
+     '00000000-0000-0000-0000-000000000a01',
+     'EMP001', 'Mike', 'Johnson',
+     'mike.johnson@valleycom.org',
+     '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee',
+     '00000000-0000-0000-0000-000000000c02',
+     '2018-06-01', 'vccea', '253-555-0201'),
+    ('00000000-0000-0000-0000-0000000000a4',
+     '00000000-0000-0000-0000-000000000a01',
+     'EMP002', 'Lisa', 'Park',
+     'lisa.park@valleycom.org',
+     '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee',
+     '00000000-0000-0000-0000-000000000c01',
+     '2021-09-12', 'vccea', '253-555-0202'),
+    ('00000000-0000-0000-0000-0000000000a5',
+     '00000000-0000-0000-0000-000000000a01',
+     'EMP003', 'James', 'Rivera',
+     'james.rivera@valleycom.org',
+     '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee',
+     '00000000-0000-0000-0000-000000000c02',
+     '2015-11-20', 'vccea', '253-555-0203');
+
+-- Seniority records for all users
+INSERT INTO seniority_records (user_id, org_id, overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date) VALUES
+    ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000a01', '2000-01-01', NULL, '2000-01-01'),
+    ('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-000000000a01', '2012-03-15', '2012-03-15', '2016-08-01'),
+    ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-000000000a01', '2018-06-01', '2018-06-01', '2018-06-01'),
+    ('00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-000000000a01', '2021-09-12', '2021-09-12', '2021-09-12'),
+    ('00000000-0000-0000-0000-0000000000a5', '00000000-0000-0000-0000-000000000a01', '2015-11-20', '2015-11-20', '2015-11-20');
 
 -- ── Shift Templates ─────────────────────────────────────────────────────────
 -- 10 Valleycom time patterns

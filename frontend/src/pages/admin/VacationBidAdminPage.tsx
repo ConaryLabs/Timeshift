@@ -43,7 +43,7 @@ const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + i - 1)
 
 const bargainingUnitOptions = [
-  { value: '', label: '(All employees)' },
+  { value: '__all__', label: '(All employees)' },
   { value: 'VCCEA', label: 'VCCEA' },
   { value: 'VCSG', label: 'VCSG' },
 ] as const
@@ -82,7 +82,7 @@ export default function VacationBidAdminPage() {
 
   const createForm = useForm({
     resolver: zodResolver(createSchema),
-    defaultValues: { year: currentYear, round: 1, allowance_hours: '' as const, min_block_hours: '' as const, bargaining_unit: '' },
+    defaultValues: { year: currentYear, round: 1, allowance_hours: '' as const, min_block_hours: '' as const, bargaining_unit: '__all__' },
   })
 
   const openForm = useForm({
@@ -96,7 +96,7 @@ export default function VacationBidAdminPage() {
       round: values.round,
       allowance_hours: typeof values.allowance_hours === 'number' ? values.allowance_hours : null,
       min_block_hours: typeof values.min_block_hours === 'number' ? values.min_block_hours : null,
-      bargaining_unit: values.bargaining_unit || null,
+      bargaining_unit: values.bargaining_unit && values.bargaining_unit !== '__all__' ? values.bargaining_unit : null,
     }
     createMut.mutate(payload, {
       onSuccess: () => {
@@ -271,7 +271,7 @@ export default function VacationBidAdminPage() {
               </SelectContent>
             </Select>
             <Button onClick={() => {
-              createForm.reset({ year: selectedYear, round: 1, allowance_hours: '', min_block_hours: '', bargaining_unit: '' })
+              createForm.reset({ year: selectedYear, round: 1, allowance_hours: '', min_block_hours: '', bargaining_unit: '__all__' })
               setCreateOpen(true)
             }}>
               + New Period
