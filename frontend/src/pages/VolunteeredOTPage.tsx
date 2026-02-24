@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -9,22 +8,9 @@ import { formatTime } from '@/lib/format'
 import type { OtRequest } from '@/api/otRequests'
 
 export default function VolunteeredOTPage() {
-  // Fetch all non-cancelled requests where the current user may have volunteered.
-  // The backend should return requests where the user is a volunteer.
-  // For now we fetch open/partially_filled requests; the backend filters by user context.
-  const { data: requests, isLoading, isError } = useOtRequests()
+  // Fetch only requests where the current user has an active volunteer entry
+  const { data: requests, isLoading, isError } = useOtRequests({ volunteered_by_me: true })
   const withdrawMut = useWithdrawVolunteerOtRequest()
-
-  // Filter to show only requests where the current user has volunteered
-  // The API returns all requests; we show ones with volunteer_count > 0 for the user.
-  // Since the list endpoint may not differentiate, we show all requests from the API.
-  // The backend should ideally return only user's volunteered requests via a query param,
-  // but for MVP we display all and let the withdraw action handle authorization.
-  const volunteeredRequests = useMemo(() => {
-    return (requests ?? []).filter(
-      (r) => r.status === 'open' || r.status === 'partially_filled' || r.status === 'filled',
-    )
-  }, [requests])
 
   function handleWithdraw(id: string) {
     withdrawMut.mutate(id, {
@@ -109,7 +95,7 @@ export default function VolunteeredOTPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={volunteeredRequests}
+          data={requests ?? []}
           isLoading={isLoading}
           emptyMessage="No volunteered overtime"
           emptyDescription="You have not volunteered for any OT slots. Browse available overtime to volunteer."

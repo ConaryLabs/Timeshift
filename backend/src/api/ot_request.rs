@@ -24,8 +24,8 @@ pub async fn list(
     auth: AuthUser,
     Query(params): Query<OtRequestQuery>,
 ) -> Result<Json<Vec<OtRequestRow>>> {
-    // Default status filter to 'open' if not provided
     let status_filter = params.status.as_deref();
+    let volunteered_by_me = params.volunteered_by_me.unwrap_or(false);
 
     let rows = sqlx::query!(
         r#"
@@ -59,6 +59,10 @@ pub async fn list(
           AND ($3::DATE IS NULL OR r.date >= $3)
           AND ($4::DATE IS NULL OR r.date <= $4)
           AND ($5::UUID IS NULL OR r.classification_id = $5)
+          AND (NOT $8::BOOL OR EXISTS (
+            SELECT 1 FROM ot_request_volunteers v
+            WHERE v.ot_request_id = r.id AND v.user_id = $9 AND v.withdrawn_at IS NULL
+          ))
         ORDER BY r.date DESC, r.start_time ASC
         LIMIT $6 OFFSET $7
         "#,
@@ -69,6 +73,8 @@ pub async fn list(
         params.classification_id as Option<Uuid>,
         params.limit(),
         params.offset(),
+        volunteered_by_me,
+        auth.id,
     )
     .fetch_all(&pool)
     .await?;
@@ -342,9 +348,10 @@ pub async fn create(
         JOIN classifications cl ON cl.id = r.classification_id
         JOIN users cu ON cu.id = r.created_by
         LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id
-        WHERE r.id = $1
+        WHERE r.id = $1 AND r.org_id = $2
         "#,
         new_id,
+        auth.org_id,
     )
     .fetch_one(&pool)
     .await?;
@@ -486,9 +493,10 @@ pub async fn update(
         JOIN classifications cl ON cl.id = r.classification_id
         JOIN users cu ON cu.id = r.created_by
         LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id
-        WHERE r.id = $1
+        WHERE r.id = $1 AND r.org_id = $2
         "#,
         id,
+        auth.org_id,
     )
     .fetch_one(&pool)
     .await?;
@@ -786,9 +794,10 @@ pub async fn assign(
         UPDATE ot_requests SET
             status = 'filled',
             updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id,
+        auth.org_id,
     )
     .execute(&mut *tx)
     .await?;
@@ -800,7 +809,7 @@ pub async fn assign(
         r#"
         INSERT INTO ot_hours
             (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-        VALUES (gen_random_uuid(), $1, $2, NULL, $3::FLOAT8::NUMERIC, 0)
+        VALUES (gen_random_uuid(), $1, $2, $4, $3::FLOAT8::NUMERIC, 0)
         ON CONFLICT (user_id, fiscal_year,
             COALESCE(classification_id,
                      '00000000-0000-0000-0000-000000000000'::uuid))
@@ -811,6 +820,7 @@ pub async fn assign(
         req.user_id,
         fiscal_year,
         request.hours,
+        request.classification_id,
     )
     .execute(&mut *tx)
     .await?;
@@ -870,7 +880,7 @@ pub async fn cancel_assignment(
 
     // Verify request belongs to org
     let request = sqlx::query!(
-        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!"
+        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -908,11 +918,14 @@ pub async fn cancel_assignment(
         UPDATE ot_hours
         SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),
             updated_at = NOW()
-        WHERE user_id = $1 AND fiscal_year = $2 AND classification_id IS NULL
+        WHERE user_id = $1 AND fiscal_year = $2
+          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)
         "#,
         user_id,
         fiscal_year,
         request.hours,
+        Some(request.classification_id) as Option<Uuid>,
     )
     .execute(&mut *tx)
     .await?;

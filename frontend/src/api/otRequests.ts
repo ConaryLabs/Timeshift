@@ -24,6 +24,8 @@ export interface OtRequest {
   assignment_count: number
   created_at: string
   updated_at: string
+  cancelled_at: string | null
+  cancelled_by: string | null
 }
 
 export interface OtRequestVolunteer {
@@ -73,6 +75,7 @@ export interface OtRequestListParams {
   date_from?: string
   date_to?: string
   classification_id?: string
+  volunteered_by_me?: boolean
 }
 
 export const otRequestsApi = {
@@ -86,16 +89,16 @@ export const otRequestsApi = {
     api.post<OtRequest>('/api/ot-requests', data).then((r) => r.data),
 
   update: (id: string, data: Partial<CreateOtRequest & { status: string }>) =>
-    api.put<OtRequest>(`/api/ot-requests/${id}`, data).then((r) => r.data),
+    api.patch<OtRequest>(`/api/ot-requests/${id}`, data).then((r) => r.data),
 
   cancel: (id: string) =>
-    api.delete(`/api/ot-requests/${id}/cancel`).then((r) => r.data),
+    api.patch(`/api/ot-requests/${id}/cancel`).then((r) => r.data),
 
   volunteer: (id: string) =>
     api.post(`/api/ot-requests/${id}/volunteer`).then((r) => r.data),
 
   withdrawVolunteer: (id: string) =>
-    api.delete(`/api/ot-requests/${id}/volunteer`).then((r) => r.data),
+    api.patch(`/api/ot-requests/${id}/volunteer/withdraw`).then((r) => r.data),
 
   assign: (id: string, data: CreateOtRequestAssignment) =>
     api.post(`/api/ot-requests/${id}/assign`, data).then((r) => r.data),

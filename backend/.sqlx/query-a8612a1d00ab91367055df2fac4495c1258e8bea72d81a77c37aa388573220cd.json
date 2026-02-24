@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_hours\n        SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),\n            updated_at = NOW()\n        WHERE user_id = $1 AND fiscal_year = $2\n          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)\n            = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Float8",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a8612a1d00ab91367055df2fac4495c1258e8bea72d81a77c37aa388573220cd"
+}
