@@ -16,7 +16,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
-import { useDonations, useCreateDonation, useReviewDonation, useCancelDonation, useUsers, useLeaveTypes } from '@/hooks/queries'
+import { useDonations, useCreateDonation, useReviewDonation, useCancelDonation, useUserDirectory, useLeaveTypes } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { SickLeaveDonation } from '@/api/sickDonation'
 
@@ -40,7 +40,7 @@ export default function SickDonationPage() {
   const [reviewerNotes, setReviewerNotes] = useState('')
 
   const { data: donations, isLoading, isError } = useDonations()
-  const { data: users } = useUsers()
+  const { data: users } = useUserDirectory()
   const { data: leaveTypes } = useLeaveTypes()
   const createMut = useCreateDonation()
   const reviewMut = useReviewDonation()
@@ -52,7 +52,7 @@ export default function SickDonationPage() {
   )
 
   const activeUsers = useMemo(
-    () => (users ?? []).filter((u) => u.is_active).sort((a, b) => a.last_name.localeCompare(b.last_name)),
+    () => (users ?? []).sort((a, b) => a.last_name.localeCompare(b.last_name)),
     [users],
   )
 
