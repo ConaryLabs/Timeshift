@@ -44,6 +44,7 @@ export const queryKeys = {
     list: (params?: { include_inactive?: boolean; limit?: number; offset?: number }) =>
       ['users', params] as const,
     detail: (id: string) => ['users', id] as const,
+    directory: ['users', 'directory'] as const,
   },
   organization: {
     current: ['organization'] as const,
@@ -288,6 +289,13 @@ export function useUsers(params?: { include_inactive?: boolean; limit?: number; 
   return useQuery({
     queryKey: queryKeys.users.list(params),
     queryFn: () => usersApi.list(params),
+  })
+}
+
+export function useUserDirectory() {
+  return useQuery({
+    queryKey: queryKeys.users.directory,
+    queryFn: () => usersApi.directory(),
   })
 }
 

@@ -36,9 +36,18 @@ export interface UpdateUserRequest {
   seniority_pause_exception?: boolean
 }
 
+export interface UserDirectoryEntry {
+  id: string
+  first_name: string
+  last_name: string
+}
+
 export const usersApi = {
   list: (params?: { include_inactive?: boolean; limit?: number; offset?: number }) =>
     api.get<UserProfile[]>('/api/users', { params }).then((r) => r.data),
+
+  directory: () =>
+    api.get<UserDirectoryEntry[]>('/api/users/directory').then((r) => r.data),
 
   get: (id: string) =>
     api.get<UserProfile>(`/api/users/${id}`).then((r) => r.data),
