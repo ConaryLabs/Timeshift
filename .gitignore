@@ -18,8 +18,6 @@ frontend/dist/
 # OS
 .DS_Store
 
-# Proprietary research docs (Valleycom data)
-research/
 
 # Claude Code local data
 .claude/
