@@ -23,6 +23,14 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog'
+import {
   useCalloutEvents,
   useCalloutList,
   useCancelCalloutEvent,
@@ -129,6 +137,7 @@ export default function CalloutPage() {
   const [showBumpDialog, setShowBumpDialog] = useState(false)
   const [bumpDisplacedUserId, setBumpDisplacedUserId] = useState(NO_VALUE)
   const [bumpReason, setBumpReason] = useState('')
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
@@ -440,16 +449,7 @@ export default function CalloutPage() {
                     className="mt-2"
                     onClick={(e) => {
                       e.stopPropagation()
-                      cancelMut.mutate(ev.id, {
-                        onSuccess: () => {
-                          toast.success('Callout cancelled')
-                          setSelectedEvent(null)
-                        },
-                        onError: (err: unknown) => {
-                          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to cancel callout'
-                          toast.error(msg)
-                        },
-                      })
+                      setCancelTarget(ev.id)
                     }}
                   >
                     Cancel event
@@ -760,6 +760,48 @@ export default function CalloutPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel confirmation dialog */}
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Callout Event</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const ev = (events ?? []).find((e) => e.id === cancelTarget)
+                return ev
+                  ? `Are you sure you want to cancel the ${ev.classification_name} callout${ev.shift_date ? ` on ${ev.shift_date}` : ''}${ev.shift_template_name ? ` (${ev.shift_template_name})` : ''}? This action cannot be undone.`
+                  : 'Are you sure you want to cancel this callout event?'
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setCancelTarget(null)}>
+              Keep Open
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelMut.isPending}
+              onClick={() => {
+                if (!cancelTarget) return
+                cancelMut.mutate(cancelTarget, {
+                  onSuccess: () => {
+                    toast.success('Callout cancelled')
+                    setSelectedEvent(null)
+                    setCancelTarget(null)
+                  },
+                  onError: (err: unknown) => {
+                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to cancel callout'
+                    toast.error(msg)
+                  },
+                })
+              }}
+            >
+              Cancel Event
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

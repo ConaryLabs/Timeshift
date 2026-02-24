@@ -44,6 +44,7 @@ export interface GridAssignment {
   classification_abbreviation: string | null
   is_overtime: boolean
   is_trade: boolean
+  notes?: string | null
 }
 
 export interface GridCell {

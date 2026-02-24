@@ -773,9 +773,17 @@ pub async fn create_bump_request(
         .shift_date
         .with_time(shift_info.start_time)
         .assume_utc();
-    if time::OffsetDateTime::now_utc() >= shift_start {
+    let now = time::OffsetDateTime::now_utc();
+    if now >= shift_start {
         return Err(AppError::Conflict(
             "Cannot request a bump after the shift has started".into(),
+        ));
+    }
+    // VCCEA Article 15.9: bump requests must be submitted at least 24 hours before shift start
+    let hours_until = (shift_start - now).whole_hours();
+    if hours_until < 24 {
+        return Err(AppError::BadRequest(
+            "Bump requests must be submitted at least 24 hours before shift start".into(),
         ));
     }
 

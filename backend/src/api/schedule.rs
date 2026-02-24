@@ -540,6 +540,7 @@ pub async fn grid(
             classification_abbreviation: r.classification_abbreviation,
             is_overtime: r.is_overtime,
             is_trade: r.is_trade,
+            notes: None,
         });
         cell.coverage_actual = cell.assignments.len() as i32;
     }
@@ -580,7 +581,8 @@ pub async fn day_view(
             u.last_name,
             cl.abbreviation    AS "classification_abbreviation?",
             a.is_overtime,
-            a.is_trade
+            a.is_trade,
+            a.notes AS "notes?"
         FROM assignments a
         JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
         JOIN shift_templates st  ON st.id = ss.shift_template_id
@@ -609,6 +611,7 @@ pub async fn day_view(
                 classification_abbreviation: a.classification_abbreviation,
                 is_overtime: a.is_overtime,
                 is_trade: a.is_trade,
+                notes: a.notes,
             });
     }
 
@@ -720,6 +723,7 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
                 classification_abbreviation: a.classification_abbreviation,
                 is_overtime: a.is_overtime,
                 is_trade: a.is_trade,
+                notes: None,
             });
     }
 
