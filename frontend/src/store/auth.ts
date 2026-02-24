@@ -33,6 +33,8 @@ export interface UserProfile {
   employee_status: EmployeeStatus
   accrual_paused_since: string | null
   is_active: boolean
+  /** Present when backend returns it; used for optimistic locking. */
+  updated_at?: string
 }
 
 interface AuthState {

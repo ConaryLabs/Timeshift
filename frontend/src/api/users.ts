@@ -34,6 +34,8 @@ export interface UpdateUserRequest {
   employee_status?: EmployeeStatus
   /** Pass true when setting a pausing status for OJI/maternity/military (seniority not paused). */
   seniority_pause_exception?: boolean
+  /** Optimistic locking: if set, backend rejects with 409 when record has changed. */
+  expected_updated_at?: string
 }
 
 export interface UserDirectoryEntry {

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               u.hire_date,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               u.cto_designation, u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\",\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               u.is_active\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
+  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               u.hire_date,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               u.cto_designation, u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\",\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               u.is_active,\n               u.updated_at\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -159,6 +159,11 @@
         "ordinal": 21,
         "name": "is_active",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 22,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -189,8 +194,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "198f86828cdaa6c380fb7339b27f75e88fc52d04bf52bb0e0c031844fade5d1d"
+  "hash": "6d62f6665d79784eed9ad6f393cbffb75df8bc8dd630c1fc1eabf08e8814e5ef"
 }

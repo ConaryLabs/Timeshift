@@ -60,7 +60,8 @@ pub async fn list(
                u.employee_status AS "employee_status: EmployeeStatus",
                sr.accrual_pause_started_at AS "accrual_paused_since?",
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
-               u.is_active
+               u.is_active,
+               u.updated_at
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
@@ -101,6 +102,7 @@ pub async fn list(
             accrual_paused_since: r.accrual_paused_since,
             leave_accrual_paused_at: r.leave_accrual_paused_at,
             is_active: r.is_active,
+            updated_at: r.updated_at,
         })
         .collect();
 
@@ -161,7 +163,8 @@ pub async fn get_one(
                u.employee_status AS "employee_status: EmployeeStatus",
                sr.accrual_pause_started_at AS "accrual_paused_since?",
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
-               u.is_active
+               u.is_active,
+               u.updated_at
         FROM users u
         LEFT JOIN classifications c ON c.id = u.classification_id
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
@@ -197,6 +200,7 @@ pub async fn get_one(
         accrual_paused_since: r.accrual_paused_since,
         leave_accrual_paused_at: r.leave_accrual_paused_at,
         is_active: r.is_active,
+        updated_at: r.updated_at,
     }))
 }
 
@@ -245,7 +249,8 @@ pub async fn create(
                   hire_date,
                   cto_designation, admin_training_supervisor_since,
                   employee_status AS "employee_status: EmployeeStatus",
-                  is_active
+                  is_active,
+                  updated_at
         "#,
         user_id,
         auth.org_id,
@@ -336,6 +341,7 @@ pub async fn create(
         accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         leave_accrual_paused_at: None,
         is_active: r.is_active,
+        updated_at: r.updated_at,
     }))
 }
 
@@ -366,6 +372,25 @@ pub async fn update(
     // Verify optional classification belongs to caller's org
     if let Some(Some(cid)) = req.classification_id {
         org_guard::verify_classification(&pool, cid, auth.org_id).await?;
+    }
+
+    // Optimistic locking: check if the record has been modified since the client last fetched it
+    if let Some(expected) = req.expected_updated_at {
+        let current = sqlx::query_scalar!(
+            "SELECT updated_at FROM users WHERE id = $1 AND org_id = $2",
+            id,
+            auth.org_id
+        )
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        if current != expected {
+            return Err(AppError::Conflict(
+                "This record has been modified by another user. Please refresh and try again."
+                    .into(),
+            ));
+        }
     }
 
     // For nullable fields using double-Option:
@@ -430,7 +455,8 @@ pub async fn update(
                   hire_date,
                   cto_designation, admin_training_supervisor_since,
                   employee_status AS "employee_status: EmployeeStatus",
-                  is_active
+                  is_active,
+                  updated_at
         "#,
         id,
         req.first_name.as_deref(),
@@ -675,6 +701,7 @@ pub async fn update(
         accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         leave_accrual_paused_at,
         is_active: r.is_active,
+        updated_at: r.updated_at,
     }))
 }
 

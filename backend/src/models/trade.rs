@@ -53,6 +53,10 @@ pub struct ReviewTradeRequest {
     pub status: String,
     #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
+    /// Optimistic locking: the `updated_at` timestamp from the last GET.
+    /// If provided and the record has been modified since, returns 409 Conflict.
+    #[serde(default)]
+    pub expected_updated_at: Option<time::OffsetDateTime>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

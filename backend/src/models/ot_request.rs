@@ -108,6 +108,10 @@ pub struct UpdateOtRequest {
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub notes: Option<Option<String>>,
     pub status: Option<String>,
+    /// Optimistic locking: the `updated_at` timestamp from the last GET.
+    /// If provided and the record has been modified since, returns 409 Conflict.
+    #[serde(default)]
+    pub expected_updated_at: Option<OffsetDateTime>,
 }
 
 /// Query params for listing OT requests.

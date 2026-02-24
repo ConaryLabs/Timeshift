@@ -29,7 +29,7 @@ pub async fn list_templates(
         ShiftTemplate,
         r#"
         SELECT id, org_id, name, start_time, end_time, crosses_midnight,
-               duration_minutes, color, is_active, created_at
+               duration_minutes, color, is_active, created_at, updated_at
         FROM shift_templates
         WHERE org_id = $1 AND is_active = true
         ORDER BY start_time
@@ -54,7 +54,7 @@ pub async fn get_template(
         ShiftTemplate,
         r#"
         SELECT id, org_id, name, start_time, end_time, crosses_midnight,
-               duration_minutes, color, is_active, created_at
+               duration_minutes, color, is_active, created_at, updated_at
         FROM shift_templates WHERE id = $1 AND org_id = $2
         "#,
         id,
@@ -103,7 +103,7 @@ pub async fn create_template(
         r#"
         INSERT INTO shift_templates (id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color, is_active, created_at
+        RETURNING id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color, is_active, created_at, updated_at
         "#,
         Uuid::new_v4(),
         auth.org_id,
@@ -133,15 +133,35 @@ pub async fn update_template(
         return Err(AppError::Forbidden);
     }
 
+    // Optimistic locking: check if the record has been modified since the client last fetched it
+    if let Some(expected) = req.expected_updated_at {
+        let current = sqlx::query_scalar!(
+            "SELECT updated_at FROM shift_templates WHERE id = $1 AND org_id = $2",
+            id,
+            auth.org_id
+        )
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
+
+        if current != expected {
+            return Err(AppError::Conflict(
+                "This record has been modified by another user. Please refresh and try again."
+                    .into(),
+            ));
+        }
+    }
+
     let t = sqlx::query_as!(
         ShiftTemplate,
         r#"
         UPDATE shift_templates
         SET name       = COALESCE($2, name),
             color      = COALESCE($3, color),
-            is_active  = COALESCE($4, is_active)
+            is_active  = COALESCE($4, is_active),
+            updated_at = NOW()
         WHERE id = $1 AND org_id = $5
-        RETURNING id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color, is_active, created_at
+        RETURNING id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color, is_active, created_at, updated_at
         "#,
         id,
         req.name.as_deref(),

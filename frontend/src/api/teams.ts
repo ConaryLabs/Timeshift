@@ -7,6 +7,8 @@ export interface TeamSummary {
   supervisor_name: string | null
   is_active: boolean
   slot_count: number
+  /** Present when backend returns it; used for optimistic locking. */
+  updated_at?: string
 }
 
 export interface Team {
@@ -43,7 +45,7 @@ export const teamsApi = {
   create: (body: { name: string; supervisor_id?: string }) =>
     api.post<Team>('/api/teams', body).then((r) => r.data),
 
-  update: (id: string, body: { name?: string; supervisor_id?: string | null; is_active?: boolean }) =>
+  update: (id: string, body: { name?: string; supervisor_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
     api.patch<Team>(`/api/teams/${id}`, body).then((r) => r.data),
 
   listSlots: (teamId: string) =>

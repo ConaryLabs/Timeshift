@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -11,9 +12,11 @@ import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { useShiftTemplates, useCreateTemplate, useUpdateTemplate } from '@/hooks/queries'
+import { useShiftTemplates, useCreateTemplate, useUpdateTemplate, queryKeys } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { ConflictDialog } from '@/components/ConflictDialog'
 import { formatTime, formatDuration } from '@/lib/format'
+import { isConflictError } from '@/lib/utils'
 import type { ShiftTemplate } from '@/api/schedule'
 
 const createSchema = z.object({
@@ -33,13 +36,16 @@ type CreateValues = z.infer<typeof createSchema>
 type EditValues = z.infer<typeof editSchema>
 
 export default function ShiftTemplatesPage() {
+  const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShiftTemplate | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<ShiftTemplate | null>(null)
+  const [conflictOpen, setConflictOpen] = useState(false)
 
   const { data: templates, isLoading, isError } = useShiftTemplates()
   const createMut = useCreateTemplate()
   const updateMut = useUpdateTemplate()
+  const pendingEditVars = useRef<Parameters<typeof updateMut.mutate>[0] | null>(null)
 
   const { confirmClose, confirmDialog } = useConfirmClose()
 
@@ -84,19 +90,43 @@ export default function ShiftTemplatesPage() {
 
   function onEditSubmit(values: EditValues) {
     if (!editingItem) return
-    updateMut.mutate(
-      { id: editingItem.id, ...values },
-      {
-        onSuccess: () => {
-          toast.success('Shift template updated')
-          setDialogOpen(false)
-        },
-        onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
-          toast.error(msg)
-        },
+    const vars = { id: editingItem.id, ...values, expected_updated_at: editingItem.updated_at }
+    pendingEditVars.current = vars
+    updateMut.mutate(vars, {
+      onSuccess: () => {
+        toast.success('Shift template updated')
+        setDialogOpen(false)
       },
-    )
+      onError: (err: unknown) => {
+        if (isConflictError(err)) {
+          setConflictOpen(true)
+          return
+        }
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
+      },
+    })
+  }
+
+  function handleConflictReload() {
+    setConflictOpen(false)
+    setDialogOpen(false)
+    queryClient.invalidateQueries({ queryKey: queryKeys.shifts.templates })
+  }
+
+  function handleConflictForceSave() {
+    setConflictOpen(false)
+    if (!pendingEditVars.current) return
+    updateMut.mutate({ ...pendingEditVars.current, expected_updated_at: undefined }, {
+      onSuccess: () => {
+        toast.success('Shift template updated')
+        setDialogOpen(false)
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        toast.error(msg)
+      },
+    })
   }
 
   const editIsActive = editForm.watch('is_active')
@@ -301,6 +331,13 @@ export default function ShiftTemplatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConflictDialog
+        open={conflictOpen}
+        onReload={handleConflictReload}
+        onForceSave={handleConflictForceSave}
+        onCancel={() => setConflictOpen(false)}
+      />
     </div>
   )
 }

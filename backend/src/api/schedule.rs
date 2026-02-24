@@ -195,7 +195,7 @@ pub async fn list_periods(
                status AS "status: BidPeriodStatus",
                bid_opens_at, bid_closes_at,
                bargaining_unit::TEXT AS bargaining_unit,
-               created_at
+               created_at, updated_at
         FROM schedule_periods
         WHERE org_id = $1
         ORDER BY start_date DESC
@@ -223,7 +223,7 @@ pub async fn get_period(
                status AS "status: BidPeriodStatus",
                bid_opens_at, bid_closes_at,
                bargaining_unit::TEXT AS bargaining_unit,
-               created_at
+               created_at, updated_at
         FROM schedule_periods
         WHERE id = $1 AND org_id = $2
         "#,
@@ -258,7 +258,7 @@ pub async fn create_period(
                   status AS "status: BidPeriodStatus",
                   bid_opens_at, bid_closes_at,
                   bargaining_unit::TEXT AS bargaining_unit,
-                  created_at
+                  created_at, updated_at
         "#,
         Uuid::new_v4(),
         auth.org_id,

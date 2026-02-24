@@ -21,6 +21,8 @@ pub struct ShiftTemplate {
     pub is_active: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -65,6 +67,8 @@ pub struct SchedulePeriod {
     pub bargaining_unit: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -125,6 +129,10 @@ pub struct UpdateShiftTemplateRequest {
     #[validate(length(max = 50))]
     pub color: Option<String>,
     pub is_active: Option<bool>,
+    /// Optimistic locking: the `updated_at` timestamp from the last GET.
+    /// If provided and the record has been modified since, returns 409 Conflict.
+    #[serde(default)]
+    pub expected_updated_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
