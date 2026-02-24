@@ -1,10 +1,11 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
-import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star, StickyNote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useDayView, useAnnotations } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/format'
@@ -129,26 +130,35 @@ export default function DayViewPage() {
                     }}
                   />
                   <div className="absolute inset-0 flex items-center px-2 gap-1">
-                    {entry.assignments.map((a) => (
-                      <span
-                        key={a.assignment_id}
-                        className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium shrink-0"
-                        style={{
-                          backgroundColor: entry.shift_color,
-                          color: contrastText(entry.shift_color),
-                        }}
-                      >
-                        {a.last_name}, {a.first_name?.[0] ?? ''}
-                        {a.classification_abbreviation && (
-                          <span className="opacity-70 text-[10px] ml-0.5">
-                            {a.classification_abbreviation}
-                          </span>
-                        )}
-                        {a.is_overtime && (
-                          <span className="font-bold text-[10px] ml-0.5">OT</span>
-                        )}
-                      </span>
-                    ))}
+                    {entry.assignments.map((a) => {
+                      const badge = (
+                        <span
+                          key={a.assignment_id}
+                          className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium shrink-0"
+                          style={{
+                            backgroundColor: entry.shift_color,
+                            color: contrastText(entry.shift_color),
+                          }}
+                        >
+                          {a.last_name}, {a.first_name?.[0] ?? ''}
+                          {a.classification_abbreviation && (
+                            <span className="opacity-70 text-[10px] ml-0.5">
+                              {a.classification_abbreviation}
+                            </span>
+                          )}
+                          {a.is_overtime && (
+                            <span className="font-bold text-[10px] ml-0.5">OT</span>
+                          )}
+                          {a.notes && <StickyNote className="h-2.5 w-2.5 ml-0.5 opacity-70" />}
+                        </span>
+                      )
+                      return a.notes ? (
+                        <Tooltip key={a.assignment_id}>
+                          <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                          <TooltipContent>{a.notes}</TooltipContent>
+                        </Tooltip>
+                      ) : badge
+                    })}
                     {entry.assignments.length === 0 && (
                       <span className="text-xs text-muted-foreground italic">
                         No assignments

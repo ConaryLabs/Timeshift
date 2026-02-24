@@ -415,7 +415,9 @@ pub async fn submit_bid(
     Path(window_id): Path<Uuid>,
     Json(body): Json<SubmitVacationBidRequest>,
 ) -> Result<Json<Vec<VacationBid>>> {
-    // Fetch window and verify ownership
+    let mut tx = pool.begin().await?;
+
+    // Fetch window with FOR UPDATE to prevent concurrent bid submissions
     let w = sqlx::query!(
         r#"
         SELECT w.id, w.user_id, w.opens_at, w.closes_at,
@@ -424,10 +426,11 @@ pub async fn submit_bid(
         FROM vacation_bid_windows w
         JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id
         WHERE w.id = $1
+        FOR UPDATE OF w
         "#,
         window_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Vacation bid window not found".into()))?;
 
@@ -444,7 +447,7 @@ pub async fn submit_bid(
         "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
         w.org_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?;
 
     if w.period_status != "open" {
@@ -539,8 +542,6 @@ pub async fn submit_bid(
             ));
         }
     }
-
-    let mut tx = pool.begin().await?;
 
     // Delete previous submissions
     sqlx::query!(

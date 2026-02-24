@@ -19,6 +19,8 @@ const BidPage = lazy(() => import('@/pages/BidPage'))
 const MyDashboardPage = lazy(() => import('@/pages/MyDashboardPage'))
 const MySchedulePage = lazy(() => import('@/pages/MySchedulePage'))
 const MyProfilePage = lazy(() => import('@/pages/MyProfilePage'))
+const LeaveSellbackPage = lazy(() => import('@/pages/LeaveSellbackPage'))
+const SickDonationPage = lazy(() => import('@/pages/SickDonationPage'))
 const ClassificationsPage = lazy(() => import('@/pages/admin/ClassificationsPage'))
 const ShiftTemplatesPage = lazy(() => import('@/pages/admin/ShiftTemplatesPage'))
 const TeamsPage = lazy(() => import('@/pages/admin/TeamsPage'))
@@ -63,6 +65,8 @@ export default function App() {
           <Route path="schedule" element={<PageSuspense><SchedulePage /></PageSuspense>} />
           <Route path="schedule/day/:date" element={<PageSuspense><DayViewPage /></PageSuspense>} />
           <Route path="leave" element={<PageSuspense><LeavePage /></PageSuspense>} />
+          <Route path="leave/sellback" element={<PageSuspense><LeaveSellbackPage /></PageSuspense>} />
+          <Route path="leave/donations" element={<PageSuspense><SickDonationPage /></PageSuspense>} />
           <Route path="trades" element={<PageSuspense><TradesPage /></PageSuspense>} />
           <Route
             path="callout"

@@ -159,6 +159,8 @@ pub struct GridAssignment {
     pub classification_abbreviation: Option<String>,
     pub is_overtime: bool,
     pub is_trade: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
 }
 
 // -- Day View Types --

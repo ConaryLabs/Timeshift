@@ -118,7 +118,9 @@ export default function MyProfilePage() {
             value={EMPLOYEE_TYPE_LABELS[user.employee_type] || user.employee_type}
           />
           <InfoRow icon={CalendarDays} label="Hire Date" value={formatDate(user.hire_date)} />
-          <InfoRow icon={CalendarDays} label="Seniority Date" value={formatDate(user.overall_seniority_date)} />
+          <InfoRow icon={CalendarDays} label="Overall Seniority" value={formatDate(user.overall_seniority_date)} />
+          <InfoRow icon={CalendarDays} label="Bargaining Unit Seniority" value={formatDate(user.bargaining_unit_seniority_date)} />
+          <InfoRow icon={CalendarDays} label="Classification Seniority" value={formatDate(user.classification_seniority_date)} />
         </CardContent>
       </Card>
 

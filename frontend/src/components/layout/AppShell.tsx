@@ -26,6 +26,8 @@ import {
   PartyPopper,
   Target,
   AlertTriangle,
+  Banknote,
+  HeartHandshake,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -59,6 +61,8 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
     { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
     { to: '/leave', label: 'Leave', icon: <ClipboardList className="h-4 w-4" /> },
     { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" /> },
+    { to: '/leave/sellback', label: 'Sellback', icon: <Banknote className="h-4 w-4" /> },
+    { to: '/leave/donations', label: 'Donations', icon: <HeartHandshake className="h-4 w-4" /> },
   ]
 
   if (isManager) {

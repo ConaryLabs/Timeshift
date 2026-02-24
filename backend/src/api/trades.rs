@@ -169,13 +169,36 @@ pub async fn create(
         ));
     }
 
+    // VCCEA Article 14.3: both shifts must fall within the same schedule period
+    let deadline = sqlx::query_scalar!(
+        r#"
+        SELECT end_date FROM schedule_periods
+        WHERE org_id = $1
+          AND start_date <= $2 AND end_date >= $2
+          AND start_date <= $3 AND end_date >= $3
+        ORDER BY start_date DESC
+        LIMIT 1
+        "#,
+        auth.org_id,
+        req_assignment.date,
+        partner_assignment.date,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let deadline_at = deadline.map(|d| {
+        // Set deadline to end of the schedule period day (23:59:59 UTC)
+        d.with_time(time::Time::from_hms(23, 59, 59).unwrap())
+            .assume_utc()
+    });
+
     let id = Uuid::new_v4();
     sqlx::query!(
         r#"
         INSERT INTO trade_requests (id, org_id, requester_id, partner_id,
             requester_assignment_id, partner_assignment_id,
-            requester_date, partner_date, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_partner')
+            requester_date, partner_date, status, deadline_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_partner', $9)
         "#,
         id,
         auth.org_id,
@@ -185,6 +208,7 @@ pub async fn create(
         body.partner_assignment_id,
         req_assignment.date,
         partner_assignment.date,
+        deadline_at,
     )
     .execute(&mut *tx)
     .await?;
@@ -408,7 +432,8 @@ pub async fn review(
         r#"
         SELECT id, org_id, requester_id, partner_id,
                requester_assignment_id, partner_assignment_id,
-               status AS "status: TradeStatus"
+               status AS "status: TradeStatus",
+               deadline_at AS "deadline_at?"
         FROM trade_requests
         WHERE id = $1 AND org_id = $2
         FOR UPDATE
@@ -424,6 +449,17 @@ pub async fn review(
         return Err(AppError::BadRequest(
             "Trade can only be reviewed when pending approval".into(),
         ));
+    }
+
+    // VCCEA Article 14.3: reject approval if trade deadline has passed
+    if body.status == "approved" {
+        if let Some(deadline) = r.deadline_at {
+            if time::OffsetDateTime::now_utc() > deadline {
+                return Err(AppError::Conflict(
+                    "Trade deadline has passed — both shifts must be completed within the bid period".into(),
+                ));
+            }
+        }
     }
 
     // M318: 1-hour approval cutoff — fetch shift dates and start times for both assignments

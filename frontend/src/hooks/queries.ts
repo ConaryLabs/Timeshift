@@ -19,6 +19,8 @@ import { biddingApi } from '@/api/bidding'
 import { employeeApi, type UpdatePreferencesRequest } from '@/api/employee'
 import { holidaysApi } from '@/api/holidays'
 import { reportsApi } from '@/api/reports'
+import { leaveSellbackApi } from '@/api/leaveSellback'
+import { sickDonationApi } from '@/api/sickDonation'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -136,6 +138,12 @@ export const queryKeys = {
   },
   orgSettings: {
     all: ['org-settings'] as const,
+  },
+  sellback: {
+    all: ['sellback'] as const,
+  },
+  donation: {
+    all: ['donation'] as const,
   },
 } as const
 
@@ -1102,5 +1110,85 @@ export function useSetOrgSetting() {
   return useMutation({
     mutationFn: organizationApi.setSetting,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.orgSettings.all }),
+  })
+}
+
+// -- Leave Sellback --
+
+export function useSellbackRequests() {
+  return useQuery({
+    queryKey: queryKeys.sellback.all,
+    queryFn: leaveSellbackApi.list,
+  })
+}
+
+export function useCreateSellback() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: leaveSellbackApi.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sellback.all })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+    },
+  })
+}
+
+export function useReviewSellback() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status: string; reviewer_notes?: string }) =>
+      leaveSellbackApi.review(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sellback.all })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+    },
+  })
+}
+
+export function useCancelSellback() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: leaveSellbackApi.cancel,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.sellback.all }),
+  })
+}
+
+// -- Sick Leave Donations --
+
+export function useDonations() {
+  return useQuery({
+    queryKey: queryKeys.donation.all,
+    queryFn: sickDonationApi.list,
+  })
+}
+
+export function useCreateDonation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: sickDonationApi.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.donation.all })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+    },
+  })
+}
+
+export function useReviewDonation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status: string; reviewer_notes?: string }) =>
+      sickDonationApi.review(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.donation.all })
+      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+    },
+  })
+}
+
+export function useCancelDonation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: sickDonationApi.cancel,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.donation.all }),
   })
 }
