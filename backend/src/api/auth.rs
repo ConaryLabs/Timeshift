@@ -1,9 +1,25 @@
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use std::sync::LazyLock;
+
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 use axum::http::StatusCode;
 use axum::{extract::State, http::header, response::IntoResponse, Json};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// Pre-computed Argon2 hash for timing equalization on failed lookups.
+/// When a login attempt uses a non-existent email, we still run an Argon2 verify
+/// against this dummy hash to prevent email enumeration via timing side-channels.
+static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(b"dummy", &salt)
+        .unwrap()
+        .to_string()
+});
 
 use crate::{
     auth::{create_token, AuthUser, RefreshTokenCookie, Role},
@@ -44,15 +60,31 @@ pub async fn login(
         req.email
     )
     .fetch_optional(&state.pool)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
+    .await?;
+
+    let user = match user {
+        Some(u) => u,
+        None => {
+            // Timing equalization: always run Argon2 verify to prevent email enumeration
+            let _ = Argon2::default().verify_password(
+                req.password.as_bytes(),
+                &PasswordHash::new(&DUMMY_HASH).unwrap(),
+            );
+            log_audit(&state.pool, None, None, "login_failed").await;
+            return Err(AppError::Unauthorized);
+        }
+    };
 
     let parsed = PasswordHash::new(&user.password_hash)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
 
-    Argon2::default()
+    if Argon2::default()
         .verify_password(req.password.as_bytes(), &parsed)
-        .map_err(|_| AppError::Unauthorized)?;
+        .is_err()
+    {
+        log_audit(&state.pool, Some(user.id), Some(user.org_id), "login_failed").await;
+        return Err(AppError::Unauthorized);
+    }
 
     let token = create_token(
         user.id,
@@ -66,6 +98,7 @@ pub async fn login(
     // Generate and store refresh token (store SHA-256 hash, send raw as cookie)
     let refresh_raw = Uuid::new_v4().to_string();
     let refresh_hash = hash_token(&refresh_raw);
+    let family_id = Uuid::new_v4();
     let refresh_expires = time::OffsetDateTime::now_utc()
         + time::Duration::days(state.refresh_token_expiry_days as i64);
 
@@ -81,14 +114,17 @@ pub async fn login(
     }
 
     sqlx::query!(
-        "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at, family_id) VALUES ($1, $2, $3, $4, $5)",
         user.id,
         user.org_id,
         refresh_hash,
         refresh_expires,
+        family_id,
     )
     .execute(&state.pool)
     .await?;
+
+    log_audit(&state.pool, Some(user.id), Some(user.org_id), "login_success").await;
 
     // Cap refresh tokens per user (keep most recent 10)
     if let Err(e) = sqlx::query!(
@@ -192,8 +228,22 @@ pub async fn logout(
     State(state): State<AppState>,
     refresh: Option<RefreshTokenCookie>,
 ) -> Result<impl IntoResponse> {
+    let mut logout_user_id = None;
+    let mut logout_org_id = None;
+
     if let Some(RefreshTokenCookie(raw)) = refresh {
         let hashed = hash_token(&raw);
+        // Look up user before deleting, for audit log
+        if let Ok(Some(row)) = sqlx::query!(
+            "SELECT user_id, org_id FROM refresh_tokens WHERE token = $1",
+            hashed
+        )
+        .fetch_optional(&state.pool)
+        .await
+        {
+            logout_user_id = Some(row.user_id);
+            logout_org_id = Some(row.org_id);
+        }
         if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", hashed)
             .execute(&state.pool)
             .await
@@ -201,6 +251,8 @@ pub async fn logout(
             tracing::warn!("Failed to delete refresh token on logout: {e}");
         }
     }
+
+    log_audit(&state.pool, logout_user_id, logout_org_id, "logout").await;
 
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
     let clear_auth = format!(
@@ -239,17 +291,29 @@ pub async fn refresh(
         id: Uuid,
         user_id: Uuid,
         org_id: Uuid,
+        family_id: Uuid,
         expires_at: time::OffsetDateTime,
     }
 
     let row = sqlx::query_as!(
         RefreshRow,
-        r#"SELECT id, user_id, org_id, expires_at FROM refresh_tokens WHERE token = $1"#,
+        r#"SELECT id, user_id, org_id, family_id, expires_at FROM refresh_tokens WHERE token = $1"#,
         hashed
     )
     .fetch_optional(&state.pool)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
+    .await?;
+
+    let row = match row {
+        Some(r) => r,
+        None => {
+            // Token not found — possible reuse after rotation.
+            // We cannot determine the family without the token, so just reject.
+            // (A more aggressive approach would store the family_id in the cookie,
+            // but the SHA-256 hash means we can't look up the family from a reused token
+            // that's already been deleted. This is the standard trade-off.)
+            return Err(AppError::Unauthorized);
+        }
+    };
 
     if row.expires_at < time::OffsetDateTime::now_utc() {
         if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
@@ -295,18 +359,19 @@ pub async fn refresh(
     )
     .map_err(AppError::Internal)?;
 
-    // Issue new refresh token (store hash, send raw as cookie)
+    // Issue new refresh token inheriting the same family_id
     let new_refresh_raw = Uuid::new_v4().to_string();
     let new_refresh_hash = hash_token(&new_refresh_raw);
     let refresh_expires = time::OffsetDateTime::now_utc()
         + time::Duration::days(state.refresh_token_expiry_days as i64);
 
     sqlx::query!(
-        "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO refresh_tokens (user_id, org_id, token, expires_at, family_id) VALUES ($1, $2, $3, $4, $5)",
         row.user_id,
         row.org_id,
         new_refresh_hash,
         refresh_expires,
+        row.family_id,
     )
     .execute(&state.pool)
     .await?;
@@ -325,6 +390,8 @@ pub async fn refresh(
     {
         tracing::warn!("Failed to cap refresh tokens: {e}");
     }
+
+    log_audit(&state.pool, Some(row.user_id), Some(row.org_id), "refresh").await;
 
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
 
@@ -412,4 +479,19 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
         leave_accrual_paused_at: row.leave_accrual_paused_at,
         is_active: row.is_active,
     }))
+}
+
+/// Best-effort audit log insert. Errors are logged but never propagated.
+async fn log_audit(pool: &PgPool, user_id: Option<Uuid>, org_id: Option<Uuid>, event_type: &str) {
+    if let Err(e) = sqlx::query!(
+        "INSERT INTO login_audit_log (user_id, org_id, event_type) VALUES ($1, $2, $3)",
+        user_id,
+        org_id,
+        event_type,
+    )
+    .execute(pool)
+    .await
+    {
+        tracing::warn!("Failed to write audit log ({event_type}): {e}");
+    }
 }

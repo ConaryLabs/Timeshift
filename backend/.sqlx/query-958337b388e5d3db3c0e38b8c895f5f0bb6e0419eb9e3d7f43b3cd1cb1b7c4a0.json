@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT br.id, br.org_id, br.event_id, br.requesting_user_id,\n               br.displaced_user_id, br.status, br.reason, br.created_at,\n               br.reviewed_at, br.reviewed_by\n        FROM bump_requests br WHERE br.id = $1 FOR UPDATE\n        ",
+  "query": "\n        SELECT br.id, br.org_id, br.event_id, br.requesting_user_id,\n               br.displaced_user_id, br.status, br.reason, br.created_at,\n               br.reviewed_at, br.reviewed_by\n        FROM bump_requests br WHERE br.id = $1 AND br.org_id = $2 FOR UPDATE\n        ",
   "describe": {
     "columns": [
       {
@@ -56,6 +56,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -72,5 +73,5 @@
       true
     ]
   },
-  "hash": "d08766c0b2d72ed0c9d7aff7d21652cfc9fa3b758bb52bea9a658a498815ac31"
+  "hash": "958337b388e5d3db3c0e38b8c895f5f0bb6e0419eb9e3d7f43b3cd1cb1b7c4a0"
 }

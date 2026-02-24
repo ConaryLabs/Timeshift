@@ -371,3 +371,57 @@ pub async fn create_test_callout_event(
     .expect("Failed to create test callout event");
     id
 }
+
+/// Create a test leave type for an org. Returns the leave type ID.
+pub async fn create_test_leave_type(pool: &PgPool, org_id: Uuid, code: &str, name: &str) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO leave_types (id, org_id, code, name, requires_approval, is_active) \
+         VALUES ($1, $2, $3, $4, true, true)",
+    )
+    .bind(id)
+    .bind(org_id)
+    .bind(code)
+    .bind(name)
+    .execute(pool)
+    .await
+    .expect("Failed to create test leave type");
+    id
+}
+
+/// Create a test assignment (non-OT) for a scheduled shift. Returns the assignment ID.
+pub async fn create_test_assignment(
+    pool: &PgPool,
+    scheduled_shift_id: Uuid,
+    user_id: Uuid,
+    created_by: Uuid,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO assignments (id, scheduled_shift_id, user_id, is_overtime, is_trade, created_by) \
+         VALUES ($1, $2, $3, false, false, $4)",
+    )
+    .bind(id)
+    .bind(scheduled_shift_id)
+    .bind(user_id)
+    .bind(created_by)
+    .execute(pool)
+    .await
+    .expect("Failed to create test assignment");
+    id
+}
+
+/// Create a test team. Returns the team ID.
+pub async fn create_test_team(pool: &PgPool, org_id: Uuid, name: &str) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO teams (id, org_id, name) VALUES ($1, $2, $3)",
+    )
+    .bind(id)
+    .bind(org_id)
+    .bind(name)
+    .execute(pool)
+    .await
+    .expect("Failed to create test team");
+    id
+}

@@ -107,41 +107,58 @@ pub async fn update(
         return Err(AppError::Forbidden);
     }
 
-    let mut tx = pool.begin().await?;
+    // Fetch existing row to compute effective values for validation
+    let existing = sqlx::query_as!(
+        CoverageRequirement,
+        r#"
+        SELECT id, org_id, shift_template_id, classification_id, day_of_week,
+               min_headcount, target_headcount, max_headcount, effective_date, created_at
+        FROM coverage_requirements
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id,
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Coverage requirement not found".into()))?;
+
+    // Compute effective values: use request field if provided, otherwise existing value
+    let eff_min = req.min_headcount.unwrap_or(existing.min_headcount);
+    let eff_target = req.target_headcount.unwrap_or(existing.target_headcount);
+    let eff_max = req.max_headcount.unwrap_or(existing.max_headcount);
+
+    // Validate before UPDATE
+    if eff_min < 0 || eff_target < 0 || eff_max < 0 {
+        return Err(AppError::BadRequest(
+            "Headcounts must be non-negative".into(),
+        ));
+    }
+    if eff_min > eff_target || eff_target > eff_max {
+        return Err(AppError::BadRequest(
+            "Must have min <= target <= max".into(),
+        ));
+    }
 
     let row = sqlx::query_as!(
         CoverageRequirement,
         r#"
         UPDATE coverage_requirements
-        SET min_headcount = COALESCE($3, min_headcount),
-            target_headcount = COALESCE($4, target_headcount),
-            max_headcount = COALESCE($5, max_headcount)
+        SET min_headcount = $3,
+            target_headcount = $4,
+            max_headcount = $5
         WHERE id = $1 AND org_id = $2
         RETURNING id, org_id, shift_template_id, classification_id, day_of_week,
                   min_headcount, target_headcount, max_headcount, effective_date, created_at
         "#,
         id,
         auth.org_id,
-        req.min_headcount,
-        req.target_headcount,
-        req.max_headcount,
+        eff_min,
+        eff_target,
+        eff_max,
     )
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Coverage requirement not found".into()))?;
-
-    if row.min_headcount < 0 || row.target_headcount < 0 || row.max_headcount < 0 {
-        return Err(AppError::BadRequest(
-            "Headcounts must be non-negative".into(),
-        ));
-    }
-    if row.min_headcount > row.target_headcount || row.target_headcount > row.max_headcount {
-        return Err(AppError::BadRequest(
-            "Must have min <= target <= max".into(),
-        ));
-    }
-
-    tx.commit().await?;
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(row))
 }

@@ -178,20 +178,17 @@ pub async fn callout_list(
 
     let event = sqlx::query!(
         r#"
-        SELECT ce.scheduled_shift_id, ce.classification_id, ss.org_id, ss.date AS shift_date
+        SELECT ce.scheduled_shift_id, ce.classification_id, ss.date AS shift_date
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event.org_id != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
 
     // Use shift date's calendar year so the displayed OT hours match what
     // record_attempt will record (consistent with fiscal_year in that handler).
@@ -334,22 +331,19 @@ pub async fn record_attempt(
         SELECT ce.status AS "status: CalloutStatus", ce.scheduled_shift_id,
                ce.classification_id,
                ce.current_step AS "current_step?: CalloutStep",
-               ss.org_id, ss.date AS shift_date, st.duration_minutes
+               ss.date AS shift_date, st.duration_minutes
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         JOIN shift_templates  st ON st.id = ss.shift_template_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         FOR UPDATE OF ce
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if ctx.org_id != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
     if ctx.status != CalloutStatus::Open {
         return Err(AppError::Conflict("Callout event is not open".into()));
     }
@@ -560,21 +554,18 @@ pub async fn cancel_ot_assignment(
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus",
-               ss.org_id, ss.date AS shift_date, st.start_time
+               ss.date AS shift_date, st.start_time
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         JOIN shift_templates st ON st.id = ss.shift_template_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event.org_id != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
     if event.status != CalloutStatus::Filled {
         return Err(AppError::Conflict(
             "Callout event is not in filled status".into(),
@@ -714,20 +705,17 @@ pub async fn create_bump_request(
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus", ce.classification_id,
-               ss.org_id, ss.date AS shift_date, ce.scheduled_shift_id
+               ss.date AS shift_date, ce.scheduled_shift_id
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.id = $1
+        WHERE ce.id = $1 AND ss.org_id = $2
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event.org_id != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
     if event.status != CalloutStatus::Filled {
         return Err(AppError::Conflict("Callout event is not filled".into()));
     }
@@ -877,17 +865,14 @@ pub async fn review_bump_request(
         SELECT br.id, br.org_id, br.event_id, br.requesting_user_id,
                br.displaced_user_id, br.status, br.reason, br.created_at,
                br.reviewed_at, br.reviewed_by
-        FROM bump_requests br WHERE br.id = $1 FOR UPDATE
+        FROM bump_requests br WHERE br.id = $1 AND br.org_id = $2 FOR UPDATE
         "#,
-        id
+        id,
+        auth.org_id
     )
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Bump request not found".into()))?;
-
-    if br.org_id != auth.org_id {
-        return Err(AppError::NotFound("Bump request not found".into()));
-    }
     if br.status != "pending" {
         return Err(AppError::Conflict(
             "Bump request has already been reviewed".into(),
@@ -1059,17 +1044,14 @@ pub async fn list_bump_requests(
     }
 
     // Verify event belongs to the user's org
-    let event_org = sqlx::query_scalar!(
-        "SELECT org_id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ce.id = $1",
-        event_id
+    sqlx::query_scalar!(
+        "SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ce.id = $1 AND ss.org_id = $2",
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    if event_org != auth.org_id {
-        return Err(AppError::NotFound("Callout event not found".into()));
-    }
 
     let rows = sqlx::query_as!(
         BumpRequestWithNames,
