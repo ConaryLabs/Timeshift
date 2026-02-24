@@ -107,6 +107,35 @@ pub async fn list(
     Ok(Json(profiles))
 }
 
+/// Lightweight user directory (id + name) accessible to all authenticated users.
+/// Used for trade partner selection, assignment lookups, etc.
+#[derive(Debug, serde::Serialize)]
+pub struct UserDirectoryEntry {
+    pub id: Uuid,
+    pub first_name: String,
+    pub last_name: String,
+}
+
+pub async fn directory(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+) -> Result<Json<Vec<UserDirectoryEntry>>> {
+    let rows = sqlx::query_as!(
+        UserDirectoryEntry,
+        r#"
+        SELECT id, first_name, last_name
+        FROM users
+        WHERE org_id = $1 AND is_active = true
+        ORDER BY last_name, first_name
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    Ok(Json(rows))
+}
+
 pub async fn get_one(
     State(pool): State<PgPool>,
     auth: AuthUser,

@@ -17,7 +17,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import {
   useTrades,
-  useUsers,
+  useUserDirectory,
   useStaffing,
   useCreateTrade,
   useRespondTrade,
@@ -58,7 +58,7 @@ export default function TradesPage() {
 
   const tradeParams = statusFilter === 'all' ? undefined : { status: statusFilter }
   const { data: trades, isLoading, isError } = useTrades(tradeParams)
-  const { data: allUsers } = useUsers()
+  const { data: allUsers } = useUserDirectory()
 
   // Compute a 30-day window for assignment lookups
   const today = new Date()
@@ -89,7 +89,7 @@ export default function TradesPage() {
 
   // Other active users (exclude self)
   const otherUsers = useMemo(
-    () => (allUsers ?? []).filter((u) => u.id !== user?.id && u.is_active),
+    () => (allUsers ?? []).filter((u) => u.id !== user?.id),
     [allUsers, user?.id],
   )
 

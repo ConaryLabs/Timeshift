@@ -67,7 +67,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/users/me/dashboard", get(employee::my_dashboard))
         .route("/api/nav/badges", get(nav::badges))
         .route("/api/users/me/password", patch(users::change_password))
-        // Users
+        // Users (directory must be before /api/users/:id to avoid param capture)
+        .route("/api/users/directory", get(users::directory))
         .route("/api/users", get(users::list).post(users::create))
         .route(
             "/api/users/:id",
