@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::notifications::create_notification,
     auth::AuthUser,
     error::{AppError, Result},
     models::{
@@ -983,6 +984,39 @@ pub async fn review(
 
     tx.commit().await?;
 
+    // Notify the leave requester
+    let reviewer_name = sqlx::query!(
+        "SELECT first_name || ' ' || last_name AS name FROM users WHERE id = $1",
+        auth.id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+    let reviewer_display = reviewer_name
+        .map(|r| r.name.unwrap_or_default())
+        .unwrap_or_default();
+    let status_word = if status == LeaveStatus::Approved {
+        "approved"
+    } else {
+        "denied"
+    };
+    let notif_title = format!("Leave request {}", status_word);
+    let notif_message = format!(
+        "Your leave request for {} to {} has been {} by {}",
+        r.start_date, r.end_date, status_word, reviewer_display,
+    );
+    let _ = create_notification(
+        &pool,
+        auth.org_id,
+        r.user_id,
+        "leave_reviewed",
+        &notif_title,
+        &notif_message,
+        Some("/leave"),
+        Some("leave_request"),
+        Some(id),
+    )
+    .await;
+
     let segments = fetch_segments(&pool, id).await?;
     let lines = fetch_lines(&pool, id).await?;
 
@@ -1044,6 +1078,7 @@ pub async fn bulk_review(
 
     let mut tx = pool.begin().await?;
     let mut reviewed = 0u64;
+    let mut notif_targets: Vec<(Uuid, Uuid, time::Date, time::Date)> = Vec::new();
 
     for id in &body.ids {
         let rows_affected = sqlx::query!(
@@ -1073,18 +1108,22 @@ pub async fn bulk_review(
 
         reviewed += rows_affected;
 
-        if body.status == LeaveStatus::Approved {
-            let r = sqlx::query!(
-                r#"
-                SELECT user_id, leave_type_id, hours::FLOAT8 AS hours
-                FROM leave_requests
-                WHERE id = $1
-                "#,
-                id,
-            )
-            .fetch_one(&mut *tx)
-            .await?;
+        // Collect info for notification after commit
+        let leave_info = sqlx::query!(
+            r#"
+            SELECT user_id, leave_type_id, hours::FLOAT8 AS hours,
+                   start_date, end_date
+            FROM leave_requests
+            WHERE id = $1
+            "#,
+            id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
 
+        notif_targets.push((leave_info.user_id, *id, leave_info.start_date, leave_info.end_date));
+
+        if body.status == LeaveStatus::Approved {
             // Check for segments
             let segments = sqlx::query!(
                 r#"
@@ -1101,13 +1140,13 @@ pub async fn bulk_review(
             .await?;
 
             if segments.is_empty() {
-                if let Some(hours) = r.hours {
+                if let Some(hours) = leave_info.hours {
                     if hours > 0.0 {
                         deduct_leave_balance(
                             &mut tx,
                             auth.org_id,
-                            r.user_id,
-                            r.leave_type_id,
+                            leave_info.user_id,
+                            leave_info.leave_type_id,
                             hours,
                             *id,
                             auth.id,
@@ -1121,7 +1160,7 @@ pub async fn bulk_review(
                         deduct_leave_balance(
                             &mut tx,
                             auth.org_id,
-                            r.user_id,
+                            leave_info.user_id,
                             seg.leave_type_id,
                             seg.hours,
                             *id,
@@ -1135,6 +1174,42 @@ pub async fn bulk_review(
     }
 
     tx.commit().await?;
+
+    // Send notifications for all reviewed requests
+    let reviewer_name = sqlx::query!(
+        "SELECT first_name || ' ' || last_name AS name FROM users WHERE id = $1",
+        auth.id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+    let reviewer_display = reviewer_name
+        .map(|r| r.name.unwrap_or_default())
+        .unwrap_or_default();
+    let status_word = if body.status == LeaveStatus::Approved {
+        "approved"
+    } else {
+        "denied"
+    };
+
+    for (user_id, request_id, start_date, end_date) in notif_targets {
+        let notif_title = format!("Leave request {}", status_word);
+        let notif_message = format!(
+            "Your leave request for {} to {} has been {} by {}",
+            start_date, end_date, status_word, reviewer_display,
+        );
+        let _ = create_notification(
+            &pool,
+            auth.org_id,
+            user_id,
+            "leave_reviewed",
+            &notif_title,
+            &notif_message,
+            Some("/leave"),
+            Some("leave_request"),
+            Some(request_id),
+        )
+        .await;
+    }
 
     Ok(Json(
         serde_json::json!({ "ok": true, "reviewed": reviewed }),

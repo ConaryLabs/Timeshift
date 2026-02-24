@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::notifications::create_notification,
     auth::AuthUser,
     error::{AppError, Result},
     models::trade::{
@@ -214,6 +215,29 @@ pub async fn create(
     .await?;
 
     tx.commit().await?;
+
+    // Notify the trade partner
+    let requester_name = sqlx::query!(
+        "SELECT first_name || ' ' || last_name AS name FROM users WHERE id = $1",
+        auth.id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+    let requester_display = requester_name
+        .map(|r| r.name.unwrap_or_default())
+        .unwrap_or_default();
+    let _ = create_notification(
+        &pool,
+        auth.org_id,
+        body.partner_id,
+        "trade_requested",
+        "New trade request",
+        &format!("{} has requested a shift trade with you", requester_display),
+        Some("/trades"),
+        Some("trade_request"),
+        Some(id),
+    )
+    .await;
 
     // Fetch back the full trade with names
     fetch_trade(&pool, id, auth.org_id).await
@@ -503,6 +527,8 @@ pub async fn review(
         }
     }
 
+    let mut final_status: Option<&str> = None;
+
     // M312: Check for trade_approvals rows to determine which review path to use
     let approval_count = sqlx::query_scalar!(
         r#"SELECT COUNT(*) AS "count!" FROM trade_approvals WHERE trade_id = $1"#,
@@ -562,6 +588,7 @@ pub async fn review(
             )
             .execute(&mut *tx)
             .await?;
+            final_status = Some("approved");
         } else {
             sqlx::query!(
                 r#"
@@ -575,6 +602,7 @@ pub async fn review(
             )
             .execute(&mut *tx)
             .await?;
+            final_status = Some("denied");
         }
     } else {
         // Multi-supervisor path: only supervisors with a pending approval row can act
@@ -618,6 +646,7 @@ pub async fn review(
             )
             .execute(&mut *tx)
             .await?;
+            final_status = Some("denied");
         } else {
             // Check whether all supervisors have now approved
             let remaining = sqlx::query_scalar!(
@@ -678,12 +707,34 @@ pub async fn review(
                 )
                 .execute(&mut *tx)
                 .await?;
+                final_status = Some("approved");
             }
             // else: still waiting on other supervisors — trade stays pending_approval
         }
     }
 
     tx.commit().await?;
+
+    // Notify both trader and tradee about the review result
+    if let Some(status_word) = final_status {
+        let notif_title = format!("Trade request {}", status_word);
+        let notif_message = format!("Your trade request has been {}", status_word);
+
+        for user_id in [r.requester_id, r.partner_id] {
+            let _ = create_notification(
+                &pool,
+                auth.org_id,
+                user_id,
+                "trade_reviewed",
+                &notif_title,
+                &notif_message,
+                Some("/trades"),
+                Some("trade_request"),
+                Some(id),
+            )
+            .await;
+        }
+    }
 
     fetch_trade(&pool, id, auth.org_id).await
 }

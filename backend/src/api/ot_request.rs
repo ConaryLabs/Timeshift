@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::notifications::create_notification,
     auth::AuthUser,
     error::{AppError, Result},
     models::ot_request::{
@@ -862,6 +863,42 @@ pub async fn assign(
 
     tx.commit().await?;
 
+    // Notify the assigned employee
+    let link = format!("/ot-requests/{}", id);
+    let ot_times = sqlx::query!(
+        "SELECT start_time, end_time FROM ot_requests WHERE id = $1",
+        id,
+    )
+    .fetch_optional(&pool)
+    .await
+    .ok()
+    .flatten();
+    let time_fmt = time::format_description::parse("[hour]:[minute]").unwrap_or_default();
+    let time_range = match ot_times {
+        Some(ref t) => format!(
+            " ({} - {})",
+            t.start_time.format(&time_fmt).unwrap_or_default(),
+            t.end_time.format(&time_fmt).unwrap_or_default(),
+        ),
+        None => String::new(),
+    };
+    let notif_message = format!(
+        "You have been assigned to OT on {}{}",
+        request.date, time_range,
+    );
+    let _ = create_notification(
+        &pool,
+        auth.org_id,
+        req.user_id,
+        "ot_assigned",
+        "OT Assignment",
+        &notif_message,
+        Some(&link),
+        Some("ot_request"),
+        Some(id),
+    )
+    .await;
+
     // Fetch the assignment with joins
     let row = sqlx::query!(
         r#"
@@ -991,6 +1028,20 @@ pub async fn cancel_assignment(
     .await?;
 
     tx.commit().await?;
+
+    // Notify the employee about cancelled assignment
+    let _ = create_notification(
+        &pool,
+        auth.org_id,
+        user_id,
+        "ot_assignment_cancelled",
+        "OT Assignment Cancelled",
+        &format!("Your OT assignment on {} has been cancelled", request.date),
+        Some("/available-ot"),
+        Some("ot_request"),
+        Some(id),
+    )
+    .await;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

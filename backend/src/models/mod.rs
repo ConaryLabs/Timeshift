@@ -8,6 +8,7 @@ pub mod leave;
 pub mod leave_balance;
 pub mod leave_donation;
 pub mod leave_sellback;
+pub mod notification;
 pub mod organization;
 pub mod ot;
 pub mod ot_request;
