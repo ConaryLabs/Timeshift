@@ -105,6 +105,21 @@ pub async fn verify_ot_reason(pool: &PgPool, reason_id: Uuid, org_id: Uuid) -> R
     Ok(())
 }
 
+pub async fn verify_ot_request(pool: &PgPool, ot_request_id: Uuid, org_id: Uuid) -> Result<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM ot_requests WHERE id = $1 AND org_id = $2)",
+        ot_request_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if !ok.unwrap_or(false) {
+        return Err(AppError::NotFound("OT request not found".into()));
+    }
+    Ok(())
+}
+
 pub async fn verify_period(pool: &PgPool, period_id: Uuid, org_id: Uuid) -> Result<()> {
     let ok = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM schedule_periods WHERE id = $1 AND org_id = $2)",

@@ -10,6 +10,7 @@ export interface CalloutEvent {
   reason_text: string | null
   classification_id: string
   classification_name: string
+  ot_request_id: string | null
   status: 'open' | 'filled' | 'cancelled'
   current_step: CalloutStep | null
   step_started_at: string | null
@@ -80,6 +81,7 @@ export const calloutApi = {
     ot_reason_id?: string
     reason_text?: string
     classification_id: string
+    ot_request_id?: string
   }) => api.post<CalloutEvent>('/api/callout/events', body).then((r) => r.data),
 
   getList: (event_id: string) =>

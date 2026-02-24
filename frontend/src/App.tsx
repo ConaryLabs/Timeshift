@@ -39,6 +39,7 @@ const CoveragePlanDetailPage = lazy(() => import('@/pages/admin/CoveragePlanDeta
 const CoveragePlanAssignmentsPage = lazy(() => import('@/pages/admin/CoveragePlanAssignmentsPage'))
 const AvailableOTPage = lazy(() => import('@/pages/AvailableOTPage'))
 const VolunteeredOTPage = lazy(() => import('@/pages/VolunteeredOTPage'))
+const OtRequestDetailPage = lazy(() => import('@/pages/OtRequestDetailPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="trades" element={<PageSuspense><TradesPage /></PageSuspense>} />
           <Route path="available-ot" element={<PageSuspense><AvailableOTPage /></PageSuspense>} />
           <Route path="volunteered-ot" element={<PageSuspense><VolunteeredOTPage /></PageSuspense>} />
+          <Route path="ot-requests/:id" element={<PageSuspense><OtRequestDetailPage /></PageSuspense>} />
           <Route
             path="callout"
             element={

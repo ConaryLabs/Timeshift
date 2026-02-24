@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -154,7 +155,11 @@ export default function AvailableOTPage() {
   const columns: Column<OtRequest>[] = [
     {
       header: 'Date',
-      cell: (r) => formatDate(r.date),
+      cell: (r) => (
+        <Link to={`/ot-requests/${r.id}`} className="text-primary hover:underline font-medium">
+          {formatDate(r.date)}
+        </Link>
+      ),
     },
     {
       header: 'Time',

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,\n               ce.ot_reason_id, ce.reason_text, ce.classification_id,\n               cl.name AS classification_name,\n               ce.status AS \"status: CalloutStatus\",\n               ce.current_step AS \"current_step?: CalloutStep\",\n               ce.step_started_at AS \"step_started_at?\",\n               st.name AS \"shift_template_name?\",\n               ss.date AS \"shift_date?\",\n               t.name AS \"team_name?\",\n               ce.created_at, ce.updated_at\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        JOIN classifications cl ON cl.id = ce.classification_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN teams t ON t.id = sl.team_id\n        WHERE ss.org_id = $1\n        ORDER BY ce.created_at DESC\n        LIMIT $2 OFFSET $3\n        ",
+  "query": "\n        SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,\n               ce.ot_reason_id, ce.reason_text, ce.classification_id,\n               cl.name AS classification_name,\n               ce.ot_request_id AS \"ot_request_id?\",\n               ce.status AS \"status: CalloutStatus\",\n               ce.current_step AS \"current_step?: CalloutStep\",\n               ce.step_started_at AS \"step_started_at?\",\n               st.name AS \"shift_template_name?\",\n               ss.date AS \"shift_date?\",\n               t.name AS \"team_name?\",\n               ce.created_at, ce.updated_at\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        JOIN classifications cl ON cl.id = ce.classification_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN teams t ON t.id = sl.team_id\n        WHERE ss.org_id = $1\n        ORDER BY ce.created_at DESC\n        LIMIT $2 OFFSET $3\n        ",
   "describe": {
     "columns": [
       {
@@ -40,6 +40,11 @@
       },
       {
         "ordinal": 7,
+        "name": "ot_request_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
         "name": "status: CalloutStatus",
         "type_info": {
           "Custom": {
@@ -55,7 +60,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "current_step?: CalloutStep",
         "type_info": {
           "Custom": {
@@ -73,32 +78,32 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "step_started_at?",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "shift_template_name?",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "shift_date?",
         "type_info": "Date"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "team_name?",
         "type_info": "Text"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -118,6 +123,7 @@
       true,
       false,
       false,
+      true,
       false,
       true,
       true,
@@ -128,5 +134,5 @@
       false
     ]
   },
-  "hash": "25c16f61a38540d4ca56ebc5684674e7d76e5183b90ca2d1762b5c691f4b484b"
+  "hash": "d79514fb9eb9f7331e58901b7b139b23b5e638b8339ddeb5ff8c0b4536806a3d"
 }
