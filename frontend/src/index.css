@@ -126,6 +126,15 @@
   }
 }
 
+/* Hide scrollbar on sidebar nav — still scrollable */
+.sidebar-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.sidebar-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
 .nav-badge {
   animation: badge-in 0.2s ease-out;
 }
