@@ -250,8 +250,8 @@ pub async fn adjust_hours(
             COALESCE(classification_id,
                      '00000000-0000-0000-0000-000000000000'::uuid))
         DO UPDATE SET
-            hours_worked   = ot_hours.hours_worked   + $4::FLOAT8::NUMERIC,
-            hours_declined = ot_hours.hours_declined + $5::FLOAT8::NUMERIC,
+            hours_worked   = GREATEST(ot_hours.hours_worked   + $4::FLOAT8::NUMERIC, 0),
+            hours_declined = GREATEST(ot_hours.hours_declined + $5::FLOAT8::NUMERIC, 0),
             updated_at     = NOW()
         "#,
         req.user_id,

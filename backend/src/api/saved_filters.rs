@@ -45,6 +45,19 @@ pub async fn create(
         return Err(AppError::BadRequest("Name is required".into()));
     }
 
+    if req.name.len() > 255 {
+        return Err(AppError::BadRequest(
+            "Name must be 255 characters or fewer".into(),
+        ));
+    }
+
+    // Cap JSON filters payload at 64KB
+    if req.filters.to_string().len() > 65_536 {
+        return Err(AppError::BadRequest(
+            "Filters payload too large (max 64KB)".into(),
+        ));
+    }
+
     let valid_pages = ["schedule", "coverage", "duty_board"];
     if !valid_pages.contains(&req.page.as_str()) {
         return Err(AppError::BadRequest(

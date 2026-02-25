@@ -238,6 +238,7 @@ pub async fn callout_list(
             NOT EXISTS (
                 SELECT 1 FROM assignments a
                 WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
+                  AND a.cancelled_at IS NULL
             ) AND NOT EXISTS (
                 SELECT 1 FROM leave_requests lr
                 WHERE lr.user_id = u.id
@@ -290,6 +291,7 @@ pub async fn callout_list(
                 WHEN EXISTS (
                     SELECT 1 FROM assignments a
                     WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
+                      AND a.cancelled_at IS NULL
                 ) THEN 'Already scheduled'
                 WHEN EXISTS (
                     SELECT 1 FROM leave_requests lr
@@ -355,6 +357,7 @@ pub async fn callout_list(
             (u.classification_id = $4) DESC,
             (NOT EXISTS (
                 SELECT 1 FROM assignments a2 WHERE a2.user_id = u.id AND a2.scheduled_shift_id = $1
+                  AND a2.cancelled_at IS NULL
             ) AND NOT EXISTS (
                 SELECT 1 FROM leave_requests lr2
                 WHERE lr2.user_id = u.id AND lr2.org_id = $2
@@ -401,14 +404,14 @@ pub async fn callout_list(
             COALESCE(ot.hours_worked, 0.0) ASC,
             sr.overall_seniority_date ASC NULLS LAST
         "#,
-        event.scheduled_shift_id,  // $1
-        auth.org_id,               // $2
-        fiscal_year,               // $3
-        event.classification_id,   // $4
-        cross_class_eligible,      // $5
-        shift_end_mins,            // $6
-        shift_start_mins,          // $7
-        event.shift_date,          // $8
+        event.scheduled_shift_id, // $1
+        auth.org_id,              // $2
+        fiscal_year,              // $3
+        event.classification_id,  // $4
+        cross_class_eligible,     // $5
+        shift_end_mins,           // $6
+        shift_start_mins,         // $7
+        event.shift_date,         // $8
     )
     .fetch_all(&pool)
     .await?;

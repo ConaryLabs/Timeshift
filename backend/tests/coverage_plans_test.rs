@@ -495,7 +495,11 @@ async fn assignment_rejects_end_before_start() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 400, "end_date before start_date should be rejected");
+    assert_eq!(
+        resp.status(),
+        400,
+        "end_date before start_date should be rejected"
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -658,7 +662,10 @@ async fn resolved_coverage_prefers_date_assignment_over_default() {
     assert_eq!(resp.status(), 200);
     let slots: Vec<serde_json::Value> = resp.json().await.unwrap();
     assert_eq!(slots.len(), 1);
-    assert_eq!(slots[0]["target_headcount"], 5, "Should use override plan, not default");
+    assert_eq!(
+        slots[0]["target_headcount"], 5,
+        "Should use override plan, not default"
+    );
 
     // Resolve for 2026-03-03 (Tuesday) — should fall back to default (target=2)
     let resp = client
@@ -673,7 +680,10 @@ async fn resolved_coverage_prefers_date_assignment_over_default() {
 
     let slots: Vec<serde_json::Value> = resp.json().await.unwrap();
     assert_eq!(slots.len(), 1);
-    assert_eq!(slots[0]["target_headcount"], 2, "Should fall back to default plan");
+    assert_eq!(
+        slots[0]["target_headcount"], 2,
+        "Should fall back to default plan"
+    );
 
     common::cleanup_test_org(&pool, org_id).await;
 }
@@ -760,7 +770,11 @@ async fn org_isolation_cannot_see_other_org_plans() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 404, "Org B should get 404 deleting Org A's plan");
+    assert_eq!(
+        resp.status(),
+        404,
+        "Org B should get 404 deleting Org A's plan"
+    );
 
     common::cleanup_test_org(&pool, org_a).await;
     common::cleanup_test_org(&pool, org_b).await;

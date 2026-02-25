@@ -31,6 +31,12 @@ pub async fn coverage(
         ));
     }
 
+    if (q.end_date - q.start_date).whole_days() > 730 {
+        return Err(AppError::BadRequest(
+            "Date range cannot exceed 2 years".into(),
+        ));
+    }
+
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -41,7 +47,7 @@ pub async fn coverage(
             COUNT(a.id) AS "actual_headcount!"
         FROM scheduled_shifts ss
         JOIN shift_templates st ON st.id = ss.shift_template_id
-        LEFT JOIN assignments a ON a.scheduled_shift_id = ss.id
+        LEFT JOIN assignments a ON a.scheduled_shift_id = ss.id AND a.cancelled_at IS NULL
         WHERE ss.org_id = $1
           AND ss.date >= $2
           AND ss.date <= $3
@@ -163,6 +169,12 @@ pub async fn leave_summary(
         ));
     }
 
+    if (q.end_date - q.start_date).whole_days() > 730 {
+        return Err(AppError::BadRequest(
+            "Date range cannot exceed 2 years".into(),
+        ));
+    }
+
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -223,6 +235,12 @@ pub async fn ot_by_period(
         ));
     }
 
+    if (q.end_date - q.start_date).whole_days() > 730 {
+        return Err(AppError::BadRequest(
+            "Date range cannot exceed 2 years".into(),
+        ));
+    }
+
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -258,13 +276,15 @@ pub async fn ot_by_period(
     let mut user_map: HashMap<Uuid, OtByPeriodReport> = HashMap::new();
 
     for r in rows {
-        let entry = user_map.entry(r.user_id).or_insert_with(|| OtByPeriodReport {
-            user_id: r.user_id,
-            user_name: format!("{} {}", r.first_name, r.last_name),
-            classification_name: r.classification_name.clone(),
-            total_hours: 0.0,
-            assignments: Vec::new(),
-        });
+        let entry = user_map
+            .entry(r.user_id)
+            .or_insert_with(|| OtByPeriodReport {
+                user_id: r.user_id,
+                user_name: format!("{} {}", r.first_name, r.last_name),
+                classification_name: r.classification_name.clone(),
+                total_hours: 0.0,
+                assignments: Vec::new(),
+            });
         entry.total_hours += r.hours;
         entry.assignments.push(OtByPeriodEntry {
             date: r.date,
@@ -297,6 +317,12 @@ pub async fn work_summary(
     if q.end_date < q.start_date {
         return Err(AppError::BadRequest(
             "end_date must be >= start_date".into(),
+        ));
+    }
+
+    if (q.end_date - q.start_date).whole_days() > 730 {
+        return Err(AppError::BadRequest(
+            "Date range cannot exceed 2 years".into(),
         ));
     }
 

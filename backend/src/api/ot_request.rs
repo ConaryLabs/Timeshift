@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    api::notifications::create_notification,
+    api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
     models::ot_request::{
@@ -916,14 +916,16 @@ pub async fn assign(
     );
     let _ = create_notification(
         &pool,
-        auth.org_id,
-        req.user_id,
-        "ot_assigned",
-        "OT Assignment",
-        &notif_message,
-        Some(&link),
-        Some("ot_request"),
-        Some(id),
+        CreateNotificationParams {
+            org_id: auth.org_id,
+            user_id: req.user_id,
+            notification_type: "ot_assigned",
+            title: "OT Assignment",
+            message: &notif_message,
+            link: Some(&link),
+            source_type: Some("ot_request"),
+            source_id: Some(id),
+        },
     )
     .await;
 
@@ -1062,14 +1064,16 @@ pub async fn cancel_assignment(
     // Notify the employee about cancelled assignment
     let _ = create_notification(
         &pool,
-        auth.org_id,
-        user_id,
-        "ot_assignment_cancelled",
-        "OT Assignment Cancelled",
-        &format!("Your OT assignment on {} has been cancelled", request.date),
-        Some("/available-ot"),
-        Some("ot_request"),
-        Some(id),
+        CreateNotificationParams {
+            org_id: auth.org_id,
+            user_id,
+            notification_type: "ot_assignment_cancelled",
+            title: "OT Assignment Cancelled",
+            message: &format!("Your OT assignment on {} has been cancelled", request.date),
+            link: Some("/available-ot"),
+            source_type: Some("ot_request"),
+            source_id: Some(id),
+        },
     )
     .await;
 

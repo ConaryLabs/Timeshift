@@ -92,6 +92,9 @@ export const calloutApi = {
   cancelEvent: (event_id: string) =>
     api.patch(`/api/callout/events/${event_id}/cancel`).then((r) => r.data),
 
+  cancelOtAssignment: (eventId: string) =>
+    api.post(`/api/callout/events/${eventId}/cancel-ot`).then((r) => r.data),
+
   recordAttempt: (
     event_id: string,
     body: { user_id: string; response: string; notes?: string },

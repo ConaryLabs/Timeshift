@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react'
+import { useState, useCallback, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft, Save } from 'lucide-react'
@@ -96,9 +96,13 @@ export default function CoveragePlanDetailPage() {
   const [gridState, setGridState] = useState<GridState>(emptyGrid())
   const [isDirty, setIsDirty] = useState(false)
   const [pendingClassSwitch, setPendingClassSwitch] = useState<string | null>(null)
+  const [gridSlots, setGridSlots] = useState(slots)
+  const [gridClassId, setGridClassId] = useState(classId)
 
-  // Populate grid when slots or classification changes
-  useEffect(() => {
+  // Derived state: reset editable grid when source data changes (React render-time update pattern)
+  if (gridSlots !== slots || gridClassId !== classId) {
+    setGridSlots(slots)
+    setGridClassId(classId)
     const next = emptyGrid()
     if (slots && classId) {
       for (const s of slots) {
@@ -113,7 +117,7 @@ export default function CoveragePlanDetailPage() {
     }
     setGridState(next)
     setIsDirty(false)
-  }, [slots, classId])
+  }
 
   const updateCell = useCallback((dow: number, slotIdx: number, field: EditField, value: number) => {
     setGridState((prev) => {

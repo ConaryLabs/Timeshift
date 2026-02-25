@@ -37,6 +37,7 @@ import {
   useOtHours,
   useAdjustOtHours,
 } from '@/hooks/queries'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { NO_VALUE, extractApiError } from '@/lib/format'
 import type { OtQueueEntry, OtHoursEntry } from '@/api/ot'
 
@@ -153,16 +154,32 @@ export default function OTQueuePage() {
     },
     {
       header: '',
-      cell: (r) => (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={setPositionMut.isPending || r.last_ot_event_at === null}
-          onClick={() => handleMoveToFront(r)}
-        >
-          Move to Front
-        </Button>
-      ),
+      cell: (r) => {
+        const isAlreadyFront = r.last_ot_event_at === null
+        const btn = (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={setPositionMut.isPending || isAlreadyFront}
+            onClick={() => handleMoveToFront(r)}
+          >
+            Move to Front
+          </Button>
+        )
+        if (isAlreadyFront) {
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>{btn}</span>
+                </TooltipTrigger>
+                <TooltipContent>Already at front of queue (never called)</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        }
+        return btn
+      },
       className: 'w-36',
     },
   ]

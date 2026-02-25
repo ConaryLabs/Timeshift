@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -55,6 +55,17 @@ const PAY_PERIOD_TYPES = [
   { value: 'monthly', label: 'Monthly' },
 ]
 
+const SETTING_LABELS: Record<string, string> = {
+  fiscal_year_start_month: 'Fiscal Year Start Month',
+  pay_period_type: 'Pay Period Type',
+  bid_cycle_months: 'Bid Cycle',
+  vacation_hours_charged_sep_feb: 'Vacation Hours (Sep-Feb)',
+}
+
+function getSettingLabel(key: string): string {
+  return SETTING_LABELS[key] ?? key.replace(/_/g, ' ')
+}
+
 function getSettingValue(settings: OrgSetting[] | undefined, key: string): string {
   const s = settings?.find((s) => s.key === key)
   if (!s) return ''
@@ -68,22 +79,19 @@ function ConfigSection() {
   const { data: settings, isLoading } = useOrgSettings()
   const setMut = useSetOrgSetting()
 
-  const [fiscalMonth, setFiscalMonth] = useState('')
-  const [payPeriod, setPayPeriod] = useState('')
-  const [bidCycle, setBidCycle] = useState('')
+  const [localFiscalMonth, setFiscalMonth] = useState<string | null>(null)
+  const [localPayPeriod, setPayPeriod] = useState<string | null>(null)
+  const [localBidCycle, setBidCycle] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!settings) return
-    setFiscalMonth(getSettingValue(settings, 'fiscal_year_start_month') || '1')
-    setPayPeriod(getSettingValue(settings, 'pay_period_type') || 'biweekly')
-    setBidCycle(getSettingValue(settings, 'bid_cycle_months') || '6')
-  }, [settings])
+  const fiscalMonth = localFiscalMonth ?? (getSettingValue(settings, 'fiscal_year_start_month') || '1')
+  const payPeriod = localPayPeriod ?? (getSettingValue(settings, 'pay_period_type') || 'biweekly')
+  const bidCycle = localBidCycle ?? (getSettingValue(settings, 'bid_cycle_months') || '6')
 
   function saveSetting(key: string, value: string | number) {
     setMut.mutate(
       { key, value: value },
       {
-        onSuccess: () => toast.success(`Setting "${key}" saved`),
+        onSuccess: () => toast.success(`${getSettingLabel(key)} saved`),
         onError: (err: unknown) => {
           const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)

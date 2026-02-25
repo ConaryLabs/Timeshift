@@ -719,6 +719,9 @@ export function useRecordAttempt() {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: queryKeys.callout.list(vars.eventId) })
       qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll })
+      qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll })
     },
   })
 }
@@ -730,6 +733,20 @@ export function useCancelCalloutEvent() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: queryKeys.callout.listAll })
+    },
+  })
+}
+
+export function useCancelCalloutOtAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: calloutApi.cancelOtAssignment,
+    onSuccess: (_data, eventId) => {
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.list(eventId) })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll })
+      qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll })
     },
   })
 }

@@ -17,6 +17,59 @@ use crate::{
     org_guard,
 };
 
+#[allow(clippy::too_many_arguments)]
+fn build_user_profile(
+    id: uuid::Uuid,
+    org_id: uuid::Uuid,
+    employee_id: Option<String>,
+    first_name: String,
+    last_name: String,
+    email: String,
+    phone: Option<String>,
+    role: Role,
+    classification_id: Option<uuid::Uuid>,
+    classification_name: Option<String>,
+    employee_type: EmployeeType,
+    bargaining_unit: BargainingUnit,
+    hire_date: Option<time::Date>,
+    overall_seniority_date: Option<time::Date>,
+    bargaining_unit_seniority_date: Option<time::Date>,
+    classification_seniority_date: Option<time::Date>,
+    cto_designation: bool,
+    admin_training_supervisor_since: Option<time::Date>,
+    employee_status: EmployeeStatus,
+    accrual_paused_since: Option<time::Date>,
+    leave_accrual_paused_at: Option<time::Date>,
+    is_active: bool,
+    updated_at: time::OffsetDateTime,
+) -> UserProfile {
+    UserProfile {
+        id,
+        org_id,
+        employee_id,
+        first_name,
+        last_name,
+        email,
+        phone,
+        role,
+        classification_id,
+        classification_name,
+        employee_type,
+        bargaining_unit,
+        hire_date,
+        overall_seniority_date,
+        bargaining_unit_seniority_date,
+        classification_seniority_date,
+        cto_designation,
+        admin_training_supervisor_since,
+        employee_status,
+        accrual_paused_since,
+        leave_accrual_paused_at,
+        is_active,
+        updated_at,
+    }
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct UserListParams {
     pub limit: Option<i64>,
@@ -79,30 +132,32 @@ pub async fn list(
 
     let profiles = rows
         .into_iter()
-        .map(|r| UserProfile {
-            id: r.id,
-            org_id: r.org_id,
-            employee_id: r.employee_id,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            email: r.email,
-            phone: r.phone,
-            role: r.role,
-            classification_id: r.classification_id,
-            classification_name: r.classification_name,
-            employee_type: r.employee_type,
-            bargaining_unit: r.bargaining_unit,
-            hire_date: r.hire_date,
-            overall_seniority_date: r.overall_seniority_date,
-            bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
-            classification_seniority_date: r.classification_seniority_date,
-            cto_designation: r.cto_designation,
-            admin_training_supervisor_since: r.admin_training_supervisor_since,
-            employee_status: r.employee_status,
-            accrual_paused_since: r.accrual_paused_since,
-            leave_accrual_paused_at: r.leave_accrual_paused_at,
-            is_active: r.is_active,
-            updated_at: r.updated_at,
+        .map(|r| {
+            build_user_profile(
+                r.id,
+                r.org_id,
+                r.employee_id,
+                r.first_name,
+                r.last_name,
+                r.email,
+                r.phone,
+                r.role,
+                r.classification_id,
+                r.classification_name,
+                r.employee_type,
+                r.bargaining_unit,
+                r.hire_date,
+                r.overall_seniority_date,
+                r.bargaining_unit_seniority_date,
+                r.classification_seniority_date,
+                r.cto_designation,
+                r.admin_training_supervisor_since,
+                r.employee_status,
+                r.accrual_paused_since,
+                r.leave_accrual_paused_at,
+                r.is_active,
+                r.updated_at,
+            )
         })
         .collect();
 
@@ -177,31 +232,31 @@ pub async fn get_one(
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-    Ok(Json(UserProfile {
-        id: r.id,
-        org_id: r.org_id,
-        employee_id: r.employee_id,
-        first_name: r.first_name,
-        last_name: r.last_name,
-        email: r.email,
-        phone: r.phone,
-        role: r.role,
-        classification_id: r.classification_id,
-        classification_name: r.classification_name,
-        employee_type: r.employee_type,
-        bargaining_unit: r.bargaining_unit,
-        hire_date: r.hire_date,
-        overall_seniority_date: r.overall_seniority_date,
-        bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
-        classification_seniority_date: r.classification_seniority_date,
-        cto_designation: r.cto_designation,
-        admin_training_supervisor_since: r.admin_training_supervisor_since,
-        employee_status: r.employee_status,
-        accrual_paused_since: r.accrual_paused_since,
-        leave_accrual_paused_at: r.leave_accrual_paused_at,
-        is_active: r.is_active,
-        updated_at: r.updated_at,
-    }))
+    Ok(Json(build_user_profile(
+        r.id,
+        r.org_id,
+        r.employee_id,
+        r.first_name,
+        r.last_name,
+        r.email,
+        r.phone,
+        r.role,
+        r.classification_id,
+        r.classification_name,
+        r.employee_type,
+        r.bargaining_unit,
+        r.hire_date,
+        r.overall_seniority_date,
+        r.bargaining_unit_seniority_date,
+        r.classification_seniority_date,
+        r.cto_designation,
+        r.admin_training_supervisor_since,
+        r.employee_status,
+        r.accrual_paused_since,
+        r.leave_accrual_paused_at,
+        r.is_active,
+        r.updated_at,
+    )))
 }
 
 pub async fn create(
@@ -318,31 +373,31 @@ pub async fn create(
         None
     };
 
-    Ok(Json(UserProfile {
-        id: r.id,
-        org_id: r.org_id,
-        employee_id: r.employee_id,
-        first_name: r.first_name,
-        last_name: r.last_name,
-        email: r.email,
-        phone: r.phone,
-        role: r.role,
-        classification_id: r.classification_id,
+    Ok(Json(build_user_profile(
+        r.id,
+        r.org_id,
+        r.employee_id,
+        r.first_name,
+        r.last_name,
+        r.email,
+        r.phone,
+        r.role,
+        r.classification_id,
         classification_name,
-        employee_type: r.employee_type,
-        bargaining_unit: r.bargaining_unit,
-        hire_date: r.hire_date,
-        overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
-        bargaining_unit_seniority_date: sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
-        classification_seniority_date: sr.as_ref().and_then(|s| s.classification_seniority_date),
-        cto_designation: r.cto_designation,
-        admin_training_supervisor_since: r.admin_training_supervisor_since,
-        employee_status: r.employee_status,
-        accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
-        leave_accrual_paused_at: None,
-        is_active: r.is_active,
-        updated_at: r.updated_at,
-    }))
+        r.employee_type,
+        r.bargaining_unit,
+        r.hire_date,
+        sr.as_ref().and_then(|s| s.overall_seniority_date),
+        sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
+        sr.as_ref().and_then(|s| s.classification_seniority_date),
+        r.cto_designation,
+        r.admin_training_supervisor_since,
+        r.employee_status,
+        sr.as_ref().and_then(|s| s.accrual_pause_started_at),
+        None,
+        r.is_active,
+        r.updated_at,
+    )))
 }
 
 pub async fn update(
@@ -520,7 +575,7 @@ pub async fn update(
         .await?;
     }
 
-    // Seniority accrual pause / resume logic
+    // Seniority and leave accrual pause / resume logic
     if let Some(new_status) = &req.employee_status {
         let is_pausing = matches!(
             new_status,
@@ -529,7 +584,7 @@ pub async fn update(
         let is_exception = req.seniority_pause_exception.unwrap_or(false);
 
         if is_pausing && !is_exception {
-            // Start a new pause (only if not already paused — preserve original start date)
+            // Start a new seniority pause (only if not already paused — preserve original start date)
             sqlx::query!(
                 r#"
                 INSERT INTO seniority_records (user_id, org_id, accrual_pause_started_at)
@@ -544,6 +599,14 @@ pub async fn update(
                 "#,
                 r.id,
                 auth.org_id,
+            )
+            .execute(&mut *tx)
+            .await?;
+            // Pause leave accrual
+            sqlx::query!(
+                "UPDATE users SET leave_accrual_paused_at = CURRENT_DATE
+                 WHERE id = $1 AND leave_accrual_paused_at IS NULL",
+                r.id,
             )
             .execute(&mut *tx)
             .await?;
@@ -580,26 +643,7 @@ pub async fn update(
             )
             .execute(&mut *tx)
             .await?;
-        }
-    }
-
-    // M5: Leave accrual pause / resume logic
-    if let Some(new_status) = &req.employee_status {
-        let is_pausing = matches!(
-            new_status,
-            EmployeeStatus::UnpaidLoa | EmployeeStatus::Lwop | EmployeeStatus::Layoff
-        );
-        let is_exception = req.seniority_pause_exception.unwrap_or(false);
-
-        if is_pausing && !is_exception {
-            sqlx::query!(
-                "UPDATE users SET leave_accrual_paused_at = CURRENT_DATE
-                 WHERE id = $1 AND leave_accrual_paused_at IS NULL",
-                r.id,
-            )
-            .execute(&mut *tx)
-            .await?;
-        } else if matches!(new_status, EmployeeStatus::Active) {
+            // Resume leave accrual
             sqlx::query!(
                 "UPDATE users SET leave_accrual_paused_at = NULL WHERE id = $1",
                 r.id,
@@ -678,31 +722,31 @@ pub async fn update(
     .await?
     .flatten();
 
-    Ok(Json(UserProfile {
-        id: r.id,
-        org_id: r.org_id,
-        employee_id: r.employee_id,
-        first_name: r.first_name,
-        last_name: r.last_name,
-        email: r.email,
-        phone: r.phone,
-        role: r.role,
-        classification_id: r.classification_id,
+    Ok(Json(build_user_profile(
+        r.id,
+        r.org_id,
+        r.employee_id,
+        r.first_name,
+        r.last_name,
+        r.email,
+        r.phone,
+        r.role,
+        r.classification_id,
         classification_name,
-        employee_type: r.employee_type,
-        bargaining_unit: r.bargaining_unit,
-        hire_date: r.hire_date,
-        overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
-        bargaining_unit_seniority_date: sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
-        classification_seniority_date: sr.as_ref().and_then(|s| s.classification_seniority_date),
-        cto_designation: r.cto_designation,
-        admin_training_supervisor_since: r.admin_training_supervisor_since,
-        employee_status: r.employee_status,
-        accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
+        r.employee_type,
+        r.bargaining_unit,
+        r.hire_date,
+        sr.as_ref().and_then(|s| s.overall_seniority_date),
+        sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
+        sr.as_ref().and_then(|s| s.classification_seniority_date),
+        r.cto_designation,
+        r.admin_training_supervisor_since,
+        r.employee_status,
+        sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         leave_accrual_paused_at,
-        is_active: r.is_active,
-        updated_at: r.updated_at,
-    }))
+        r.is_active,
+        r.updated_at,
+    )))
 }
 
 pub async fn deactivate(

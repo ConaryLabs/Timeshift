@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    api::notifications::create_notification,
+    api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
     models::{
@@ -18,28 +18,32 @@ use crate::{
     },
 };
 
-/// Deduct hours from leave balance when a leave request is approved.
-pub async fn deduct_leave_balance(
+/// Core balance adjustment: positive delta adds hours, negative deducts.
+async fn adjust_leave_balance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
     user_id: Uuid,
     leave_type_id: Uuid,
-    hours: f64,
-    leave_request_id: Uuid,
-    reviewer_id: Uuid,
+    delta: f64,
+    reason: &str,
+    note: Option<&str>,
+    reference_id: Uuid,
+    actor_id: Uuid,
 ) -> Result<()> {
     sqlx::query!(
         r#"
-        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, created_by)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'usage', $6, $7)
+        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, note, created_by)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, $7, $8, $9)
         "#,
         Uuid::new_v4(),
         org_id,
         user_id,
         leave_type_id,
-        -hours.abs(),
-        leave_request_id,
-        reviewer_id,
+        delta,
+        reason,
+        reference_id,
+        note,
+        actor_id,
     )
     .execute(&mut **tx)
     .await?;
@@ -57,12 +61,36 @@ pub async fn deduct_leave_balance(
         org_id,
         user_id,
         leave_type_id,
-        -hours.abs(),
+        delta,
     )
     .execute(&mut **tx)
     .await?;
 
     Ok(())
+}
+
+/// Deduct hours from leave balance when a leave request is approved.
+pub async fn deduct_leave_balance(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    org_id: Uuid,
+    user_id: Uuid,
+    leave_type_id: Uuid,
+    hours: f64,
+    leave_request_id: Uuid,
+    reviewer_id: Uuid,
+) -> Result<()> {
+    adjust_leave_balance(
+        tx,
+        org_id,
+        user_id,
+        leave_type_id,
+        -hours.abs(),
+        "usage",
+        None,
+        leave_request_id,
+        reviewer_id,
+    )
+    .await
 }
 
 /// Refund hours to leave balance when a previously approved leave request is cancelled.
@@ -75,41 +103,18 @@ async fn refund_leave_balance(
     leave_request_id: Uuid,
     canceller_id: Uuid,
 ) -> Result<()> {
-    sqlx::query!(
-        r#"
-        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, note, created_by)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'adjustment', $6, 'Refund: approved leave cancelled', $7)
-        "#,
-        Uuid::new_v4(),
+    adjust_leave_balance(
+        tx,
         org_id,
         user_id,
         leave_type_id,
         hours.abs(),
+        "adjustment",
+        Some("Refund: approved leave cancelled"),
         leave_request_id,
         canceller_id,
     )
-    .execute(&mut **tx)
-    .await?;
-
-    sqlx::query!(
-        r#"
-        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
-        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
-        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-            as_of_date = CURRENT_DATE,
-            updated_at = NOW()
-        "#,
-        Uuid::new_v4(),
-        org_id,
-        user_id,
-        leave_type_id,
-        hours.abs(),
-    )
-    .execute(&mut **tx)
-    .await?;
-
-    Ok(())
+    .await
 }
 
 /// Fetch segments for a leave request (empty vec if none).
@@ -436,9 +441,7 @@ pub async fn create(
             ));
         }
         if segments.len() > 5 {
-            return Err(AppError::BadRequest(
-                "Maximum 5 segments allowed".into(),
-            ));
+            return Err(AppError::BadRequest("Maximum 5 segments allowed".into()));
         }
         for seg in segments {
             if seg.hours <= 0.0 {
@@ -451,12 +454,10 @@ pub async fn create(
         if let Some(total_hours) = body.hours {
             let seg_total: f64 = segments.iter().map(|s| s.hours).sum();
             if (seg_total - total_hours).abs() > 0.01 {
-                return Err(AppError::BadRequest(
-                    format!(
-                        "Segment hours ({:.2}) must equal request hours ({:.2})",
-                        seg_total, total_hours
-                    ),
-                ));
+                return Err(AppError::BadRequest(format!(
+                    "Segment hours ({:.2}) must equal request hours ({:.2})",
+                    seg_total, total_hours
+                )));
             }
         }
     }
@@ -465,14 +466,13 @@ pub async fn create(
     if let Some(ref lines) = body.lines {
         for line in lines {
             if line.hours <= 0.0 {
-                return Err(AppError::BadRequest(
-                    "Each line must have hours > 0".into(),
-                ));
+                return Err(AppError::BadRequest("Each line must have hours > 0".into()));
             }
             if line.date < body.start_date || line.date > body.end_date {
-                return Err(AppError::BadRequest(
-                    format!("Line date {} is outside request range", line.date),
-                ));
+                return Err(AppError::BadRequest(format!(
+                    "Line date {} is outside request range",
+                    line.date
+                )));
             }
         }
     }
@@ -518,9 +518,10 @@ pub async fn create(
             .fetch_one(&pool)
             .await?;
             if !seg_ok.unwrap_or(false) {
-                return Err(AppError::NotFound(
-                    format!("Segment leave type {} not found", seg.leave_type_id),
-                ));
+                return Err(AppError::NotFound(format!(
+                    "Segment leave type {} not found",
+                    seg.leave_type_id
+                )));
             }
         }
     }
@@ -625,14 +626,8 @@ pub async fn create(
         let is_fmla = lt.code.starts_with("fmla_");
         if is_fmla {
             if let Some(total_hours) = body.hours {
-                create_fmla_segments(
-                    &mut tx,
-                    leave_request_id,
-                    auth.org_id,
-                    auth.id,
-                    total_hours,
-                )
-                .await?;
+                create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours)
+                    .await?;
             }
         }
     }
@@ -673,9 +668,10 @@ pub async fn create(
             )
             .execute(&mut *tx)
             .await?;
+            let prev = current;
             current = current.next_day().unwrap_or(current);
-            if current <= body.start_date {
-                break; // safety: overflow guard
+            if current == prev {
+                break; // safety: overflow guard (next_day returned None)
             }
         }
     }
@@ -949,12 +945,11 @@ pub async fn review(
                     .fetch_optional(&mut *tx)
                     .await?;
 
-                    if let Some(balance) = current_balance {
-                        if balance < hours {
-                            return Err(AppError::Conflict(
-                                "Insufficient leave balance to approve this request".into(),
-                            ));
-                        }
+                    let balance = current_balance.unwrap_or(0.0);
+                    if balance < hours {
+                        return Err(AppError::Conflict(
+                            "Insufficient leave balance to approve this request".into(),
+                        ));
                     }
 
                     deduct_leave_balance(
@@ -985,12 +980,11 @@ pub async fn review(
                     .fetch_optional(&mut *tx)
                     .await?;
 
-                    if let Some(balance) = current_balance {
-                        if balance < seg.hours {
-                            return Err(AppError::Conflict(
-                                "Insufficient leave balance to approve this request".into(),
-                            ));
-                        }
+                    let balance = current_balance.unwrap_or(0.0);
+                    if balance < seg.hours {
+                        return Err(AppError::Conflict(
+                            "Insufficient leave balance to approve this request".into(),
+                        ));
                     }
 
                     deduct_leave_balance(
@@ -1032,14 +1026,16 @@ pub async fn review(
     );
     let _ = create_notification(
         &pool,
-        auth.org_id,
-        r.user_id,
-        "leave_reviewed",
-        &notif_title,
-        &notif_message,
-        Some("/leave"),
-        Some("leave_request"),
-        Some(id),
+        CreateNotificationParams {
+            org_id: auth.org_id,
+            user_id: r.user_id,
+            notification_type: "leave_reviewed",
+            title: &notif_title,
+            message: &notif_message,
+            link: Some("/leave"),
+            source_type: Some("leave_request"),
+            source_id: Some(id),
+        },
     )
     .await;
 
@@ -1148,7 +1144,12 @@ pub async fn bulk_review(
         .fetch_one(&mut *tx)
         .await?;
 
-        notif_targets.push((leave_info.user_id, *id, leave_info.start_date, leave_info.end_date));
+        notif_targets.push((
+            leave_info.user_id,
+            *id,
+            leave_info.start_date,
+            leave_info.end_date,
+        ));
 
         if body.status == LeaveStatus::Approved {
             // Check for segments
@@ -1181,12 +1182,11 @@ pub async fn bulk_review(
                         .fetch_optional(&mut *tx)
                         .await?;
 
-                        if let Some(balance) = current_balance {
-                            if balance < hours {
-                                return Err(AppError::Conflict(
-                                    "Insufficient leave balance to approve this request".into(),
-                                ));
-                            }
+                        let balance = current_balance.unwrap_or(0.0);
+                        if balance < hours {
+                            return Err(AppError::Conflict(
+                                "Insufficient leave balance to approve this request".into(),
+                            ));
                         }
 
                         deduct_leave_balance(
@@ -1216,12 +1216,11 @@ pub async fn bulk_review(
                         .fetch_optional(&mut *tx)
                         .await?;
 
-                        if let Some(balance) = current_balance {
-                            if balance < seg.hours {
-                                return Err(AppError::Conflict(
-                                    "Insufficient leave balance to approve this request".into(),
-                                ));
-                            }
+                        let balance = current_balance.unwrap_or(0.0);
+                        if balance < seg.hours {
+                            return Err(AppError::Conflict(
+                                "Insufficient leave balance to approve this request".into(),
+                            ));
                         }
 
                         deduct_leave_balance(
@@ -1266,14 +1265,16 @@ pub async fn bulk_review(
         );
         let _ = create_notification(
             &pool,
-            auth.org_id,
-            user_id,
-            "leave_reviewed",
-            &notif_title,
-            &notif_message,
-            Some("/leave"),
-            Some("leave_request"),
-            Some(request_id),
+            CreateNotificationParams {
+                org_id: auth.org_id,
+                user_id,
+                notification_type: "leave_reviewed",
+                title: &notif_title,
+                message: &notif_message,
+                link: Some("/leave"),
+                source_type: Some("leave_request"),
+                source_id: Some(request_id),
+            },
         )
         .await;
     }
@@ -1503,7 +1504,13 @@ pub async fn longevity_credit(
         .ok_or_else(|| AppError::BadRequest("User has no seniority or hire date set".into()))?;
 
     let today = time::OffsetDateTime::now_utc().date();
-    let years_of_service = (today.year() - service_start.year()) as i32;
+    let mut years_of_service = (today.year() - service_start.year()) as i32;
+    if (today.month() as u8) < (service_start.month() as u8)
+        || ((today.month() as u8) == (service_start.month() as u8)
+            && today.day() < service_start.day())
+    {
+        years_of_service -= 1;
+    }
 
     // VCSG longevity tiers
     let longevity_percent = match years_of_service {

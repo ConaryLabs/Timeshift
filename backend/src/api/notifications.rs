@@ -21,10 +21,13 @@ pub async fn list(
 ) -> Result<Json<NotificationListResponse>> {
     let unread_only = params.unread_only.unwrap_or(false);
 
-    let notifications = sqlx::query!(
+    // Single query with window functions for total and unread counts
+    let rows = sqlx::query!(
         r#"
         SELECT id, org_id, user_id, notification_type, title, message,
-               link, source_type, source_id, is_read, created_at, read_at
+               link, source_type, source_id, is_read, created_at, read_at,
+               COUNT(*) OVER() AS "total!",
+               COUNT(*) FILTER (WHERE is_read = FALSE) OVER() AS "unread_count!"
         FROM notifications
         WHERE user_id = $1 AND org_id = $2
           AND (NOT $3::BOOL OR is_read = FALSE)
@@ -40,33 +43,11 @@ pub async fn list(
     .fetch_all(&pool)
     .await?;
 
-    let total = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!"
-        FROM notifications
-        WHERE user_id = $1 AND org_id = $2
-          AND (NOT $3::BOOL OR is_read = FALSE)
-        "#,
-        auth.id,
-        auth.org_id,
-        unread_only,
-    )
-    .fetch_one(&pool)
-    .await?;
+    // Extract counts from first row (or default to 0 if empty)
+    let total = rows.first().map(|r| r.total).unwrap_or(0);
+    let unread_count = rows.first().map(|r| r.unread_count).unwrap_or(0);
 
-    let unread_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!"
-        FROM notifications
-        WHERE user_id = $1 AND org_id = $2 AND is_read = FALSE
-        "#,
-        auth.id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    let result = notifications
+    let result = rows
         .into_iter()
         .map(|n| Notification {
             id: n.id,
@@ -190,30 +171,31 @@ pub async fn delete(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
-pub async fn create_notification(
-    pool: &PgPool,
-    org_id: Uuid,
-    user_id: Uuid,
-    notification_type: &str,
-    title: &str,
-    message: &str,
-    link: Option<&str>,
-    source_type: Option<&str>,
-    source_id: Option<Uuid>,
-) -> Result<()> {
+pub struct CreateNotificationParams<'a> {
+    pub org_id: Uuid,
+    pub user_id: Uuid,
+    pub notification_type: &'a str,
+    pub title: &'a str,
+    pub message: &'a str,
+    pub link: Option<&'a str>,
+    pub source_type: Option<&'a str>,
+    pub source_id: Option<Uuid>,
+}
+
+pub async fn create_notification(pool: &PgPool, p: CreateNotificationParams<'_>) -> Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO notifications (id, org_id, user_id, notification_type, title, message, link, source_type, source_id)
         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
         "#,
-        org_id,
-        user_id,
-        notification_type,
-        title,
-        message,
-        link,
-        source_type,
-        source_id,
+        p.org_id,
+        p.user_id,
+        p.notification_type,
+        p.title,
+        p.message,
+        p.link,
+        p.source_type,
+        p.source_id,
     )
     .execute(pool)
     .await?;

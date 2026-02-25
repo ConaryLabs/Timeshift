@@ -72,9 +72,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="p-8 text-xs" style={{ color: 'oklch(0.50 0.015 255)' }}>
-          Valleycom · Kent, WA
-        </div>
       </div>
 
       {/* Right panel — form */}

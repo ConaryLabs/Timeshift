@@ -70,6 +70,7 @@ export default function VacationBidAdminPage() {
   const [openBiddingPeriod, setOpenBiddingPeriod] = useState<VacationBidPeriod | null>(null)
   const [windowsPeriod, setWindowsPeriod] = useState<VacationBidPeriod | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [processConfirm, setProcessConfirm] = useState<string | null>(null)
 
   const { data: periods, isLoading, isError } = useVacationBidPeriods(selectedYear)
   const { data: windows, isLoading: windowsLoading } = useVacationBidWindows(windowsPeriod?.id ?? '')
@@ -142,10 +143,14 @@ export default function VacationBidAdminPage() {
 
   function handleProcess(periodId: string) {
     processMut.mutate(periodId, {
-      onSuccess: () => toast.success('Bids processed successfully'),
+      onSuccess: () => {
+        toast.success('Bids processed successfully')
+        setProcessConfirm(null)
+      },
       onError: (err: unknown) => {
         const msg = extractApiError(err, 'Failed to process bids')
         toast.error(msg)
+        setProcessConfirm(null)
       },
     })
   }
@@ -208,7 +213,7 @@ export default function VacationBidAdminPage() {
               <Button size="sm" variant="outline" onClick={() => setWindowsPeriod(r)}>
                 View Windows
               </Button>
-              <Button size="sm" onClick={() => handleProcess(r.id)} disabled={processMut.isPending}>
+              <Button size="sm" onClick={() => setProcessConfirm(r.id)} disabled={processMut.isPending}>
                 Process Bids
               </Button>
             </>
@@ -417,6 +422,28 @@ export default function VacationBidAdminPage() {
               disabled={deleteMut.isPending}
             >
               Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Process Bids Confirmation */}
+      <AlertDialog open={!!processConfirm} onOpenChange={(open) => { if (!open) setProcessConfirm(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Process All Bids?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will award vacation slots to all employees based on their seniority and preferences.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setProcessConfirm(null)}>Cancel</Button>
+            <Button
+              onClick={() => processConfirm && handleProcess(processConfirm)}
+              disabled={processMut.isPending}
+            >
+              {processMut.isPending ? 'Processing...' : 'Process Bids'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
