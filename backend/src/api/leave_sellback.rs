@@ -62,7 +62,7 @@ pub async fn list(
 
 /// POST /api/leave/sellback
 /// Create a holiday sellback request.
-/// Caps: VCCEA 96 hrs/year, VCSG 88 hrs/year.
+/// Annual cap is configured per bargaining unit (see bargaining_units.sellback_annual_cap).
 pub async fn create(
     State(pool): State<PgPool>,
     auth: AuthUser,

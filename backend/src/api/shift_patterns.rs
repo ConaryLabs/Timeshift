@@ -169,6 +169,26 @@ pub async fn update(
         }
     }
 
+    // If any of pattern_days/work_days/off_days are being changed, validate the invariant
+    if req.pattern_days.is_some() || req.work_days.is_some() || req.off_days.is_some() {
+        let existing = sqlx::query!(
+            "SELECT pattern_days, work_days, off_days FROM shift_patterns WHERE id = $1 AND org_id = $2",
+            id,
+            auth.org_id,
+        )
+        .fetch_one(&pool)
+        .await?;
+
+        let pd = req.pattern_days.unwrap_or(existing.pattern_days);
+        let wd = req.work_days.unwrap_or(existing.work_days);
+        let od = req.off_days.unwrap_or(existing.off_days);
+        if wd + od != pd {
+            return Err(AppError::BadRequest(
+                "work_days + off_days must equal pattern_days".into(),
+            ));
+        }
+    }
+
     let wdic_provided = req.work_days_in_cycle.is_some();
     let wdic_value = req.work_days_in_cycle.flatten();
 
