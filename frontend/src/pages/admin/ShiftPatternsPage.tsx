@@ -29,6 +29,7 @@ import {
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { ShiftPattern } from '@/api/shiftPatterns'
+import { extractApiError } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -101,7 +102,7 @@ export default function ShiftPatternsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -113,7 +114,7 @@ export default function ShiftPatternsPage() {
           setDialogOpen(false)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       })
@@ -127,7 +128,7 @@ export default function ShiftPatternsPage() {
         setDeleteConfirm(null)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete pattern'
+        const msg = extractApiError(err, 'Failed to delete pattern')
         toast.error(msg)
       },
     })

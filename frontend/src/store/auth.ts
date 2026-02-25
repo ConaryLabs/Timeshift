@@ -29,7 +29,7 @@ export interface UserProfile {
   classification_seniority_date: string | null
   cto_designation: boolean
   admin_training_supervisor_since: string | null
-  bargaining_unit: 'vccea' | 'vcsg' | 'non_represented'
+  bargaining_unit: string
   employee_status: EmployeeStatus
   accrual_paused_since: string | null
   is_active: boolean

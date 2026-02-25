@@ -13,6 +13,7 @@ import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useOrganization, useUpdateOrganization, useOrgSettings, useSetOrgSetting } from '@/hooks/queries'
 import type { OrgSetting } from '@/api/organization'
+import { extractApiError } from '@/lib/format'
 
 const BASE_US_TIMEZONES = [
   'America/New_York',
@@ -84,7 +85,7 @@ function ConfigSection() {
       {
         onSuccess: () => toast.success(`Setting "${key}" saved`),
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },
@@ -193,7 +194,7 @@ export default function OrgSettingsPage() {
         reset({ name: data.name, timezone: data.timezone })
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })

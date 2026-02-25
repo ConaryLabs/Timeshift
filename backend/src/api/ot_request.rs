@@ -627,13 +627,17 @@ pub async fn volunteer(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
-    // Verify request exists, belongs to org, and is open or partially_filled
+    let mut tx = pool.begin().await?;
+
+    // Lock the OT request row to serialize concurrent volunteers, verify it exists,
+    // belongs to org, and is open or partially_filled.
     let request = sqlx::query!(
-        "SELECT status FROM ot_requests WHERE id = $1 AND org_id = $2",
+        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
+           FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
@@ -649,7 +653,7 @@ pub async fn volunteer(
         auth.id,
         auth.org_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
@@ -666,7 +670,7 @@ pub async fn volunteer(
         id,
         auth.id,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if already_volunteered {
@@ -687,7 +691,7 @@ pub async fn volunteer(
         id,
         auth.id,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?
     .rows_affected();
 
@@ -701,9 +705,11 @@ pub async fn volunteer(
             id,
             auth.id,
         )
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
     }
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -857,28 +863,31 @@ pub async fn assign(
     .execute(&mut *tx)
     .await?;
 
-    // Update OT hours tracking: increment user's OT hours for the fiscal year
-    let fiscal_year: i32 = request.date.year();
+    // Update OT hours tracking: increment user's OT hours for the fiscal year.
+    // Fixed coverage assignments do not count toward the OT queue hours.
+    if !request.is_fixed_coverage {
+        let fiscal_year: i32 = request.date.year();
 
-    sqlx::query!(
-        r#"
-        INSERT INTO ot_hours
-            (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-        VALUES (gen_random_uuid(), $1, $2, $4, $3::FLOAT8::NUMERIC, 0)
-        ON CONFLICT (user_id, fiscal_year,
-            COALESCE(classification_id,
-                     '00000000-0000-0000-0000-000000000000'::uuid))
-        DO UPDATE SET
-            hours_worked = ot_hours.hours_worked + $3::FLOAT8::NUMERIC,
-            updated_at   = NOW()
-        "#,
-        req.user_id,
-        fiscal_year,
-        request.hours,
-        request.classification_id,
-    )
-    .execute(&mut *tx)
-    .await?;
+        sqlx::query!(
+            r#"
+            INSERT INTO ot_hours
+                (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
+            VALUES (gen_random_uuid(), $1, $2, $4, $3::FLOAT8::NUMERIC, 0)
+            ON CONFLICT (user_id, fiscal_year,
+                COALESCE(classification_id,
+                         '00000000-0000-0000-0000-000000000000'::uuid))
+            DO UPDATE SET
+                hours_worked = ot_hours.hours_worked + $3::FLOAT8::NUMERIC,
+                updated_at   = NOW()
+            "#,
+            req.user_id,
+            fiscal_year,
+            request.hours,
+            request.classification_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
 
@@ -971,7 +980,7 @@ pub async fn cancel_assignment(
 
     // Verify request belongs to org
     let request = sqlx::query!(
-        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id
+        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -1001,25 +1010,27 @@ pub async fn cancel_assignment(
         ));
     }
 
-    // Revert OT hours tracking
-    let fiscal_year: i32 = request.date.year();
+    // Revert OT hours tracking (only for non-fixed-coverage, matching the assign logic)
+    if !request.is_fixed_coverage {
+        let fiscal_year: i32 = request.date.year();
 
-    sqlx::query!(
-        r#"
-        UPDATE ot_hours
-        SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),
-            updated_at = NOW()
-        WHERE user_id = $1 AND fiscal_year = $2
-          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
-            = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)
-        "#,
-        user_id,
-        fiscal_year,
-        request.hours,
-        Some(request.classification_id) as Option<Uuid>,
-    )
-    .execute(&mut *tx)
-    .await?;
+        sqlx::query!(
+            r#"
+            UPDATE ot_hours
+            SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),
+                updated_at = NOW()
+            WHERE user_id = $1 AND fiscal_year = $2
+              AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
+                = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)
+            "#,
+            user_id,
+            fiscal_year,
+            request.hours,
+            Some(request.classification_id) as Option<Uuid>,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     // Determine new status: check remaining active assignments
     let active_count: i64 = sqlx::query_scalar!(

@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { VacationBidPeriod, VacationBidWindow } from '@/api/vacationBids'
+import { extractApiError } from '@/lib/format'
 
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + i - 1)
@@ -105,7 +106,7 @@ export default function VacationBidAdminPage() {
         createForm.reset()
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create period'
+        const msg = extractApiError(err, 'Failed to create period')
         toast.error(msg)
       },
     })
@@ -132,7 +133,7 @@ export default function VacationBidAdminPage() {
           openForm.reset()
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to open bidding'
+          const msg = extractApiError(err, 'Failed to open bidding')
           toast.error(msg)
         },
       },
@@ -143,7 +144,7 @@ export default function VacationBidAdminPage() {
     processMut.mutate(periodId, {
       onSuccess: () => toast.success('Bids processed successfully'),
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to process bids'
+        const msg = extractApiError(err, 'Failed to process bids')
         toast.error(msg)
       },
     })

@@ -51,7 +51,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { NO_VALUE } from '@/lib/format'
+import { NO_VALUE, extractApiError } from '@/lib/format'
 import type { CalloutListEntry, BumpRequest } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
 
@@ -197,7 +197,7 @@ export default function CalloutPage() {
       {
         onSuccess: () => toast.success('Advanced to next step'),
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to advance step'
+          const msg = extractApiError(err, 'Failed to advance step')
           toast.error(msg)
         },
       },
@@ -209,7 +209,7 @@ export default function CalloutPage() {
     volunteerMut.mutate(selectedEvent, {
       onSuccess: () => toast.success('Volunteered successfully'),
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to volunteer'
+        const msg = extractApiError(err, 'Failed to volunteer')
         toast.error(msg)
       },
     })
@@ -232,7 +232,7 @@ export default function CalloutPage() {
           setSelectedEvent(ev.id)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to initiate callout'
+          const msg = extractApiError(err, 'Failed to initiate callout')
           toast.error(msg)
         },
       },
@@ -245,7 +245,7 @@ export default function CalloutPage() {
       { eventId: selectedEvent, user_id: userId, response },
       {
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to record response'
+          const msg = extractApiError(err, 'Failed to record response')
           toast.error(msg)
         },
       },
@@ -268,7 +268,7 @@ export default function CalloutPage() {
           setAcceptNotes('')
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to confirm acceptance'
+          const msg = extractApiError(err, 'Failed to confirm acceptance')
           toast.error(msg)
         },
       },
@@ -287,7 +287,7 @@ export default function CalloutPage() {
           setBumpReason('')
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit bump request'
+          const msg = extractApiError(err, 'Failed to submit bump request')
           toast.error(msg)
         },
       },
@@ -300,7 +300,7 @@ export default function CalloutPage() {
       {
         onSuccess: () => toast.success(approved ? 'Bump approved' : 'Bump rejected'),
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review bump request'
+          const msg = extractApiError(err, 'Failed to review bump request')
           toast.error(msg)
         },
       },
@@ -819,7 +819,7 @@ export default function CalloutPage() {
                     setCancelTarget(null)
                   },
                   onError: (err: unknown) => {
-                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to cancel callout'
+                    const msg = extractApiError(err, 'Failed to cancel callout')
                     toast.error(msg)
                   },
                 })

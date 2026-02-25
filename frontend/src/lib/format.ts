@@ -1,3 +1,5 @@
+import { isAxiosError } from 'axios'
+
 export function formatTime(time: string) {
   if (!time || !time.includes(':')) return time || ''
   const [h, m] = time.split(':')
@@ -30,7 +32,10 @@ export function formatDay(d: string) {
 }
 
 export function extractApiError(err: unknown, fallback: string): string {
-  return (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback
+  if (isAxiosError(err)) {
+    return err.response?.data?.error ?? fallback
+  }
+  return fallback
 }
 
 /** Sentinel value for Select dropdowns representing "no selection" / clear field */

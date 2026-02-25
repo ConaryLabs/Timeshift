@@ -30,6 +30,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import type { TradeRequest, TradeStatus } from '@/api/trades'
+import { extractApiError } from '@/lib/format'
 
 const STATUS_TABS: { label: string; value: TradeStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -123,7 +124,7 @@ export default function TradesPage() {
           setPartnerAssignmentId('')
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create trade request'
+          const msg = extractApiError(err, 'Failed to create trade request')
           toast.error(msg)
         },
       },
@@ -149,7 +150,7 @@ export default function TradesPage() {
           setReviewTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review trade'
+          const msg = extractApiError(err, 'Failed to review trade')
           toast.error(msg)
         },
       },
@@ -203,7 +204,7 @@ export default function TradesPage() {
               onClick={() => respondMut.mutate({ id: r.id, accept: true }, {
                 onSuccess: () => toast.success('Trade accepted'),
                 onError: (err: unknown) => {
-                  const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to accept trade'
+                  const msg = extractApiError(err, 'Failed to accept trade')
                   toast.error(msg)
                 },
               })}
@@ -219,7 +220,7 @@ export default function TradesPage() {
               onClick={() => respondMut.mutate({ id: r.id, accept: false }, {
                 onSuccess: () => toast.success('Trade declined'),
                 onError: (err: unknown) => {
-                  const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to decline trade'
+                  const msg = extractApiError(err, 'Failed to decline trade')
                   toast.error(msg)
                 },
               })}
@@ -268,7 +269,7 @@ export default function TradesPage() {
               onClick={() => cancelMut.mutate(r.id, {
                 onSuccess: () => toast.success('Trade cancelled'),
                 onError: (err: unknown) => {
-                  const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to cancel trade'
+                  const msg = extractApiError(err, 'Failed to cancel trade')
                   toast.error(msg)
                 },
               })}

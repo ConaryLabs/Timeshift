@@ -34,7 +34,7 @@ import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { ConflictDialog } from '@/components/ConflictDialog'
-import { NO_VALUE } from '@/lib/format'
+import { NO_VALUE, extractApiError } from '@/lib/format'
 import { isConflictError } from '@/lib/utils'
 import type { UserProfile, Role, EmployeeType, EmployeeStatus } from '@/store/auth'
 
@@ -189,7 +189,7 @@ export default function UsersPage() {
           setDialogOpen(false)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },
@@ -221,7 +221,7 @@ export default function UsersPage() {
           setConflictOpen(true)
           return
         }
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })
@@ -242,7 +242,7 @@ export default function UsersPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })
@@ -256,7 +256,7 @@ export default function UsersPage() {
         setDeactivateTarget(null)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })
@@ -321,7 +321,7 @@ export default function UsersPage() {
                   {
                     onSuccess: () => toast.success('User activated'),
                     onError: (err: unknown) => {
-                      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                      const msg = extractApiError(err, 'Operation failed')
                       toast.error(msg)
                     },
                   },

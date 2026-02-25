@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useTeams, useCreateTeam, useUpdateTeam, useUsers } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { NO_VALUE } from '@/lib/format'
+import { NO_VALUE, extractApiError } from '@/lib/format'
 import type { TeamSummary } from '@/api/teams'
 
 const schema = z.object({
@@ -84,7 +84,7 @@ export default function TeamsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -98,7 +98,7 @@ export default function TeamsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },

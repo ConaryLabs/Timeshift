@@ -205,7 +205,7 @@ export function useMe() {
       setUser(profile)
       return profile
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
     retry: false,
   })
 }
@@ -423,11 +423,11 @@ export function useDeleteAssignment() {
 
 // -- Schedule Views --
 
-export function useScheduleGrid(startDate: string, endDate: string, teamId?: string) {
+export function useScheduleGrid(startDate: string, endDate: string, teamId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.schedule.grid(startDate, endDate, teamId),
     queryFn: () => scheduleApi.getGrid(startDate, endDate, teamId),
-    enabled: !!startDate && !!endDate,
+    enabled: (options?.enabled ?? true) && !!startDate && !!endDate,
   })
 }
 

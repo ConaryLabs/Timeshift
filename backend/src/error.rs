@@ -21,6 +21,9 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -36,6 +39,7 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
             AppError::Validation(e) => {
                 let messages: Vec<String> = e
                     .field_errors()

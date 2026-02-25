@@ -29,7 +29,7 @@ import {
   useUsers,
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { NO_VALUE } from '@/lib/format'
+import { NO_VALUE, extractApiError } from '@/lib/format'
 import type { SpecialAssignment } from '@/api/specialAssignments'
 
 const COMMON_TYPES = [
@@ -145,7 +145,7 @@ export default function SpecialAssignmentsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -165,7 +165,7 @@ export default function SpecialAssignmentsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -181,7 +181,7 @@ export default function SpecialAssignmentsPage() {
         setDeleteTarget(null)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Delete failed'
+        const msg = extractApiError(err, 'Delete failed')
         toast.error(msg)
       },
     })

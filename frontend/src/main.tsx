@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
@@ -49,13 +49,6 @@ const queryClient = new QueryClient({
           },
         }),
       })
-    },
-  }),
-  mutationCache: new MutationCache({
-    onError: (error) => {
-      const msg = errorMessage(error)
-      if (!msg) return
-      toast.error(msg)
     },
   }),
   defaultOptions: {

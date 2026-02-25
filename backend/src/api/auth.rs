@@ -62,20 +62,35 @@ pub async fn login(
     .fetch_optional(&state.pool)
     .await?;
 
-    let user = match user {
+    // Extract user and hash for Argon2 verification.
+    // For invalid emails, we use a dummy hash to prevent timing side-channels.
+    let (found_user, hash_to_verify) = match user {
+        Some(u) => {
+            let hash = u.password_hash.clone();
+            (Some(u), hash)
+        }
+        None => (None, DUMMY_HASH.clone()),
+    };
+
+    // ALWAYS run Argon2 verify — whether user exists, is locked, or email is invalid.
+    // This prevents timing-based enumeration of valid/locked emails.
+    let parsed = PasswordHash::new(&hash_to_verify)
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
+
+    let password_valid = Argon2::default()
+        .verify_password(req.password.as_bytes(), &parsed)
+        .is_ok();
+
+    // If user was not found, log failure and return (Argon2 already ran above)
+    let user = match found_user {
         Some(u) => u,
         None => {
-            // Timing equalization: always run Argon2 verify to prevent email enumeration
-            let _ = Argon2::default().verify_password(
-                req.password.as_bytes(),
-                &PasswordHash::new(&DUMMY_HASH).unwrap(),
-            );
             log_audit(&state.pool, None, None, "login_failed").await;
             return Err(AppError::Unauthorized);
         }
     };
 
-    // H3: Account lockout — check recent failed login attempts before password verification.
+    // H3: Account lockout — check AFTER Argon2 to avoid timing side-channel.
     // login_audit_log tracks by user_id/event_type (no email column), so we check after user lookup.
     let recent_failures = sqlx::query_scalar!(
         r#"SELECT COUNT(*) AS "count!" FROM login_audit_log
@@ -87,18 +102,12 @@ pub async fn login(
     .await?;
 
     if recent_failures >= 5 {
-        return Err(AppError::BadRequest(
+        return Err(AppError::TooManyRequests(
             "Account temporarily locked due to too many failed login attempts. Try again in 15 minutes.".into(),
         ));
     }
 
-    let parsed = PasswordHash::new(&user.password_hash)
-        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
-
-    if Argon2::default()
-        .verify_password(req.password.as_bytes(), &parsed)
-        .is_err()
-    {
+    if !password_valid {
         log_audit(
             &state.pool,
             Some(user.id),

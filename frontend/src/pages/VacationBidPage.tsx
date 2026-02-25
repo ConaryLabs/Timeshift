@@ -9,6 +9,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { useVacationBidWindow, useSubmitVacationBid } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
+import { extractApiError } from '@/lib/format'
 
 interface DatePick {
   start_date: string
@@ -180,7 +181,7 @@ export default function VacationBidPage() {
           setPicks([])
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit bid'
+          const msg = extractApiError(err, 'Failed to submit bid')
           toast.error(msg)
         },
       },

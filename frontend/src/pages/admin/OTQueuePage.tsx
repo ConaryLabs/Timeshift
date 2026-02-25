@@ -37,7 +37,7 @@ import {
   useOtHours,
   useAdjustOtHours,
 } from '@/hooks/queries'
-import { NO_VALUE } from '@/lib/format'
+import { NO_VALUE, extractApiError } from '@/lib/format'
 import type { OtQueueEntry, OtHoursEntry } from '@/api/ot'
 
 const currentYear = new Date().getFullYear()
@@ -76,7 +76,7 @@ export default function OTQueuePage() {
       {
         onSuccess: () => toast.success(`${entry.last_name}, ${entry.first_name} moved to front`),
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },
@@ -107,7 +107,7 @@ export default function OTQueuePage() {
           setAdjustDeclined('')
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },

@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useHolidays, useCreateHoliday, useUpdateHoliday, useDeleteHoliday } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { Holiday } from '@/api/holidays'
+import { extractApiError } from '@/lib/format'
 
 const schema = z.object({
   date: z.string().min(1, 'Date is required'),
@@ -82,7 +83,7 @@ export default function HolidayCalendarPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -96,7 +97,7 @@ export default function HolidayCalendarPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -111,7 +112,7 @@ export default function HolidayCalendarPage() {
         setDeleteConfirm(null)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete holiday'
+        const msg = extractApiError(err, 'Failed to delete holiday')
         toast.error(msg)
       },
     })

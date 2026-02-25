@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useAuthStore } from '@/store/auth'
 import { useMyPreferences, useUpdateMyPreferences } from '@/hooks/queries'
+import { extractApiError } from '@/lib/format'
 
 const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
   regular_full_time: 'Regular Full Time',
@@ -80,7 +81,7 @@ export default function MyProfilePage() {
           toast.success('Preferences saved')
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save preferences'
+          const msg = extractApiError(err, 'Failed to save preferences')
           toast.error(msg)
         },
       },

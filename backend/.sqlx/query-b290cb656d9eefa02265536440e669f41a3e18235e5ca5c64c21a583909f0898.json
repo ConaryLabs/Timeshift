@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\",\n               ce.ot_request_id,\n               ss.date AS shift_date, st.start_time\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
+  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\",\n               ce.ot_request_id,\n               ce.classification_id,\n               ss.date AS shift_date, st.start_time, st.duration_minutes\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -26,13 +26,23 @@
       },
       {
         "ordinal": 2,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
         "name": "shift_date",
         "type_info": "Date"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "start_time",
         "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "duration_minutes",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -45,8 +55,10 @@
       false,
       true,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "c809d14699958ed00b2eddbcac4dd4ef1f9b293cf9bc519710d25853717f0ea1"
+  "hash": "b290cb656d9eefa02265536440e669f41a3e18235e5ca5c64c21a583909f0898"
 }

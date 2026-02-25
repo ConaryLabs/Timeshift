@@ -48,9 +48,7 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe, useOrganization, useNavBadges, useUnreadCount } from '@/hooks/queries'
-import { useQuery } from '@tanstack/react-query'
-import { scheduleApi } from '@/api/schedule'
+import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount } from '@/hooks/queries'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -254,12 +252,7 @@ export default function AppShell() {
   useMe()
   const { data: org } = useOrganization()
   const today = format(new Date(), 'yyyy-MM-dd')
-  const { data: todayCoverage } = useQuery({
-    queryKey: ['schedule', 'grid', today, today, undefined] as const,
-    queryFn: () => scheduleApi.getGrid(today, today),
-    enabled: isManager,
-    staleTime: 5 * 60 * 1000,
-  })
+  const { data: todayCoverage } = useScheduleGrid(today, today, undefined, { enabled: isManager })
   const { data: navBadges } = useNavBadges()
   const { data: unreadCountData } = useUnreadCount()
   const notificationCount = unreadCountData?.count ?? 0

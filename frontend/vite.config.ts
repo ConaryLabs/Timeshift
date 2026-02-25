@@ -13,12 +13,19 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-query': ['@tanstack/react-query', 'axios'],
-          'vendor-ui': ['radix-ui', 'class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'],
-          'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
-          'vendor-dates': ['date-fns', 'react-day-picker'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('radix-ui') || id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('class-variance-authority') || id.includes('clsx') || id.includes('tailwind-merge'))
+              return 'vendor-ui'
+            if (id.includes('react-router') || id.includes('/react-dom/') || id.includes('/react/'))
+              return 'vendor-react'
+            if (id.includes('@tanstack/react-query') || id.includes('axios'))
+              return 'vendor-query'
+            if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('zod'))
+              return 'vendor-forms'
+            if (id.includes('date-fns') || id.includes('react-day-picker'))
+              return 'vendor-dates'
+          }
         },
       },
     },

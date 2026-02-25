@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// Deduct hours from leave balance when a leave request is approved.
-async fn deduct_leave_balance(
+pub async fn deduct_leave_balance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
     user_id: Uuid,
@@ -1165,6 +1165,26 @@ pub async fn bulk_review(
             if segments.is_empty() {
                 if let Some(hours) = leave_info.hours {
                     if hours > 0.0 {
+                        // Lock balance row and verify sufficient balance before deduction
+                        let current_balance = sqlx::query_scalar!(
+                            r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
+                             FROM leave_balances
+                             WHERE user_id = $1 AND leave_type_id = $2
+                             FOR UPDATE"#,
+                            leave_info.user_id,
+                            leave_info.leave_type_id,
+                        )
+                        .fetch_optional(&mut *tx)
+                        .await?;
+
+                        if let Some(balance) = current_balance {
+                            if balance < hours {
+                                return Err(AppError::Conflict(
+                                    "Insufficient leave balance to approve this request".into(),
+                                ));
+                            }
+                        }
+
                         deduct_leave_balance(
                             &mut tx,
                             auth.org_id,
@@ -1180,6 +1200,26 @@ pub async fn bulk_review(
             } else {
                 for seg in segments {
                     if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                        // Lock balance row and verify sufficient balance before deduction
+                        let current_balance = sqlx::query_scalar!(
+                            r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
+                             FROM leave_balances
+                             WHERE user_id = $1 AND leave_type_id = $2
+                             FOR UPDATE"#,
+                            leave_info.user_id,
+                            seg.leave_type_id,
+                        )
+                        .fetch_optional(&mut *tx)
+                        .await?;
+
+                        if let Some(balance) = current_balance {
+                            if balance < seg.hours {
+                                return Err(AppError::Conflict(
+                                    "Insufficient leave balance to approve this request".into(),
+                                ));
+                            }
+                        }
+
                         deduct_leave_balance(
                             &mut tx,
                             auth.org_id,

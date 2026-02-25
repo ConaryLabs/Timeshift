@@ -51,7 +51,7 @@ pub async fn get_queue(
         JOIN users u ON u.id = q.user_id
         LEFT JOIN ot_hours ot ON ot.user_id = q.user_id
             AND ot.fiscal_year = q.fiscal_year
-            AND ot.classification_id IS NULL
+            AND ot.classification_id = q.classification_id
         WHERE q.org_id = $1
           AND q.classification_id = $2
           AND q.fiscal_year = $3
