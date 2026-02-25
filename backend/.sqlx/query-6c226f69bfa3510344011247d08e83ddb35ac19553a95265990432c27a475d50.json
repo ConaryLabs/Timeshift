@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE saved_filters SET is_default = $4\n        WHERE id = $1 AND org_id = $2 AND user_id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6c226f69bfa3510344011247d08e83ddb35ac19553a95265990432c27a475d50"
+}

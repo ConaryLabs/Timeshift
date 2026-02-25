@@ -30,6 +30,30 @@ export interface LeaveSummaryReport {
   total_hours: number
 }
 
+export interface OtByPeriodEntry {
+  date: string
+  hours: number
+  ot_type: string | null
+}
+
+export interface OtByPeriodReport {
+  user_id: string
+  user_name: string
+  classification_name: string | null
+  total_hours: number
+  assignments: OtByPeriodEntry[]
+}
+
+export interface WorkSummaryReport {
+  user_id: string
+  user_name: string
+  period: string
+  regular_shifts: number
+  ot_shifts: number
+  leave_days: number
+  total_hours: number
+}
+
 export const reportsApi = {
   coverage: (params: { start_date: string; end_date: string; team_id?: string }) =>
     api.get<CoverageReport[]>('/api/reports/coverage', { params }).then((r) => r.data),
@@ -39,4 +63,10 @@ export const reportsApi = {
 
   leaveSummary: (params: { start_date: string; end_date: string }) =>
     api.get<LeaveSummaryReport[]>('/api/reports/leave-summary', { params }).then((r) => r.data),
+
+  otByPeriod: (params: { start_date: string; end_date: string; classification_id?: string }) =>
+    api.get<OtByPeriodReport[]>('/api/reports/ot-by-period', { params }).then((r) => r.data),
+
+  workSummary: (params: { start_date: string; end_date: string; user_id?: string }) =>
+    api.get<WorkSummaryReport[]>('/api/reports/work-summary', { params }).then((r) => r.data),
 }

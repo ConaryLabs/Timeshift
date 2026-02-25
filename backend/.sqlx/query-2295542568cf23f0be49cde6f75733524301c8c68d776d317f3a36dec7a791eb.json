@@ -1,0 +1,102 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT da.id, da.org_id, da.duty_position_id,\n               dp.name AS duty_position_name,\n               da.user_id,\n               u.first_name AS user_first_name,\n               u.last_name AS user_last_name,\n               da.date, da.shift_template_id,\n               st.name AS \"shift_template_name?\",\n               da.notes, da.assigned_by,\n               da.created_at, da.updated_at\n        FROM duty_assignments da\n        JOIN duty_positions dp ON dp.id = da.duty_position_id\n        JOIN users u ON u.id = da.user_id\n        LEFT JOIN shift_templates st ON st.id = da.shift_template_id\n        WHERE da.org_id = $1\n          AND da.date = $2\n          AND ($3::UUID IS NULL OR da.shift_template_id = $3)\n        ORDER BY dp.sort_order, dp.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "duty_position_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "duty_position_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "user_last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "shift_template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "shift_template_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "notes",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "assigned_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2295542568cf23f0be49cde6f75733524301c8c68d776d317f3a36dec7a791eb"
+}

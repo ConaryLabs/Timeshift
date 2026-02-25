@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, getDay, getDaysInMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Calendar as CalendarIcon, Printer, StickyNote } from 'lucide-react'
@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SavedFilterBar } from '@/components/SavedFilterBar'
 import { useStaffing, useTeams, useScheduleGrid } from '@/hooks/queries'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
@@ -72,6 +73,20 @@ export default function SchedulePage() {
   const hasAssignments = (data ?? []).length > 0
 
   const teamOptions = (teams ?? []).filter((t) => t.is_active)
+
+  const currentFilters = useMemo(() => ({
+    teamId: selectedTeamId ?? null,
+    viewMode,
+  }), [selectedTeamId, viewMode])
+
+  const handleApplyFilter = useCallback((filters: Record<string, unknown>) => {
+    if (filters.teamId !== undefined) {
+      setSelectedTeamId((filters.teamId as string) || null)
+    }
+    if (filters.viewMode !== undefined) {
+      setViewMode(filters.viewMode as ViewMode)
+    }
+  }, [setSelectedTeamId])
 
   return (
     <div>
@@ -192,6 +207,13 @@ export default function SchedulePage() {
             </Button>
           </div>
         }
+      />
+
+      <SavedFilterBar
+        page="schedule"
+        currentFilters={currentFilters}
+        onApplyFilter={handleApplyFilter}
+        className="mb-4"
       />
 
       {isLoading && <LoadingState />}

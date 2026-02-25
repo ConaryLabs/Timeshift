@@ -3,13 +3,16 @@ use axum::{
     Json,
 };
 use sqlx::PgPool;
+use std::collections::HashMap;
+use uuid::Uuid;
 
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::report::{
-        CoverageReport, LeaveReportQuery, LeaveSummaryReport, OtReportQuery, OtSummaryReport,
-        ReportQuery,
+        CoverageReport, LeaveReportQuery, LeaveSummaryReport, OtByPeriodEntry, OtByPeriodQuery,
+        OtByPeriodReport, OtReportQuery, OtSummaryReport, ReportQuery, WorkSummaryQuery,
+        WorkSummaryReport,
     },
 };
 
@@ -195,6 +198,178 @@ pub async fn leave_summary(
             approved_count: r.approved_count,
             denied_count: r.denied_count,
             pending_count: r.pending_count,
+            total_hours: r.total_hours,
+        })
+        .collect();
+
+    Ok(Json(result))
+}
+
+// -- OT by Time Period --
+
+pub async fn ot_by_period(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Query(q): Query<OtByPeriodQuery>,
+) -> Result<Json<Vec<OtByPeriodReport>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    if q.end_date < q.start_date {
+        return Err(AppError::BadRequest(
+            "end_date must be >= start_date".into(),
+        ));
+    }
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            u.id AS user_id,
+            u.first_name,
+            u.last_name,
+            c.name AS "classification_name?",
+            ss.date,
+            CAST(COALESCE(st.duration_minutes, 0) AS FLOAT8) / 60.0 AS "hours!",
+            a.ot_type AS "ot_type?"
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        JOIN users u ON u.id = a.user_id
+        LEFT JOIN classifications c ON c.id = u.classification_id
+        WHERE ss.org_id = $1
+          AND ss.date >= $2
+          AND ss.date <= $3
+          AND a.ot_type IS NOT NULL
+          AND a.cancelled_at IS NULL
+          AND ($4::uuid IS NULL OR u.classification_id = $4)
+        ORDER BY u.last_name, u.first_name, ss.date
+        "#,
+        auth.org_id,
+        q.start_date,
+        q.end_date,
+        q.classification_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    // Group by user
+    let mut user_map: HashMap<Uuid, OtByPeriodReport> = HashMap::new();
+
+    for r in rows {
+        let entry = user_map.entry(r.user_id).or_insert_with(|| OtByPeriodReport {
+            user_id: r.user_id,
+            user_name: format!("{} {}", r.first_name, r.last_name),
+            classification_name: r.classification_name.clone(),
+            total_hours: 0.0,
+            assignments: Vec::new(),
+        });
+        entry.total_hours += r.hours;
+        entry.assignments.push(OtByPeriodEntry {
+            date: r.date,
+            hours: r.hours,
+            ot_type: r.ot_type,
+        });
+    }
+
+    let mut result: Vec<OtByPeriodReport> = user_map.into_values().collect();
+    result.sort_by(|a, b| {
+        b.total_hours
+            .partial_cmp(&a.total_hours)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(Json(result))
+}
+
+// -- Work Summary --
+
+pub async fn work_summary(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Query(q): Query<WorkSummaryQuery>,
+) -> Result<Json<Vec<WorkSummaryReport>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    if q.end_date < q.start_date {
+        return Err(AppError::BadRequest(
+            "end_date must be >= start_date".into(),
+        ));
+    }
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            u.id AS user_id,
+            u.first_name,
+            u.last_name,
+            COALESCE(regular.cnt, 0) AS "regular_shifts!",
+            COALESCE(ot.cnt, 0) AS "ot_shifts!",
+            COALESCE(leave.cnt, 0) AS "leave_days!",
+            CAST(COALESCE(regular.total_hrs, 0) + COALESCE(ot.total_hrs, 0) AS FLOAT8) AS "total_hours!"
+        FROM users u
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS cnt, SUM(st.duration_minutes::float8 / 60.0) AS total_hrs
+            FROM assignments a
+            JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+            JOIN shift_templates st ON st.id = ss.shift_template_id
+            WHERE a.user_id = u.id
+              AND ss.date >= $2
+              AND ss.date <= $3
+              AND a.ot_type IS NULL
+              AND a.cancelled_at IS NULL
+        ) regular ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS cnt, SUM(st.duration_minutes::float8 / 60.0) AS total_hrs
+            FROM assignments a
+            JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+            JOIN shift_templates st ON st.id = ss.shift_template_id
+            WHERE a.user_id = u.id
+              AND ss.date >= $2
+              AND ss.date <= $3
+              AND a.ot_type IS NOT NULL
+              AND a.cancelled_at IS NULL
+        ) ot ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT COUNT(DISTINCT d::date) AS cnt
+            FROM leave_requests lr
+            CROSS JOIN LATERAL generate_series(
+                GREATEST(lr.start_date::timestamp, $2::timestamp),
+                LEAST(lr.end_date::timestamp, $3::timestamp),
+                '1 day'::interval
+            ) AS d
+            WHERE lr.user_id = u.id
+              AND lr.status = 'approved'
+              AND lr.start_date <= $3
+              AND lr.end_date >= $2
+        ) leave ON TRUE
+        WHERE u.org_id = $1
+          AND u.is_active = true
+          AND ($4::uuid IS NULL OR u.id = $4)
+          AND (COALESCE(regular.cnt, 0) + COALESCE(ot.cnt, 0) + COALESCE(leave.cnt, 0)) > 0
+        ORDER BY u.last_name, u.first_name
+        "#,
+        auth.org_id,
+        q.start_date,
+        q.end_date,
+        q.user_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let period_str = format!("{} to {}", q.start_date, q.end_date);
+
+    let result = rows
+        .into_iter()
+        .map(|r| WorkSummaryReport {
+            user_id: r.user_id,
+            user_name: format!("{} {}", r.first_name, r.last_name),
+            period: period_str.clone(),
+            regular_shifts: r.regular_shifts,
+            ot_shifts: r.ot_shifts,
+            leave_days: r.leave_days,
             total_hours: r.total_hours,
         })
         .collect();

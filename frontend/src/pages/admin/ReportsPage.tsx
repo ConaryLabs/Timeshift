@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { Download } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type Column } from '@/components/ui/data-table'
@@ -11,10 +13,13 @@ import {
   useCoverageReport,
   useOtSummaryReport,
   useLeaveSummaryReport,
+  useOtByPeriodReport,
+  useWorkSummaryReport,
   useTeams,
   useClassifications,
+  useUsers,
 } from '@/hooks/queries'
-import type { CoverageReport, OtSummaryReport, LeaveSummaryReport } from '@/api/reports'
+import type { CoverageReport, OtSummaryReport, LeaveSummaryReport, OtByPeriodReport, WorkSummaryReport } from '@/api/reports'
 
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
@@ -25,6 +30,20 @@ function formatDate(dateStr: string) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const csvContent = [
+    headers.join(','),
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+  ].join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function CoverageStatusBadge({ status }: { status: string }) {
@@ -45,13 +64,13 @@ function CoverageStatusBadge({ status }: { status: string }) {
 
 function CoverageTab() {
   const today = new Date()
-  const thirtyDaysAgo = new Date(today)
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 7)
-  const thirtyDaysFromNow = new Date(today)
-  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 7)
+  const sevenDaysAgo = new Date(today)
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const sevenDaysFromNow = new Date(today)
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
-  const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
-  const [endDate, setEndDate] = useState(thirtyDaysFromNow.toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(sevenDaysAgo.toISOString().slice(0, 10))
+  const [endDate, setEndDate] = useState(sevenDaysFromNow.toISOString().slice(0, 10))
   const [teamId, setTeamId] = useState<string>('')
 
   const { data: teams } = useTeams()
@@ -69,6 +88,11 @@ function CoverageTab() {
     { header: 'Coverage', cell: (r) => `${r.coverage_percent}%`, className: 'text-center' },
     { header: 'Status', cell: (r) => <CoverageStatusBadge status={r.status} /> },
   ]
+
+  const handleExport = useCallback(() => {
+    if (!data) return
+    downloadCsv('coverage-report.csv', ['Date', 'Shift', 'Required', 'Actual', 'Coverage %', 'Status'], data.map((r) => [r.date, r.shift_name, String(r.required_headcount), String(r.actual_headcount), `${r.coverage_percent}%`, r.status]))
+  }, [data])
 
   return (
     <div className="space-y-4">
@@ -92,6 +116,11 @@ function CoverageTab() {
             </SelectContent>
           </Select>
         </FormField>
+        {data && data.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1 self-end">
+            <Download className="h-3.5 w-3.5" /> CSV
+          </Button>
+        )}
       </div>
 
       {isError ? (
@@ -129,6 +158,11 @@ function OtSummaryTab() {
     { header: 'Total', cell: (r) => r.total_hours.toFixed(1), className: 'text-right font-medium' },
   ]
 
+  const handleExport = useCallback(() => {
+    if (!data) return
+    downloadCsv('ot-summary.csv', ['Employee', 'Classification', 'Worked', 'Declined', 'Total'], data.map((r) => [`${r.last_name}, ${r.first_name}`, r.classification_name ?? '', r.hours_worked.toFixed(1), r.hours_declined.toFixed(1), r.total_hours.toFixed(1)]))
+  }, [data])
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -157,6 +191,11 @@ function OtSummaryTab() {
             </SelectContent>
           </Select>
         </FormField>
+        {data && data.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1 self-end">
+            <Download className="h-3.5 w-3.5" /> CSV
+          </Button>
+        )}
       </div>
 
       {isError ? (
@@ -167,6 +206,86 @@ function OtSummaryTab() {
           data={data ?? []}
           isLoading={isLoading}
           emptyMessage="No OT records for this period"
+          rowKey={(r) => r.user_id}
+        />
+      )}
+    </div>
+  )
+}
+
+// -- OT by Time Period Tab --
+
+function OtByPeriodTab() {
+  const today = new Date()
+  const thirtyDaysAgo = new Date(today)
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
+  const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10))
+  const [classificationId, setClassificationId] = useState<string>('')
+
+  const { data: classifications } = useClassifications()
+  const { data, isLoading, isError } = useOtByPeriodReport({
+    start_date: startDate,
+    end_date: endDate,
+    classification_id: classificationId || undefined,
+  })
+
+  const columns: Column<OtByPeriodReport>[] = [
+    { header: 'Employee', accessorKey: 'user_name' },
+    { header: 'Classification', cell: (r) => r.classification_name ?? '-' },
+    { header: 'Total Hours', cell: (r) => r.total_hours.toFixed(1), className: 'text-right font-medium' },
+    { header: 'OT Shifts', cell: (r) => String(r.assignments.length), className: 'text-center' },
+  ]
+
+  const handleExport = useCallback(() => {
+    if (!data) return
+    const rows: string[][] = []
+    for (const r of data) {
+      for (const a of r.assignments) {
+        rows.push([r.user_name, r.classification_name ?? '', a.date, a.hours.toFixed(1), a.ot_type ?? ''])
+      }
+    }
+    downloadCsv('ot-by-period.csv', ['Employee', 'Classification', 'Date', 'Hours', 'OT Type'], rows)
+  }, [data])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <FormField label="Start Date" htmlFor="otp-start">
+          <Input id="otp-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40" />
+        </FormField>
+        <FormField label="End Date" htmlFor="otp-end">
+          <Input id="otp-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
+        </FormField>
+        <FormField label="Classification" htmlFor="otp-class">
+          <Select value={classificationId || 'all'} onValueChange={(v) => setClassificationId(v === 'all' ? '' : v)}>
+            <SelectTrigger id="otp-class" className="w-44">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {classifications?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+        {data && data.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1 self-end">
+            <Download className="h-3.5 w-3.5" /> CSV
+          </Button>
+        )}
+      </div>
+
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load OT by period report.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data ?? []}
+          isLoading={isLoading}
+          emptyMessage="No OT assignments in this range"
           rowKey={(r) => r.user_id}
         />
       )}
@@ -220,6 +339,11 @@ function LeaveSummaryTab() {
     },
   ]
 
+  const handleExport = useCallback(() => {
+    if (!data) return
+    downloadCsv('leave-summary.csv', ['Code', 'Leave Type', 'Total', 'Approved', 'Denied', 'Pending', 'Hours'], data.map((r) => [r.leave_type_code, r.leave_type_name, String(r.total_requests), String(r.approved_count), String(r.denied_count), String(r.pending_count), r.total_hours.toFixed(1)]))
+  }, [data])
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -229,6 +353,11 @@ function LeaveSummaryTab() {
         <FormField label="End Date" htmlFor="leave-end">
           <Input id="leave-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
         </FormField>
+        {data && data.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1 self-end">
+            <Download className="h-3.5 w-3.5" /> CSV
+          </Button>
+        )}
       </div>
 
       {isError ? (
@@ -240,6 +369,83 @@ function LeaveSummaryTab() {
           isLoading={isLoading}
           emptyMessage="No leave requests in this range"
           rowKey={(r) => r.leave_type_code}
+        />
+      )}
+    </div>
+  )
+}
+
+// -- Work Summary Tab --
+
+function WorkSummaryTab() {
+  const today = new Date()
+  const thirtyDaysAgo = new Date(today)
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
+  const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10))
+  const [userId, setUserId] = useState<string>('')
+
+  const { data: users } = useUsers()
+  const { data, isLoading, isError } = useWorkSummaryReport({
+    start_date: startDate,
+    end_date: endDate,
+    user_id: userId || undefined,
+  })
+
+  const columns: Column<WorkSummaryReport>[] = [
+    { header: 'Employee', accessorKey: 'user_name' },
+    { header: 'Regular Shifts', cell: (r) => String(r.regular_shifts), className: 'text-center' },
+    { header: 'OT Shifts', cell: (r) => String(r.ot_shifts), className: 'text-center' },
+    { header: 'Leave Days', cell: (r) => String(r.leave_days), className: 'text-center' },
+    { header: 'Total Hours', cell: (r) => r.total_hours.toFixed(1), className: 'text-right font-medium' },
+  ]
+
+  const handleExport = useCallback(() => {
+    if (!data) return
+    downloadCsv('work-summary.csv', ['Employee', 'Period', 'Regular Shifts', 'OT Shifts', 'Leave Days', 'Total Hours'], data.map((r) => [r.user_name, r.period, String(r.regular_shifts), String(r.ot_shifts), String(r.leave_days), r.total_hours.toFixed(1)]))
+  }, [data])
+
+  const activeUsers = (users ?? []).filter((u) => u.is_active)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <FormField label="Start Date" htmlFor="ws-start">
+          <Input id="ws-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40" />
+        </FormField>
+        <FormField label="End Date" htmlFor="ws-end">
+          <Input id="ws-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
+        </FormField>
+        <FormField label="Employee" htmlFor="ws-user">
+          <Select value={userId || 'all'} onValueChange={(v) => setUserId(v === 'all' ? '' : v)}>
+            <SelectTrigger id="ws-user" className="w-52">
+              <SelectValue placeholder="All employees" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All employees</SelectItem>
+              {activeUsers.map((u) => (
+                <SelectItem key={u.id} value={u.id}>{u.last_name}, {u.first_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+        {data && data.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1 self-end">
+            <Download className="h-3.5 w-3.5" /> CSV
+          </Button>
+        )}
+      </div>
+
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load work summary.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data ?? []}
+          isLoading={isLoading}
+          emptyMessage="No activity in this range"
+          rowKey={(r) => r.user_id}
         />
       )}
     </div>
@@ -262,7 +468,9 @@ export default function ReportsPage() {
         <TabsList>
           <TabsTrigger value="coverage">Coverage</TabsTrigger>
           <TabsTrigger value="ot">OT Summary</TabsTrigger>
+          <TabsTrigger value="ot-period">OT by Period</TabsTrigger>
           <TabsTrigger value="leave">Leave Summary</TabsTrigger>
+          <TabsTrigger value="work">Work Summary</TabsTrigger>
         </TabsList>
 
         <TabsContent value="coverage">
@@ -287,6 +495,17 @@ export default function ReportsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="ot-period">
+          <Card>
+            <CardHeader>
+              <CardTitle>OT by Time Period</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OtByPeriodTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="leave">
           <Card>
             <CardHeader>
@@ -294,6 +513,17 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <LeaveSummaryTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="work">
+          <Card>
+            <CardHeader>
+              <CardTitle>Work Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WorkSummaryTab />
             </CardContent>
           </Card>
         </TabsContent>

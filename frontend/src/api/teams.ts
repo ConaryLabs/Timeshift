@@ -5,6 +5,8 @@ export interface TeamSummary {
   name: string
   supervisor_id: string | null
   supervisor_name: string | null
+  parent_team_id: string | null
+  parent_team_name: string | null
   is_active: boolean
   slot_count: number
   /** Present when backend returns it; used for optimistic locking. */
@@ -16,6 +18,7 @@ export interface Team {
   org_id: string
   name: string
   supervisor_id: string | null
+  parent_team_id: string | null
   is_active: boolean
   created_at: string
   slots: ShiftSlotView[]
@@ -42,10 +45,10 @@ export const teamsApi = {
   get: (id: string) =>
     api.get<Team>(`/api/teams/${id}`).then((r) => r.data),
 
-  create: (body: { name: string; supervisor_id?: string }) =>
+  create: (body: { name: string; supervisor_id?: string; parent_team_id?: string }) =>
     api.post<Team>('/api/teams', body).then((r) => r.data),
 
-  update: (id: string, body: { name?: string; supervisor_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
+  update: (id: string, body: { name?: string; supervisor_id?: string | null; parent_team_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
     api.patch<Team>(`/api/teams/${id}`, body).then((r) => r.data),
 
   listSlots: (teamId: string) =>

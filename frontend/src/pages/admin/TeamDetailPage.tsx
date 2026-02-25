@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { LoadingState } from '@/components/ui/loading-state'
 import {
   useTeam,
+  useTeams,
   useTeamSlots,
   useCreateSlot,
   useUpdateSlot,
@@ -47,6 +48,7 @@ export default function TeamDetailPage() {
 
   const teamId = id ?? ''
   const { data: team, isLoading: teamLoading, isError: teamError } = useTeam(teamId)
+  const { data: allTeams } = useTeams()
   const { data: slots, isLoading: slotsLoading, isError: slotsError } = useTeamSlots(teamId)
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
@@ -212,6 +214,38 @@ export default function TeamDetailPage() {
           </Button>
         }
       />
+
+      {team?.parent_team_id && (() => {
+        const parent = (allTeams ?? []).find((t) => t.id === team.parent_team_id)
+        return parent ? (
+          <div className="mb-4 text-sm text-muted-foreground">
+            Parent team:{' '}
+            <Link to={`/admin/teams/${parent.id}`} className="text-primary hover:underline font-medium">
+              {parent.name}
+            </Link>
+          </div>
+        ) : null
+      })()}
+
+      {(() => {
+        const children = (allTeams ?? []).filter((t) => t.parent_team_id === teamId)
+        return children.length > 0 ? (
+          <div className="mb-4">
+            <p className="text-sm font-medium mb-1">Child Teams</p>
+            <div className="flex flex-wrap gap-2">
+              {children.map((c) => (
+                <Link
+                  key={c.id}
+                  to={`/admin/teams/${c.id}`}
+                  className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors"
+                >
+                  {c.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null
+      })()}
 
       {teamError || slotsError ? (
         <p className="text-sm text-destructive">Failed to load team data.</p>

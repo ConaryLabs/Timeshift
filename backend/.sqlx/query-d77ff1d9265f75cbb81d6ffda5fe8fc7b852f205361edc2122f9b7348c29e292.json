@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO shift_patterns (id, org_id, name, pattern_days, work_days, off_days, anchor_date, team_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n        RETURNING id, org_id, name, pattern_days, work_days, off_days,\n                  anchor_date, team_id AS \"team_id?\", is_active, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "pattern_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "work_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "off_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "anchor_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "team_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d77ff1d9265f75cbb81d6ffda5fe8fc7b852f205361edc2122f9b7348c29e292"
+}

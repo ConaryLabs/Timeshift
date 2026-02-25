@@ -11,6 +11,7 @@ pub struct Team {
     pub org_id: Uuid,
     pub name: String,
     pub supervisor_id: Option<Uuid>,
+    pub parent_team_id: Option<Uuid>,
     pub is_active: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
@@ -24,6 +25,8 @@ pub struct TeamSummary {
     pub name: String,
     pub supervisor_id: Option<Uuid>,
     pub supervisor_name: Option<String>,
+    pub parent_team_id: Option<Uuid>,
+    pub parent_team_name: Option<String>,
     pub is_active: bool,
     pub slot_count: i64,
 }
@@ -57,6 +60,7 @@ pub struct CreateTeamRequest {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub supervisor_id: Option<Uuid>,
+    pub parent_team_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +69,8 @@ pub struct UpdateTeamRequest {
     /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub supervisor_id: Option<Option<Uuid>>,
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub parent_team_id: Option<Option<Uuid>>,
     pub is_active: Option<bool>,
     /// Optimistic locking: the `updated_at` timestamp from the last GET.
     /// If provided and the record has been modified since, returns 409 Conflict.

@@ -25,6 +25,10 @@ import { otRequestsApi, type OtRequestListParams } from '@/api/otRequests'
 import { coveragePlansApi } from '@/api/coveragePlans'
 import type { SlotEntry } from '@/api/coveragePlans'
 import notificationsApi, { type NotificationListParams } from '@/api/notifications'
+import { dutyPositionsApi } from '@/api/dutyPositions'
+import { specialAssignmentsApi, type SpecialAssignmentListParams } from '@/api/specialAssignments'
+import { savedFiltersApi } from '@/api/savedFilters'
+import { shiftPatternsApi } from '@/api/shiftPatterns'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -143,6 +147,18 @@ export const queryKeys = {
       ['reports', 'ot-summary', params] as const,
     leaveSummary: (params: { start_date: string; end_date: string }) =>
       ['reports', 'leave-summary', params] as const,
+    otByPeriod: (params: { start_date: string; end_date: string; classification_id?: string }) =>
+      ['reports', 'ot-by-period', params] as const,
+    workSummary: (params: { start_date: string; end_date: string; user_id?: string }) =>
+      ['reports', 'work-summary', params] as const,
+  },
+  savedFilters: {
+    all: ['saved-filters'] as const,
+    byPage: (page: string) => ['saved-filters', page] as const,
+  },
+  shiftPatterns: {
+    all: ['shift-patterns'] as const,
+    cycle: (id: string, date: string) => ['shift-patterns', id, 'cycle', date] as const,
   },
   orgSettings: {
     all: ['org-settings'] as const,
@@ -165,6 +181,16 @@ export const queryKeys = {
     all: ['notifications'] as const,
     list: (params?: NotificationListParams) => ['notifications', params] as const,
     unreadCount: ['notifications', 'unread-count'] as const,
+  },
+  dutyPositions: {
+    all: ['duty-positions'] as const,
+    assignments: (date: string, shiftTemplateId?: string) =>
+      ['duty-assignments', date, shiftTemplateId] as const,
+  },
+  specialAssignments: {
+    all: ['special-assignments'] as const,
+    list: (params?: SpecialAssignmentListParams) => ['special-assignments', params] as const,
+    detail: (id: string) => ['special-assignments', id] as const,
   },
 } as const
 
@@ -238,7 +264,7 @@ export function useCreateTeam() {
 export function useUpdateTeam() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; parent_team_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
       teamsApi.update(id, body),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.teams.all })
@@ -1094,6 +1120,99 @@ export function useLeaveSummaryReport(params: { start_date: string; end_date: st
   })
 }
 
+export function useOtByPeriodReport(params: { start_date: string; end_date: string; classification_id?: string }) {
+  return useQuery({
+    queryKey: queryKeys.reports.otByPeriod(params),
+    queryFn: () => reportsApi.otByPeriod(params),
+    enabled: !!params.start_date && !!params.end_date,
+  })
+}
+
+export function useWorkSummaryReport(params: { start_date: string; end_date: string; user_id?: string }) {
+  return useQuery({
+    queryKey: queryKeys.reports.workSummary(params),
+    queryFn: () => reportsApi.workSummary(params),
+    enabled: !!params.start_date && !!params.end_date,
+  })
+}
+
+// -- Saved Filters --
+
+export function useSavedFilters(page: string) {
+  return useQuery({
+    queryKey: queryKeys.savedFilters.byPage(page),
+    queryFn: () => savedFiltersApi.list(page),
+    enabled: !!page,
+  })
+}
+
+export function useCreateSavedFilter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: savedFiltersApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.savedFilters.all }),
+  })
+}
+
+export function useDeleteSavedFilter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: savedFiltersApi.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.savedFilters.all }),
+  })
+}
+
+export function useSetSavedFilterDefault() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, is_default }: { id: string; is_default: boolean }) =>
+      savedFiltersApi.setDefault(id, is_default),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.savedFilters.all }),
+  })
+}
+
+// -- Shift Patterns --
+
+export function useShiftPatterns() {
+  return useQuery({
+    queryKey: queryKeys.shiftPatterns.all,
+    queryFn: shiftPatternsApi.list,
+  })
+}
+
+export function useCreateShiftPattern() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: shiftPatternsApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
+  })
+}
+
+export function useUpdateShiftPattern() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; pattern_days?: number; work_days?: number; off_days?: number; anchor_date?: string; team_id?: string | null; is_active?: boolean }) =>
+      shiftPatternsApi.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
+  })
+}
+
+export function useDeleteShiftPattern() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: shiftPatternsApi.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
+  })
+}
+
+export function useShiftPatternCycle(id: string, date: string) {
+  return useQuery({
+    queryKey: queryKeys.shiftPatterns.cycle(id, date),
+    queryFn: () => shiftPatternsApi.cycle(id, date),
+    enabled: !!id && !!date,
+  })
+}
+
 // -- Org Settings --
 
 export function useOrgSettings() {
@@ -1417,6 +1536,113 @@ export function useDeleteNotification() {
     mutationFn: notificationsApi.delete,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
+    },
+  })
+}
+
+// -- Duty Positions --
+
+export function useDutyPositions() {
+  return useQuery({
+    queryKey: queryKeys.dutyPositions.all,
+    queryFn: dutyPositionsApi.list,
+  })
+}
+
+export function useCreateDutyPosition() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: dutyPositionsApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all }),
+  })
+}
+
+export function useUpdateDutyPosition() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; classification_id?: string | null; sort_order?: number; is_active?: boolean }) =>
+      dutyPositionsApi.update(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all }),
+  })
+}
+
+export function useDeleteDutyPosition() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: dutyPositionsApi.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all }),
+  })
+}
+
+export function useDutyAssignments(date: string, shiftTemplateId?: string) {
+  return useQuery({
+    queryKey: queryKeys.dutyPositions.assignments(date, shiftTemplateId),
+    queryFn: () => dutyPositionsApi.listAssignments({ date, shift_template_id: shiftTemplateId }),
+    enabled: !!date,
+  })
+}
+
+export function useCreateDutyAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: dutyPositionsApi.createAssignment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['duty-assignments'] }),
+  })
+}
+
+export function useUpdateDutyAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; user_id?: string; notes?: string | null }) =>
+      dutyPositionsApi.updateAssignment(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['duty-assignments'] }),
+  })
+}
+
+export function useDeleteDutyAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: dutyPositionsApi.deleteAssignment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['duty-assignments'] }),
+  })
+}
+
+// -- Special Assignments --
+
+export function useSpecialAssignments(params?: SpecialAssignmentListParams) {
+  return useQuery({
+    queryKey: queryKeys.specialAssignments.list(params),
+    queryFn: () => specialAssignmentsApi.list(params),
+  })
+}
+
+export function useCreateSpecialAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: specialAssignmentsApi.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
+    },
+  })
+}
+
+export function useUpdateSpecialAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; assignment_type?: string; end_date?: string | null; notes?: string | null }) =>
+      specialAssignmentsApi.update(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
+    },
+  })
+}
+
+export function useDeleteSpecialAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: specialAssignmentsApi.delete,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
     },
   })
 }

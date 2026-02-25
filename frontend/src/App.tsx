@@ -34,13 +34,17 @@ const SchedulePeriodDetailPage = lazy(() => import('@/pages/admin/SchedulePeriod
 const VacationBidAdminPage = lazy(() => import('@/pages/admin/VacationBidAdminPage'))
 const HolidayCalendarPage = lazy(() => import('@/pages/admin/HolidayCalendarPage'))
 const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
+const ShiftPatternsPage = lazy(() => import('@/pages/admin/ShiftPatternsPage'))
 const CoveragePlansPage = lazy(() => import('@/pages/admin/CoveragePlansPage'))
 const CoveragePlanDetailPage = lazy(() => import('@/pages/admin/CoveragePlanDetailPage'))
 const CoveragePlanAssignmentsPage = lazy(() => import('@/pages/admin/CoveragePlanAssignmentsPage'))
+const SpecialAssignmentsPage = lazy(() => import('@/pages/admin/SpecialAssignmentsPage'))
 const AvailableOTPage = lazy(() => import('@/pages/AvailableOTPage'))
 const VolunteeredOTPage = lazy(() => import('@/pages/VolunteeredOTPage'))
 const OtRequestDetailPage = lazy(() => import('@/pages/OtRequestDetailPage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
+const DutyBoardPage = lazy(() => import('@/pages/DutyBoardPage'))
+const DutyPositionsPage = lazy(() => import('@/pages/admin/DutyPositionsPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -78,6 +82,7 @@ export default function App() {
           <Route path="volunteered-ot" element={<PageSuspense><VolunteeredOTPage /></PageSuspense>} />
           <Route path="ot-requests/:id" element={<PageSuspense><OtRequestDetailPage /></PageSuspense>} />
           <Route path="notifications" element={<PageSuspense><NotificationsPage /></PageSuspense>} />
+          <Route path="duty-board" element={<PageSuspense><DutyBoardPage /></PageSuspense>} />
           <Route
             path="callout"
             element={
@@ -104,6 +109,14 @@ export default function App() {
               element={
                 <RequireRole roles="admin">
                   <PageSuspense><ShiftTemplatesPage /></PageSuspense>
+                </RequireRole>
+              }
+            />
+            <Route
+              path="duty-positions"
+              element={
+                <RequireRole roles={['admin', 'supervisor']}>
+                  <PageSuspense><DutyPositionsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -144,6 +157,14 @@ export default function App() {
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
                   <PageSuspense><TeamDetailPage /></PageSuspense>
+                </RequireRole>
+              }
+            />
+            <Route
+              path="special-assignments"
+              element={
+                <RequireRole roles={['admin', 'supervisor']}>
+                  <PageSuspense><SpecialAssignmentsPage /></PageSuspense>
                 </RequireRole>
               }
             />
@@ -216,6 +237,14 @@ export default function App() {
               element={
                 <RequireRole roles={['admin', 'supervisor']}>
                   <PageSuspense><ReportsPage /></PageSuspense>
+                </RequireRole>
+              }
+            />
+            <Route
+              path="shift-patterns"
+              element={
+                <RequireRole roles={['admin', 'supervisor']}>
+                  <PageSuspense><ShiftPatternsPage /></PageSuspense>
                 </RequireRole>
               }
             />
