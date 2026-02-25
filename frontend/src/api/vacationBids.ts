@@ -41,6 +41,7 @@ export interface VacationBid {
 export interface VacationWindowDetail {
   window: VacationBidWindow
   round: number
+  year: number
   bids: VacationBid[]
   dates_taken: string[]
   allowance_hours: number | null

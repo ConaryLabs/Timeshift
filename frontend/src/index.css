@@ -126,13 +126,29 @@
   }
 }
 
-/* Hide scrollbar on sidebar nav — still scrollable */
+/* Thin scrollbar on sidebar nav — subtle, appears on hover */
 .sidebar-scroll {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: transparent transparent;
+}
+.sidebar-scroll:hover {
+  scrollbar-color: oklch(0.35 0.03 255) transparent;
 }
 .sidebar-scroll::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.03 255);
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0.03 255);
 }
 
 .nav-badge {

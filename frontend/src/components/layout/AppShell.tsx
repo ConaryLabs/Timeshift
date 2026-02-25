@@ -70,12 +70,13 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem; adminGroups: Nav
 
   const groups: NavGroup[] = [
     {
-      label: 'Core',
+      label: '',
       items: [
         { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
         { to: '/my-schedule', label: 'My Schedule', icon: <CalendarCheck className="h-4 w-4" /> },
         { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
         { to: '/duty-board', label: 'Duty Board', icon: <ClipboardCheck className="h-4 w-4" /> },
+        { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
       ],
     },
     {
@@ -94,12 +95,6 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem; adminGroups: Nav
         ...(isManager
           ? [{ to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" />, badgeKey: 'open_callouts' as const }]
           : []),
-      ],
-    },
-    {
-      label: 'Other',
-      items: [
-        { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
       ],
     },
   ]
@@ -192,7 +187,7 @@ function SidebarLink({
       onClick={onClick}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors relative",
+          "flex items-center gap-3 rounded-md px-3 py-[5px] text-[13px] font-medium transition-colors relative",
           isActive
             ? "nav-link-active bg-sidebar-accent text-white"
             : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",
@@ -241,23 +236,49 @@ function NavGroupSection({
   collapsed,
   onLinkClick,
   badges,
+  sectionKey,
+  collapsible = false,
 }: {
   group: NavGroup
   collapsed: boolean
   onLinkClick?: () => void
   badges?: Record<string, number>
+  sectionKey?: string
+  collapsible?: boolean
 }) {
+  const toggleSection = useUIStore((s) => s.toggleSection)
+  const isSectionCollapsed = useUIStore((s) => s.collapsedSections[sectionKey ?? ''] ?? false)
+
+  const canCollapse = collapsible && sectionKey && group.label && !collapsed
+
   return (
     <div>
       {group.label && !collapsed && (
-        <p className="px-3 pt-3 pb-0.5 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest">
-          {group.label}
-        </p>
+        canCollapse ? (
+          <button
+            onClick={() => toggleSection(sectionKey!)}
+            className="w-full flex items-center justify-between px-3 pt-2.5 pb-0.5 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest hover:text-sidebar-foreground/60 transition-colors group/section"
+          >
+            <span>{group.label}</span>
+            <ChevronDown className={cn(
+              "h-2.5 w-2.5 opacity-0 group-hover/section:opacity-100 transition-all duration-200",
+              isSectionCollapsed && "-rotate-90",
+            )} />
+          </button>
+        ) : (
+          <p className="px-3 pt-2.5 pb-0.5 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest">
+            {group.label}
+          </p>
+        )
       )}
       {collapsed && group.label && (
         <div className="my-1 mx-2 h-px bg-sidebar-border/50" />
       )}
-      <div className="space-y-0.5">
+      <div className={cn(
+        "space-y-px transition-all duration-200 overflow-hidden",
+        canCollapse && isSectionCollapsed && "max-h-0",
+        (!canCollapse || !isSectionCollapsed) && "max-h-[500px]",
+      )}>
         {group.items.map((item) => (
           <SidebarLink
             key={item.to}
@@ -279,7 +300,8 @@ function SidebarNav({ groups, adminGroups, collapsed, onLinkClick, badges }: {
   onLinkClick?: () => void
   badges?: Record<string, number>
 }) {
-  const [adminOpen, setAdminOpen] = useState(true)
+  const toggleSection = useUIStore((s) => s.toggleSection)
+  const adminCollapsed = useUIStore((s) => s.collapsedSections['admin'] ?? false)
 
   return (
     <nav className="flex-1 sidebar-scroll overflow-y-auto py-1 px-2">
@@ -290,21 +312,23 @@ function SidebarNav({ groups, adminGroups, collapsed, onLinkClick, badges }: {
           collapsed={collapsed}
           onLinkClick={onLinkClick}
           badges={badges}
+          sectionKey={`nav-${group.label}`}
+          collapsible
         />
       ))}
 
       {adminGroups.length > 0 && (
         <>
-          <div className="my-2 mx-1 h-px bg-sidebar-border" />
+          <div className="my-1.5 mx-1 h-px bg-sidebar-border" />
           {!collapsed ? (
             <button
-              onClick={() => setAdminOpen(!adminOpen)}
+              onClick={() => toggleSection('admin')}
               className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest hover:text-sidebar-foreground/60 transition-colors"
             >
               <span>Admin</span>
               <ChevronDown className={cn(
                 "h-3 w-3 transition-transform duration-200",
-                !adminOpen && "-rotate-90",
+                adminCollapsed && "-rotate-90",
               )} />
             </button>
           ) : (
@@ -317,8 +341,8 @@ function SidebarNav({ groups, adminGroups, collapsed, onLinkClick, badges }: {
           )}
           <div className={cn(
             "transition-all duration-200 overflow-hidden",
-            !adminOpen && !collapsed && "max-h-0",
-            (adminOpen || collapsed) && "max-h-[2000px]",
+            adminCollapsed && !collapsed && "max-h-0",
+            (!adminCollapsed || collapsed) && "max-h-[2000px]",
           )}>
             {adminGroups.map((group) => (
               <NavGroupSection
@@ -326,6 +350,8 @@ function SidebarNav({ groups, adminGroups, collapsed, onLinkClick, badges }: {
                 group={group}
                 collapsed={collapsed}
                 onLinkClick={onLinkClick}
+                sectionKey={`admin-${group.label || 'settings'}`}
+                collapsible
               />
             ))}
           </div>
@@ -444,7 +470,7 @@ export default function AppShell() {
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "w-full flex items-center gap-3 rounded-md px-3 py-1.5 text-[13px] text-sidebar-foreground hover:bg-white/[0.06] hover:text-white transition-colors",
+              "w-full flex items-center gap-3 rounded-md px-3 py-[5px] text-[13px] text-sidebar-foreground hover:bg-white/[0.06] hover:text-white transition-colors",
               collapsed ? "justify-center px-2" : "justify-start",
             )}
           >

@@ -79,6 +79,7 @@ pub struct VacationPick {
 pub struct VacationWindowDetail {
     pub window: VacationBidWindow,
     pub round: i32,
+    pub year: i32,
     pub bids: Vec<VacationBid>,
     pub dates_taken: Vec<time::Date>,
     pub allowance_hours: Option<i32>,

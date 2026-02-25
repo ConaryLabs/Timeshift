@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE holiday_sellback_requests SET status = 'cancelled', updated_at = NOW()\n         WHERE id = $1 AND org_id = $2 AND status = 'pending'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb7f601b14cbbacf712b04c6a7e6c4f21b68c06fdff58f8829ec6f14dfc14bf0"
+}

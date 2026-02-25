@@ -1,17 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT user_id, status FROM holiday_sellback_requests WHERE id = $1 AND org_id = $2",
+  "query": "SELECT user_id FROM holiday_sellback_requests WHERE id = $1 AND org_id = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
         "name": "user_id",
         "type_info": "Uuid"
-      },
-      {
-        "ordinal": 1,
-        "name": "status",
-        "type_info": "Varchar"
       }
     ],
     "parameters": {
@@ -21,9 +16,8 @@
       ]
     },
     "nullable": [
-      false,
       false
     ]
   },
-  "hash": "2e95b86a78113008dc90dbac06264e508bbb4bd1299007582c0a683396a3412c"
+  "hash": "9e214bb4cba0e053308a876c0b2a15f1dcdea51b00a38c1f9b12000e61350d66"
 }

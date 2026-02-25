@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            a.id, a.ot_request_id, a.user_id,\n            (u.first_name || ' ' || u.last_name) AS \"user_name!\",\n            a.ot_type,\n            a.assigned_by,\n            (ab.first_name || ' ' || ab.last_name) AS \"assigned_by_name!\",\n            a.assigned_at,\n            a.cancelled_at,\n            a.cancelled_by\n        FROM ot_request_assignments a\n        JOIN users u ON u.id = a.user_id\n        JOIN users ab ON ab.id = a.assigned_by\n        WHERE a.ot_request_id = $1\n        ORDER BY a.assigned_at ASC\n        ",
+  "query": "\n        SELECT\n            a.id, a.ot_request_id, a.user_id,\n            (u.first_name || ' ' || u.last_name) AS \"user_name!\",\n            a.ot_type,\n            a.assigned_by,\n            (ab.first_name || ' ' || ab.last_name) AS \"assigned_by_name!\",\n            a.assigned_at,\n            a.cancelled_at,\n            a.cancelled_by\n        FROM ot_request_assignments a\n        JOIN ot_requests r ON r.id = a.ot_request_id AND r.org_id = $2\n        JOIN users u ON u.id = a.user_id\n        JOIN users ab ON ab.id = a.assigned_by\n        WHERE a.ot_request_id = $1\n        ORDER BY a.assigned_at ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -56,6 +56,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -72,5 +73,5 @@
       true
     ]
   },
-  "hash": "86b584adcaf7ddd2c1076019a2b3f70e4cd88607ec5eeafff09c7f8dd57223a6"
+  "hash": "d63003ba02e7b81e0c5e4b19c499f6d0d53544227e66560d181f90258a1e6fee"
 }
