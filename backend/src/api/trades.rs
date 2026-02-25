@@ -86,7 +86,7 @@ pub async fn create(
     }
 
     // Both assignments must be for future dates
-    let today = time::OffsetDateTime::now_utc().date();
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
     if req_assignment.date < today {
         return Err(AppError::BadRequest("Cannot trade past assignments".into()));
     }
@@ -189,9 +189,12 @@ pub async fn create(
     .await?;
 
     let deadline_at = deadline.map(|d| {
-        // Set deadline to end of the schedule period day (23:59:59 UTC)
-        d.with_time(time::Time::from_hms(23, 59, 59).unwrap())
-            .assume_utc()
+        // Set deadline to end of the schedule period day (23:59:59 in org timezone)
+        crate::services::timezone::local_to_utc(
+            d,
+            time::Time::from_hms(23, 59, 59).unwrap(),
+            &auth.org_timezone,
+        )
     });
 
     let id = Uuid::new_v4();
@@ -510,6 +513,7 @@ pub async fn review(
 
     let trade = TradeForReview {
         id: r.id,
+        org_timezone: auth.org_timezone.clone(),
         requester_id: r.requester_id,
         partner_id: r.partner_id,
         requester_assignment_id: r.requester_assignment_id,
@@ -659,6 +663,7 @@ pub async fn bulk_review(
 
         let trade = TradeForReview {
             id: trade_row.id,
+            org_timezone: auth.org_timezone.clone(),
             requester_id: trade_row.requester_id,
             partner_id: trade_row.partner_id,
             requester_assignment_id: trade_row.requester_assignment_id,

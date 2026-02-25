@@ -108,7 +108,7 @@ pub async fn ot_summary(
         return Err(AppError::Forbidden);
     }
 
-    let current_year = time::OffsetDateTime::now_utc().year();
+    let current_year = crate::services::timezone::org_year(&auth.org_timezone);
     let fiscal_year = q.fiscal_year.unwrap_or(current_year);
 
     let rows = sqlx::query!(

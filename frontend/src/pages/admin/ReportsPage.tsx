@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Download } from 'lucide-react'
+import { toLocalDateStr } from '@/lib/format'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -69,8 +70,8 @@ function CoverageTab() {
   const sevenDaysFromNow = new Date(today)
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
-  const [startDate, setStartDate] = useState(sevenDaysAgo.toISOString().slice(0, 10))
-  const [endDate, setEndDate] = useState(sevenDaysFromNow.toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(toLocalDateStr(sevenDaysAgo))
+  const [endDate, setEndDate] = useState(toLocalDateStr(sevenDaysFromNow))
   const [teamId, setTeamId] = useState<string>('')
 
   const { data: teams } = useTeams()
@@ -220,8 +221,8 @@ function OtByPeriodTab() {
   const thirtyDaysAgo = new Date(today)
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
-  const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(toLocalDateStr(thirtyDaysAgo))
+  const [endDate, setEndDate] = useState(toLocalDateStr(today))
   const [classificationId, setClassificationId] = useState<string>('')
 
   const { data: classifications } = useClassifications()
@@ -382,8 +383,8 @@ function WorkSummaryTab() {
   const thirtyDaysAgo = new Date(today)
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
-  const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(toLocalDateStr(thirtyDaysAgo))
+  const [endDate, setEndDate] = useState(toLocalDateStr(today))
   const [userId, setUserId] = useState<string>('')
 
   const { data: users } = useUsers()

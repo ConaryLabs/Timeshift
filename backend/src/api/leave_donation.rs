@@ -314,19 +314,21 @@ pub async fn review(
         .execute(&mut *tx)
         .await?;
 
+        let today = crate::services::timezone::org_today(&auth.org_timezone);
         sqlx::query!(
             r#"
             INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
             ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
             SET balance_hours = leave_balances.balance_hours - $5::FLOAT8::NUMERIC,
-                as_of_date = CURRENT_DATE, updated_at = NOW()
+                as_of_date = $6, updated_at = NOW()
             "#,
             Uuid::new_v4(),
             auth.org_id,
             donation.donor_id,
             donation.leave_type_id,
             donation.hours,
+            today,
         )
         .execute(&mut *tx)
         .await?;
@@ -353,16 +355,17 @@ pub async fn review(
         sqlx::query!(
             r#"
             INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
             ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
             SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-                as_of_date = CURRENT_DATE, updated_at = NOW()
+                as_of_date = $6, updated_at = NOW()
             "#,
             Uuid::new_v4(),
             auth.org_id,
             donation.recipient_id,
             donation.leave_type_id,
             donation.hours,
+            today,
         )
         .execute(&mut *tx)
         .await?;

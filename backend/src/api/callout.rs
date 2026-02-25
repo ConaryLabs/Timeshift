@@ -220,7 +220,7 @@ pub async fn callout_list(
     .flatten()
     .unwrap_or(10);
 
-    let today = time::OffsetDateTime::now_utc().date();
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
     let days_until_shift = (event.shift_date - today).whole_days();
     let cross_class_eligible = days_until_shift >= 0 && days_until_shift <= window_days;
 
@@ -750,7 +750,11 @@ pub async fn cancel_ot_assignment(
     // 4. Skip enforcement for managers/supervisors.
     if !auth.role.can_manage_schedule() {
         // 5. Enforcement for non-managers.
-        let shift_start = event.shift_date.with_time(event.start_time).assume_utc();
+        let shift_start = crate::services::timezone::local_to_utc(
+            event.shift_date,
+            event.start_time,
+            &auth.org_timezone,
+        );
         let now = time::OffsetDateTime::now_utc();
         match assignment.ot_type.as_deref() {
             Some("voluntary") | Some("elective") => {
@@ -959,10 +963,11 @@ pub async fn create_bump_request(
     .fetch_one(&pool)
     .await?;
 
-    let shift_start = event
-        .shift_date
-        .with_time(shift_info.start_time)
-        .assume_utc();
+    let shift_start = crate::services::timezone::local_to_utc(
+        event.shift_date,
+        shift_info.start_time,
+        &auth.org_timezone,
+    );
     let now = time::OffsetDateTime::now_utc();
     if now >= shift_start {
         return Err(AppError::Conflict(
@@ -1105,10 +1110,11 @@ pub async fn review_bump_request(
             "Callout event is no longer filled".into(),
         ));
     }
-    let shift_start = shift_check
-        .shift_date
-        .with_time(shift_check.start_time)
-        .assume_utc();
+    let shift_start = crate::services::timezone::local_to_utc(
+        shift_check.shift_date,
+        shift_check.start_time,
+        &auth.org_timezone,
+    );
     if time::OffsetDateTime::now_utc() >= shift_start {
         return Err(AppError::Conflict(
             "Cannot approve bump after the shift has started".into(),

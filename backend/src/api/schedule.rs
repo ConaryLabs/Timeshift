@@ -743,7 +743,7 @@ pub async fn day_view(
 // -- Dashboard --
 
 pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<DashboardData>> {
-    let today = time::OffsetDateTime::now_utc().date();
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
 
     let templates = sqlx::query!(
         r#"

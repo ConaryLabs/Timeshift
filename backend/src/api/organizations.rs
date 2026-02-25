@@ -37,29 +37,14 @@ pub async fn update_own(
         return Err(AppError::Forbidden);
     }
 
-    // Validate timezone looks like a valid IANA timezone
+    // Validate timezone is a real IANA timezone recognized by chrono-tz
     if let Some(ref tz) = req.timezone {
-        let valid_prefixes = [
-            "Africa/",
-            "America/",
-            "Antarctica/",
-            "Arctic/",
-            "Asia/",
-            "Atlantic/",
-            "Australia/",
-            "Europe/",
-            "Indian/",
-            "Pacific/",
-            "Etc/",
-            "US/",
-        ];
-        let is_valid = tz == "UTC" || valid_prefixes.iter().any(|p| tz.starts_with(p));
-        if !is_valid || tz.len() > 50 || tz.contains("..") {
-            return Err(AppError::BadRequest(
+        crate::services::timezone::parse_tz(tz).map_err(|_| {
+            AppError::BadRequest(
                 "Invalid timezone. Must be a valid IANA timezone (e.g. 'America/Los_Angeles')"
                     .into(),
-            ));
-        }
+            )
+        })?;
     }
 
     let org = sqlx::query_as!(

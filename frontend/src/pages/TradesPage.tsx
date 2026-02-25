@@ -30,7 +30,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import type { TradeRequest, TradeStatus } from '@/api/trades'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, toLocalDateStr } from '@/lib/format'
 
 const STATUS_TABS: { label: string; value: TradeStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -65,8 +65,8 @@ export default function TradesPage() {
   const today = new Date()
   const futureDate = new Date(today)
   futureDate.setDate(futureDate.getDate() + 60)
-  const startStr = today.toISOString().slice(0, 10)
-  const endStr = futureDate.toISOString().slice(0, 10)
+  const startStr = toLocalDateStr(today)
+  const endStr = toLocalDateStr(futureDate)
 
   const { data: staffing } = useStaffing(startStr, endStr)
 

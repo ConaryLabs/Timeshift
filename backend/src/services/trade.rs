@@ -7,6 +7,7 @@ use crate::error::Result;
 /// Fields from a trade request needed for review execution.
 pub struct TradeForReview {
     pub id: Uuid,
+    pub org_timezone: String,
     pub requester_id: Uuid,
     pub partner_id: Uuid,
     pub requester_assignment_id: Uuid,
@@ -67,7 +68,7 @@ pub async fn execute_trade_review(
         (timing.par_date, timing.par_start),
     ] {
         if let (Some(d), Some(t)) = (date_opt, time_opt) {
-            let shift_start = time::PrimitiveDateTime::new(d, t).assume_utc();
+            let shift_start = crate::services::timezone::local_to_utc(d, t, &trade.org_timezone);
             if (shift_start - now_utc).whole_minutes() < 60 {
                 return Ok(TradeReviewOutcome::TimingBlocked);
             }

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO seniority_records (user_id, org_id, accrual_pause_started_at)\n                VALUES ($1, $2, $3)\n                ON CONFLICT (user_id) DO UPDATE SET\n                    accrual_pause_started_at = CASE\n                        WHEN seniority_records.accrual_pause_started_at IS NULL\n                        THEN $3\n                        ELSE seniority_records.accrual_pause_started_at\n                    END,\n                    updated_at = NOW()\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "07458bc42f367e3feb9f61390ac8871b85a09188e2003464e4ac2193dbe46349"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE leave_balances\n                SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,\n                    as_of_date = $4,\n                    updated_at = NOW()\n                WHERE user_id = $1 AND leave_type_id = $2\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c36c7c1c6f82cd1470551072de544480cba574b386305e7cf545773857fc562"
+}

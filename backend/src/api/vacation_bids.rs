@@ -779,6 +779,7 @@ pub async fn process_bids(
                     hours,
                     leave_request_id,
                     auth.id,
+                    &auth.org_timezone,
                 )
                 .await?;
             }

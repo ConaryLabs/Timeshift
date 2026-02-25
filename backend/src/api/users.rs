@@ -583,30 +583,33 @@ pub async fn update(
         );
         let is_exception = req.seniority_pause_exception.unwrap_or(false);
 
+        let org_today = crate::services::timezone::org_today(&auth.org_timezone);
         if is_pausing && !is_exception {
             // Start a new seniority pause (only if not already paused — preserve original start date)
             sqlx::query!(
                 r#"
                 INSERT INTO seniority_records (user_id, org_id, accrual_pause_started_at)
-                VALUES ($1, $2, CURRENT_DATE)
+                VALUES ($1, $2, $3)
                 ON CONFLICT (user_id) DO UPDATE SET
                     accrual_pause_started_at = CASE
                         WHEN seniority_records.accrual_pause_started_at IS NULL
-                        THEN CURRENT_DATE
+                        THEN $3
                         ELSE seniority_records.accrual_pause_started_at
                     END,
                     updated_at = NOW()
                 "#,
                 r.id,
                 auth.org_id,
+                org_today,
             )
             .execute(&mut *tx)
             .await?;
             // Pause leave accrual
             sqlx::query!(
-                "UPDATE users SET leave_accrual_paused_at = CURRENT_DATE
+                "UPDATE users SET leave_accrual_paused_at = $2
                  WHERE id = $1 AND leave_accrual_paused_at IS NULL",
                 r.id,
+                org_today,
             )
             .execute(&mut *tx)
             .await?;
@@ -617,22 +620,22 @@ pub async fn update(
                 UPDATE seniority_records SET
                     overall_seniority_date = CASE
                         WHEN accrual_pause_started_at IS NOT NULL AND overall_seniority_date IS NOT NULL
-                        THEN overall_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT
+                        THEN overall_seniority_date + ($2 - accrual_pause_started_at)::INT
                         ELSE overall_seniority_date
                     END,
                     bargaining_unit_seniority_date = CASE
                         WHEN accrual_pause_started_at IS NOT NULL AND bargaining_unit_seniority_date IS NOT NULL
-                        THEN bargaining_unit_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT
+                        THEN bargaining_unit_seniority_date + ($2 - accrual_pause_started_at)::INT
                         ELSE bargaining_unit_seniority_date
                     END,
                     classification_seniority_date = CASE
                         WHEN accrual_pause_started_at IS NOT NULL AND classification_seniority_date IS NOT NULL
-                        THEN classification_seniority_date + (CURRENT_DATE - accrual_pause_started_at)::INT
+                        THEN classification_seniority_date + ($2 - accrual_pause_started_at)::INT
                         ELSE classification_seniority_date
                     END,
                     accrual_paused_days_total = accrual_paused_days_total + CASE
                         WHEN accrual_pause_started_at IS NOT NULL
-                        THEN (CURRENT_DATE - accrual_pause_started_at)::INT
+                        THEN ($2 - accrual_pause_started_at)::INT
                         ELSE 0
                     END,
                     accrual_pause_started_at = NULL,
@@ -640,6 +643,7 @@ pub async fn update(
                 WHERE user_id = $1
                 "#,
                 r.id,
+                org_today,
             )
             .execute(&mut *tx)
             .await?;
@@ -655,7 +659,7 @@ pub async fn update(
 
     // M324: Separation handling — auto-cancel or flag pending trades
     if matches!(req.employee_status, Some(EmployeeStatus::Separated)) {
-        let today = time::OffsetDateTime::now_utc().date();
+        let today = crate::services::timezone::org_today(&auth.org_timezone);
         let cutoff = today + time::Duration::days(30);
 
         // Auto-cancel trades whose earliest shift is more than 30 days out

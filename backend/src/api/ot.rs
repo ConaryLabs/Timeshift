@@ -35,7 +35,7 @@ pub async fn get_queue(
 
     let fiscal_year = params
         .fiscal_year
-        .unwrap_or_else(|| time::OffsetDateTime::now_utc().year());
+        .unwrap_or_else(|| crate::services::timezone::org_year(&auth.org_timezone));
 
     let rows = sqlx::query!(
         r#"
@@ -97,7 +97,7 @@ pub async fn set_queue_position(
 
     let fiscal_year = req
         .fiscal_year
-        .unwrap_or_else(|| time::OffsetDateTime::now_utc().year());
+        .unwrap_or_else(|| crate::services::timezone::org_year(&auth.org_timezone));
 
     sqlx::query!(
         r#"
@@ -130,7 +130,7 @@ pub async fn get_hours(
 ) -> Result<Json<Vec<OtHoursView>>> {
     let fiscal_year = params
         .fiscal_year
-        .unwrap_or_else(|| time::OffsetDateTime::now_utc().year());
+        .unwrap_or_else(|| crate::services::timezone::org_year(&auth.org_timezone));
 
     // Employees can only see their own hours
     if !auth.role.can_manage_schedule() {

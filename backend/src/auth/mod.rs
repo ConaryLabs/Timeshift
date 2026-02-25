@@ -47,12 +47,14 @@ pub struct AuthUser {
     pub id: Uuid,
     pub org_id: Uuid,
     pub role: Role,
+    pub org_timezone: String,
 }
 
 /// Internal row type for the auth DB check query.
 struct AuthUserRow {
     role: Role,
     is_active: bool,
+    timezone: String,
 }
 
 #[async_trait]
@@ -76,10 +78,13 @@ where
             })?
             .claims;
 
-        // Verify user is still active and fetch current role from the database
+        // Verify user is still active and fetch current role + org timezone from the database
         let row = sqlx::query_as!(
             AuthUserRow,
-            r#"SELECT role AS "role: Role", is_active FROM users WHERE id = $1 AND org_id = $2"#,
+            r#"SELECT u.role AS "role: Role", u.is_active, o.timezone
+             FROM users u
+             JOIN organizations o ON o.id = u.org_id
+             WHERE u.id = $1 AND u.org_id = $2"#,
             claims.sub,
             claims.org_id
         )
@@ -96,6 +101,7 @@ where
             id: claims.sub,
             org_id: claims.org_id,
             role: row.role,
+            org_timezone: row.timezone,
         })
     }
 }
