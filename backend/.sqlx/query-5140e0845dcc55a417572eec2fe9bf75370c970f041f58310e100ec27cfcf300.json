@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT lr.updated_at FROM leave_requests lr\n            JOIN users u ON u.id = lr.user_id\n            WHERE lr.id = $1 AND u.org_id = $2\n            ",
+  "query": "\n            SELECT lr.updated_at FROM leave_requests lr\n            WHERE lr.id = $1 AND lr.org_id = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       false
     ]
   },
-  "hash": "195aac39cf3d89be9de352d9b420ed89f98d51f1241ef3614c22319aa5a46d11"
+  "hash": "5140e0845dcc55a417572eec2fe9bf75370c970f041f58310e100ec27cfcf300"
 }

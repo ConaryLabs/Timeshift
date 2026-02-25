@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ce.scheduled_shift_id, ce.classification_id, ss.date AS shift_date,\n               st.start_time AS shift_start_time, st.duration_minutes AS shift_duration\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "scheduled_shift_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "shift_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "shift_start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "shift_duration",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9ee4c03afca367f1233ee91caac26fe911c466f5c26486ec49a8f057a64cdb49"
+}

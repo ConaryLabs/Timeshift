@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE leave_requests\n            SET status         = $2,\n                reviewed_by    = $3,\n                reviewer_notes = $4,\n                updated_at     = NOW()\n            WHERE id = $1\n              AND status = 'pending'\n              AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $5)\n            ",
+  "query": "\n            UPDATE leave_requests\n            SET status         = $2,\n                reviewed_by    = $3,\n                reviewer_notes = $4,\n                updated_at     = NOW()\n            WHERE id = $1\n              AND status = 'pending'\n              AND org_id = $5\n            ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -26,5 +26,5 @@
     },
     "nullable": []
   },
-  "hash": "470dfd5b145f9ec9c1b3d2fac6a793bde96699521d1415ef8c47b03ba8ea1bbd"
+  "hash": "46d6f46e0f3afccc9d7c71f2bd95669153479c0f3be674337bd5ab031e90debc"
 }

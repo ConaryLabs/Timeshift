@@ -185,9 +185,11 @@ pub async fn callout_list(
 
     let event = sqlx::query!(
         r#"
-        SELECT ce.scheduled_shift_id, ce.classification_id, ss.date AS shift_date
+        SELECT ce.scheduled_shift_id, ce.classification_id, ss.date AS shift_date,
+               st.start_time AS shift_start_time, st.duration_minutes AS shift_duration
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
         WHERE ce.id = $1 AND ss.org_id = $2
         "#,
         event_id,
@@ -200,6 +202,12 @@ pub async fn callout_list(
     // Use shift date's calendar year so the displayed OT hours match what
     // record_attempt will record (consistent with fiscal_year in that handler).
     let fiscal_year: i32 = event.shift_date.year();
+
+    // Precompute shift time bounds as minutes-from-midnight for partial-day leave overlap check.
+    // shift_end_mins may exceed 1440 for overnight shifts (e.g., 22:00-06:00 → 1320..1800).
+    let shift_start_mins: i32 =
+        event.shift_start_time.hour() as i32 * 60 + event.shift_start_time.minute() as i32;
+    let shift_end_mins: i32 = shift_start_mins + event.shift_duration;
 
     // Fetch the org's cross-classification eligibility window (default 10 days per LOU 25-10).
     // When the shift is within this many days, employees from other classifications are included.
@@ -232,11 +240,51 @@ pub async fn callout_list(
                 WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
             ) AND NOT EXISTS (
                 SELECT 1 FROM leave_requests lr
-                JOIN scheduled_shifts ss ON ss.id = $1
                 WHERE lr.user_id = u.id
+                  AND lr.org_id = $2
                   AND lr.status = 'approved'
-                  AND lr.start_date <= ss.date
-                  AND lr.end_date   >= ss.date
+                  AND lr.start_date <= $8::DATE
+                  AND lr.end_date   >= $8::DATE
+                  -- Exclude non-overlapping partial-day leave
+                  AND NOT (
+                      -- Has at least one timed line on the shift date
+                      EXISTS (
+                          SELECT 1 FROM leave_request_lines lrl
+                          WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE
+                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL
+                      )
+                      -- No full-day lines on the shift date
+                      AND NOT EXISTS (
+                          SELECT 1 FROM leave_request_lines lrl
+                          WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE
+                            AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)
+                      )
+                      -- No timed lines overlap with the shift hours
+                      AND NOT EXISTS (
+                          SELECT 1 FROM leave_request_lines lrl
+                          CROSS JOIN LATERAL (
+                              SELECT
+                                  EXTRACT(HOUR FROM lrl.start_time)::INT * 60
+                                      + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,
+                                  CASE
+                                      WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT
+                                          <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.start_time)::INT
+                                      THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440
+                                      ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT
+                                  END AS le
+                          ) t
+                          WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE
+                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL
+                            AND (
+                                (t.ls < $6 AND t.le > $7)
+                                OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)
+                            )
+                      )
+                  )
             ) AS is_available,
             CASE
                 WHEN EXISTS (
@@ -245,11 +293,47 @@ pub async fn callout_list(
                 ) THEN 'Already scheduled'
                 WHEN EXISTS (
                     SELECT 1 FROM leave_requests lr
-                    JOIN scheduled_shifts ss ON ss.id = $1
                     WHERE lr.user_id = u.id
+                      AND lr.org_id = $2
                       AND lr.status = 'approved'
-                      AND lr.start_date <= ss.date
-                      AND lr.end_date   >= ss.date
+                      AND lr.start_date <= $8::DATE
+                      AND lr.end_date   >= $8::DATE
+                      AND NOT (
+                          EXISTS (
+                              SELECT 1 FROM leave_request_lines lrl
+                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE
+                                AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM leave_request_lines lrl
+                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE
+                                AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM leave_request_lines lrl
+                              CROSS JOIN LATERAL (
+                                  SELECT
+                                      EXTRACT(HOUR FROM lrl.start_time)::INT * 60
+                                          + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,
+                                      CASE
+                                          WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT
+                                              <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60
+                                                  + EXTRACT(MINUTE FROM lrl.start_time)::INT
+                                          THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440
+                                          ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT
+                                      END AS le
+                              ) t
+                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE
+                                AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL
+                                AND (
+                                    (t.ls < $6 AND t.le > $7)
+                                    OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)
+                                )
+                          )
+                      )
                 ) THEN 'On approved leave'
                 ELSE NULL
             END AS unavailable_reason
@@ -273,19 +357,58 @@ pub async fn callout_list(
                 SELECT 1 FROM assignments a2 WHERE a2.user_id = u.id AND a2.scheduled_shift_id = $1
             ) AND NOT EXISTS (
                 SELECT 1 FROM leave_requests lr2
-                JOIN scheduled_shifts ss2 ON ss2.id = $1
-                WHERE lr2.user_id = u.id AND lr2.status = 'approved'
-                  AND lr2.start_date <= ss2.date AND lr2.end_date >= ss2.date
+                WHERE lr2.user_id = u.id AND lr2.org_id = $2
+                  AND lr2.status = 'approved'
+                  AND lr2.start_date <= $8::DATE AND lr2.end_date >= $8::DATE
+                  AND NOT (
+                      EXISTS (
+                          SELECT 1 FROM leave_request_lines lrl
+                          WHERE lrl.leave_request_id = lr2.id AND lrl.date = $8::DATE
+                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM leave_request_lines lrl
+                          WHERE lrl.leave_request_id = lr2.id AND lrl.date = $8::DATE
+                            AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM leave_request_lines lrl
+                          CROSS JOIN LATERAL (
+                              SELECT
+                                  EXTRACT(HOUR FROM lrl.start_time)::INT * 60
+                                      + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,
+                                  CASE
+                                      WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT
+                                          <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.start_time)::INT
+                                      THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440
+                                      ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60
+                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT
+                                      END AS le
+                          ) t
+                          WHERE lrl.leave_request_id = lr2.id AND lrl.date = $8::DATE
+                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL
+                            AND (
+                                (t.ls < $6 AND t.le > $7)
+                                OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)
+                            )
+                      )
+                  )
             )) DESC,
             oq.last_ot_event_at ASC NULLS FIRST,
             COALESCE(ot.hours_worked, 0.0) ASC,
             sr.overall_seniority_date ASC NULLS LAST
         "#,
-        event.scheduled_shift_id,
-        auth.org_id,
-        fiscal_year,
-        event.classification_id,
-        cross_class_eligible,
+        event.scheduled_shift_id,  // $1
+        auth.org_id,               // $2
+        fiscal_year,               // $3
+        event.classification_id,   // $4
+        cross_class_eligible,      // $5
+        shift_end_mins,            // $6
+        shift_start_mins,          // $7
+        event.shift_date,          // $8
     )
     .fetch_all(&pool)
     .await?;

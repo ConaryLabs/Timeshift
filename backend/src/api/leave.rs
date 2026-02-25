@@ -284,6 +284,7 @@ pub async fn list(
         JOIN leave_types lt ON lt.id = lr.leave_type_id
         JOIN users u ON u.id = lr.user_id
         WHERE u.org_id = $1
+          AND lr.org_id = $1
           AND ($2 OR lr.user_id = $3)
         ORDER BY lr.created_at DESC
         LIMIT $4 OFFSET $5
@@ -355,7 +356,7 @@ pub async fn get_one(
         FROM leave_requests lr
         JOIN leave_types lt ON lt.id = lr.leave_type_id
         JOIN users u ON u.id = lr.user_id
-        WHERE lr.id = $1 AND u.org_id = $2
+        WHERE lr.id = $1 AND lr.org_id = $2
         "#,
         id,
         auth.org_id
@@ -550,11 +551,13 @@ pub async fn create(
               AND status IN ('pending', 'approved')
               AND start_date <= $3
               AND end_date >= $2
+              AND org_id = $4
         )
         "#,
         auth.id,
         body.start_date,
         body.end_date,
+        auth.org_id,
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -571,11 +574,11 @@ pub async fn create(
             (id, user_id, leave_type_id, start_date, end_date, hours,
              start_time, scheduled_shift_id, is_rdo,
              reason, emergency_contact, bereavement_relationship, bereavement_name,
-             status)
+             status, org_id)
         VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC,
                 $7, $8, $9,
                 $10, $11, $12, $13,
-                'pending')
+                'pending', $14)
         RETURNING id, user_id, leave_type_id, start_date, end_date,
                   hours::FLOAT8 AS hours, start_time,
                   scheduled_shift_id, is_rdo,
@@ -596,6 +599,7 @@ pub async fn create(
         body.emergency_contact,
         body.bereavement_relationship,
         body.bereavement_name,
+        auth.org_id,
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -724,8 +728,7 @@ pub async fn cancel(
                lr.hours::FLOAT8 AS hours,
                lr.status AS "status: LeaveStatus"
         FROM leave_requests lr
-        JOIN users u ON u.id = lr.user_id
-        WHERE lr.id = $1 AND u.org_id = $2
+        WHERE lr.id = $1 AND lr.org_id = $2
           AND lr.status IN ('pending', 'approved')
           AND ($3 OR lr.user_id = $4)
         FOR UPDATE OF lr
@@ -839,8 +842,7 @@ pub async fn review(
         let current = sqlx::query_scalar!(
             r#"
             SELECT lr.updated_at FROM leave_requests lr
-            JOIN users u ON u.id = lr.user_id
-            WHERE lr.id = $1 AND u.org_id = $2
+            WHERE lr.id = $1 AND lr.org_id = $2
             "#,
             id,
             auth.org_id
@@ -868,7 +870,7 @@ pub async fn review(
             updated_at     = NOW()
         WHERE id = $1
           AND status = 'pending'
-          AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $5)
+          AND org_id = $5
         "#,
         id,
         status as LeaveStatus,
@@ -906,9 +908,10 @@ pub async fn review(
         FROM leave_requests lr
         JOIN leave_types lt ON lt.id = lr.leave_type_id
         JOIN users u ON u.id = lr.user_id
-        WHERE lr.id = $1
+        WHERE lr.id = $1 AND lr.org_id = $2
         "#,
-        id
+        id,
+        auth.org_id
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -1113,7 +1116,7 @@ pub async fn bulk_review(
                 updated_at     = NOW()
             WHERE id = $1
               AND status = 'pending'
-              AND EXISTS (SELECT 1 FROM users u WHERE u.id = leave_requests.user_id AND u.org_id = $5)
+              AND org_id = $5
             "#,
             id,
             body.status as LeaveStatus,
@@ -1137,9 +1140,10 @@ pub async fn bulk_review(
             SELECT user_id, leave_type_id, hours::FLOAT8 AS hours,
                    start_date, end_date
             FROM leave_requests
-            WHERE id = $1
+            WHERE id = $1 AND org_id = $2
             "#,
             id,
+            auth.org_id,
         )
         .fetch_one(&mut *tx)
         .await?;
