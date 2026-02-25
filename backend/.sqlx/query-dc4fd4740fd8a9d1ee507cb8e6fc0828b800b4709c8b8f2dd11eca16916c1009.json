@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE accrual_schedules\n        SET hours_per_pay_period = CASE WHEN $2 THEN $3::FLOAT8::NUMERIC ELSE hours_per_pay_period END,\n            max_balance_hours    = CASE WHEN $4 THEN $5::FLOAT8::NUMERIC ELSE max_balance_hours END,\n            years_of_service_min = CASE WHEN $6 THEN $7 ELSE years_of_service_min END,\n            years_of_service_max = CASE WHEN $8 THEN $9 ELSE years_of_service_max END\n        WHERE id = $1 AND org_id = $10\n        RETURNING id, org_id, leave_type_id,\n                  employee_type::TEXT AS \"employee_type!\",\n                  bargaining_unit::TEXT AS \"bargaining_unit?\",\n                  years_of_service_min,\n                  years_of_service_max,\n                  CAST(hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n                  CAST(max_balance_hours AS FLOAT8) AS \"max_balance_hours?\",\n                  effective_date, created_at\n        ",
+  "query": "\n        SELECT id, org_id, leave_type_id,\n               employee_type::TEXT AS \"employee_type!\",\n               bargaining_unit AS \"bargaining_unit?\",\n               years_of_service_min,\n               years_of_service_max,\n               CAST(hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n               CAST(max_balance_hours AS FLOAT8) AS \"max_balance_hours?\",\n               effective_date, created_at\n        FROM accrual_schedules\n        WHERE org_id = $1\n        ORDER BY leave_type_id, employee_type, years_of_service_min\n        ",
   "describe": {
     "columns": [
       {
@@ -61,15 +61,6 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Bool",
-        "Float8",
-        "Bool",
-        "Float8",
-        "Bool",
-        "Int4",
-        "Bool",
-        "Int4",
         "Uuid"
       ]
     },
@@ -78,7 +69,7 @@
       false,
       false,
       null,
-      null,
+      true,
       false,
       true,
       null,
@@ -87,5 +78,5 @@
       false
     ]
   },
-  "hash": "ee7f209cbd7d311d0d64e2cd9830d37a4898a32ea24ddf3271fc34ef86bab1c5"
+  "hash": "dc4fd4740fd8a9d1ee507cb8e6fc0828b800b4709c8b8f2dd11eca16916c1009"
 }

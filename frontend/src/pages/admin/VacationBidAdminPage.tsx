@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
+  useBargainingUnits,
   useVacationBidPeriods,
   useVacationBidWindows,
   useCreateVacationBidPeriod,
@@ -42,12 +43,6 @@ import { extractApiError } from '@/lib/format'
 
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + i - 1)
-
-const bargainingUnitOptions = [
-  { value: '__all__', label: '(All employees)' },
-  { value: 'VCCEA', label: 'VCCEA' },
-  { value: 'VCSG', label: 'VCSG' },
-] as const
 
 const createSchema = z.object({
   year: z.coerce.number().min(2000).max(2100),
@@ -72,6 +67,7 @@ export default function VacationBidAdminPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [processConfirm, setProcessConfirm] = useState<string | null>(null)
 
+  const { data: bargainingUnits = [] } = useBargainingUnits()
   const { data: periods, isLoading, isError } = useVacationBidPeriods(selectedYear)
   const { data: windows, isLoading: windowsLoading } = useVacationBidWindows(windowsPeriod?.id ?? '')
 
@@ -329,8 +325,9 @@ export default function VacationBidAdminPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {bargainingUnitOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem value="__all__">(All employees)</SelectItem>
+                  {bargainingUnits.map((bu) => (
+                    <SelectItem key={bu.code} value={bu.code}>{bu.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

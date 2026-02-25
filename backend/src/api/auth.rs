@@ -24,10 +24,7 @@ static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
 use crate::{
     auth::{create_token, AuthUser, RefreshTokenCookie, Role},
     error::{AppError, Result},
-    models::user::{
-        BargainingUnit, EmployeeStatus, EmployeeType, LoginRequest, LoginResponse, User,
-        UserProfile,
-    },
+    models::user::{EmployeeStatus, EmployeeType, LoginRequest, LoginResponse, User, UserProfile},
     AppState,
 };
 
@@ -48,7 +45,7 @@ pub async fn login(
                role AS "role: Role",
                classification_id,
                employee_type AS "employee_type: EmployeeType",
-               bargaining_unit AS "bargaining_unit: BargainingUnit",
+               bargaining_unit,
                hire_date, cto_designation,
                admin_training_supervisor_since,
                employee_status AS "employee_status: EmployeeStatus",
@@ -472,7 +469,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
                u.classification_id,
                c.name AS "classification_name?",
                u.employee_type AS "employee_type: EmployeeType",
-               u.bargaining_unit AS "bargaining_unit: BargainingUnit",
+               u.bargaining_unit,
                u.hire_date, u.cto_designation,
                u.admin_training_supervisor_since,
                u.employee_status AS "employee_status: EmployeeStatus",

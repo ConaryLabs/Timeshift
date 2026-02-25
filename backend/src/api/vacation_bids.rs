@@ -29,7 +29,7 @@ pub async fn list_periods(
         SELECT id, org_id, year, round, status,
                opens_at, closes_at, created_at,
                allowance_hours, min_block_hours,
-               bargaining_unit::TEXT AS bargaining_unit
+               bargaining_unit
         FROM vacation_bid_periods
         WHERE org_id = $1
           AND ($2::INT IS NULL OR year = $2)
@@ -61,11 +61,11 @@ pub async fn create_period(
         VacationBidPeriod,
         r#"
         INSERT INTO vacation_bid_periods (id, org_id, year, round, allowance_hours, min_block_hours, bargaining_unit)
-        VALUES ($1, $2, $3, $4, $5, $6, $7::TEXT::bargaining_unit_enum)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, org_id, year, round, status,
                   opens_at, closes_at, created_at,
                   allowance_hours, min_block_hours,
-                  bargaining_unit::TEXT AS bargaining_unit
+                  bargaining_unit
         "#,
         Uuid::new_v4(),
         auth.org_id,
@@ -123,7 +123,7 @@ pub async fn open_bidding(
 
     // Verify period exists and belongs to org, and fetch bargaining_unit
     let period = sqlx::query!(
-        "SELECT id, bargaining_unit::TEXT AS \"bargaining_unit?\" FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
+        "SELECT id, bargaining_unit AS \"bargaining_unit?\" FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id,
     )
@@ -151,7 +151,7 @@ pub async fn open_bidding(
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
         WHERE u.org_id = $1
           AND u.is_active = true
-          AND ($2::TEXT IS NULL OR u.bargaining_unit::TEXT = $2)
+          AND ($2::TEXT IS NULL OR u.bargaining_unit = $2)
         ORDER BY sr.overall_seniority_date ASC NULLS LAST, u.last_name, u.first_name
         "#,
         auth.org_id,
@@ -241,7 +241,7 @@ pub async fn open_bidding(
         RETURNING id, org_id, year, round, status,
                   opens_at, closes_at, created_at,
                   allowance_hours, min_block_hours,
-                  bargaining_unit::TEXT AS bargaining_unit
+                  bargaining_unit
         "#,
         id,
         period_opens,
@@ -796,7 +796,7 @@ pub async fn process_bids(
         RETURNING id, org_id, year, round, status,
                   opens_at, closes_at, created_at,
                   allowance_hours, min_block_hours,
-                  bargaining_unit::TEXT AS bargaining_unit
+                  bargaining_unit
         "#,
         period_id,
     )

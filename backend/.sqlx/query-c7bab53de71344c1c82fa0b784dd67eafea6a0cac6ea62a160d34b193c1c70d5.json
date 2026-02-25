@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               u.hire_date,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               u.cto_designation, u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\",\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               u.is_active,\n               u.updated_at\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.org_id = $1 AND ($4 = false OR u.is_active = true)\n        ORDER BY u.last_name, u.first_name\n        LIMIT $2 OFFSET $3\n        ",
+  "query": "\n        SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n               password_hash,\n               role AS \"role: Role\",\n               classification_id,\n               employee_type AS \"employee_type: EmployeeType\",\n               bargaining_unit,\n               hire_date, cto_designation,\n               admin_training_supervisor_since,\n               employee_status AS \"employee_status: EmployeeStatus\",\n               is_active, leave_accrual_paused_at,\n               created_at, updated_at\n        FROM users\n        WHERE email = $1 AND is_active = true\n        ",
   "describe": {
     "columns": [
       {
@@ -40,6 +40,11 @@
       },
       {
         "ordinal": 7,
+        "name": "password_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
         "name": "role: Role",
         "type_info": {
           "Custom": {
@@ -55,14 +60,9 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "classification_id",
         "type_info": "Uuid"
-      },
-      {
-        "ordinal": 9,
-        "name": "classification_name?",
-        "type_info": "Text"
       },
       {
         "ordinal": 10,
@@ -83,19 +83,8 @@
       },
       {
         "ordinal": 11,
-        "name": "bargaining_unit: BargainingUnit",
-        "type_info": {
-          "Custom": {
-            "name": "bargaining_unit_enum",
-            "kind": {
-              "Enum": [
-                "vccea",
-                "vcsg",
-                "non_represented"
-              ]
-            }
-          }
-        }
+        "name": "bargaining_unit",
+        "type_info": "Text"
       },
       {
         "ordinal": 12,
@@ -104,31 +93,16 @@
       },
       {
         "ordinal": 13,
-        "name": "overall_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 14,
-        "name": "bargaining_unit_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 15,
-        "name": "classification_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 16,
         "name": "cto_designation",
         "type_info": "Bool"
       },
       {
-        "ordinal": 17,
+        "ordinal": 14,
         "name": "admin_training_supervisor_since",
         "type_info": "Date"
       },
       {
-        "ordinal": 18,
+        "ordinal": 15,
         "name": "employee_status: EmployeeStatus",
         "type_info": {
           "Custom": {
@@ -146,32 +120,29 @@
         }
       },
       {
-        "ordinal": 19,
-        "name": "accrual_paused_since?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 20,
-        "name": "leave_accrual_paused_at?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 21,
+        "ordinal": 16,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 22,
+        "ordinal": 17,
+        "name": "leave_accrual_paused_at",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Int8",
-        "Int8",
-        "Bool"
+        "Text"
       ]
     },
     "nullable": [
@@ -183,22 +154,19 @@
       false,
       true,
       false,
-      true,
-      false,
-      false,
       false,
       true,
-      true,
-      true,
-      true,
+      false,
       false,
       true,
       false,
       true,
+      false,
+      false,
       true,
       false,
       false
     ]
   },
-  "hash": "684e8769aeadf8f29d3fa2c90d65447aa18ee8d8683f799d864cf34e4861a9ca"
+  "hash": "c7bab53de71344c1c82fa0b784dd67eafea6a0cac6ea62a160d34b193c1c70d5"
 }

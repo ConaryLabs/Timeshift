@@ -29,6 +29,7 @@ import { dutyPositionsApi } from '@/api/dutyPositions'
 import { specialAssignmentsApi, type SpecialAssignmentListParams } from '@/api/specialAssignments'
 import { savedFiltersApi } from '@/api/savedFilters'
 import { shiftPatternsApi } from '@/api/shiftPatterns'
+import { bargainingUnitsApi } from '@/api/bargainingUnits'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -36,6 +37,9 @@ import { useAuthStore } from '@/store/auth'
 export const queryKeys = {
   auth: {
     me: ['auth', 'me'] as const,
+  },
+  bargainingUnits: {
+    all: ['bargainingUnits'] as const,
   },
   classifications: {
     all: ['classifications'] as const,
@@ -208,6 +212,15 @@ export function useMe() {
     },
     staleTime: 60 * 1000,
     retry: false,
+  })
+}
+
+// -- Bargaining Units --
+
+export function useBargainingUnits() {
+  return useQuery({
+    queryKey: queryKeys.bargainingUnits.all,
+    queryFn: bargainingUnitsApi.list,
   })
 }
 

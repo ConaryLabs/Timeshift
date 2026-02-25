@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, bargaining_unit::TEXT AS \"bargaining_unit?\" FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
+  "query": "SELECT id, bargaining_unit AS \"bargaining_unit?\" FROM vacation_bid_periods WHERE id = $1 AND org_id = $2",
   "describe": {
     "columns": [
       {
@@ -22,8 +22,8 @@
     },
     "nullable": [
       false,
-      null
+      true
     ]
   },
-  "hash": "c548805dcb06bc06090aa406218c39aaa0e765cd8ac6913525604c782741eaa8"
+  "hash": "0b9727e91144efb65f7c82bfb3f00e25807f6d3e4d1c011e769264451d34cf3e"
 }

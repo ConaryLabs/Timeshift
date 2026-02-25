@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n               password_hash,\n               role AS \"role: Role\",\n               classification_id,\n               employee_type AS \"employee_type: EmployeeType\",\n               bargaining_unit AS \"bargaining_unit: BargainingUnit\",\n               hire_date, cto_designation,\n               admin_training_supervisor_since,\n               employee_status AS \"employee_status: EmployeeStatus\",\n               is_active, leave_accrual_paused_at,\n               created_at, updated_at\n        FROM users\n        WHERE email = $1 AND is_active = true\n        ",
+  "query": "\n        INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, phone,\n                           password_hash, role, classification_id, employee_type,\n                           bargaining_unit, hire_date,\n                           cto_designation, admin_training_supervisor_since)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)\n        RETURNING id, org_id, employee_id, first_name, last_name, email, phone,\n                  role AS \"role: Role\",\n                  classification_id,\n                  employee_type AS \"employee_type: EmployeeType\",\n                  bargaining_unit,\n                  hire_date,\n                  cto_designation, admin_training_supervisor_since,\n                  employee_status AS \"employee_status: EmployeeStatus\",\n                  is_active,\n                  updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -40,11 +40,6 @@
       },
       {
         "ordinal": 7,
-        "name": "password_hash",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 8,
         "name": "role: Role",
         "type_info": {
           "Custom": {
@@ -60,12 +55,12 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 8,
         "name": "classification_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 10,
+        "ordinal": 9,
         "name": "employee_type: EmployeeType",
         "type_info": {
           "Custom": {
@@ -82,38 +77,27 @@
         }
       },
       {
-        "ordinal": 11,
-        "name": "bargaining_unit: BargainingUnit",
-        "type_info": {
-          "Custom": {
-            "name": "bargaining_unit_enum",
-            "kind": {
-              "Enum": [
-                "vccea",
-                "vcsg",
-                "non_represented"
-              ]
-            }
-          }
-        }
+        "ordinal": 10,
+        "name": "bargaining_unit",
+        "type_info": "Text"
       },
       {
-        "ordinal": 12,
+        "ordinal": 11,
         "name": "hire_date",
         "type_info": "Date"
       },
       {
-        "ordinal": 13,
+        "ordinal": 12,
         "name": "cto_designation",
         "type_info": "Bool"
       },
       {
-        "ordinal": 14,
+        "ordinal": 13,
         "name": "admin_training_supervisor_since",
         "type_info": "Date"
       },
       {
-        "ordinal": 15,
+        "ordinal": 14,
         "name": "employee_status: EmployeeStatus",
         "type_info": {
           "Custom": {
@@ -131,29 +115,56 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 15,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 17,
-        "name": "leave_accrual_paused_at",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 18,
-        "name": "created_at",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 19,
+        "ordinal": 16,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "app_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "supervisor",
+                "employee"
+              ]
+            }
+          }
+        },
+        "Uuid",
+        {
+          "Custom": {
+            "name": "employee_type_enum",
+            "kind": {
+              "Enum": [
+                "regular_full_time",
+                "job_share",
+                "medical_part_time",
+                "temp_part_time"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Date",
+        "Bool",
+        "Date"
       ]
     },
     "nullable": [
@@ -165,7 +176,6 @@
       false,
       true,
       false,
-      false,
       true,
       false,
       false,
@@ -173,11 +183,9 @@
       false,
       true,
       false,
-      false,
-      true,
       false,
       false
     ]
   },
-  "hash": "3ed16ba13e2395971b85b878e23dd10ce4386fb4d51cc5414f616d7b8a2fc53d"
+  "hash": "3442b9057feebb6b8b5b4315cb77efbf1e63d45e5b6edb1cc1884715b981780c"
 }

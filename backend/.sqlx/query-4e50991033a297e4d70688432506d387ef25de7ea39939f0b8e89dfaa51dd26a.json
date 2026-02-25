@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.first_name, u.last_name,\n               (u.employee_type::TEXT = 'job_share') AS \"is_job_share!\"\n        FROM users u\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.org_id = $1\n          AND u.is_active = true\n          AND ($2::TEXT IS NULL OR u.bargaining_unit::TEXT = $2)\n        ORDER BY\n          (u.employee_type::TEXT = 'job_share') ASC,\n          sr.overall_seniority_date ASC NULLS LAST,\n          u.last_name, u.first_name\n        ",
+  "query": "\n        SELECT u.id, u.first_name, u.last_name,\n               (u.employee_type::TEXT = 'job_share') AS \"is_job_share!\"\n        FROM users u\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.org_id = $1\n          AND u.is_active = true\n          AND ($2::TEXT IS NULL OR u.bargaining_unit = $2)\n        ORDER BY\n          (u.employee_type::TEXT = 'job_share') ASC,\n          sr.overall_seniority_date ASC NULLS LAST,\n          u.last_name, u.first_name\n        ",
   "describe": {
     "columns": [
       {
@@ -37,5 +37,5 @@
       null
     ]
   },
-  "hash": "8e1739ed5c197db03d4b5c543817d6e46d85278421a295f33abf625de56fc6a5"
+  "hash": "4e50991033a297e4d70688432506d387ef25de7ea39939f0b8e89dfaa51dd26a"
 }

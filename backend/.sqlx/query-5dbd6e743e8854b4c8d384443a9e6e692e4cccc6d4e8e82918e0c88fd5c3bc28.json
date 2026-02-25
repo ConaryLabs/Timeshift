@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT users.id, users.bargaining_unit,\n               hire_date,\n               overall_seniority_date AS \"overall_seniority_date?\",\n               bu.longevity_eligible AS \"longevity_eligible!\",\n               bu.longevity_vacation_credit AS \"longevity_vacation_credit!\",\n               bu.longevity_tiers AS \"longevity_tiers?\"\n        FROM users\n        JOIN seniority_records sr ON sr.user_id = users.id\n        JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit\n        WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "bargaining_unit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "hire_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "longevity_eligible!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "longevity_vacation_credit!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "longevity_tiers?",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "5dbd6e743e8854b4c8d384443a9e6e692e4cccc6d4e8e82918e0c88fd5c3bc28"
+}

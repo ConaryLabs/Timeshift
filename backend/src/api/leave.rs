@@ -1158,13 +1158,17 @@ pub async fn carryover_enforcement(
 
     let mut tx = pool.begin().await?;
 
-    // Fetch all active users with their bargaining units
+    // Fetch all active users whose bargaining unit has a carryover cap configured
     let users = sqlx::query!(
         r#"
-        SELECT id, bargaining_unit::TEXT AS "bargaining_unit!"
-        FROM users
-        WHERE org_id = $1 AND is_active = true
-          AND bargaining_unit IN ('vccea', 'vcsg')
+        SELECT u.id, u.bargaining_unit,
+               bu.carryover_cap_hours AS "cap?",
+               bu.carryover_categories AS "categories!"
+        FROM users u
+        JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
+        WHERE u.org_id = $1 AND u.is_active = true
+          AND bu.carryover_cap_hours IS NOT NULL
+          AND bu.is_active = true
         "#,
         auth.org_id,
     )
@@ -1177,11 +1181,11 @@ pub async fn carryover_enforcement(
 
     for user in &users {
         users_processed += 1;
-        let (cap, pool_categories): (f64, &[&str]) = match user.bargaining_unit.as_str() {
-            "vccea" => (240.0, &["vacation", "holiday"]),
-            "vcsg" => (260.0, &["vacation"]),
-            _ => continue,
+        let cap = match user.cap {
+            Some(c) => c,
+            None => continue,
         };
+        let pool_categories: Vec<&str> = user.categories.iter().map(|s| s.as_str()).collect();
 
         // Sum current balances across all leave types in the applicable pools
         let balance_rows = sqlx::query!(
@@ -1197,7 +1201,7 @@ pub async fn carryover_enforcement(
             "#,
             user.id,
             auth.org_id,
-            pool_categories as &[&str],
+            &pool_categories as &[&str],
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -1286,7 +1290,8 @@ pub struct LongevityResult {
 }
 
 /// POST /api/leave/longevity-credit
-/// Admin-only: credit 24 vacation hours on VCSG employee anniversary.
+/// Admin-only: credit vacation hours on eligible employee anniversary.
+/// Eligibility and tiers are configured per bargaining unit.
 /// Returns longevity bonus % for payroll processing.
 pub async fn longevity_credit(
     State(pool): State<PgPool>,
@@ -1297,14 +1302,18 @@ pub async fn longevity_credit(
         return Err(AppError::Forbidden);
     }
 
-    // Fetch user — must be VCSG and in caller's org
+    // Fetch user and their BU config
     let user = sqlx::query!(
         r#"
-        SELECT users.id, bargaining_unit::TEXT AS "bargaining_unit!",
+        SELECT users.id, users.bargaining_unit,
                hire_date,
-               overall_seniority_date AS "overall_seniority_date?"
+               overall_seniority_date AS "overall_seniority_date?",
+               bu.longevity_eligible AS "longevity_eligible!",
+               bu.longevity_vacation_credit AS "longevity_vacation_credit!",
+               bu.longevity_tiers AS "longevity_tiers?"
         FROM users
         JOIN seniority_records sr ON sr.user_id = users.id
+        JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit
         WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true
         "#,
         body.user_id,
@@ -1314,9 +1323,9 @@ pub async fn longevity_credit(
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-    if user.bargaining_unit != "vcsg" {
+    if !user.longevity_eligible {
         return Err(AppError::BadRequest(
-            "Longevity credit applies to VCSG employees only".into(),
+            "Longevity credit is not configured for this employee's bargaining unit".into(),
         ));
     }
 
@@ -1335,16 +1344,26 @@ pub async fn longevity_credit(
         years_of_service -= 1;
     }
 
-    // VCSG longevity tiers
-    let longevity_percent = match years_of_service {
-        0..=4 => 1.55,
-        5..=9 => 2.05,
-        10..=14 => 2.55,
-        15..=19 => 3.05,
-        _ => 3.55,
+    // Look up longevity percent from configured tiers (JSONB array)
+    let longevity_percent = if let Some(tiers) = &user.longevity_tiers {
+        let tiers: Vec<serde_json::Value> =
+            serde_json::from_value(tiers.clone()).unwrap_or_default();
+        tiers
+            .iter()
+            .find(|t| {
+                let min = t["min_years"].as_i64().unwrap_or(0) as i32;
+                let max = t["max_years"].as_i64().unwrap_or(99) as i32;
+                years_of_service >= min && years_of_service <= max
+            })
+            .and_then(|t| t["percent"].as_f64())
+            .unwrap_or(0.0)
+    } else {
+        0.0
     };
 
-    // Credit 24 vacation hours — find the first active vacation-pool leave type
+    let vacation_credit = user.longevity_vacation_credit;
+
+    // Credit vacation hours — find the first active vacation-pool leave type
     let vacation_type_id = sqlx::query_scalar!(
         r#"
         SELECT id FROM leave_types
@@ -1356,8 +1375,6 @@ pub async fn longevity_credit(
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("No vacation leave type configured".into()))?;
-
-    const VACATION_CREDIT: f64 = 24.0;
 
     let mut tx = pool.begin().await?;
 
@@ -1372,9 +1389,9 @@ pub async fn longevity_credit(
         auth.org_id,
         body.user_id,
         vacation_type_id,
-        VACATION_CREDIT,
+        vacation_credit,
         format!(
-            "VCSG anniversary credit: {} yrs of service; longevity {}%",
+            "Anniversary credit: {} yrs of service; longevity {}%",
             years_of_service, longevity_percent
         ),
         auth.id,
@@ -1396,7 +1413,7 @@ pub async fn longevity_credit(
         auth.org_id,
         body.user_id,
         vacation_type_id,
-        VACATION_CREDIT,
+        vacation_credit,
         today,
     )
     .execute(&mut *tx)
@@ -1407,7 +1424,7 @@ pub async fn longevity_credit(
     Ok(Json(LongevityResult {
         user_id: body.user_id,
         years_of_service,
-        vacation_hours_credited: VACATION_CREDIT,
+        vacation_hours_credited: vacation_credit,
         longevity_bonus_percent: longevity_percent,
     }))
 }

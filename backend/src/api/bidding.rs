@@ -49,7 +49,7 @@ pub async fn open_bidding(
 
     // M3: Fetch bargaining_unit from schedule period for BU-specific filtering
     let period_bu = sqlx::query_scalar!(
-        "SELECT bargaining_unit::TEXT AS \"bargaining_unit?\" FROM schedule_periods WHERE id = $1",
+        "SELECT bargaining_unit AS \"bargaining_unit?\" FROM schedule_periods WHERE id = $1",
         period_id
     )
     .fetch_one(&pool)
@@ -64,7 +64,7 @@ pub async fn open_bidding(
         LEFT JOIN seniority_records sr ON sr.user_id = u.id
         WHERE u.org_id = $1
           AND u.is_active = true
-          AND ($2::TEXT IS NULL OR u.bargaining_unit::TEXT = $2)
+          AND ($2::TEXT IS NULL OR u.bargaining_unit = $2)
         ORDER BY
           (u.employee_type::TEXT = 'job_share') ASC,
           sr.overall_seniority_date ASC NULLS LAST,

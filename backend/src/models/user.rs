@@ -65,19 +65,9 @@ pub enum EmployeeType {
     TempPartTime,
 }
 
-/// Which bargaining unit an employee belongs to.
-/// Drives contract-specific rules for OT callout order, leave caps, accrual rates, etc.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "bargaining_unit_enum", rename_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
-pub enum BargainingUnit {
-    /// VCCEA (Valley Communications Center Employees' Association) — COI / COII employees
-    Vccea,
-    /// VCSG (Valley Communications Supervisory Guild) — Supervisor I / Admin Sup / Training Sup
-    Vcsg,
-    /// Non-represented: management, temp/part-time, and other non-union staff
-    NonRepresented,
-}
+/// Bargaining unit is now a per-org configurable TEXT field (no longer a PG enum).
+/// The `bargaining_units` table stores org-specific codes, caps, and rules.
+pub type BargainingUnit = String;
 
 /// Subset returned to the client (no password hash).
 /// Seniority dates come from the seniority_records table (one row per user).

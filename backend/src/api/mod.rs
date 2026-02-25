@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod bargaining_units;
 pub mod bidding;
 pub mod callout;
 pub mod classifications;
@@ -58,6 +59,8 @@ pub fn router(state: AppState) -> Router {
             "/api/organization",
             get(organizations::get_own).patch(organizations::update_own),
         )
+        // Bargaining units
+        .route("/api/bargaining-units", get(bargaining_units::list))
         // Classifications
         .route(
             "/api/classifications",
