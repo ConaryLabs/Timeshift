@@ -108,7 +108,10 @@ pub async fn ot_summary(
         return Err(AppError::Forbidden);
     }
 
-    let current_year = crate::services::timezone::org_year(&auth.org_timezone);
+    let fy_start =
+        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+            .await as u32;
+    let current_year = crate::services::timezone::current_fiscal_year(&auth.org_timezone, fy_start);
     let fiscal_year = q.fiscal_year.unwrap_or(current_year);
 
     let rows = sqlx::query!(

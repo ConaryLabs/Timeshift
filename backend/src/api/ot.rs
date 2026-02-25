@@ -35,7 +35,11 @@ pub async fn get_queue(
 
     let fiscal_year = params
         .fiscal_year
-        .unwrap_or_else(|| crate::services::timezone::org_year(&auth.org_timezone));
+        .unwrap_or(crate::services::timezone::current_fiscal_year(
+            &auth.org_timezone,
+            crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+                .await as u32,
+        ));
 
     let rows = sqlx::query!(
         r#"
@@ -97,7 +101,11 @@ pub async fn set_queue_position(
 
     let fiscal_year = req
         .fiscal_year
-        .unwrap_or_else(|| crate::services::timezone::org_year(&auth.org_timezone));
+        .unwrap_or(crate::services::timezone::current_fiscal_year(
+            &auth.org_timezone,
+            crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+                .await as u32,
+        ));
 
     sqlx::query!(
         r#"
@@ -130,7 +138,11 @@ pub async fn get_hours(
 ) -> Result<Json<Vec<OtHoursView>>> {
     let fiscal_year = params
         .fiscal_year
-        .unwrap_or_else(|| crate::services::timezone::org_year(&auth.org_timezone));
+        .unwrap_or(crate::services::timezone::current_fiscal_year(
+            &auth.org_timezone,
+            crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+                .await as u32,
+        ));
 
     // Employees can only see their own hours
     if !auth.role.can_manage_schedule() {

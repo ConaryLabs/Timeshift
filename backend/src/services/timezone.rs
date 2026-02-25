@@ -30,6 +30,27 @@ pub fn org_year(tz_str: &str) -> i32 {
     chrono::Utc::now().with_timezone(&tz).year()
 }
 
+/// Compute fiscal year for a given date based on the org's fiscal year start month.
+/// If fiscal year starts in month M (e.g. 7 = July), then dates before July belong
+/// to the previous calendar year's fiscal year.
+/// Example: start_month=7, date=2026-03-15 → FY 2025. date=2026-09-01 → FY 2026.
+pub fn fiscal_year_for_date(date: time::Date, start_month: u32) -> i32 {
+    if start_month <= 1 {
+        return date.year();
+    }
+    let month = date.month() as u32;
+    if month >= start_month {
+        date.year()
+    } else {
+        date.year() - 1
+    }
+}
+
+/// Get the current fiscal year in the org's timezone, given a fiscal year start month.
+pub fn current_fiscal_year(tz_str: &str, start_month: u32) -> i32 {
+    fiscal_year_for_date(org_today(tz_str), start_month)
+}
+
 /// Convert a local wall-clock date + time in the org's timezone to a UTC OffsetDateTime.
 ///
 /// This is the correct replacement for `.assume_utc()` — shift times like "06:00"

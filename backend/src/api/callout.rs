@@ -201,7 +201,11 @@ pub async fn callout_list(
 
     // Use shift date's calendar year so the displayed OT hours match what
     // record_attempt will record (consistent with fiscal_year in that handler).
-    let fiscal_year: i32 = event.shift_date.year();
+    let fy_start =
+        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+            .await as u32;
+    let fiscal_year: i32 =
+        crate::services::timezone::fiscal_year_for_date(event.shift_date, fy_start);
 
     // Precompute shift time bounds as minutes-from-midnight for partial-day leave overlap check.
     // shift_end_mins may exceed 1440 for overnight shifts (e.g., 22:00-06:00 → 1320..1800).
@@ -496,8 +500,12 @@ pub async fn record_attempt(
         return Err(AppError::NotFound("User not found".into()));
     }
 
-    // Use shift date's calendar year as the OT fiscal year.
-    let fiscal_year: i32 = ctx.shift_date.year();
+    // Use shift date's fiscal year (org-configurable start month).
+    let fy_start =
+        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+            .await as u32;
+    let fiscal_year: i32 =
+        crate::services::timezone::fiscal_year_for_date(ctx.shift_date, fy_start);
 
     // 3. Snapshot current OT hours_worked at contact time (0 if no row yet).
     let ot_snapshot: f64 = sqlx::query_scalar!(
@@ -756,13 +764,20 @@ pub async fn cancel_ot_assignment(
             &auth.org_timezone,
         );
         let now = time::OffsetDateTime::now_utc();
+        let cancel_window = crate::services::org_settings::get_i64(
+            &pool,
+            auth.org_id,
+            "voluntary_ot_cancel_hours",
+            24,
+        )
+        .await;
         match assignment.ot_type.as_deref() {
             Some("voluntary") | Some("elective") => {
                 let hours_until = (shift_start - now).whole_hours();
-                if hours_until < 24 {
-                    return Err(AppError::Conflict(
-                        "Cannot cancel voluntary OT within 24 hours of shift start".into(),
-                    ));
+                if hours_until < cancel_window {
+                    return Err(AppError::Conflict(format!(
+                        "Cannot cancel voluntary OT within {cancel_window} hours of shift start"
+                    )));
                 }
             }
             Some("mandatory") => {
@@ -791,7 +806,11 @@ pub async fn cancel_ot_assignment(
 
     // 6b. Reverse OT hours_worked for the cancelled assignment.
     let shift_hours = event.duration_minutes as f64 / 60.0;
-    let fiscal_year: i32 = event.shift_date.year();
+    let fy_start =
+        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+            .await as u32;
+    let fiscal_year: i32 =
+        crate::services::timezone::fiscal_year_for_date(event.shift_date, fy_start);
 
     sqlx::query!(
         r#"
@@ -974,16 +993,22 @@ pub async fn create_bump_request(
             "Cannot request a bump after the shift has started".into(),
         ));
     }
-    // VCCEA Article 15.9: bump requests must be submitted at least 24 hours before shift start
+    // Bump request deadline: configurable per org (default 24 hours per VCCEA 15.9)
+    let bump_deadline =
+        crate::services::org_settings::get_i64(&pool, auth.org_id, "bump_deadline_hours", 24).await;
     let hours_until = (shift_start - now).whole_hours();
-    if hours_until < 24 {
-        return Err(AppError::BadRequest(
-            "Bump requests must be submitted at least 24 hours before shift start".into(),
-        ));
+    if hours_until < bump_deadline {
+        return Err(AppError::BadRequest(format!(
+            "Bump requests must be submitted at least {bump_deadline} hours before shift start"
+        )));
     }
 
     // 5. Priority check - requester must outrank displaced on the OT list
-    let fiscal_year: i32 = event.shift_date.year();
+    let fy_start =
+        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+            .await as u32;
+    let fiscal_year: i32 =
+        crate::services::timezone::fiscal_year_for_date(event.shift_date, fy_start);
 
     let priority = sqlx::query!(
         r#"

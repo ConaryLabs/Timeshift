@@ -85,7 +85,7 @@ pub async fn create(
 
     // Verify leave type belongs to org and is a sick pool type
     let lt = sqlx::query!(
-        "SELECT draws_from FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true",
+        r#"SELECT category AS "category?" FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true"#,
         body.leave_type_id,
         auth.org_id,
     )
@@ -93,7 +93,7 @@ pub async fn create(
     .await?
     .ok_or_else(|| AppError::NotFound("Leave type not found".into()))?;
 
-    if lt.draws_from.as_deref() != Some("sick") {
+    if lt.category.as_deref() != Some("sick") {
         return Err(AppError::BadRequest(
             "Sick leave donation requires a sick-pool leave type".into(),
         ));
@@ -162,7 +162,7 @@ pub async fn create(
             FROM leave_balances lb
             JOIN leave_types lt ON lt.id = lb.leave_type_id
             WHERE lb.user_id = $1 AND lb.org_id = $2
-              AND lt.draws_from = 'sick'
+              AND lt.category = 'sick'
             FOR UPDATE OF lb
         ) locked
         "#,
@@ -275,7 +275,7 @@ pub async fn review(
                 FROM leave_balances lb
                 JOIN leave_types lt ON lt.id = lb.leave_type_id
                 WHERE lb.user_id = $1 AND lb.org_id = $2
-                  AND lt.draws_from = 'sick'
+                  AND lt.category = 'sick'
                 FOR UPDATE OF lb
             ) locked
             "#,

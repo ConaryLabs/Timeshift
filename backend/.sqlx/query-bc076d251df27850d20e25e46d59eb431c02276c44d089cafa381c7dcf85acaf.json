@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT code, name FROM leave_types WHERE id = $1",
+  "query": "SELECT code, name, category AS \"category?\" FROM leave_types WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -12,6 +12,11 @@
         "ordinal": 1,
         "name": "name",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "category?",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -21,8 +26,9 @@
     },
     "nullable": [
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "d609fce12046d2c14ddd840a51ae8c8ef1564c91a4057548c31b743792ff8159"
+  "hash": "bc076d251df27850d20e25e46d59eb431c02276c44d089cafa381c7dcf85acaf"
 }

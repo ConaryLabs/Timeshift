@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT end_date FROM schedule_periods\n            WHERE org_id = $1\n              AND start_date <= $2 AND end_date >= $2\n              AND start_date <= $3 AND end_date >= $3\n            ORDER BY start_date DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "end_date",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3054fc82aa74a6da72a2e458143ce1a60daf4d97ecc2fbded2435a98e470821c"
+}

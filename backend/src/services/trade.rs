@@ -8,6 +8,8 @@ use crate::error::Result;
 pub struct TradeForReview {
     pub id: Uuid,
     pub org_timezone: String,
+    /// Trade approval cutoff in minutes before shift start.
+    pub approval_cutoff_minutes: i64,
     pub requester_id: Uuid,
     pub partner_id: Uuid,
     pub requester_assignment_id: Uuid,
@@ -69,7 +71,7 @@ pub async fn execute_trade_review(
     ] {
         if let (Some(d), Some(t)) = (date_opt, time_opt) {
             let shift_start = crate::services::timezone::local_to_utc(d, t, &trade.org_timezone);
-            if (shift_start - now_utc).whole_minutes() < 60 {
+            if (shift_start - now_utc).whole_minutes() < trade.approval_cutoff_minutes {
                 return Ok(TradeReviewOutcome::TimingBlocked);
             }
         }

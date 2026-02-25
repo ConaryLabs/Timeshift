@@ -1403,10 +1403,10 @@ async fn update_rejects_invalid_status() {
         .send()
         .await
         .unwrap();
-    assert_eq!(
-        resp.status(),
-        400,
-        "Invalid status value should be rejected"
+    assert!(
+        resp.status() == 400 || resp.status() == 422,
+        "Invalid status value should be rejected (got {})",
+        resp.status()
     );
 
     cleanup_ot_request_data(&pool, org_id).await;

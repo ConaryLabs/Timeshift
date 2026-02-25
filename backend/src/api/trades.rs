@@ -171,31 +171,41 @@ pub async fn create(
         ));
     }
 
-    // VCCEA Article 14.3: both shifts must fall within the same schedule period
-    let deadline = sqlx::query_scalar!(
-        r#"
-        SELECT end_date FROM schedule_periods
-        WHERE org_id = $1
-          AND start_date <= $2 AND end_date >= $2
-          AND start_date <= $3 AND end_date >= $3
-        ORDER BY start_date DESC
-        LIMIT 1
-        "#,
+    // Configurable: require both shifts within the same schedule period (VCCEA 14.3)
+    let require_same_period = crate::services::org_settings::get_bool(
+        &pool,
         auth.org_id,
-        req_assignment.date,
-        partner_assignment.date,
+        "trade_require_same_period",
+        true,
     )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let deadline_at = deadline.map(|d| {
-        // Set deadline to end of the schedule period day (23:59:59 in org timezone)
-        crate::services::timezone::local_to_utc(
-            d,
-            time::Time::from_hms(23, 59, 59).unwrap(),
-            &auth.org_timezone,
+    .await;
+    let deadline_at = if require_same_period {
+        let deadline = sqlx::query_scalar!(
+            r#"
+            SELECT end_date FROM schedule_periods
+            WHERE org_id = $1
+              AND start_date <= $2 AND end_date >= $2
+              AND start_date <= $3 AND end_date >= $3
+            ORDER BY start_date DESC
+            LIMIT 1
+            "#,
+            auth.org_id,
+            req_assignment.date,
+            partner_assignment.date,
         )
-    });
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        deadline.map(|d| {
+            crate::services::timezone::local_to_utc(
+                d,
+                time::Time::from_hms(23, 59, 59).unwrap(),
+                &auth.org_timezone,
+            )
+        })
+    } else {
+        None
+    };
 
     let id = Uuid::new_v4();
     sqlx::query!(
@@ -511,9 +521,17 @@ pub async fn review(
         }
     }
 
+    let cutoff = crate::services::org_settings::get_i64(
+        &pool,
+        auth.org_id,
+        "trade_approval_cutoff_minutes",
+        60,
+    )
+    .await;
     let trade = TradeForReview {
         id: r.id,
         org_timezone: auth.org_timezone.clone(),
+        approval_cutoff_minutes: cutoff,
         requester_id: r.requester_id,
         partner_id: r.partner_id,
         requester_assignment_id: r.requester_assignment_id,
@@ -635,6 +653,13 @@ pub async fn bulk_review(
         ));
     }
 
+    let cutoff = crate::services::org_settings::get_i64(
+        &pool,
+        auth.org_id,
+        "trade_approval_cutoff_minutes",
+        60,
+    )
+    .await;
     let mut tx = pool.begin().await?;
     let mut reviewed = 0u64;
     let mut resolved_trades: Vec<(Uuid, Uuid, String)> = Vec::new(); // (requester_id, partner_id, final_status)
@@ -664,6 +689,7 @@ pub async fn bulk_review(
         let trade = TradeForReview {
             id: trade_row.id,
             org_timezone: auth.org_timezone.clone(),
+            approval_cutoff_minutes: cutoff,
             requester_id: trade_row.requester_id,
             partner_id: trade_row.partner_id,
             requester_assignment_id: trade_row.requester_assignment_id,
