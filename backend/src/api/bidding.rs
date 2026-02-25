@@ -14,6 +14,7 @@ use crate::{
         BidWindowRow, OpenBiddingRequest, SubmitBidRequest,
     },
     org_guard,
+    services::bidding::advance_expired_windows,
 };
 
 /// POST /api/schedule/periods/:id/open-bidding
@@ -122,7 +123,8 @@ pub async fn open_bidding(
                       seniority_rank, opens_at, closes_at, submitted_at,
                       unlocked_at, approved_at,
                       approved_by AS "approved_by?",
-                      $10::bool AS "is_job_share!"
+                      $10::bool AS "is_job_share!",
+                      auto_advanced_at
             "#,
             Uuid::new_v4(),
             period_id,
@@ -152,6 +154,7 @@ pub async fn open_bidding(
             approved_at: row.approved_at,
             approved_by: row.approved_by,
             is_job_share: row.is_job_share,
+            auto_advanced_at: row.auto_advanced_at,
         });
     }
 
@@ -187,6 +190,9 @@ pub async fn list_bid_windows(
 ) -> Result<Json<Vec<BidWindow>>> {
     org_guard::verify_period(&pool, period_id, auth.org_id).await?;
 
+    // Auto-advance any expired windows before returning results
+    advance_expired_windows(&pool, period_id).await?;
+
     let rows = if auth.role.can_manage_schedule() {
         sqlx::query_as!(
             BidWindowRow,
@@ -196,7 +202,8 @@ pub async fn list_bid_windows(
                    bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
                    bw.unlocked_at, bw.approved_at,
                    bw.approved_by AS "approved_by?",
-                   (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
+                   (u.employee_type::TEXT = 'job_share') AS "is_job_share!",
+                   bw.auto_advanced_at
             FROM bid_windows bw
             JOIN users u ON u.id = bw.user_id
             WHERE bw.period_id = $1
@@ -215,7 +222,8 @@ pub async fn list_bid_windows(
                    bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
                    bw.unlocked_at, bw.approved_at,
                    bw.approved_by AS "approved_by?",
-                   (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
+                   (u.employee_type::TEXT = 'job_share') AS "is_job_share!",
+                   bw.auto_advanced_at
             FROM bid_windows bw
             JOIN users u ON u.id = bw.user_id
             WHERE bw.period_id = $1 AND bw.user_id = $2
@@ -244,6 +252,7 @@ pub async fn list_bid_windows(
             approved_at: r.approved_at,
             approved_by: r.approved_by,
             is_job_share: r.is_job_share,
+            auto_advanced_at: r.auto_advanced_at,
         })
         .collect();
 
@@ -266,7 +275,8 @@ pub async fn get_bid_window(
                bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
                bw.unlocked_at, bw.approved_at,
                bw.approved_by AS "approved_by?",
-               (u.employee_type::TEXT = 'job_share') AS "is_job_share!"
+               (u.employee_type::TEXT = 'job_share') AS "is_job_share!",
+               bw.auto_advanced_at
         FROM bid_windows bw
         JOIN users u ON u.id = bw.user_id
         JOIN schedule_periods sp ON sp.id = bw.period_id
@@ -284,6 +294,29 @@ pub async fn get_bid_window(
         return Err(AppError::Forbidden);
     }
 
+    // Auto-advance any expired windows before returning detail
+    advance_expired_windows(&pool, window_row.period_id).await?;
+
+    // Re-fetch in case this window was just auto-advanced
+    let window_row = sqlx::query_as!(
+        BidWindowRow,
+        r#"
+        SELECT bw.id, bw.period_id, bw.user_id,
+               u.first_name, u.last_name,
+               bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,
+               bw.unlocked_at, bw.approved_at,
+               bw.approved_by AS "approved_by?",
+               (u.employee_type::TEXT = 'job_share') AS "is_job_share!",
+               bw.auto_advanced_at
+        FROM bid_windows bw
+        JOIN users u ON u.id = bw.user_id
+        WHERE bw.id = $1
+        "#,
+        window_id,
+    )
+    .fetch_one(&pool)
+    .await?;
+
     let window = BidWindow {
         id: window_row.id,
         period_id: window_row.period_id,
@@ -298,6 +331,7 @@ pub async fn get_bid_window(
         approved_at: window_row.approved_at,
         approved_by: window_row.approved_by,
         is_job_share: window_row.is_job_share,
+        auto_advanced_at: window_row.auto_advanced_at,
     };
 
     // Available slots: active slots for the org, marking ones already awarded

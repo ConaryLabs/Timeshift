@@ -1,0 +1,193 @@
+//! Leave balance operations: adjustments, deductions, refunds, FMLA segmentation.
+
+use uuid::Uuid;
+
+use crate::error::Result;
+
+/// Core balance adjustment: positive delta adds hours, negative deducts.
+/// Atomically records an accrual_transaction and upserts the leave_balances row.
+pub async fn adjust_leave_balance(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    org_id: Uuid,
+    user_id: Uuid,
+    leave_type_id: Uuid,
+    delta: f64,
+    reason: &str,
+    note: Option<&str>,
+    reference_id: Uuid,
+    actor_id: Uuid,
+) -> Result<()> {
+    sqlx::query!(
+        r#"
+        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, note, created_by)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, $7, $8, $9)
+        "#,
+        Uuid::new_v4(),
+        org_id,
+        user_id,
+        leave_type_id,
+        delta,
+        reason,
+        reference_id,
+        note,
+        actor_id,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
+        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
+            as_of_date = CURRENT_DATE,
+            updated_at = NOW()
+        "#,
+        Uuid::new_v4(),
+        org_id,
+        user_id,
+        leave_type_id,
+        delta,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+/// Deduct hours from leave balance when a leave request is approved.
+pub async fn deduct_leave_balance(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    org_id: Uuid,
+    user_id: Uuid,
+    leave_type_id: Uuid,
+    hours: f64,
+    leave_request_id: Uuid,
+    reviewer_id: Uuid,
+) -> Result<()> {
+    adjust_leave_balance(
+        tx,
+        org_id,
+        user_id,
+        leave_type_id,
+        -hours.abs(),
+        "usage",
+        None,
+        leave_request_id,
+        reviewer_id,
+    )
+    .await
+}
+
+/// Refund hours to leave balance when a previously approved leave request is cancelled.
+pub async fn refund_leave_balance(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    org_id: Uuid,
+    user_id: Uuid,
+    leave_type_id: Uuid,
+    hours: f64,
+    leave_request_id: Uuid,
+    canceller_id: Uuid,
+) -> Result<()> {
+    adjust_leave_balance(
+        tx,
+        org_id,
+        user_id,
+        leave_type_id,
+        hours.abs(),
+        "adjustment",
+        Some("Refund: approved leave cancelled"),
+        leave_request_id,
+        canceller_id,
+    )
+    .await
+}
+
+/// Auto-create FMLA priority segments inside an open transaction.
+/// Priority order: sick → comp → holiday → vacation → lwop.
+/// Draws on the user's existing balances; LWOP covers any remainder.
+pub async fn create_fmla_segments(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    leave_request_id: Uuid,
+    org_id: Uuid,
+    user_id: Uuid,
+    total_hours: f64,
+) -> Result<()> {
+    let fmla_pools = ["sick", "comp", "holiday", "vacation"];
+    let mut remaining = total_hours;
+    let mut sort_order = 0i32;
+
+    for pool_name in &fmla_pools {
+        if remaining <= 0.0 {
+            break;
+        }
+
+        let pool_types = sqlx::query!(
+            r#"
+            SELECT lt.id AS leave_type_id,
+                   CAST(COALESCE(lb.balance_hours, 0) AS FLOAT8) AS "balance_hours!"
+            FROM leave_types lt
+            LEFT JOIN leave_balances lb
+                   ON lb.leave_type_id = lt.id AND lb.user_id = $2 AND lb.org_id = $3
+            WHERE lt.org_id = $1 AND lt.draws_from = $4 AND lt.is_active = true
+              AND COALESCE(lb.balance_hours, 0) > 0
+            ORDER BY COALESCE(lb.balance_hours, 0) DESC
+            "#,
+            org_id,
+            user_id,
+            org_id,
+            pool_name,
+        )
+        .fetch_all(&mut **tx)
+        .await?;
+
+        for pt in pool_types {
+            if remaining <= 0.0 {
+                break;
+            }
+            let use_hours = remaining.min(pt.balance_hours);
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
+                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
+                "#,
+                leave_request_id,
+                pt.leave_type_id,
+                use_hours,
+                sort_order,
+            )
+            .execute(&mut **tx)
+            .await?;
+            remaining -= use_hours;
+            sort_order += 1;
+        }
+    }
+
+    // LWOP segment covers any hours not covered by existing balances
+    if remaining > 0.01 {
+        let lwop_id = sqlx::query_scalar!(
+            "SELECT id FROM leave_types WHERE org_id = $1 AND code = 'lwop' AND is_active = true LIMIT 1",
+            org_id,
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some(lwop_id) = lwop_id {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
+                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
+                "#,
+                leave_request_id,
+                lwop_id,
+                remaining,
+                sort_order,
+            )
+            .execute(&mut **tx)
+            .await?;
+        }
+    }
+
+    Ok(())
+}

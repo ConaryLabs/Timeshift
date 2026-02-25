@@ -9,10 +9,9 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::shift_pattern::{
-        CreateShiftPatternRequest, CycleDateQuery, CycleInfo, ShiftPattern,
-        UpdateShiftPatternRequest,
+        CreatePatternAssignmentRequest, CreateShiftPatternRequest, CycleDateQuery, CycleInfo,
+        ShiftPattern, ShiftPatternAssignment, ShiftPatternAssignmentRow, UpdateShiftPatternRequest,
     },
-    // org_guard not used (no verify_team available; inline check instead)
 };
 
 pub async fn list(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<Vec<ShiftPattern>>> {
@@ -20,7 +19,9 @@ pub async fn list(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<Vec
         ShiftPattern,
         r#"
         SELECT id, org_id, name, pattern_days, work_days, off_days,
-               anchor_date, team_id AS "team_id?", is_active, created_at, updated_at
+               anchor_date, team_id AS "team_id?", is_active,
+               work_days_in_cycle,
+               created_at, updated_at
         FROM shift_patterns
         WHERE org_id = $1 AND is_active = true
         ORDER BY name
@@ -52,17 +53,49 @@ pub async fn create(
         ));
     }
 
-    if req.work_days < 0 || req.off_days < 0 {
-        return Err(AppError::BadRequest(
-            "work_days and off_days must be non-negative".into(),
-        ));
-    }
-
-    if req.work_days + req.off_days != req.pattern_days {
-        return Err(AppError::BadRequest(
-            "work_days + off_days must equal pattern_days".into(),
-        ));
-    }
+    // Determine work_days and off_days based on whether complex or simple pattern
+    let (work_days, off_days) = if let Some(ref mask) = req.work_days_in_cycle {
+        // Complex pattern: validate mask values
+        if mask.is_empty() {
+            return Err(AppError::BadRequest(
+                "work_days_in_cycle must not be empty".into(),
+            ));
+        }
+        for &d in mask {
+            if d < 1 || d > req.pattern_days {
+                return Err(AppError::BadRequest(format!(
+                    "work_days_in_cycle values must be between 1 and {}",
+                    req.pattern_days
+                )));
+            }
+        }
+        // Derive work_days and off_days from the mask
+        let wd = mask.len() as i32;
+        (wd, req.pattern_days - wd)
+    } else {
+        // Simple pattern: require work_days and off_days
+        let wd = req.work_days.ok_or_else(|| {
+            AppError::BadRequest(
+                "work_days is required for simple patterns (or provide work_days_in_cycle)".into(),
+            )
+        })?;
+        let od = req.off_days.ok_or_else(|| {
+            AppError::BadRequest(
+                "off_days is required for simple patterns (or provide work_days_in_cycle)".into(),
+            )
+        })?;
+        if wd < 0 || od < 0 {
+            return Err(AppError::BadRequest(
+                "work_days and off_days must be non-negative".into(),
+            ));
+        }
+        if wd + od != req.pattern_days {
+            return Err(AppError::BadRequest(
+                "work_days + off_days must equal pattern_days".into(),
+            ));
+        }
+        (wd, od)
+    };
 
     if let Some(team_id) = req.team_id {
         let exists = sqlx::query_scalar!(
@@ -80,19 +113,23 @@ pub async fn create(
     let row = sqlx::query_as!(
         ShiftPattern,
         r#"
-        INSERT INTO shift_patterns (id, org_id, name, pattern_days, work_days, off_days, anchor_date, team_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO shift_patterns (id, org_id, name, pattern_days, work_days, off_days,
+                                    anchor_date, team_id, work_days_in_cycle)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, org_id, name, pattern_days, work_days, off_days,
-                  anchor_date, team_id AS "team_id?", is_active, created_at, updated_at
+                  anchor_date, team_id AS "team_id?", is_active,
+                  work_days_in_cycle,
+                  created_at, updated_at
         "#,
         Uuid::new_v4(),
         auth.org_id,
         req.name.trim(),
         req.pattern_days,
-        req.work_days,
-        req.off_days,
+        work_days,
+        off_days,
         req.anchor_date,
         req.team_id,
+        req.work_days_in_cycle.as_deref(),
     )
     .fetch_one(&pool)
     .await?;
@@ -110,8 +147,7 @@ pub async fn update(
         return Err(AppError::Forbidden);
     }
 
-    // Verify the pattern belongs to the org
-    let existing = sqlx::query!(
+    let _existing = sqlx::query!(
         "SELECT id FROM shift_patterns WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id,
@@ -120,7 +156,6 @@ pub async fn update(
     .await?
     .ok_or_else(|| AppError::NotFound("Shift pattern not found".into()))?;
 
-    // Validate team_id if provided
     if let Some(Some(team_id)) = req.team_id {
         let exists = sqlx::query_scalar!(
             "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
@@ -134,6 +169,9 @@ pub async fn update(
         }
     }
 
+    let wdic_provided = req.work_days_in_cycle.is_some();
+    let wdic_value = req.work_days_in_cycle.flatten();
+
     let row = sqlx::query_as!(
         ShiftPattern,
         r#"
@@ -145,12 +183,15 @@ pub async fn update(
             anchor_date = COALESCE($7, anchor_date),
             team_id = CASE WHEN $8 THEN $9 ELSE team_id END,
             is_active = COALESCE($10, is_active),
+            work_days_in_cycle = CASE WHEN $11 THEN $12 ELSE work_days_in_cycle END,
             updated_at = NOW()
         WHERE id = $1 AND org_id = $2
         RETURNING id, org_id, name, pattern_days, work_days, off_days,
-                  anchor_date, team_id AS "team_id?", is_active, created_at, updated_at
+                  anchor_date, team_id AS "team_id?", is_active,
+                  work_days_in_cycle,
+                  created_at, updated_at
         "#,
-        existing.id,
+        id,
         auth.org_id,
         req.name.as_deref(),
         req.pattern_days,
@@ -160,6 +201,8 @@ pub async fn update(
         req.team_id.is_some(),
         req.team_id.flatten(),
         req.is_active,
+        wdic_provided,
+        wdic_value.as_deref(),
     )
     .fetch_one(&pool)
     .await?;
@@ -205,7 +248,9 @@ pub async fn cycle(
         ShiftPattern,
         r#"
         SELECT id, org_id, name, pattern_days, work_days, off_days,
-               anchor_date, team_id AS "team_id?", is_active, created_at, updated_at
+               anchor_date, team_id AS "team_id?", is_active,
+               work_days_in_cycle,
+               created_at, updated_at
         FROM shift_patterns
         WHERE id = $1 AND org_id = $2
         "#,
@@ -218,7 +263,7 @@ pub async fn cycle(
 
     let days_diff = (q.date - pattern.anchor_date).whole_days();
     let cycle_day = (days_diff.rem_euclid(pattern.pattern_days as i64) + 1) as i32;
-    let is_work_day = cycle_day <= pattern.work_days;
+    let is_work_day = pattern.is_work_day(cycle_day);
 
     Ok(Json(CycleInfo {
         pattern_id: pattern.id,
@@ -229,5 +274,145 @@ pub async fn cycle(
         pattern_days: pattern.pattern_days,
         work_days: pattern.work_days,
         off_days: pattern.off_days,
+        work_days_in_cycle: pattern.work_days_in_cycle,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// Shift Pattern Assignments
+// ---------------------------------------------------------------------------
+
+/// GET /api/shift-pattern-assignments
+/// List all active pattern assignments for the org.
+pub async fn list_assignments(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+) -> Result<Json<Vec<ShiftPatternAssignmentRow>>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT spa.id, spa.user_id,
+               (u.first_name || ' ' || u.last_name) AS "user_name!",
+               spa.pattern_id,
+               sp.name AS "pattern_name!",
+               spa.effective_from,
+               spa.effective_to
+        FROM shift_pattern_assignments spa
+        JOIN users u ON u.id = spa.user_id
+        JOIN shift_patterns sp ON sp.id = spa.pattern_id
+        WHERE spa.org_id = $1
+        ORDER BY u.last_name, u.first_name
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let result = rows
+        .into_iter()
+        .map(|r| ShiftPatternAssignmentRow {
+            id: r.id,
+            user_id: r.user_id,
+            user_name: r.user_name,
+            pattern_id: r.pattern_id,
+            pattern_name: r.pattern_name,
+            effective_from: r.effective_from,
+            effective_to: r.effective_to,
+        })
+        .collect();
+
+    Ok(Json(result))
+}
+
+/// POST /api/shift-pattern-assignments
+pub async fn create_assignment(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(req): Json<CreatePatternAssignmentRequest>,
+) -> Result<Json<ShiftPatternAssignment>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    // Verify user belongs to org
+    let user_exists = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND is_active = true)",
+        req.user_id,
+        auth.org_id,
+    )
+    .fetch_one(&pool)
+    .await?;
+    if user_exists != Some(true) {
+        return Err(AppError::NotFound("User not found".into()));
+    }
+
+    // Verify pattern belongs to org
+    let pattern_exists = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM shift_patterns WHERE id = $1 AND org_id = $2 AND is_active = true)",
+        req.pattern_id,
+        auth.org_id,
+    )
+    .fetch_one(&pool)
+    .await?;
+    if pattern_exists != Some(true) {
+        return Err(AppError::NotFound("Shift pattern not found".into()));
+    }
+
+    // End any existing active assignment for this user
+    sqlx::query!(
+        r#"
+        UPDATE shift_pattern_assignments
+        SET effective_to = $3, updated_at = NOW()
+        WHERE user_id = $1 AND org_id = $2 AND effective_to IS NULL
+        "#,
+        req.user_id,
+        auth.org_id,
+        req.effective_from,
+    )
+    .execute(&pool)
+    .await?;
+
+    let row = sqlx::query_as!(
+        ShiftPatternAssignment,
+        r#"
+        INSERT INTO shift_pattern_assignments (id, org_id, user_id, pattern_id, effective_from, effective_to)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, org_id, user_id, pattern_id, effective_from, effective_to, created_at, updated_at
+        "#,
+        Uuid::new_v4(),
+        auth.org_id,
+        req.user_id,
+        req.pattern_id,
+        req.effective_from,
+        req.effective_to,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(row))
+}
+
+/// DELETE /api/shift-pattern-assignments/:id
+pub async fn delete_assignment(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let rows = sqlx::query!(
+        "DELETE FROM shift_pattern_assignments WHERE id = $1 AND org_id = $2",
+        id,
+        auth.org_id,
+    )
+    .execute(&pool)
+    .await?
+    .rows_affected();
+
+    if rows == 0 {
+        return Err(AppError::NotFound("Assignment not found".into()));
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
 }

@@ -159,6 +159,7 @@ export const queryKeys = {
   shiftPatterns: {
     all: ['shift-patterns'] as const,
     cycle: (id: string, date: string) => ['shift-patterns', id, 'cycle', date] as const,
+    assignments: ['shift-pattern-assignments'] as const,
   },
   orgSettings: {
     all: ['org-settings'] as const,
@@ -1212,7 +1213,7 @@ export function useCreateShiftPattern() {
 export function useUpdateShiftPattern() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; pattern_days?: number; work_days?: number; off_days?: number; anchor_date?: string; team_id?: string | null; is_active?: boolean }) =>
+    mutationFn: ({ id, ...data }: { id: string; name?: string; pattern_days?: number; work_days?: number; off_days?: number; anchor_date?: string; team_id?: string | null; is_active?: boolean; work_days_in_cycle?: number[] | null }) =>
       shiftPatternsApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
   })
@@ -1231,6 +1232,29 @@ export function useShiftPatternCycle(id: string, date: string) {
     queryKey: queryKeys.shiftPatterns.cycle(id, date),
     queryFn: () => shiftPatternsApi.cycle(id, date),
     enabled: !!id && !!date,
+  })
+}
+
+export function useShiftPatternAssignments() {
+  return useQuery({
+    queryKey: queryKeys.shiftPatterns.assignments,
+    queryFn: shiftPatternsApi.listAssignments,
+  })
+}
+
+export function useCreateShiftPatternAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: shiftPatternsApi.createAssignment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.assignments }),
+  })
+}
+
+export function useDeleteShiftPatternAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: shiftPatternsApi.deleteAssignment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.assignments }),
   })
 }
 

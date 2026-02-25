@@ -583,6 +583,27 @@ pub(crate) async fn compute_slot_coverage(
     .fetch_all(pool)
     .await?;
 
+    // Fetch overnight shifts from the previous day that spill into this date
+    let prev_date = date.previous_day().unwrap_or(date);
+    let overnight = sqlx::query!(
+        r#"
+        SELECT
+            u.classification_id AS "classification_id?",
+            st.end_time
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates  st ON st.id = ss.shift_template_id
+        JOIN users            u  ON u.id  = a.user_id
+        WHERE ss.org_id = $1 AND ss.date = $2
+          AND st.crosses_midnight = true
+          AND a.cancelled_at IS NULL
+        "#,
+        org_id,
+        prev_date,
+    )
+    .fetch_all(pool)
+    .await?;
+
     // Build actual headcount map: (classification_id, slot_index) -> count
     use std::collections::HashMap;
     let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
@@ -608,6 +629,26 @@ pub(crate) async fn compute_slot_coverage(
         let end_slot = end_slot.clamp(0, 47);
 
         for slot in start_slot..=end_slot {
+            *actual.entry((class_id, slot)).or_insert(0) += 1;
+        }
+    }
+
+    // Add overnight shift morning contributions (00:00 to end_time on this date)
+    for a in &overnight {
+        let Some(class_id) = a.classification_id else {
+            continue;
+        };
+        let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
+        if end_min == 0 {
+            continue; // Ends exactly at midnight — no morning contribution
+        }
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+        for slot in 0..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
         }
     }

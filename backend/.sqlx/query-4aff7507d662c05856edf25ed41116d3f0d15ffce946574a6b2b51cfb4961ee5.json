@@ -1,0 +1,69 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO shift_pattern_assignments (id, org_id, user_id, pattern_id, effective_from, effective_to)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, org_id, user_id, pattern_id, effective_from, effective_to, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "pattern_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "effective_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "effective_to",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "4aff7507d662c05856edf25ed41116d3f0d15ffce946574a6b2b51cfb4961ee5"
+}

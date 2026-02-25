@@ -6,6 +6,20 @@ use validator::Validate;
 use crate::models::common::deserialize_optional_field;
 
 // ---------------------------------------------------------------------------
+// OT Request Status Enum
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "ot_request_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum OtRequestStatus {
+    Open,
+    PartiallyFilled,
+    Filled,
+    Cancelled,
+}
+
+// ---------------------------------------------------------------------------
 // OT Request
 // ---------------------------------------------------------------------------
 
@@ -27,7 +41,7 @@ pub struct OtRequestRow {
     pub location: Option<String>,
     pub is_fixed_coverage: bool,
     pub notes: Option<String>,
-    pub status: String,
+    pub status: OtRequestStatus,
     pub created_by: Uuid,
     pub created_by_name: String,
     #[serde(with = "time::serde::rfc3339")]
@@ -64,7 +78,7 @@ pub struct OtRequestDetail {
     pub location: Option<String>,
     pub is_fixed_coverage: bool,
     pub notes: Option<String>,
-    pub status: String,
+    pub status: OtRequestStatus,
     pub created_by: Uuid,
     pub created_by_name: String,
     #[serde(with = "time::serde::rfc3339")]
@@ -107,7 +121,7 @@ pub struct UpdateOtRequest {
     pub is_fixed_coverage: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub notes: Option<Option<String>>,
-    pub status: Option<String>,
+    pub status: Option<OtRequestStatus>,
     /// Optimistic locking: the `updated_at` timestamp from the last GET.
     /// If provided and the record has been modified since, returns 409 Conflict.
     #[serde(default)]
@@ -117,7 +131,7 @@ pub struct UpdateOtRequest {
 /// Query params for listing OT requests.
 #[derive(Debug, Deserialize)]
 pub struct OtRequestQuery {
-    pub status: Option<String>,
+    pub status: Option<OtRequestStatus>,
     pub date_from: Option<time::Date>,
     pub date_to: Option<time::Date>,
     pub classification_id: Option<Uuid>,

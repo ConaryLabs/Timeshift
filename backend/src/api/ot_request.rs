@@ -11,7 +11,7 @@ use crate::{
     error::{AppError, Result},
     models::ot_request::{
         CreateOtRequest, CreateOtRequestAssignment, OtRequestAssignmentRow, OtRequestDetail,
-        OtRequestQuery, OtRequestRow, OtRequestVolunteerRow, UpdateOtRequest,
+        OtRequestQuery, OtRequestRow, OtRequestStatus, OtRequestVolunteerRow, UpdateOtRequest,
     },
     org_guard,
 };
@@ -25,7 +25,6 @@ pub async fn list(
     auth: AuthUser,
     Query(params): Query<OtRequestQuery>,
 ) -> Result<Json<Vec<OtRequestRow>>> {
-    let status_filter = params.status.as_deref();
     let volunteered_by_me = params.volunteered_by_me.unwrap_or(false);
 
     let rows = sqlx::query!(
@@ -40,7 +39,7 @@ pub async fn list(
             r.location,
             r.is_fixed_coverage,
             r.notes,
-            r.status,
+            r.status AS "status: OtRequestStatus",
             r.created_by,
             (cu.first_name || ' ' || cu.last_name) AS "created_by_name!",
             r.created_at,
@@ -58,7 +57,7 @@ pub async fn list(
         JOIN users cu ON cu.id = r.created_by
         LEFT JOIN ot_reasons orr ON orr.id = r.ot_reason_id
         WHERE r.org_id = $1
-          AND ($2::TEXT IS NULL OR r.status = $2)
+          AND ($2::ot_request_status IS NULL OR r.status = $2)
           AND ($3::DATE IS NULL OR r.date >= $3)
           AND ($4::DATE IS NULL OR r.date <= $4)
           AND ($5::UUID IS NULL OR r.classification_id = $5)
@@ -70,7 +69,7 @@ pub async fn list(
         LIMIT $6 OFFSET $7
         "#,
         auth.org_id,
-        status_filter as Option<&str>,
+        params.status as Option<OtRequestStatus>,
         params.date_from as Option<time::Date>,
         params.date_to as Option<time::Date>,
         params.classification_id as Option<Uuid>,
@@ -135,7 +134,7 @@ pub async fn get_one(
             r.location,
             r.is_fixed_coverage,
             r.notes,
-            r.status,
+            r.status AS "status: OtRequestStatus",
             r.created_by,
             (cu.first_name || ' ' || cu.last_name) AS "created_by_name!",
             r.created_at,
@@ -348,7 +347,7 @@ pub async fn create(
             r.location,
             r.is_fixed_coverage,
             r.notes,
-            r.status,
+            r.status AS "status: OtRequestStatus",
             r.created_by,
             (cu.first_name || ' ' || cu.last_name) AS "created_by_name!",
             r.created_at,
@@ -448,7 +447,7 @@ pub async fn update(
 
     // Verify request exists and belongs to org
     let existing = sqlx::query!(
-        "SELECT status FROM ot_requests WHERE id = $1 AND org_id = $2",
+        r#"SELECT status AS "status: OtRequestStatus" FROM ot_requests WHERE id = $1 AND org_id = $2"#,
         id,
         auth.org_id,
     )
@@ -456,22 +455,10 @@ pub async fn update(
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
-    if existing.status == "cancelled" {
+    if existing.status == OtRequestStatus::Cancelled {
         return Err(AppError::Conflict(
             "Cannot update a cancelled OT request".into(),
         ));
-    }
-
-    // Validate status if provided
-    if let Some(ref status) = req.status {
-        if !matches!(
-            status.as_str(),
-            "open" | "partially_filled" | "filled" | "cancelled"
-        ) {
-            return Err(AppError::BadRequest(
-                "Status must be one of: open, partially_filled, filled, cancelled".into(),
-            ));
-        }
     }
 
     // Validate ot_reason_id if provided
@@ -507,7 +494,7 @@ pub async fn update(
         req.is_fixed_coverage as Option<bool>,
         notes_provided,
         notes_val as Option<String>,
-        req.status as Option<String>,
+        req.status as Option<OtRequestStatus>,
     )
     .execute(&pool)
     .await?;
@@ -525,7 +512,7 @@ pub async fn update(
             r.location,
             r.is_fixed_coverage,
             r.notes,
-            r.status,
+            r.status AS "status: OtRequestStatus",
             r.created_by,
             (cu.first_name || ' ' || cu.last_name) AS "created_by_name!",
             r.created_at,
@@ -632,7 +619,7 @@ pub async fn volunteer(
     // Lock the OT request row to serialize concurrent volunteers, verify it exists,
     // belongs to org, and is open or partially_filled.
     let request = sqlx::query!(
-        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
+        r#"SELECT status AS "status: OtRequestStatus", date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -641,7 +628,10 @@ pub async fn volunteer(
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
-    if !matches!(request.status.as_str(), "open" | "partially_filled") {
+    if !matches!(
+        request.status,
+        OtRequestStatus::Open | OtRequestStatus::PartiallyFilled
+    ) {
         return Err(AppError::Conflict(
             "OT request is not accepting volunteers".into(),
         ));
@@ -773,7 +763,7 @@ pub async fn assign(
 
     // Verify request exists, belongs to org, and is not cancelled/filled
     let request = sqlx::query!(
-        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
+        r#"SELECT status AS "status: OtRequestStatus", date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -782,13 +772,13 @@ pub async fn assign(
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
-    if request.status == "cancelled" {
+    if request.status == OtRequestStatus::Cancelled {
         return Err(AppError::Conflict(
             "Cannot assign to a cancelled OT request".into(),
         ));
     }
 
-    if request.status == "filled" {
+    if request.status == OtRequestStatus::Filled {
         return Err(AppError::Conflict("OT request is already filled".into()));
     }
 
@@ -845,9 +835,9 @@ pub async fn assign(
     // Fixed coverage = single-slot, so one assignment fills it.
     // Non-fixed coverage = may need more assignments, so mark partially_filled.
     let new_status = if request.is_fixed_coverage {
-        "filled"
+        OtRequestStatus::Filled
     } else {
-        "partially_filled"
+        OtRequestStatus::PartiallyFilled
     };
     sqlx::query!(
         r#"
@@ -858,7 +848,7 @@ pub async fn assign(
         "#,
         id,
         auth.org_id,
-        new_status,
+        new_status as OtRequestStatus,
     )
     .execute(&mut *tx)
     .await?;
@@ -982,7 +972,7 @@ pub async fn cancel_assignment(
 
     // Verify request belongs to org
     let request = sqlx::query!(
-        r#"SELECT status, date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
+        r#"SELECT status AS "status: OtRequestStatus", date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -1043,18 +1033,18 @@ pub async fn cancel_assignment(
     .await?
     .unwrap_or(0);
 
-    let new_status = if request.status == "cancelled" {
-        "cancelled" // Don't change if already cancelled
+    let new_status = if request.status == OtRequestStatus::Cancelled {
+        OtRequestStatus::Cancelled // Don't change if already cancelled
     } else if active_count > 0 {
-        "partially_filled"
+        OtRequestStatus::PartiallyFilled
     } else {
-        "open"
+        OtRequestStatus::Open
     };
 
     sqlx::query!(
         "UPDATE ot_requests SET status = $2, updated_at = NOW() WHERE id = $1",
         id,
-        new_status,
+        new_status as OtRequestStatus,
     )
     .execute(&mut *tx)
     .await?;

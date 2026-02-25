@@ -10,6 +10,7 @@ export interface ShiftPattern {
   anchor_date: string
   team_id: string | null
   is_active: boolean
+  work_days_in_cycle: number[] | null
   created_at: string
   updated_at: string
 }
@@ -23,6 +24,17 @@ export interface CycleInfo {
   pattern_days: number
   work_days: number
   off_days: number
+  work_days_in_cycle: number[] | null
+}
+
+export interface ShiftPatternAssignment {
+  id: string
+  user_id: string
+  user_name: string
+  pattern_id: string
+  pattern_name: string
+  effective_from: string
+  effective_to: string | null
 }
 
 export const shiftPatternsApi = {
@@ -32,10 +44,11 @@ export const shiftPatternsApi = {
   create: (data: {
     name: string
     pattern_days: number
-    work_days: number
-    off_days: number
+    work_days?: number
+    off_days?: number
     anchor_date: string
     team_id?: string | null
+    work_days_in_cycle?: number[] | null
   }) =>
     api.post<ShiftPattern>('/api/shift-patterns', data).then((r) => r.data),
 
@@ -47,6 +60,7 @@ export const shiftPatternsApi = {
     anchor_date?: string
     team_id?: string | null
     is_active?: boolean
+    work_days_in_cycle?: number[] | null
   }) =>
     api.patch<ShiftPattern>(`/api/shift-patterns/${id}`, data).then((r) => r.data),
 
@@ -55,4 +69,19 @@ export const shiftPatternsApi = {
 
   cycle: (id: string, date: string) =>
     api.get<CycleInfo>(`/api/shift-patterns/${id}/cycle`, { params: { date } }).then((r) => r.data),
+
+  // Assignments
+  listAssignments: () =>
+    api.get<ShiftPatternAssignment[]>('/api/shift-pattern-assignments').then((r) => r.data),
+
+  createAssignment: (data: {
+    user_id: string
+    pattern_id: string
+    effective_from: string
+    effective_to?: string | null
+  }) =>
+    api.post<ShiftPatternAssignment>('/api/shift-pattern-assignments', data).then((r) => r.data),
+
+  deleteAssignment: (id: string) =>
+    api.delete(`/api/shift-pattern-assignments/${id}`).then((r) => r.data),
 }

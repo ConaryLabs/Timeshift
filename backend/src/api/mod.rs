@@ -408,6 +408,15 @@ pub fn router(state: AppState) -> Router {
             patch(shift_patterns::update).delete(shift_patterns::delete),
         )
         .route("/api/shift-patterns/:id/cycle", get(shift_patterns::cycle))
+        // Shift Pattern Assignments
+        .route(
+            "/api/shift-pattern-assignments",
+            get(shift_patterns::list_assignments).post(shift_patterns::create_assignment),
+        )
+        .route(
+            "/api/shift-pattern-assignments/:id",
+            delete(shift_patterns::delete_assignment),
+        )
         // Organization settings
         .route(
             "/api/organization/settings",

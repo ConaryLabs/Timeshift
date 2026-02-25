@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod models;
 pub mod org_guard;
+pub mod services;
 
 use sqlx::PgPool;
 
