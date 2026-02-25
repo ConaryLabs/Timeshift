@@ -268,6 +268,7 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
         "DELETE FROM coverage_plans WHERE org_id = $1",
         "DELETE FROM coverage_requirements WHERE org_id = $1",
         "DELETE FROM shift_templates WHERE org_id = $1",
+        "DELETE FROM shift_pattern_assignments WHERE org_id = $1",
         "DELETE FROM shift_patterns WHERE org_id = $1",
         // Duty positions
         "DELETE FROM duty_positions WHERE org_id = $1",
