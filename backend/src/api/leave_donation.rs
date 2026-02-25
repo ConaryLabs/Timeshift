@@ -120,18 +120,28 @@ pub async fn create(
         }
     };
 
+    // Wrap cap check, balance check, and INSERT in a transaction to prevent
+    // concurrent requests from both passing the cap/floor checks (TOCTOU).
+    let mut tx = pool.begin().await?;
+
     // Check annual cap (approved + pending donations this fiscal year)
+    // Subquery locks donation rows with FOR UPDATE to serialize concurrent requests,
+    // then the outer query aggregates (FOR UPDATE cannot be used with aggregates directly).
     let already_donated: f64 = sqlx::query_scalar!(
         r#"
-        SELECT COALESCE(SUM(CAST(hours AS FLOAT8)), 0.0) AS "total!"
-        FROM sick_leave_donations
-        WHERE donor_id = $1 AND fiscal_year = $2
-          AND status IN ('pending', 'approved')
+        SELECT COALESCE(SUM(locked.hrs), 0.0) AS "total!"
+        FROM (
+            SELECT CAST(hours AS FLOAT8) AS hrs
+            FROM sick_leave_donations
+            WHERE donor_id = $1 AND fiscal_year = $2
+              AND status IN ('pending', 'approved')
+            FOR UPDATE
+        ) locked
         "#,
         auth.id,
         body.fiscal_year,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if already_donated + body.hours > annual_cap {
@@ -141,19 +151,25 @@ pub async fn create(
         )));
     }
 
-    // Verify donor retains ≥ 100 hrs of sick balance after donation
+    // Verify donor retains >= 100 hrs of sick balance after donation
+    // Subquery locks balance rows with FOR UPDATE to prevent concurrent modifications,
+    // then the outer query aggregates.
     let sick_balance: f64 = sqlx::query_scalar!(
         r#"
-        SELECT COALESCE(SUM(CAST(lb.balance_hours AS FLOAT8)), 0.0) AS "total!"
-        FROM leave_balances lb
-        JOIN leave_types lt ON lt.id = lb.leave_type_id
-        WHERE lb.user_id = $1 AND lb.org_id = $2
-          AND lt.draws_from = 'sick'
+        SELECT COALESCE(SUM(locked.bal), 0.0) AS "total!"
+        FROM (
+            SELECT CAST(lb.balance_hours AS FLOAT8) AS bal
+            FROM leave_balances lb
+            JOIN leave_types lt ON lt.id = lb.leave_type_id
+            WHERE lb.user_id = $1 AND lb.org_id = $2
+              AND lt.draws_from = 'sick'
+            FOR UPDATE OF lb
+        ) locked
         "#,
         auth.id,
         auth.org_id,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if sick_balance - body.hours < 100.0 {
@@ -179,8 +195,10 @@ pub async fn create(
         body.hours,
         body.fiscal_year,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(SickLeaveDonation {
         id: r.id,
@@ -246,14 +264,20 @@ pub async fn review(
     }
 
     if body.status == "approved" {
-        // Re-check donor sick balance at approval time
+        // Re-check donor sick balance at approval time. Subquery locks balance rows
+        // with FOR UPDATE to prevent concurrent approvals from pushing donor below
+        // the 100-hour floor, then the outer query aggregates.
         let sick_balance: f64 = sqlx::query_scalar!(
             r#"
-            SELECT COALESCE(SUM(CAST(lb.balance_hours AS FLOAT8)), 0.0) AS "total!"
-            FROM leave_balances lb
-            JOIN leave_types lt ON lt.id = lb.leave_type_id
-            WHERE lb.user_id = $1 AND lb.org_id = $2
-              AND lt.draws_from = 'sick'
+            SELECT COALESCE(SUM(locked.bal), 0.0) AS "total!"
+            FROM (
+                SELECT CAST(lb.balance_hours AS FLOAT8) AS bal
+                FROM leave_balances lb
+                JOIN leave_types lt ON lt.id = lb.leave_type_id
+                WHERE lb.user_id = $1 AND lb.org_id = $2
+                  AND lt.draws_from = 'sick'
+                FOR UPDATE OF lb
+            ) locked
             "#,
             donation.donor_id,
             auth.org_id,

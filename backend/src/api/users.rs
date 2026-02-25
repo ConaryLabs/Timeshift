@@ -763,25 +763,29 @@ pub async fn deactivate(
         return Err(AppError::NotFound("User not found".into()));
     }
 
-    // Cancel pending trade requests involving this user
+    // Cancel pending trade requests involving this user (scoped to org)
     sqlx::query!(
         r#"
         UPDATE trade_requests SET status = 'cancelled', updated_at = NOW()
         WHERE (requester_id = $1 OR partner_id = $1)
           AND status IN ('pending_partner', 'pending_approval')
+          AND org_id = $2
         "#,
         id,
+        auth.org_id,
     )
     .execute(&mut *tx)
     .await?;
 
-    // Cancel pending leave requests for this user
+    // Cancel pending leave requests for this user (scoped via user org membership)
     sqlx::query!(
         r#"
         UPDATE leave_requests SET status = 'cancelled', updated_at = NOW()
         WHERE user_id = $1 AND status = 'pending'
+          AND user_id IN (SELECT id FROM users WHERE id = $1 AND org_id = $2)
         "#,
         id,
+        auth.org_id,
     )
     .execute(&mut *tx)
     .await?;

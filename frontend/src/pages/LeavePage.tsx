@@ -24,6 +24,7 @@ import type { LeaveRequest, CreateLeaveSegment } from '@/api/leave'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { extractApiError } from '@/lib/format'
 
 const STATUS_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
@@ -178,7 +179,7 @@ export default function LeavePage() {
           closeForm()
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit leave request'
+          const msg = extractApiError(err, 'Failed to submit leave request')
           toast.error(msg)
         },
       },
@@ -200,7 +201,7 @@ export default function LeavePage() {
           setReviewTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review leave request'
+          const msg = extractApiError(err, 'Failed to review leave request')
           toast.error(msg)
         },
       },

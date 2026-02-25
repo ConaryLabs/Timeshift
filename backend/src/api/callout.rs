@@ -580,7 +580,8 @@ pub async fn cancel_ot_assignment(
         r#"
         SELECT ce.status AS "status: CalloutStatus",
                ce.ot_request_id,
-               ss.date AS shift_date, st.start_time
+               ce.classification_id,
+               ss.date AS shift_date, st.start_time, st.duration_minutes
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         JOIN shift_templates st ON st.id = ss.shift_template_id
@@ -604,10 +605,12 @@ pub async fn cancel_ot_assignment(
         SELECT a.id, a.user_id, a.ot_type, a.cancelled_at
         FROM assignments a
         JOIN callout_events ce ON ce.id = $1 AND ce.scheduled_shift_id = a.scheduled_shift_id
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id AND ss.org_id = $2
         JOIN callout_attempts ca ON ca.event_id = $1 AND ca.user_id = a.user_id AND ca.response = 'accepted'
         WHERE a.is_overtime = true AND a.cancelled_at IS NULL
         "#,
-        event_id
+        event_id,
+        auth.org_id
     )
     .fetch_optional(&pool)
     .await?
@@ -652,6 +655,27 @@ pub async fn cancel_ot_assignment(
     sqlx::query!(
         "UPDATE assignments SET cancelled_at = NOW() WHERE id = $1",
         assignment.id
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // 6b. Reverse OT hours_worked for the cancelled assignment.
+    let shift_hours = event.duration_minutes as f64 / 60.0;
+    let fiscal_year: i32 = event.shift_date.year();
+
+    sqlx::query!(
+        r#"
+        UPDATE ot_hours
+        SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),
+            updated_at = NOW()
+        WHERE user_id = $1 AND fiscal_year = $2
+          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)
+        "#,
+        assignment.user_id,
+        fiscal_year,
+        shift_hours,
+        Some(event.classification_id) as Option<Uuid>,
     )
     .execute(&mut *tx)
     .await?;

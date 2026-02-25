@@ -26,7 +26,7 @@ import {
   useClassifications,
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { formatTime } from '@/lib/format'
+import { formatTime, extractApiError } from '@/lib/format'
 import type { ShiftSlotView } from '@/api/teams'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -125,7 +125,7 @@ export default function TeamDetailPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -145,7 +145,7 @@ export default function TeamDetailPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },

@@ -19,6 +19,7 @@ import { FormField } from '@/components/ui/form-field'
 import { useSellbackRequests, useCreateSellback, useReviewSellback, useCancelSellback } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { HolidaySellbackRequest } from '@/api/leaveSellback'
+import { extractApiError } from '@/lib/format'
 
 const INITIAL_FORM = { fiscal_year: new Date().getFullYear().toString(), period: '', hours_requested: '' }
 
@@ -70,7 +71,7 @@ export default function LeaveSellbackPage() {
           setShowForm(false)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit request'
+          const msg = extractApiError(err, 'Failed to submit request')
           toast.error(msg)
         },
       },
@@ -87,7 +88,7 @@ export default function LeaveSellbackPage() {
           setReviewTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review request'
+          const msg = extractApiError(err, 'Failed to review request')
           toast.error(msg)
         },
       },

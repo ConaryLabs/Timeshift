@@ -37,6 +37,7 @@ import {
 } from '@/hooks/queries'
 import type { LeaveBalanceView } from '@/api/leaveBalances'
 import type { AccrualSchedule, AccrualTransaction } from '@/api/leaveBalances'
+import { extractApiError } from '@/lib/format'
 
 const EMPLOYEE_TYPES = [
   { value: 'regular_full_time', label: 'Regular Full Time' },
@@ -103,7 +104,7 @@ export default function LeaveBalancesPage() {
           setAdjustDialog(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },
@@ -155,7 +156,7 @@ export default function LeaveBalancesPage() {
             setScheduleDialog(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -177,7 +178,7 @@ export default function LeaveBalancesPage() {
             setScheduleDialog(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -192,7 +193,7 @@ export default function LeaveBalancesPage() {
         setDeleteTarget(null)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })

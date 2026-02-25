@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { useClassifications, useCreateClassification, useUpdateClassification } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { Classification } from '@/api/classifications'
+import { extractApiError } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -68,7 +69,7 @@ export default function ClassificationsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -82,7 +83,7 @@ export default function ClassificationsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },

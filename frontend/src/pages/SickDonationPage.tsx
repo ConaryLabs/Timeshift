@@ -19,6 +19,7 @@ import { FormField } from '@/components/ui/form-field'
 import { useDonations, useCreateDonation, useReviewDonation, useCancelDonation, useUserDirectory, useLeaveTypes } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { SickLeaveDonation } from '@/api/sickDonation'
+import { extractApiError } from '@/lib/format'
 
 const INITIAL_FORM = { recipient_id: '', leave_type_id: '', hours: '', fiscal_year: new Date().getFullYear().toString() }
 
@@ -83,7 +84,7 @@ export default function SickDonationPage() {
           setShowForm(false)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit donation'
+          const msg = extractApiError(err, 'Failed to submit donation')
           toast.error(msg)
         },
       },
@@ -100,7 +101,7 @@ export default function SickDonationPage() {
           setReviewTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to review donation'
+          const msg = extractApiError(err, 'Failed to review donation')
           toast.error(msg)
         },
       },

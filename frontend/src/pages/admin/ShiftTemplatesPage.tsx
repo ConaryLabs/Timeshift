@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import { useShiftTemplates, useCreateTemplate, useUpdateTemplate, queryKeys } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { ConflictDialog } from '@/components/ConflictDialog'
-import { formatTime, formatDuration } from '@/lib/format'
+import { formatTime, formatDuration, extractApiError } from '@/lib/format'
 import { isConflictError } from '@/lib/utils'
 import type { ShiftTemplate } from '@/api/schedule'
 
@@ -82,7 +82,7 @@ export default function ShiftTemplatesPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })
@@ -102,7 +102,7 @@ export default function ShiftTemplatesPage() {
           setConflictOpen(true)
           return
         }
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })
@@ -123,7 +123,7 @@ export default function ShiftTemplatesPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })
@@ -167,7 +167,7 @@ export default function ShiftTemplatesPage() {
                 {
                   onSuccess: () => toast.success('Shift template activated'),
                   onError: (err: unknown) => {
-                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                    const msg = extractApiError(err, 'Operation failed')
                     toast.error(msg)
                   },
                 },
@@ -318,7 +318,7 @@ export default function ShiftTemplatesPage() {
                       setDeactivateTarget(null)
                     },
                     onError: (err: unknown) => {
-                      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                      const msg = extractApiError(err, 'Operation failed')
                       toast.error(msg)
                     },
                   },

@@ -30,8 +30,7 @@ import {
   useProcessBids,
   useApproveBidWindow,
 } from '@/hooks/queries'
-import { formatTime } from '@/lib/format'
-import { NO_VALUE } from '@/lib/format'
+import { formatTime, NO_VALUE, extractApiError } from '@/lib/format'
 import type { SlotAssignmentView } from '@/api/schedulePeriods'
 import type { BidWindow } from '@/api/bidding'
 import type { BidPeriodStatus } from '@/api/bidding'
@@ -118,7 +117,7 @@ export default function SchedulePeriodDetailPage() {
           setAssignTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },
@@ -135,7 +134,7 @@ export default function SchedulePeriodDetailPage() {
           setRemoveTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+          const msg = extractApiError(err, 'Operation failed')
           toast.error(msg)
         },
       },
@@ -156,7 +155,7 @@ export default function SchedulePeriodDetailPage() {
           setOpenBidDialog(false)
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to open bidding'
+          const msg = extractApiError(err, 'Failed to open bidding')
           toast.error(msg)
         },
       },
@@ -170,7 +169,7 @@ export default function SchedulePeriodDetailPage() {
         setConfirmProcess(false)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to process bids'
+        const msg = extractApiError(err, 'Failed to process bids')
         toast.error(msg)
       },
     })
@@ -182,7 +181,7 @@ export default function SchedulePeriodDetailPage() {
         toast.success('Bid window approved — next window unlocked')
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to approve bid window'
+        const msg = extractApiError(err, 'Failed to approve bid window')
         toast.error(msg)
       },
     })

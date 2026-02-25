@@ -137,6 +137,12 @@ pub async fn open_bidding(
         ));
     }
 
+    if body.window_duration_hours > 168 {
+        return Err(AppError::BadRequest(
+            "window_duration_hours must not exceed 168 (1 week)".into(),
+        ));
+    }
+
     // Get all active users ordered by seniority, optionally filtered by BU
     let users = sqlx::query!(
         r#"
@@ -739,13 +745,14 @@ pub async fn process_bids(
             // Create approved leave request if we have a vacation leave type
             if let Some(lt_id) = leave_type_id {
                 let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
+                let leave_request_id = Uuid::new_v4();
 
                 sqlx::query!(
                     r#"
                     INSERT INTO leave_requests (id, user_id, leave_type_id, start_date, end_date, hours, reason, status, reviewed_by)
                     VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC, 'Vacation bid award', 'approved', $7)
                     "#,
-                    Uuid::new_v4(),
+                    leave_request_id,
                     window.user_id,
                     lt_id,
                     bid.start_date,
@@ -754,6 +761,18 @@ pub async fn process_bids(
                     auth.id,
                 )
                 .execute(&mut *tx)
+                .await?;
+
+                // Deduct leave balance for the awarded vacation bid
+                crate::api::leave::deduct_leave_balance(
+                    &mut tx,
+                    auth.org_id,
+                    window.user_id,
+                    lt_id,
+                    hours,
+                    leave_request_id,
+                    auth.id,
+                )
                 .await?;
             }
         }

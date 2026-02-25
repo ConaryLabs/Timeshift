@@ -44,6 +44,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
 import type { DutyPosition } from '@/api/dutyPositions'
 import type { DutyAssignment } from '@/api/dutyPositions'
+import { extractApiError } from '@/lib/format'
 
 export default function DutyBoardPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -116,7 +117,7 @@ export default function DutyBoardPage() {
             setAssignDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -136,7 +137,7 @@ export default function DutyBoardPage() {
             setAssignDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -152,7 +153,7 @@ export default function DutyBoardPage() {
         setRemoveTarget(null)
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+        const msg = extractApiError(err, 'Operation failed')
         toast.error(msg)
       },
     })

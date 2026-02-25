@@ -28,6 +28,7 @@ import {
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { DutyPosition } from '@/api/dutyPositions'
+import { extractApiError } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -86,7 +87,7 @@ export default function DutyPositionsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -100,7 +101,7 @@ export default function DutyPositionsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+            const msg = extractApiError(err, 'Operation failed')
             toast.error(msg)
           },
         },
@@ -228,7 +229,7 @@ export default function DutyPositionsPage() {
                     setDeleteTarget(null)
                   },
                   onError: (err: unknown) => {
-                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
+                    const msg = extractApiError(err, 'Operation failed')
                     toast.error(msg)
                   },
                 })

@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBidWindow, useSubmitBid } from '@/hooks/queries'
-import { formatTime } from '@/lib/format'
+import { formatTime, extractApiError } from '@/lib/format'
 import type { AvailableSlot } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -113,7 +113,7 @@ export default function BidPage() {
           setSelectedSlots([])
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit bid'
+          const msg = extractApiError(err, 'Failed to submit bid')
           toast.error(msg)
         },
       },
