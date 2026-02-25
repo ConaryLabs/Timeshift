@@ -276,7 +276,14 @@ pub async fn create(
 
     // Validate lines if provided
     if let Some(ref lines) = body.lines {
+        let mut seen_dates = std::collections::HashSet::new();
         for line in lines {
+            if !seen_dates.insert(line.date) {
+                return Err(AppError::BadRequest(format!(
+                    "Duplicate date {} in lines array",
+                    line.date
+                )));
+            }
             if line.hours <= 0.0 {
                 return Err(AppError::BadRequest("Each line must have hours > 0".into()));
             }
@@ -355,26 +362,77 @@ pub async fn create(
 
     let mut tx = pool.begin().await?;
 
-    // Check for overlapping leave requests (only pending/approved block new ones)
-    let overlap = sqlx::query_scalar!(
-        r#"
-        SELECT EXISTS(
-            SELECT 1 FROM leave_requests
-            WHERE user_id = $1
-              AND status IN ('pending', 'approved')
-              AND start_date <= $3
-              AND end_date >= $2
-              AND org_id = $4
+    // Check for overlapping leave requests (only pending/approved block new ones).
+    // For partial-day leave (with start_time), only block if existing leave lines
+    // on the same date(s) have overlapping times (or are full-day).
+    let has_overlap = if body.start_time.is_some() {
+        // Partial-day: check line-level time overlap. An existing leave blocks if
+        // it has a full-day line (no start_time) OR its time range overlaps the
+        // new request's start_time window. We use the request-level start_time as
+        // the start bound; if lines are provided, individual line times are used
+        // for the actual scheduling but the request-level start_time indicates
+        // "partial day" intent.
+        let new_lines = body.lines.as_ref();
+        let mut found_overlap = false;
+        if let Some(lines) = new_lines {
+            // Check each new line against existing lines
+            for line in lines {
+                let line_start = line.start_time.or(body.start_time);
+                let line_end = line.end_time;
+                let overlap = sqlx::query_scalar!(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1 FROM leave_requests lr
+                        JOIN leave_request_lines lrl ON lrl.leave_request_id = lr.id
+                        WHERE lr.user_id = $1
+                          AND lr.status IN ('pending', 'approved')
+                          AND lr.org_id = $2
+                          AND lrl.date = $3
+                          AND (
+                            lrl.start_time IS NULL
+                            OR $4::TIME IS NULL
+                            OR $5::TIME IS NULL
+                            OR (lrl.start_time < $5::TIME AND lrl.end_time > $4::TIME)
+                          )
+                    )
+                    "#,
+                    auth.id,
+                    auth.org_id,
+                    line.date,
+                    line_start,
+                    line_end,
+                )
+                .fetch_one(&mut *tx)
+                .await?;
+                if overlap.unwrap_or(false) {
+                    found_overlap = true;
+                    break;
+                }
+            }
+        }
+        Some(found_overlap)
+    } else {
+        // Full-day: simple date range overlap check
+        sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS(
+                SELECT 1 FROM leave_requests
+                WHERE user_id = $1
+                  AND status IN ('pending', 'approved')
+                  AND start_date <= $3
+                  AND end_date >= $2
+                  AND org_id = $4
+            )
+            "#,
+            auth.id,
+            body.start_date,
+            body.end_date,
+            auth.org_id,
         )
-        "#,
-        auth.id,
-        body.start_date,
-        body.end_date,
-        auth.org_id,
-    )
-    .fetch_one(&mut *tx)
-    .await?;
-    if overlap.unwrap_or(false) {
+        .fetch_one(&mut *tx)
+        .await?
+    };
+    if has_overlap.unwrap_or(false) {
         return Err(AppError::Conflict(
             "Leave request overlaps with an existing request".into(),
         ));
@@ -1144,9 +1202,9 @@ pub struct CarryoverResult {
 }
 
 /// POST /api/leave/carryover-enforcement
-/// Admin-only: enforce vacation+holiday carryover caps at fiscal year-end.
-/// VCCEA: vacation + holiday combined ≤ 240 hrs (deduct vacation first, then holiday).
-/// VCSG: vacation only ≤ 260 hrs.
+/// Admin-only: enforce carryover caps at fiscal year-end.
+/// Caps and applicable leave categories are configured per bargaining unit
+/// (see bargaining_units.carryover_cap_hours and carryover_categories).
 pub async fn carryover_enforcement(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -1178,6 +1236,7 @@ pub async fn carryover_enforcement(
     let mut users_processed = 0i64;
     let mut users_affected = 0i64;
     let mut total_cashed_out = 0.0f64;
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
 
     for user in &users {
         users_processed += 1;
@@ -1198,6 +1257,7 @@ pub async fn carryover_enforcement(
               AND lt.category = ANY($3)
               AND lb.balance_hours > 0
             ORDER BY lt.category DESC, lb.balance_hours DESC
+            FOR UPDATE OF lb
             "#,
             user.id,
             auth.org_id,
@@ -1214,7 +1274,7 @@ pub async fn carryover_enforcement(
         users_affected += 1;
         let mut excess = total - cap;
 
-        // Deduct from vacation types first, then holiday (for VCCEA)
+        // Deduct leave types in descending category order (vacation before holiday)
         for row in &balance_rows {
             if excess <= 0.0 {
                 break;
@@ -1242,7 +1302,6 @@ pub async fn carryover_enforcement(
             .execute(&mut *tx)
             .await?;
 
-            let today = crate::services::timezone::org_today(&auth.org_timezone);
             sqlx::query!(
                 r#"
                 UPDATE leave_balances
@@ -1274,7 +1333,7 @@ pub async fn carryover_enforcement(
     }))
 }
 
-// -- M7: VCSG longevity credit --
+// -- M7: Longevity credit (configured per bargaining unit) --
 
 #[derive(Debug, serde::Deserialize)]
 pub struct LongevityRequest {
@@ -1312,7 +1371,7 @@ pub async fn longevity_credit(
                bu.longevity_vacation_credit AS "longevity_vacation_credit!",
                bu.longevity_tiers AS "longevity_tiers?"
         FROM users
-        JOIN seniority_records sr ON sr.user_id = users.id
+        LEFT JOIN seniority_records sr ON sr.user_id = users.id
         JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit
         WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true
         "#,

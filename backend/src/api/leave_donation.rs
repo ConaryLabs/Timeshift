@@ -63,7 +63,8 @@ pub async fn list(
 
 /// POST /api/leave/donations
 /// Donor submits a sick leave donation request.
-/// Caps: VCCEA 20 hrs/year, VCSG 40 hrs/year. Donor retains ≥ 100 hrs after.
+/// Annual cap and retention floor are configured per bargaining unit
+/// (see bargaining_units.donation_annual_cap and donation_retention_floor).
 pub async fn create(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -151,7 +152,7 @@ pub async fn create(
         )));
     }
 
-    // Verify donor retains >= 100 hrs of sick balance after donation
+    // Verify donor retains >= retention_floor hrs of sick balance after donation
     // Subquery locks balance rows with FOR UPDATE to prevent concurrent modifications,
     // then the outer query aggregates.
     let sick_balance: f64 = sqlx::query_scalar!(
