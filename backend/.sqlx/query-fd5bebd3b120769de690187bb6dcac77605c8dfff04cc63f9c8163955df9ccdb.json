@@ -1,23 +1,23 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT draws_from FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true",
+  "query": "SELECT value::TEXT FROM org_settings WHERE org_id = $1 AND key = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "draws_from",
+        "name": "value",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
-      true
+      null
     ]
   },
-  "hash": "c4d8097db22615ba16ef23f27d12ee7dd50e275df9ee1ee78775b74ae8a37212"
+  "hash": "fd5bebd3b120769de690187bb6dcac77605c8dfff04cc63f9c8163955df9ccdb"
 }

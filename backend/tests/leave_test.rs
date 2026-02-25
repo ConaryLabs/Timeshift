@@ -120,7 +120,21 @@ async fn test_review_leave_request_approve() {
     let leave_type_id = common::create_test_leave_type(&pool, org_id, "vacation", "Vacation").await;
 
     let emp_email = unique_email("leave-approve-emp");
-    let (_, emp_password) = common::create_test_user(&pool, org_id, "employee", &emp_email).await;
+    let (emp_id, emp_password) =
+        common::create_test_user(&pool, org_id, "employee", &emp_email).await;
+
+    // Seed a leave balance so the approval balance check passes
+    sqlx::query(
+        "INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date)
+         VALUES ($1, $2, $3, $4, 100, CURRENT_DATE)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(org_id)
+    .bind(emp_id)
+    .bind(leave_type_id)
+    .execute(&pool)
+    .await
+    .expect("Failed to seed leave balance");
 
     let sup_email = unique_email("leave-approve-sup");
     let (_, sup_password) = common::create_test_user(&pool, org_id, "supervisor", &sup_email).await;

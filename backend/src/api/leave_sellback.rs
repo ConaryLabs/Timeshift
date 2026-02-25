@@ -132,7 +132,7 @@ pub async fn create(
         FROM leave_balances lb
         JOIN leave_types lt ON lt.id = lb.leave_type_id
         WHERE lb.user_id = $1 AND lb.org_id = $2
-          AND lt.draws_from = 'holiday'
+          AND lt.category = 'holiday'
         "#,
         auth.id,
         auth.org_id,
@@ -236,7 +236,7 @@ pub async fn review(
             FROM leave_balances lb
             JOIN leave_types lt ON lt.id = lb.leave_type_id
             WHERE lb.user_id = $1 AND lb.org_id = $2
-              AND lt.draws_from = 'holiday'
+              AND lt.category = 'holiday'
               AND lb.balance_hours > 0
             ORDER BY lb.balance_hours DESC
             "#,

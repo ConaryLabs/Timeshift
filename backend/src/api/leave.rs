@@ -340,7 +340,7 @@ pub async fn create(
 
     // Get leave type code/name and creator name
     let lt = sqlx::query!(
-        "SELECT code, name FROM leave_types WHERE id = $1",
+        r#"SELECT code, name, category AS "category?" FROM leave_types WHERE id = $1"#,
         body.leave_type_id
     )
     .fetch_one(&pool)
@@ -435,7 +435,7 @@ pub async fn create(
         }
     } else {
         // Auto-create FMLA priority segments for FMLA leave types when hours are specified
-        let is_fmla = lt.code.starts_with("fmla_");
+        let is_fmla = lt.category.as_deref() == Some("fmla");
         if is_fmla {
             if let Some(total_hours) = body.hours {
                 create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours)
@@ -573,7 +573,8 @@ pub async fn cancel(
         let segments = sqlx::query!(
             r#"
             SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
-                   lt.code AS leave_type_code
+                   lt.code AS leave_type_code,
+                   lt.category AS "leave_type_category?"
             FROM leave_request_segments lrs
             JOIN leave_types lt ON lt.id = lrs.leave_type_id
             WHERE lrs.leave_request_id = $1
@@ -604,7 +605,7 @@ pub async fn cancel(
         } else {
             // Refund each segment (skip LWOP — no balance was deducted for it)
             for seg in segments {
-                if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
                     refund_leave_balance(
                         &mut tx,
                         auth.org_id,
@@ -732,7 +733,8 @@ pub async fn review(
         let segments = sqlx::query!(
             r#"
             SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
-                   lt.code AS leave_type_code
+                   lt.code AS leave_type_code,
+                   lt.category AS "leave_type_category?"
             FROM leave_request_segments lrs
             JOIN leave_types lt ON lt.id = lrs.leave_type_id
             WHERE lrs.leave_request_id = $1
@@ -782,7 +784,7 @@ pub async fn review(
         } else {
             // Deduct from each segment's leave type (skip LWOP — no balance)
             for seg in &segments {
-                if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
                     // H4: Lock balance row and verify sufficient balance before deduction
                     let current_balance = sqlx::query_scalar!(
                         r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
@@ -972,7 +974,8 @@ pub async fn bulk_review(
             let segments = sqlx::query!(
                 r#"
                 SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
-                       lt.code AS leave_type_code
+                       lt.code AS leave_type_code,
+                       lt.category AS "leave_type_category?"
                 FROM leave_request_segments lrs
                 JOIN leave_types lt ON lt.id = lrs.leave_type_id
                 WHERE lrs.leave_request_id = $1
@@ -1020,7 +1023,7 @@ pub async fn bulk_review(
                 }
             } else {
                 for seg in segments {
-                    if seg.leave_type_code != "lwop" && seg.hours > 0.0 {
+                    if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
                         // Lock balance row and verify sufficient balance before deduction
                         let current_balance = sqlx::query_scalar!(
                             r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
@@ -1174,7 +1177,7 @@ pub async fn carryover_enforcement(
 
     for user in &users {
         users_processed += 1;
-        let (cap, pool_draws_from): (f64, &[&str]) = match user.bargaining_unit.as_str() {
+        let (cap, pool_categories): (f64, &[&str]) = match user.bargaining_unit.as_str() {
             "vccea" => (240.0, &["vacation", "holiday"]),
             "vcsg" => (260.0, &["vacation"]),
             _ => continue,
@@ -1183,18 +1186,18 @@ pub async fn carryover_enforcement(
         // Sum current balances across all leave types in the applicable pools
         let balance_rows = sqlx::query!(
             r#"
-            SELECT lb.leave_type_id, lt.draws_from,
+            SELECT lb.leave_type_id, lt.category,
                    CAST(lb.balance_hours AS FLOAT8) AS "balance_hours!"
             FROM leave_balances lb
             JOIN leave_types lt ON lt.id = lb.leave_type_id
             WHERE lb.user_id = $1 AND lb.org_id = $2
-              AND lt.draws_from = ANY($3)
+              AND lt.category = ANY($3)
               AND lb.balance_hours > 0
-            ORDER BY lt.draws_from DESC, lb.balance_hours DESC
+            ORDER BY lt.category DESC, lb.balance_hours DESC
             "#,
             user.id,
             auth.org_id,
-            pool_draws_from as &[&str],
+            pool_categories as &[&str],
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -1345,7 +1348,7 @@ pub async fn longevity_credit(
     let vacation_type_id = sqlx::query_scalar!(
         r#"
         SELECT id FROM leave_types
-        WHERE org_id = $1 AND draws_from = 'vacation' AND is_active = true
+        WHERE org_id = $1 AND category = 'vacation' AND is_active = true
         ORDER BY display_order LIMIT 1
         "#,
         auth.org_id,

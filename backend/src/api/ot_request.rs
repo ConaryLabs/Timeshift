@@ -856,7 +856,15 @@ pub async fn assign(
     // Update OT hours tracking: increment user's OT hours for the fiscal year.
     // Fixed coverage assignments do not count toward the OT queue hours.
     if !request.is_fixed_coverage {
-        let fiscal_year: i32 = request.date.year();
+        let fy_start = crate::services::org_settings::get_i64(
+            &pool,
+            auth.org_id,
+            "fiscal_year_start_month",
+            1,
+        )
+        .await as u32;
+        let fiscal_year: i32 =
+            crate::services::timezone::fiscal_year_for_date(request.date, fy_start);
 
         sqlx::query!(
             r#"
@@ -1004,7 +1012,15 @@ pub async fn cancel_assignment(
 
     // Revert OT hours tracking (only for non-fixed-coverage, matching the assign logic)
     if !request.is_fixed_coverage {
-        let fiscal_year: i32 = request.date.year();
+        let fy_start = crate::services::org_settings::get_i64(
+            &pool,
+            auth.org_id,
+            "fiscal_year_start_month",
+            1,
+        )
+        .await as u32;
+        let fiscal_year: i32 =
+            crate::services::timezone::fiscal_year_for_date(request.date, fy_start);
 
         sqlx::query!(
             r#"

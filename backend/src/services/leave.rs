@@ -137,7 +137,7 @@ pub async fn create_fmla_segments(
             FROM leave_types lt
             LEFT JOIN leave_balances lb
                    ON lb.leave_type_id = lt.id AND lb.user_id = $2 AND lb.org_id = $3
-            WHERE lt.org_id = $1 AND lt.draws_from = $4 AND lt.is_active = true
+            WHERE lt.org_id = $1 AND lt.category = $4 AND lt.is_active = true
               AND COALESCE(lb.balance_hours, 0) > 0
             ORDER BY COALESCE(lb.balance_hours, 0) DESC
             "#,
@@ -174,7 +174,7 @@ pub async fn create_fmla_segments(
     // LWOP segment covers any hours not covered by existing balances
     if remaining > 0.01 {
         let lwop_id = sqlx::query_scalar!(
-            "SELECT id FROM leave_types WHERE org_id = $1 AND code = 'lwop' AND is_active = true LIMIT 1",
+            "SELECT id FROM leave_types WHERE org_id = $1 AND category = 'lwop' AND is_active = true LIMIT 1",
             org_id,
         )
         .fetch_optional(&mut **tx)
