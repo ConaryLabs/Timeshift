@@ -55,7 +55,7 @@ export default function SchedulePage() {
   const { selectedTeamId, setSelectedTeamId } = useUIStore()
   const { data: teams } = useTeams()
 
-  const { data, isLoading, error } = useStaffing(
+  const { data, isLoading, error, refetch } = useStaffing(
     viewMode === 'month' ? monthStartStr : startStr,
     viewMode === 'month' ? monthEndStr : endStr,
     selectedTeamId ?? undefined,
@@ -217,7 +217,12 @@ export default function SchedulePage() {
       />
 
       {isLoading && <LoadingState />}
-      {error && <p className="text-sm text-destructive">Failed to load schedule</p>}
+      {error && (
+        <div className="flex items-center gap-3 text-sm text-destructive">
+          <p>Failed to load schedule.</p>
+          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
+        </div>
+      )}
 
       {!isLoading && !error && !hasAssignments && (
         <EmptyState title="No shifts scheduled for this period" description="Shift templates and team assignments create the schedule." />

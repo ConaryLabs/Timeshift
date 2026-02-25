@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n               password_hash,\n               role AS \"role: Role\",\n               classification_id,\n               employee_type AS \"employee_type: EmployeeType\",\n               bargaining_unit,\n               hire_date, cto_designation,\n               admin_training_supervisor_since,\n               employee_status AS \"employee_status: EmployeeStatus\",\n               is_active, leave_accrual_paused_at,\n               created_at, updated_at\n        FROM users\n        WHERE email = $1 AND is_active = true\n        ",
+  "query": "\n            SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n                   u.password_hash,\n                   u.role AS \"role: Role\",\n                   u.classification_id,\n                   u.employee_type AS \"employee_type: EmployeeType\",\n                   u.bargaining_unit,\n                   u.hire_date, u.cto_designation,\n                   u.admin_training_supervisor_since,\n                   u.employee_status AS \"employee_status: EmployeeStatus\",\n                   u.is_active, u.leave_accrual_paused_at,\n                   u.created_at, u.updated_at\n            FROM users u\n            JOIN organizations o ON o.id = u.org_id\n            WHERE u.email = $1 AND u.is_active = true AND o.slug = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -142,6 +142,7 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Text"
       ]
     },
@@ -168,5 +169,5 @@
       false
     ]
   },
-  "hash": "c7bab53de71344c1c82fa0b784dd67eafea6a0cac6ea62a160d34b193c1c70d5"
+  "hash": "a490178c3ae847c63c0f3e05e600d02fb37b26a797d68df06879ae3493548d41"
 }

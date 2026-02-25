@@ -313,8 +313,7 @@ pub async fn create(
         let shift_ok = sqlx::query_scalar!(
             r#"SELECT EXISTS(
                 SELECT 1 FROM scheduled_shifts ss
-                JOIN shift_templates st ON st.id = ss.shift_template_id
-                WHERE ss.id = $1 AND st.org_id = $2
+                WHERE ss.id = $1 AND ss.org_id = $2
             )"#,
             shift_id,
             auth.org_id,

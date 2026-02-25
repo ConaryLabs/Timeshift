@@ -37,27 +37,64 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> Result<impl IntoResponse> {
-    let user = sqlx::query_as!(
-        User,
-        r#"
-        SELECT id, org_id, employee_id, first_name, last_name, email, phone,
-               password_hash,
-               role AS "role: Role",
-               classification_id,
-               employee_type AS "employee_type: EmployeeType",
-               bargaining_unit,
-               hire_date, cto_designation,
-               admin_training_supervisor_since,
-               employee_status AS "employee_status: EmployeeStatus",
-               is_active, leave_accrual_paused_at,
-               created_at, updated_at
-        FROM users
-        WHERE email = $1 AND is_active = true
-        "#,
-        req.email
-    )
-    .fetch_optional(&state.pool)
-    .await?;
+    // Multi-org login: if org_slug is provided, filter by it.
+    // If not provided, verify only one user matches the email.
+    let user = if let Some(ref slug) = req.org_slug {
+        sqlx::query_as!(
+            User,
+            r#"
+            SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,
+                   u.password_hash,
+                   u.role AS "role: Role",
+                   u.classification_id,
+                   u.employee_type AS "employee_type: EmployeeType",
+                   u.bargaining_unit,
+                   u.hire_date, u.cto_designation,
+                   u.admin_training_supervisor_since,
+                   u.employee_status AS "employee_status: EmployeeStatus",
+                   u.is_active, u.leave_accrual_paused_at,
+                   u.created_at, u.updated_at
+            FROM users u
+            JOIN organizations o ON o.id = u.org_id
+            WHERE u.email = $1 AND u.is_active = true AND o.slug = $2
+            "#,
+            req.email,
+            slug,
+        )
+        .fetch_optional(&state.pool)
+        .await?
+    } else {
+        // No org_slug: check for ambiguity
+        let matches = sqlx::query_as!(
+            User,
+            r#"
+            SELECT id, org_id, employee_id, first_name, last_name, email, phone,
+                   password_hash,
+                   role AS "role: Role",
+                   classification_id,
+                   employee_type AS "employee_type: EmployeeType",
+                   bargaining_unit,
+                   hire_date, cto_designation,
+                   admin_training_supervisor_since,
+                   employee_status AS "employee_status: EmployeeStatus",
+                   is_active, leave_accrual_paused_at,
+                   created_at, updated_at
+            FROM users
+            WHERE email = $1 AND is_active = true
+            LIMIT 2
+            "#,
+            req.email,
+        )
+        .fetch_all(&state.pool)
+        .await?;
+
+        if matches.len() > 1 {
+            return Err(AppError::BadRequest(
+                "Multiple accounts found for this email. Please specify your organization.".into(),
+            ));
+        }
+        matches.into_iter().next()
+    };
 
     // Extract user and hash for Argon2 verification.
     // For invalid emails, we use a dummy hash to prevent timing side-channels.
@@ -83,7 +120,9 @@ pub async fn login(
         Some(u) => u,
         None => {
             log_audit(&state.pool, None, None, "login_failed").await;
-            return Err(AppError::Unauthorized);
+            return Err(AppError::Unauthorized(Some(
+                "Incorrect email or password".into(),
+            )));
         }
     };
 
@@ -112,7 +151,9 @@ pub async fn login(
             "login_failed",
         )
         .await;
-        return Err(AppError::Unauthorized);
+        return Err(AppError::Unauthorized(Some(
+            "Incorrect email or password".into(),
+        )));
     }
 
     let token = create_token(
@@ -347,7 +388,7 @@ pub async fn refresh(
             // (A more aggressive approach would store the family_id in the cookie,
             // but the SHA-256 hash means we can't look up the family from a reused token
             // that's already been deleted. This is the standard trade-off.)
-            return Err(AppError::Unauthorized);
+            return Err(AppError::Unauthorized(None));
         }
     };
 
@@ -358,7 +399,7 @@ pub async fn refresh(
         {
             tracing::warn!("Failed to delete expired refresh token: {e}");
         }
-        return Err(AppError::Unauthorized);
+        return Err(AppError::Unauthorized(None));
     }
 
     // Consume old token (rotation)
@@ -379,10 +420,10 @@ pub async fn refresh(
     )
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(AppError::Unauthorized)?;
+    .ok_or(AppError::Unauthorized(None))?;
 
     if !user.is_active {
-        return Err(AppError::Unauthorized);
+        return Err(AppError::Unauthorized(None));
     }
 
     // Issue new access token

@@ -58,7 +58,7 @@ export default function TradesPage() {
   const [partnerAssignmentId, setPartnerAssignmentId] = useState('')
 
   const tradeParams = statusFilter === 'all' ? undefined : { status: statusFilter }
-  const { data: trades, isLoading, isError } = useTrades(tradeParams)
+  const { data: trades, isLoading, isError, refetch } = useTrades(tradeParams)
   const { data: allUsers } = useUserDirectory()
 
   // Compute a 30-day window for assignment lookups
@@ -391,7 +391,10 @@ export default function TradesPage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load trade requests.</p>
+        <div className="flex items-center gap-3 text-sm text-destructive">
+          <p>Failed to load trade requests.</p>
+          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
+        </div>
       ) : (
         <DataTable
           columns={columns}
