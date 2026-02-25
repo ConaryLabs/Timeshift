@@ -450,6 +450,12 @@ pub async fn submit_bid(
         ));
     }
 
+    if req.preferences.len() > 50 {
+        return Err(AppError::BadRequest(
+            "Maximum 50 preferences allowed".into(),
+        ));
+    }
+
     // Validate ranks are sequential starting from 1
     let mut ranks: Vec<i32> = req.preferences.iter().map(|p| p.preference_rank).collect();
     ranks.sort();

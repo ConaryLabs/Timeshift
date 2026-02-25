@@ -68,11 +68,18 @@ async fn admin_can_create_ot_request() {
     let token = common::get_auth_token(addr, &email, &password).await;
 
     let client = common::http_client();
-    let body = create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "location": "Communications Room",
-        "notes": "Need extra staffing",
-        "is_fixed_coverage": false,
-    }))).await;
+    let body = create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "location": "Communications Room",
+            "notes": "Need extra staffing",
+            "is_fixed_coverage": false,
+        })),
+    )
+    .await;
 
     assert_eq!(body["status"], "open");
     assert_eq!(body["classification_id"], class_id.to_string());
@@ -148,12 +155,26 @@ async fn list_ot_requests() {
 
     let client = common::http_client();
     // Create two requests on different dates
-    create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-15",
-    }))).await;
-    create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-16",
-    }))).await;
+    create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-15",
+        })),
+    )
+    .await;
+    create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-16",
+        })),
+    )
+    .await;
 
     let resp = client
         .get(format!("http://{}/api/ot-requests", addr))
@@ -236,8 +257,14 @@ async fn cancel_ot_request() {
         .unwrap();
     let detail: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(detail["status"], "cancelled");
-    assert!(detail["cancelled_at"].is_string(), "cancelled_at should be set");
-    assert!(!detail["cancelled_by"].is_null(), "cancelled_by should be set");
+    assert!(
+        detail["cancelled_at"].is_string(),
+        "cancelled_at should be set"
+    );
+    assert!(
+        !detail["cancelled_by"].is_null(),
+        "cancelled_by should be set"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -306,7 +333,11 @@ async fn cannot_update_cancelled_ot_request() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 409, "Updating cancelled request should return 409");
+    assert_eq!(
+        resp.status(),
+        409,
+        "Updating cancelled request should return 409"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -352,7 +383,8 @@ async fn employee_cannot_cancel_ot_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-ec-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-ec-emp");
@@ -382,7 +414,8 @@ async fn employee_cannot_assign_ot_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-ea-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-ea-emp");
@@ -448,7 +481,11 @@ async fn org_isolation_cannot_see_other_org_ot_requests() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 404, "Org B should get 404 for Org A's OT request");
+    assert_eq!(
+        resp.status(),
+        404,
+        "Org B should get 404 for Org A's OT request"
+    );
 
     // Org B should not be able to cancel it
     let resp = client
@@ -457,7 +494,11 @@ async fn org_isolation_cannot_see_other_org_ot_requests() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 404, "Org B should get 404 cancelling Org A's OT request");
+    assert_eq!(
+        resp.status(),
+        404,
+        "Org B should get 404 cancelling Org A's OT request"
+    );
 
     // Org B should not be able to update it
     let resp = client
@@ -467,7 +508,11 @@ async fn org_isolation_cannot_see_other_org_ot_requests() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 404, "Org B should get 404 updating Org A's OT request");
+    assert_eq!(
+        resp.status(),
+        404,
+        "Org B should get 404 updating Org A's OT request"
+    );
 
     cleanup_ot_request_data(&pool, org_a).await;
     cleanup_ot_request_data(&pool, org_b).await;
@@ -486,7 +531,8 @@ async fn employee_can_volunteer_for_ot_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-v-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-v-emp");
@@ -540,7 +586,8 @@ async fn cannot_volunteer_twice() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-vd-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-vd-emp");
@@ -579,7 +626,8 @@ async fn cannot_volunteer_for_cancelled_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-vc-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-vc-emp");
@@ -605,7 +653,11 @@ async fn cannot_volunteer_for_cancelled_request() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 409, "Volunteering for cancelled request should return 409");
+    assert_eq!(
+        resp.status(),
+        409,
+        "Volunteering for cancelled request should return 409"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -622,7 +674,8 @@ async fn employee_can_withdraw_volunteer() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-w-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-w-emp");
@@ -643,7 +696,10 @@ async fn employee_can_withdraw_volunteer() {
 
     // Withdraw
     let resp = client
-        .patch(format!("http://{}/api/ot-requests/{}/volunteer/withdraw", addr, id))
+        .patch(format!(
+            "http://{}/api/ot-requests/{}/volunteer/withdraw",
+            addr, id
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .send()
         .await
@@ -660,7 +716,10 @@ async fn employee_can_withdraw_volunteer() {
     let detail: serde_json::Value = resp.json().await.unwrap();
     let volunteers = detail["volunteers"].as_array().unwrap();
     assert_eq!(volunteers.len(), 1);
-    assert!(volunteers[0]["withdrawn_at"].is_string(), "withdrawn_at should be set after withdrawal");
+    assert!(
+        volunteers[0]["withdrawn_at"].is_string(),
+        "withdrawn_at should be set after withdrawal"
+    );
 
     // List should show volunteer_count=0 (withdrawn doesn't count)
     let resp = client
@@ -684,7 +743,8 @@ async fn withdraw_without_volunteering_returns_not_found() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-wnv-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-wnv-emp");
@@ -697,7 +757,10 @@ async fn withdraw_without_volunteering_returns_not_found() {
 
     // Try to withdraw without having volunteered
     let resp = client
-        .patch(format!("http://{}/api/ot-requests/{}/volunteer/withdraw", addr, id))
+        .patch(format!(
+            "http://{}/api/ot-requests/{}/volunteer/withdraw",
+            addr, id
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .send()
         .await
@@ -715,7 +778,8 @@ async fn re_volunteer_after_withdrawal() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-rv-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-rv-emp");
@@ -737,7 +801,10 @@ async fn re_volunteer_after_withdrawal() {
 
     // Withdraw
     let resp = client
-        .patch(format!("http://{}/api/ot-requests/{}/volunteer/withdraw", addr, id))
+        .patch(format!(
+            "http://{}/api/ot-requests/{}/volunteer/withdraw",
+            addr, id
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .send()
         .await
@@ -779,7 +846,8 @@ async fn assign_user_to_ot_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-a-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-a-emp");
@@ -829,7 +897,8 @@ async fn assign_increments_ot_hours() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-oh-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-oh-emp");
@@ -858,7 +927,11 @@ async fn assign_increments_ot_hours() {
     .fetch_one(&pool)
     .await
     .expect("ot_hours row should exist");
-    assert!((hours - 2.0).abs() < 0.01, "OT hours should be 2.0, got {}", hours);
+    assert!(
+        (hours - 2.0).abs() < 0.01,
+        "OT hours should be 2.0, got {}",
+        hours
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -871,7 +944,8 @@ async fn cancel_assignment_reverts_ot_hours() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-rh-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-rh-emp");
@@ -893,7 +967,10 @@ async fn cancel_assignment_reverts_ot_hours() {
 
     // Cancel assignment (should revert 2 hours)
     let resp = client
-        .delete(format!("http://{}/api/ot-requests/{}/assign/{}", addr, id, emp_id))
+        .delete(format!(
+            "http://{}/api/ot-requests/{}/assign/{}",
+            addr, id, emp_id
+        ))
         .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
@@ -908,7 +985,11 @@ async fn cancel_assignment_reverts_ot_hours() {
     .fetch_one(&pool)
     .await
     .expect("ot_hours row should still exist");
-    assert!((hours).abs() < 0.01, "OT hours should be 0 after cancel, got {}", hours);
+    assert!(
+        (hours).abs() < 0.01,
+        "OT hours should be 0 after cancel, got {}",
+        hours
+    );
 
     // OT request status should revert to open (no active assignments)
     let resp = client
@@ -918,7 +999,10 @@ async fn cancel_assignment_reverts_ot_hours() {
         .await
         .unwrap();
     let detail: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(detail["status"], "open", "Status should revert to open after all assignments cancelled");
+    assert_eq!(
+        detail["status"], "open",
+        "Status should revert to open after all assignments cancelled"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -931,7 +1015,8 @@ async fn cannot_assign_same_user_twice() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-da-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-da-emp");
@@ -972,7 +1057,8 @@ async fn cannot_assign_to_cancelled_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-ac-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-ac-emp");
@@ -999,7 +1085,11 @@ async fn cannot_assign_to_cancelled_request() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 409, "Assigning to cancelled request should return 409");
+    assert_eq!(
+        resp.status(),
+        409,
+        "Assigning to cancelled request should return 409"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1016,7 +1106,8 @@ async fn fixed_coverage_fills_after_one_assignment() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-fx-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-fx-emp");
@@ -1024,9 +1115,16 @@ async fn fixed_coverage_fills_after_one_assignment() {
     let _emp_token = common::get_auth_token(addr, &emp_email, &emp_pass).await;
 
     let client = common::http_client();
-    let created = create_ot_request(&client, addr, &admin_token, class_id, Some(serde_json::json!({
-        "is_fixed_coverage": true,
-    }))).await;
+    let created = create_ot_request(
+        &client,
+        addr,
+        &admin_token,
+        class_id,
+        Some(serde_json::json!({
+            "is_fixed_coverage": true,
+        })),
+    )
+    .await;
     let id = created["id"].as_str().unwrap();
     assert_eq!(created["is_fixed_coverage"], true);
     assert_eq!(created["status"], "open");
@@ -1047,7 +1145,10 @@ async fn fixed_coverage_fills_after_one_assignment() {
         .await
         .unwrap();
     let detail: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(detail["status"], "filled", "Fixed coverage should be filled after 1 assignment");
+    assert_eq!(
+        detail["status"], "filled",
+        "Fixed coverage should be filled after 1 assignment"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1060,22 +1161,32 @@ async fn cannot_assign_to_filled_request() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-fd-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp1_email = unique_email("otr-fd-e1");
-    let (emp1_id, emp1_pass) = common::create_test_user(&pool, org_id, "employee", &emp1_email).await;
+    let (emp1_id, emp1_pass) =
+        common::create_test_user(&pool, org_id, "employee", &emp1_email).await;
     let _emp1_token = common::get_auth_token(addr, &emp1_email, &emp1_pass).await;
 
     let emp2_email = unique_email("otr-fd-e2");
-    let (emp2_id, emp2_pass) = common::create_test_user(&pool, org_id, "employee", &emp2_email).await;
+    let (emp2_id, emp2_pass) =
+        common::create_test_user(&pool, org_id, "employee", &emp2_email).await;
     let _emp2_token = common::get_auth_token(addr, &emp2_email, &emp2_pass).await;
 
     let client = common::http_client();
     // Create fixed coverage (fills after 1 assignment)
-    let created = create_ot_request(&client, addr, &admin_token, class_id, Some(serde_json::json!({
-        "is_fixed_coverage": true,
-    }))).await;
+    let created = create_ot_request(
+        &client,
+        addr,
+        &admin_token,
+        class_id,
+        Some(serde_json::json!({
+            "is_fixed_coverage": true,
+        })),
+    )
+    .await;
     let id = created["id"].as_str().unwrap();
 
     // Assign first employee => fills
@@ -1095,7 +1206,11 @@ async fn cannot_assign_to_filled_request() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 409, "Assigning to filled request should return 409");
+    assert_eq!(
+        resp.status(),
+        409,
+        "Assigning to filled request should return 409"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1108,15 +1223,18 @@ async fn non_fixed_coverage_partially_fills() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-pf-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp1_email = unique_email("otr-pf-e1");
-    let (emp1_id, emp1_pass) = common::create_test_user(&pool, org_id, "employee", &emp1_email).await;
+    let (emp1_id, emp1_pass) =
+        common::create_test_user(&pool, org_id, "employee", &emp1_email).await;
     let _emp1_token = common::get_auth_token(addr, &emp1_email, &emp1_pass).await;
 
     let emp2_email = unique_email("otr-pf-e2");
-    let (emp2_id, emp2_pass) = common::create_test_user(&pool, org_id, "employee", &emp2_email).await;
+    let (emp2_id, emp2_pass) =
+        common::create_test_user(&pool, org_id, "employee", &emp2_email).await;
     let _emp2_token = common::get_auth_token(addr, &emp2_email, &emp2_pass).await;
 
     let client = common::http_client();
@@ -1191,7 +1309,11 @@ async fn create_rejects_same_start_end_time() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "Same start and end time should be rejected");
+    assert_eq!(
+        resp.status(),
+        400,
+        "Same start and end time should be rejected"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1218,7 +1340,11 @@ async fn create_rejects_invalid_classification() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 404, "Non-existent classification should return 404");
+    assert_eq!(
+        resp.status(),
+        404,
+        "Non-existent classification should return 404"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1235,13 +1361,23 @@ async fn create_computes_hours_for_midnight_crossing() {
 
     let client = common::http_client();
     // 22:00 to 02:00 crosses midnight = 4 hours
-    let body = create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "start_time": "22:00:00",
-        "end_time": "02:00:00",
-    }))).await;
+    let body = create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "start_time": "22:00:00",
+            "end_time": "02:00:00",
+        })),
+    )
+    .await;
 
-    assert!((body["hours"].as_f64().unwrap() - 4.0).abs() < 0.01,
-        "Midnight crossing should compute 4 hours, got {}", body["hours"]);
+    assert!(
+        (body["hours"].as_f64().unwrap() - 4.0).abs() < 0.01,
+        "Midnight crossing should compute 4 hours, got {}",
+        body["hours"]
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1267,7 +1403,11 @@ async fn update_rejects_invalid_status() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "Invalid status value should be rejected");
+    assert_eq!(
+        resp.status(),
+        400,
+        "Invalid status value should be rejected"
+    );
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
@@ -1280,7 +1420,8 @@ async fn assign_rejects_invalid_ot_type() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-bot-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-bot-emp");
@@ -1323,17 +1464,34 @@ async fn filter_by_status() {
     let client = common::http_client();
 
     // Create two open requests
-    create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-15",
-    }))).await;
-    let second = create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-16",
-    }))).await;
+    create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-15",
+        })),
+    )
+    .await;
+    let second = create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-16",
+        })),
+    )
+    .await;
     let second_id = second["id"].as_str().unwrap();
 
     // Cancel the second one
     client
-        .patch(format!("http://{}/api/ot-requests/{}/cancel", addr, second_id))
+        .patch(format!(
+            "http://{}/api/ot-requests/{}/cancel",
+            addr, second_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -1376,19 +1534,43 @@ async fn filter_by_date_range() {
 
     let client = common::http_client();
 
-    create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-10",
-    }))).await;
-    create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-20",
-    }))).await;
-    create_ot_request(&client, addr, &token, class_id, Some(serde_json::json!({
-        "date": "2026-06-30",
-    }))).await;
+    create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-10",
+        })),
+    )
+    .await;
+    create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-20",
+        })),
+    )
+    .await;
+    create_ot_request(
+        &client,
+        addr,
+        &token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-30",
+        })),
+    )
+    .await;
 
     // Filter: only June 15-25
     let resp = client
-        .get(format!("http://{}/api/ot-requests?date_from=2026-06-15&date_to=2026-06-25", addr))
+        .get(format!(
+            "http://{}/api/ot-requests?date_from=2026-06-15&date_to=2026-06-25",
+            addr
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -1429,7 +1611,10 @@ async fn filter_by_classification() {
 
     // Filter by class_a
     let resp = client
-        .get(format!("http://{}/api/ot-requests?classification_id={}", addr, class_a))
+        .get(format!(
+            "http://{}/api/ot-requests?classification_id={}",
+            addr, class_a
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -1449,7 +1634,8 @@ async fn filter_volunteered_by_me() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-fv-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-fv-emp");
@@ -1459,17 +1645,34 @@ async fn filter_volunteered_by_me() {
     let client = common::http_client();
 
     // Create two requests
-    let req1 = create_ot_request(&client, addr, &admin_token, class_id, Some(serde_json::json!({
-        "date": "2026-06-15",
-    }))).await;
+    let req1 = create_ot_request(
+        &client,
+        addr,
+        &admin_token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-15",
+        })),
+    )
+    .await;
     let req1_id = req1["id"].as_str().unwrap();
-    create_ot_request(&client, addr, &admin_token, class_id, Some(serde_json::json!({
-        "date": "2026-06-16",
-    }))).await;
+    create_ot_request(
+        &client,
+        addr,
+        &admin_token,
+        class_id,
+        Some(serde_json::json!({
+            "date": "2026-06-16",
+        })),
+    )
+    .await;
 
     // Employee volunteers for only the first
     client
-        .post(format!("http://{}/api/ot-requests/{}/volunteer", addr, req1_id))
+        .post(format!(
+            "http://{}/api/ot-requests/{}/volunteer",
+            addr, req1_id
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .send()
         .await
@@ -1477,13 +1680,20 @@ async fn filter_volunteered_by_me() {
 
     // Filter volunteered_by_me
     let resp = client
-        .get(format!("http://{}/api/ot-requests?volunteered_by_me=true", addr))
+        .get(format!(
+            "http://{}/api/ot-requests?volunteered_by_me=true",
+            addr
+        ))
         .header("Authorization", format!("Bearer {}", emp_token))
         .send()
         .await
         .unwrap();
     let items: Vec<serde_json::Value> = resp.json().await.unwrap();
-    assert_eq!(items.len(), 1, "Should only see 1 request the employee volunteered for");
+    assert_eq!(
+        items.len(),
+        1,
+        "Should only see 1 request the employee volunteered for"
+    );
     assert_eq!(items[0]["id"], req1_id);
 
     cleanup_ot_request_data(&pool, org_id).await;
@@ -1501,7 +1711,8 @@ async fn full_volunteer_and_assign_flow() {
     let class_id = common::create_test_classification(&pool, org_id).await;
 
     let admin_email = unique_email("otr-ff-adm");
-    let (_admin_id, admin_pass) = common::create_test_user(&pool, org_id, "admin", &admin_email).await;
+    let (_admin_id, admin_pass) =
+        common::create_test_user(&pool, org_id, "admin", &admin_email).await;
     let admin_token = common::get_auth_token(addr, &admin_email, &admin_pass).await;
 
     let emp_email = unique_email("otr-ff-emp");
@@ -1511,11 +1722,18 @@ async fn full_volunteer_and_assign_flow() {
     let client = common::http_client();
 
     // 1. Admin creates fixed coverage OT request
-    let created = create_ot_request(&client, addr, &admin_token, class_id, Some(serde_json::json!({
-        "is_fixed_coverage": true,
-        "location": "Com Room",
-        "notes": "Need coverage for sick call",
-    }))).await;
+    let created = create_ot_request(
+        &client,
+        addr,
+        &admin_token,
+        class_id,
+        Some(serde_json::json!({
+            "is_fixed_coverage": true,
+            "location": "Com Room",
+            "notes": "Need coverage for sick call",
+        })),
+    )
+    .await;
     let id = created["id"].as_str().unwrap();
     assert_eq!(created["status"], "open");
 

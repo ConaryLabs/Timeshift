@@ -324,14 +324,16 @@ pub async fn bulk_upsert_slots(
     let mut seen_classifications = std::collections::HashSet::new();
     for s in &req.slots {
         if s.slot_index < 0 || s.slot_index > 47 {
-            return Err(AppError::BadRequest(
-                format!("slot_index {} out of range 0-47", s.slot_index),
-            ));
+            return Err(AppError::BadRequest(format!(
+                "slot_index {} out of range 0-47",
+                s.slot_index
+            )));
         }
         if s.day_of_week < 0 || s.day_of_week > 6 {
-            return Err(AppError::BadRequest(
-                format!("day_of_week {} out of range 0-6", s.day_of_week),
-            ));
+            return Err(AppError::BadRequest(format!(
+                "day_of_week {} out of range 0-6",
+                s.day_of_week
+            )));
         }
         if s.min_headcount < 0 {
             return Err(AppError::BadRequest(
@@ -603,7 +605,7 @@ pub(crate) async fn compute_slot_coverage(
         } else {
             (end_min / 30) as i16
         };
-        let end_slot = end_slot.min(47).max(0);
+        let end_slot = end_slot.clamp(0, 47);
 
         for slot in start_slot..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;

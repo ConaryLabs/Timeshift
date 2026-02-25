@@ -9,6 +9,13 @@ use uuid::Uuid;
 
 use crate::error::{AppError, Result};
 
+fn check_exists(ok: Option<bool>, entity: &str) -> Result<()> {
+    if !ok.unwrap_or(false) {
+        return Err(AppError::NotFound(format!("{entity} not found")));
+    }
+    Ok(())
+}
+
 pub async fn verify_user(pool: &PgPool, user_id: Uuid, org_id: Uuid) -> Result<()> {
     let ok = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND is_active = true)",
@@ -17,11 +24,7 @@ pub async fn verify_user(pool: &PgPool, user_id: Uuid, org_id: Uuid) -> Result<(
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("User not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "User")
 }
 
 pub async fn verify_scheduled_shift(pool: &PgPool, shift_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -32,11 +35,7 @@ pub async fn verify_scheduled_shift(pool: &PgPool, shift_id: Uuid, org_id: Uuid)
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Scheduled shift not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "Scheduled shift")
 }
 
 pub async fn verify_shift_template(pool: &PgPool, template_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -47,11 +46,7 @@ pub async fn verify_shift_template(pool: &PgPool, template_id: Uuid, org_id: Uui
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Shift template not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "Shift template")
 }
 
 pub async fn verify_classification(pool: &PgPool, class_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -62,11 +57,7 @@ pub async fn verify_classification(pool: &PgPool, class_id: Uuid, org_id: Uuid) 
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Classification not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "Classification")
 }
 
 pub async fn verify_slot(pool: &PgPool, slot_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -83,11 +74,7 @@ pub async fn verify_slot(pool: &PgPool, slot_id: Uuid, org_id: Uuid) -> Result<(
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Shift slot not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "Shift slot")
 }
 
 pub async fn verify_ot_reason(pool: &PgPool, reason_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -98,11 +85,7 @@ pub async fn verify_ot_reason(pool: &PgPool, reason_id: Uuid, org_id: Uuid) -> R
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("OT reason not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "OT reason")
 }
 
 pub async fn verify_ot_request(pool: &PgPool, ot_request_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -113,11 +96,7 @@ pub async fn verify_ot_request(pool: &PgPool, ot_request_id: Uuid, org_id: Uuid)
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("OT request not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "OT request")
 }
 
 pub async fn verify_period(pool: &PgPool, period_id: Uuid, org_id: Uuid) -> Result<()> {
@@ -128,9 +107,5 @@ pub async fn verify_period(pool: &PgPool, period_id: Uuid, org_id: Uuid) -> Resu
     )
     .fetch_one(pool)
     .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Schedule period not found".into()));
-    }
-    Ok(())
+    check_exists(ok, "Schedule period")
 }

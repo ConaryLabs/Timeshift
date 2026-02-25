@@ -408,13 +408,10 @@ async fn check_team_cycle(pool: &PgPool, team_id: Uuid, new_parent_id: Uuid) -> 
                 "Setting this parent would create a circular reference".into(),
             ));
         }
-        current = sqlx::query_scalar!(
-            "SELECT parent_team_id FROM teams WHERE id = $1",
-            cid
-        )
-        .fetch_optional(pool)
-        .await?
-        .flatten();
+        current = sqlx::query_scalar!("SELECT parent_team_id FROM teams WHERE id = $1", cid)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
     }
     Ok(())
 }

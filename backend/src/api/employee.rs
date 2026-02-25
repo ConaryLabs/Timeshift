@@ -146,6 +146,7 @@ pub async fn my_schedule(
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date BETWEEN $2 AND $3
           AND ss.org_id = $4
+          AND a.cancelled_at IS NULL
         ORDER BY ss.date, st.start_time
         "#,
         auth.id,
@@ -197,6 +198,7 @@ pub async fn my_dashboard(
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date = $2
           AND ss.org_id = $3
+          AND a.cancelled_at IS NULL
         ORDER BY st.start_time
         LIMIT 1
         "#,
@@ -233,6 +235,7 @@ pub async fn my_dashboard(
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date > $2
           AND ss.org_id = $3
+          AND a.cancelled_at IS NULL
         ORDER BY ss.date, st.start_time
         LIMIT 1
         "#,
@@ -269,6 +272,7 @@ pub async fn my_dashboard(
         LEFT JOIN teams t ON t.id = sl.team_id
         WHERE a.user_id = $1 AND ss.date BETWEEN $2 AND $3
           AND ss.org_id = $4
+          AND a.cancelled_at IS NULL
         ORDER BY ss.date, st.start_time
         "#,
         auth.id,
@@ -340,9 +344,11 @@ pub async fn my_dashboard(
         SELECT COUNT(*) AS "count!"
         FROM trade_requests
         WHERE (requester_id = $1 OR partner_id = $1)
+          AND org_id = $2
           AND status IN ('pending_partner', 'pending_approval')
         "#,
         auth.id,
+        auth.org_id,
     )
     .fetch_one(&pool)
     .await?;

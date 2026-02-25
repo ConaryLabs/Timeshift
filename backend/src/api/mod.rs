@@ -28,12 +28,28 @@ pub mod vacation_bids;
 
 use crate::AppState;
 use axum::{
+    extract::State,
     routing::{delete, get, patch, post},
-    Router,
+    Json, Router,
 };
+use sqlx::PgPool;
+
+async fn health(State(pool): State<PgPool>) -> Json<serde_json::Value> {
+    let db_ok = sqlx::query_scalar!("SELECT 1 AS \"one!\"")
+        .fetch_one(&pool)
+        .await
+        .is_ok();
+
+    Json(serde_json::json!({
+        "status": if db_ok { "ok" } else { "degraded" },
+        "database": db_ok,
+    }))
+}
 
 pub fn router(state: AppState) -> Router {
     Router::new()
+        // Health check (no auth required)
+        .route("/api/health", get(health))
         // Auth (login route is in main.rs with rate limiting)
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
@@ -82,7 +98,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/users/me/schedule", get(employee::my_schedule))
         .route("/api/users/me/dashboard", get(employee::my_dashboard))
         .route("/api/nav/badges", get(nav::badges))
-        .route("/api/users/me/password", patch(users::change_password))
         // Users (directory must be before /api/users/:id to avoid param capture)
         .route("/api/users/directory", get(users::directory))
         .route("/api/users", get(users::list).post(users::create))
@@ -353,10 +368,7 @@ pub fn router(state: AppState) -> Router {
             patch(holidays::update).delete(holidays::delete),
         )
         // Notifications (static sub-paths before /:id to avoid param capture)
-        .route(
-            "/api/notifications",
-            get(notifications::list),
-        )
+        .route("/api/notifications", get(notifications::list))
         .route(
             "/api/notifications/unread-count",
             get(notifications::unread_count),
@@ -369,10 +381,7 @@ pub fn router(state: AppState) -> Router {
             "/api/notifications/:id/read",
             patch(notifications::mark_read),
         )
-        .route(
-            "/api/notifications/:id",
-            delete(notifications::delete),
-        )
+        .route("/api/notifications/:id", delete(notifications::delete))
         // Reports
         .route("/api/reports/coverage", get(reports::coverage))
         .route("/api/reports/ot-summary", get(reports::ot_summary))
@@ -384,10 +393,7 @@ pub fn router(state: AppState) -> Router {
             "/api/saved-filters",
             get(saved_filters::list).post(saved_filters::create),
         )
-        .route(
-            "/api/saved-filters/:id",
-            delete(saved_filters::delete),
-        )
+        .route("/api/saved-filters/:id", delete(saved_filters::delete))
         .route(
             "/api/saved-filters/:id/default",
             patch(saved_filters::set_default),
@@ -401,10 +407,7 @@ pub fn router(state: AppState) -> Router {
             "/api/shift-patterns/:id",
             patch(shift_patterns::update).delete(shift_patterns::delete),
         )
-        .route(
-            "/api/shift-patterns/:id/cycle",
-            get(shift_patterns::cycle),
-        )
+        .route("/api/shift-patterns/:id/cycle", get(shift_patterns::cycle))
         // Organization settings
         .route(
             "/api/organization/settings",

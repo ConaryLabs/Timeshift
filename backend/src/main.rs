@@ -103,15 +103,29 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     );
 
+    // Rate limiting for password change endpoint: 5 requests burst, replenish 1 per 12 seconds per IP
+    let password_governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(12)
+            .burst_size(5)
+            .finish()
+            .unwrap(),
+    );
+
     let governor_limiter = governor_conf.limiter().clone();
     let refresh_governor_limiter = refresh_governor_conf.limiter().clone();
     let callout_action_limiter = callout_action_governor_conf.limiter().clone();
+    let password_limiter = password_governor_conf.limiter().clone();
     let cleanup_interval = Duration::from_secs(60);
-    std::thread::spawn(move || loop {
-        std::thread::sleep(cleanup_interval);
-        governor_limiter.retain_recent();
-        refresh_governor_limiter.retain_recent();
-        callout_action_limiter.retain_recent();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(cleanup_interval);
+        loop {
+            interval.tick().await;
+            governor_limiter.retain_recent();
+            refresh_governor_limiter.retain_recent();
+            callout_action_limiter.retain_recent();
+            password_limiter.retain_recent();
+        }
     });
 
     // Login route with rate limiting
@@ -145,14 +159,22 @@ async fn main() -> anyhow::Result<()> {
         })
         .with_state(state.clone());
 
-    // TODO(M5): /api/users/me/password should be rate-limited (e.g., 5 req/min per IP)
-    // similar to login. Currently registered in api/mod.rs; to add rate limiting it
-    // needs to be moved here with its own GovernorLayer, like the login/refresh routes.
+    // Password change route with rate limiting
+    let password_router = Router::new()
+        .route(
+            "/api/users/me/password",
+            axum::routing::patch(api::users::change_password),
+        )
+        .layer(GovernorLayer {
+            config: password_governor_conf,
+        })
+        .with_state(state.clone());
 
     let app = api::router(state)
         .merge(login_router)
         .merge(refresh_router)
         .merge(callout_action_router)
+        .merge(password_router)
         .layer(middleware::from_fn(security_headers))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -185,5 +207,12 @@ async fn security_headers(
         "strict-transport-security",
         HeaderValue::from_static("max-age=31536000; includeSubDomains"),
     );
+    headers.insert(
+        "content-security-policy",
+        HeaderValue::from_static(
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        ),
+    );
+    headers.insert("referrer-policy", HeaderValue::from_static("no-referrer"));
     response
 }

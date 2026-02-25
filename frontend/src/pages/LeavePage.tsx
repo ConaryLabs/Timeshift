@@ -257,13 +257,11 @@ export default function LeavePage() {
       <PageHeader
         title="Leave Requests"
         actions={
-          !isManager ? (
-            <Button onClick={openForm}>+ Request Leave</Button>
-          ) : undefined
+          <Button onClick={openForm}>+ Request Leave</Button>
         }
       />
 
-      {!isManager && balances && balances.length > 0 && (
+      {balances && balances.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           {balances.map((b) => (
             <Card key={b.leave_type_id}>
@@ -305,9 +303,9 @@ export default function LeavePage() {
           isLoading={isLoading}
           emptyMessage={isManager ? 'No leave requests to review' : 'No leave requests yet'}
           emptyDescription={isManager ? 'Employee requests will appear here.' : 'Submit a request using the button above.'}
-          emptyAction={!isManager ? (
+          emptyAction={
             <Button onClick={openForm}>+ Request Leave</Button>
-          ) : undefined}
+          }
           rowKey={(r) => r.id}
           selectable={isManager && statusFilter === 'pending'}
           toolbar={isManager && statusFilter === 'pending' ? (selectedKeys) => (

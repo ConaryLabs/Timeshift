@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import {
   User,
@@ -55,18 +55,16 @@ export default function MyProfilePage() {
   const { data: prefs, isLoading: prefsLoading, isError: prefsError } = useMyPreferences()
   const updatePrefsMut = useUpdateMyPreferences()
 
-  const [emailNotif, setEmailNotif] = useState(true)
-  const [smsNotif, setSmsNotif] = useState(false)
-  const [preferredView, setPreferredView] = useState<'month' | 'week' | 'day'>('week')
-  const [dirty, setDirty] = useState(false)
+  const [overrides, setOverrides] = useState<{
+    notification_email?: boolean
+    notification_sms?: boolean
+    preferred_view?: 'month' | 'week' | 'day'
+  }>({})
 
-  useEffect(() => {
-    if (!prefs) return
-    setEmailNotif(prefs.notification_email)
-    setSmsNotif(prefs.notification_sms)
-    setPreferredView(prefs.preferred_view)
-    setDirty(false)
-  }, [prefs])
+  const emailNotif = overrides.notification_email ?? prefs?.notification_email ?? true
+  const smsNotif = overrides.notification_sms ?? prefs?.notification_sms ?? false
+  const preferredView = overrides.preferred_view ?? prefs?.preferred_view ?? 'week'
+  const dirty = Object.keys(overrides).length > 0
 
   function handleSave() {
     updatePrefsMut.mutate(
@@ -77,7 +75,7 @@ export default function MyProfilePage() {
       },
       {
         onSuccess: () => {
-          setDirty(false)
+          setOverrides({})
           toast.success('Preferences saved')
         },
         onError: (err: unknown) => {
@@ -146,10 +144,7 @@ export default function MyProfilePage() {
                 <Switch
                   id="email-notif"
                   checked={emailNotif}
-                  onCheckedChange={(v) => {
-                    setEmailNotif(v)
-                    setDirty(true)
-                  }}
+                  onCheckedChange={(v) => setOverrides((o) => ({ ...o, notification_email: v }))}
                 />
               </div>
 
@@ -163,10 +158,7 @@ export default function MyProfilePage() {
                 <Switch
                   id="sms-notif"
                   checked={smsNotif}
-                  onCheckedChange={(v) => {
-                    setSmsNotif(v)
-                    setDirty(true)
-                  }}
+                  onCheckedChange={(v) => setOverrides((o) => ({ ...o, notification_sms: v }))}
                 />
               </div>
 
@@ -179,10 +171,7 @@ export default function MyProfilePage() {
                 </div>
                 <Select
                   value={preferredView}
-                  onValueChange={(v: 'month' | 'week' | 'day') => {
-                    setPreferredView(v)
-                    setDirty(true)
-                  }}
+                  onValueChange={(v: 'month' | 'week' | 'day') => setOverrides((o) => ({ ...o, preferred_view: v }))}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue />

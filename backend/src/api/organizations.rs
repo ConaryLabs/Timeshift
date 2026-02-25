@@ -37,6 +37,31 @@ pub async fn update_own(
         return Err(AppError::Forbidden);
     }
 
+    // Validate timezone looks like a valid IANA timezone
+    if let Some(ref tz) = req.timezone {
+        let valid_prefixes = [
+            "Africa/",
+            "America/",
+            "Antarctica/",
+            "Arctic/",
+            "Asia/",
+            "Atlantic/",
+            "Australia/",
+            "Europe/",
+            "Indian/",
+            "Pacific/",
+            "Etc/",
+            "US/",
+        ];
+        let is_valid = tz == "UTC" || valid_prefixes.iter().any(|p| tz.starts_with(p));
+        if !is_valid || tz.len() > 50 || tz.contains("..") {
+            return Err(AppError::BadRequest(
+                "Invalid timezone. Must be a valid IANA timezone (e.g. 'America/Los_Angeles')"
+                    .into(),
+            ));
+        }
+    }
+
     let org = sqlx::query_as!(
         Organization,
         r#"
@@ -95,6 +120,13 @@ pub async fn set_setting(
 
     if req.key.is_empty() || req.key.len() > 100 {
         return Err(AppError::BadRequest("key must be 1-100 characters".into()));
+    }
+
+    // Cap value payload at 64KB
+    if req.value.to_string().len() > 65_536 {
+        return Err(AppError::BadRequest(
+            "Setting value too large (max 64KB)".into(),
+        ));
     }
 
     let row = sqlx::query_as!(

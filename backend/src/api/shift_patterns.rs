@@ -15,10 +15,7 @@ use crate::{
     // org_guard not used (no verify_team available; inline check instead)
 };
 
-pub async fn list(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-) -> Result<Json<Vec<ShiftPattern>>> {
+pub async fn list(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<Vec<ShiftPattern>>> {
     let rows = sqlx::query_as!(
         ShiftPattern,
         r#"
@@ -49,9 +46,9 @@ pub async fn create(
         return Err(AppError::BadRequest("Name is required".into()));
     }
 
-    if req.pattern_days < 1 {
+    if req.pattern_days < 1 || req.pattern_days > 366 {
         return Err(AppError::BadRequest(
-            "pattern_days must be at least 1".into(),
+            "pattern_days must be between 1 and 366".into(),
         ));
     }
 

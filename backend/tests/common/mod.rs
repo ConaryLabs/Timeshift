@@ -226,26 +226,36 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
         // Shift bidding chain
         "DELETE FROM bid_submissions WHERE bid_window_id IN (SELECT bw.id FROM bid_windows bw JOIN schedule_periods sp ON sp.id = bw.period_id WHERE sp.org_id = $1)",
         "DELETE FROM bid_windows WHERE period_id IN (SELECT id FROM schedule_periods WHERE org_id = $1)",
-        // Trade requests
+        // Trade chain
+        "DELETE FROM trade_approvals WHERE org_id = $1",
         "DELETE FROM trade_requests WHERE org_id = $1",
         // Callout chain
         "DELETE FROM bump_requests WHERE org_id = $1",
         "DELETE FROM ot_volunteers WHERE callout_event_id IN (SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ss.org_id = $1)",
         "DELETE FROM callout_attempts WHERE event_id IN (SELECT ce.id FROM callout_events ce JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id WHERE ss.org_id = $1)",
         "DELETE FROM callout_events WHERE scheduled_shift_id IN (SELECT id FROM scheduled_shifts WHERE org_id = $1)",
+        // OT requests chain
+        "DELETE FROM ot_request_assignments WHERE ot_request_id IN (SELECT id FROM ot_requests WHERE org_id = $1)",
+        "DELETE FROM ot_request_volunteers WHERE ot_request_id IN (SELECT id FROM ot_requests WHERE org_id = $1)",
+        "DELETE FROM ot_requests WHERE org_id = $1",
         // Schedule chain
+        "DELETE FROM duty_assignments WHERE org_id = $1",
         "DELETE FROM assignments WHERE scheduled_shift_id IN (SELECT id FROM scheduled_shifts WHERE org_id = $1)",
         "DELETE FROM scheduled_shifts WHERE org_id = $1",
         "DELETE FROM slot_assignments WHERE slot_id IN (SELECT ss.id FROM shift_slots ss JOIN teams t ON t.id = ss.team_id WHERE t.org_id = $1)",
         "DELETE FROM shift_slots WHERE team_id IN (SELECT id FROM teams WHERE org_id = $1)",
+        "DELETE FROM special_assignments WHERE org_id = $1",
         "DELETE FROM teams WHERE org_id = $1",
         "DELETE FROM schedule_annotations WHERE org_id = $1",
         "DELETE FROM schedule_periods WHERE org_id = $1",
         // Leave chain
-        "DELETE FROM leave_request_lines WHERE leave_request_id IN (SELECT lr.id FROM leave_requests lr JOIN users u ON u.id = lr.user_id WHERE u.org_id = $1)",
+        "DELETE FROM leave_request_segments WHERE leave_request_id IN (SELECT lr.id FROM leave_requests lr WHERE lr.org_id = $1)",
+        "DELETE FROM leave_request_lines WHERE leave_request_id IN (SELECT lr.id FROM leave_requests lr WHERE lr.org_id = $1)",
         "DELETE FROM accrual_transactions WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM leave_balances WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
-        "DELETE FROM leave_requests WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
+        "DELETE FROM sick_leave_donations WHERE org_id = $1",
+        "DELETE FROM holiday_sellback_requests WHERE org_id = $1",
+        "DELETE FROM leave_requests WHERE org_id = $1",
         "DELETE FROM accrual_schedules WHERE org_id = $1",
         "DELETE FROM leave_types WHERE org_id = $1",
         // OT chain
@@ -253,12 +263,20 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
         "DELETE FROM ot_hours WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM ot_reasons WHERE org_id = $1",
         // Coverage plans & shift templates
+        "DELETE FROM coverage_plan_slots WHERE coverage_plan_id IN (SELECT id FROM coverage_plans WHERE org_id = $1)",
         "DELETE FROM coverage_plan_assignments WHERE org_id = $1",
         "DELETE FROM coverage_plans WHERE org_id = $1",
+        "DELETE FROM coverage_requirements WHERE org_id = $1",
         "DELETE FROM shift_templates WHERE org_id = $1",
+        "DELETE FROM shift_patterns WHERE org_id = $1",
+        // Duty positions
+        "DELETE FROM duty_positions WHERE org_id = $1",
         // User-related
+        "DELETE FROM notifications WHERE org_id = $1",
+        "DELETE FROM saved_filters WHERE org_id = $1",
         "DELETE FROM employee_preferences WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
+        "DELETE FROM login_audit_log WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM seniority_records WHERE user_id IN (SELECT id FROM users WHERE org_id = $1)",
         "DELETE FROM users WHERE org_id = $1",
         // Org-level

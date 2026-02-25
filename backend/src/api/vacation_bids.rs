@@ -478,6 +478,12 @@ pub async fn submit_bid(
         return Err(AppError::BadRequest("At least one pick is required".into()));
     }
 
+    if body.picks.len() > 20 {
+        return Err(AppError::BadRequest(
+            "Maximum 20 vacation picks allowed".into(),
+        ));
+    }
+
     for pick in &body.picks {
         if pick.end_date < pick.start_date {
             return Err(AppError::BadRequest(

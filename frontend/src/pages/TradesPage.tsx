@@ -367,7 +367,7 @@ export default function TradesPage() {
           </Button>
           {createMut.isError && (
             <p className="text-sm text-destructive mt-1">
-              {(createMut.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create trade request'}
+              {extractApiError(createMut.error, 'Failed to create trade request')}
             </p>
           )}
         </form>

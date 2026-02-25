@@ -8,9 +8,7 @@ use uuid::Uuid;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    api::coverage_plans::{
-        coverage_required_for_shifts, fetch_slot_totals, resolve_plan_id,
-    },
+    api::coverage_plans::{coverage_required_for_shifts, fetch_slot_totals, resolve_plan_id},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -75,6 +73,7 @@ pub async fn staffing_view(
           AND ss.date BETWEEN $2 AND $3
           AND st.is_active = true
           AND ($4::uuid IS NULL OR sl.team_id = $4)
+          AND a.cancelled_at IS NULL
         ORDER BY ss.date, st.start_time, u.last_name
         "#,
         auth.org_id,
@@ -460,6 +459,7 @@ pub async fn grid(
           AND ss.date BETWEEN $2 AND $3
           AND st.is_active = true
           AND ($4::uuid IS NULL OR sl.team_id = $4)
+          AND a.cancelled_at IS NULL
         ORDER BY ss.date, st.start_time, u.last_name
         "#,
         auth.org_id,
@@ -557,7 +557,7 @@ pub async fn grid(
     while d <= q.end_date {
         let plan = pa_tuples
             .iter()
-            .find(|(_, start, end)| *start <= d && end.map_or(true, |e| e >= d))
+            .find(|(_, start, end)| *start <= d && end.is_none_or(|e| e >= d))
             .map(|(pid, _, _)| *pid)
             .or(default_plan_id);
         if let Some(pid) = plan {
@@ -565,7 +565,10 @@ pub async fn grid(
             plan_dows.insert((pid, dow));
         }
         date_plan.insert(d, plan);
-        d = d.next_day().unwrap();
+        d = match d.next_day() {
+            Some(next) => next,
+            None => break,
+        };
     }
 
     // Fetch slot totals for each unique (plan_id, dow) and compute per-shift coverage
@@ -663,6 +666,7 @@ pub async fn day_view(
         JOIN users u             ON u.id  = a.user_id
         LEFT JOIN classifications cl ON cl.id = u.classification_id
         WHERE ss.org_id = $1 AND ss.date = $2
+          AND a.cancelled_at IS NULL
         ORDER BY st.start_time, u.last_name
         "#,
         auth.org_id,
@@ -692,18 +696,17 @@ pub async fn day_view(
     let dow = date.weekday().number_days_from_sunday() as i16;
 
     // Resolve coverage from coverage plans
-    let coverage_map: HashMap<Uuid, i32> = if let Some(plan_id) =
-        resolve_plan_id(&pool, auth.org_id, date).await?
-    {
-        let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
-        let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
-            .iter()
-            .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
-            .collect();
-        coverage_required_for_shifts(&slot_totals, &shift_info)
-    } else {
-        HashMap::new()
-    };
+    let coverage_map: HashMap<Uuid, i32> =
+        if let Some(plan_id) = resolve_plan_id(&pool, auth.org_id, date).await? {
+            let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
+            let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
+                .iter()
+                .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+                .collect();
+            coverage_required_for_shifts(&slot_totals, &shift_info)
+        } else {
+            HashMap::new()
+        };
 
     let entries: Vec<DayViewEntry> = templates
         .into_iter()
@@ -772,6 +775,7 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         JOIN users u             ON u.id  = a.user_id
         LEFT JOIN classifications cl ON cl.id = u.classification_id
         WHERE ss.org_id = $1 AND ss.date = $2
+          AND a.cancelled_at IS NULL
         ORDER BY st.start_time, u.last_name
         "#,
         auth.org_id,
@@ -801,18 +805,17 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
     let dow = today.weekday().number_days_from_sunday() as i16;
 
     // Resolve coverage from coverage plans
-    let coverage_map: HashMap<Uuid, i32> = if let Some(plan_id) =
-        resolve_plan_id(&pool, auth.org_id, today).await?
-    {
-        let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
-        let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
-            .iter()
-            .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
-            .collect();
-        coverage_required_for_shifts(&slot_totals, &shift_info)
-    } else {
-        HashMap::new()
-    };
+    let coverage_map: HashMap<Uuid, i32> =
+        if let Some(plan_id) = resolve_plan_id(&pool, auth.org_id, today).await? {
+            let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
+            let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
+                .iter()
+                .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+                .collect();
+            coverage_required_for_shifts(&slot_totals, &shift_info)
+        } else {
+            HashMap::new()
+        };
 
     let current_coverage: Vec<DayViewEntry> = templates
         .into_iter()

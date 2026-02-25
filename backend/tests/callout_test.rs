@@ -387,11 +387,12 @@ async fn test_review_bump_request_approve() {
     let fiscal_year = 2027i32;
     sqlx::query(
         "INSERT INTO ot_hours (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined) \
-         VALUES ($1, $2, $3, NULL, 100.0, 0.0)",
+         VALUES ($1, $2, $3, $4, 100.0, 0.0)",
     )
     .bind(Uuid::new_v4())
     .bind(displaced_id)
     .bind(fiscal_year)
+    .bind(classification_id)
     .execute(&pool)
     .await
     .unwrap();

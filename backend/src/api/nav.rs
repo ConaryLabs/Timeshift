@@ -56,9 +56,10 @@ pub async fn badges(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<N
             r#"
             SELECT COUNT(*) AS "count!"
             FROM trade_requests
-            WHERE partner_id = $1 AND status = 'pending_partner'
+            WHERE partner_id = $1 AND org_id = $2 AND status = 'pending_partner'
             "#,
             auth.id,
+            auth.org_id,
         )
         .fetch_one(&pool)
         .await?
