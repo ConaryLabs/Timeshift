@@ -15,6 +15,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -44,6 +52,7 @@ export default function DutyBoardPage() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState<DutyPosition | null>(null)
   const [editingAssignment, setEditingAssignment] = useState<DutyAssignment | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<DutyAssignment | null>(null)
   const [selectedUserId, setSelectedUserId] = useState('')
   const [assignNotes, setAssignNotes] = useState('')
 
@@ -135,9 +144,13 @@ export default function DutyBoardPage() {
     }
   }
 
-  function handleRemove(assignment: DutyAssignment) {
-    deleteMut.mutate(assignment.id, {
-      onSuccess: () => toast.success('Assignment removed'),
+  function handleRemove() {
+    if (!removeTarget) return
+    deleteMut.mutate(removeTarget.id, {
+      onSuccess: () => {
+        toast.success('Assignment removed')
+        setRemoveTarget(null)
+      },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
         toast.error(msg)
@@ -231,7 +244,7 @@ export default function DutyBoardPage() {
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-destructive hover:text-destructive"
-                            onClick={() => handleRemove(assignment)}
+                            onClick={() => setRemoveTarget(assignment)}
                             disabled={deleteMut.isPending}
                           >
                             <X className="h-3.5 w-3.5" />
@@ -310,6 +323,28 @@ export default function DutyBoardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove assignment confirmation */}
+      <AlertDialog open={!!removeTarget} onOpenChange={(open) => { if (!open) setRemoveTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Assignment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {removeTarget?.user_first_name} {removeTarget?.user_last_name} from this position? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemove}
+              disabled={deleteMut.isPending}
+            >
+              Remove
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -12,6 +12,14 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
@@ -48,6 +56,7 @@ export default function LeaveBalancesPage() {
   const [showHistory, setShowHistory] = useState(false)
 
   // Accrual schedule form
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [scheduleDialog, setScheduleDialog] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<AccrualSchedule | null>(null)
   const [scheduleForm, setScheduleForm] = useState({
@@ -178,7 +187,10 @@ export default function LeaveBalancesPage() {
 
   function handleDeleteSchedule(id: string) {
     deleteScheduleMut.mutate(id, {
-      onSuccess: () => toast.success('Schedule deleted'),
+      onSuccess: () => {
+        toast.success('Schedule deleted')
+        setDeleteTarget(null)
+      },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed'
         toast.error(msg)
@@ -270,7 +282,7 @@ export default function LeaveBalancesPage() {
             size="sm"
             variant="outline"
             className="text-red-700 hover:bg-red-50"
-            onClick={() => handleDeleteSchedule(r.id)}
+            onClick={() => setDeleteTarget(r.id)}
             disabled={deleteScheduleMut.isPending}
           >
             Delete
@@ -549,6 +561,28 @@ export default function LeaveBalancesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Accrual Schedule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this accrual schedule. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && handleDeleteSchedule(deleteTarget)}
+              disabled={deleteScheduleMut.isPending}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

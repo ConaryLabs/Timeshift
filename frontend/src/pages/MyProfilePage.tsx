@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   User,
@@ -58,15 +58,14 @@ export default function MyProfilePage() {
   const [smsNotif, setSmsNotif] = useState(false)
   const [preferredView, setPreferredView] = useState<'month' | 'week' | 'day'>('week')
   const [dirty, setDirty] = useState(false)
-  const [syncedPrefs, setSyncedPrefs] = useState(prefs)
 
-  if (prefs && prefs !== syncedPrefs) {
-    setSyncedPrefs(prefs)
+  useEffect(() => {
+    if (!prefs) return
     setEmailNotif(prefs.notification_email)
     setSmsNotif(prefs.notification_sms)
     setPreferredView(prefs.preferred_view)
     setDirty(false)
-  }
+  }, [prefs])
 
   function handleSave() {
     updatePrefsMut.mutate(

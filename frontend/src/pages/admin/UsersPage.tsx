@@ -413,6 +413,9 @@ export default function UsersPage() {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit User' : 'New User'}</DialogTitle>
+            <DialogDescription>
+              {editingItem ? 'Update user details and permissions.' : 'Create a new user account.'}
+            </DialogDescription>
           </DialogHeader>
 
           {editingItem ? (

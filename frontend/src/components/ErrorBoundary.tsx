@@ -31,14 +31,28 @@ export default class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </h1>
             <p className="mb-6 text-sm text-muted-foreground">
-              An unexpected error occurred. Please reload the page to continue.
+              An unexpected error occurred. You can try again or reload the page.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Reload page
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => this.setState({ hasError: false })}
+                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                Reload Page
+              </button>
+              <button
+                onClick={() => { this.setState({ hasError: false }); window.location.href = '/dashboard' }}
+                className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                Go to Dashboard
+              </button>
+            </div>
           </div>
         </div>
       )

@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -52,6 +60,7 @@ function isActive(sa: SpecialAssignment): boolean {
 export default function SpecialAssignmentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<SpecialAssignment | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<SpecialAssignment | null>(null)
   const [filterType, setFilterType] = useState<string>('')
   const [showActiveOnly, setShowActiveOnly] = useState(true)
 
@@ -164,10 +173,13 @@ export default function SpecialAssignmentsPage() {
     }
   }
 
-  function handleDelete(item: SpecialAssignment) {
-    if (!confirm(`Delete this ${item.assignment_type} assignment for ${item.user_first_name} ${item.user_last_name}?`)) return
-    deleteMut.mutate(item.id, {
-      onSuccess: () => toast.success('Assignment deleted'),
+  function handleDelete() {
+    if (!deleteTarget) return
+    deleteMut.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success('Assignment deleted')
+        setDeleteTarget(null)
+      },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Delete failed'
         toast.error(msg)
@@ -211,7 +223,7 @@ export default function SpecialAssignmentsPage() {
       cell: (r) => (
         <div className="flex gap-1">
           <Button size="sm" variant="outline" onClick={() => openEdit(r)}>Edit</Button>
-          <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleDelete(r)}>Delete</Button>
+          <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDeleteTarget(r)}>Delete</Button>
         </div>
       ),
     },
@@ -329,6 +341,27 @@ export default function SpecialAssignmentsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Special Assignment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete this {deleteTarget?.assignment_type} assignment for {deleteTarget?.user_first_name} {deleteTarget?.user_last_name}? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMut.isPending}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {confirmDialog}
     </div>
   )

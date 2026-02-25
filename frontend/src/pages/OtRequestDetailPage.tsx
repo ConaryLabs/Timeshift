@@ -45,6 +45,13 @@ import {
   queryKeys,
 } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { formatTime, formatDate, extractApiError } from '@/lib/format'
 import { isConflictError } from '@/lib/utils'
@@ -490,16 +497,16 @@ export default function OtRequestDetailPage() {
           </DialogHeader>
           <div className="space-y-3">
             <FormField label="OT Type" htmlFor="assign-ot-type">
-              <select
-                id="assign-ot-type"
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={assignOtType}
-                onChange={(e) => setAssignOtType(e.target.value as OtType)}
-              >
-                <option value="voluntary">Voluntary</option>
-                <option value="mandatory">Mandatory</option>
-                <option value="fixed_coverage">Fixed Coverage</option>
-              </select>
+              <Select value={assignOtType} onValueChange={(v) => setAssignOtType(v as OtType)}>
+                <SelectTrigger id="assign-ot-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="voluntary">Voluntary</SelectItem>
+                  <SelectItem value="mandatory">Mandatory</SelectItem>
+                  <SelectItem value="fixed_coverage">Fixed Coverage</SelectItem>
+                </SelectContent>
+              </Select>
             </FormField>
           </div>
           <DialogFooter>

@@ -48,7 +48,9 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount } from '@/hooks/queries'
+import { useMe, useOrganization, useNavBadges, useUnreadCount } from '@/hooks/queries'
+import { useQuery } from '@tanstack/react-query'
+import { scheduleApi } from '@/api/schedule'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -252,7 +254,12 @@ export default function AppShell() {
   useMe()
   const { data: org } = useOrganization()
   const today = format(new Date(), 'yyyy-MM-dd')
-  const { data: todayCoverage } = useScheduleGrid(today, today)
+  const { data: todayCoverage } = useQuery({
+    queryKey: ['schedule', 'grid', today, today, undefined] as const,
+    queryFn: () => scheduleApi.getGrid(today, today),
+    enabled: isManager,
+    staleTime: 5 * 60 * 1000,
+  })
   const { data: navBadges } = useNavBadges()
   const { data: unreadCountData } = useUnreadCount()
   const notificationCount = unreadCountData?.count ?? 0
@@ -280,7 +287,7 @@ export default function AppShell() {
   // L7: Keyboard shortcut Cmd+B / Ctrl+B to toggle sidebar
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
       const mod = isMac ? e.metaKey : e.ctrlKey
       if (mod && e.key === 'b') {
         e.preventDefault()
