@@ -54,6 +54,49 @@ pub struct LeaveReportQuery {
     pub end_date: time::Date,
 }
 
+// -- New report types --
+
+#[derive(Debug, serde::Deserialize)]
+pub struct OtByPeriodQuery {
+    pub start_date: time::Date,
+    pub end_date: time::Date,
+    pub classification_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OtByPeriodEntry {
+    pub date: time::Date,
+    pub hours: f64,
+    pub ot_type: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OtByPeriodReport {
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub classification_name: Option<String>,
+    pub total_hours: f64,
+    pub assignments: Vec<OtByPeriodEntry>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct WorkSummaryQuery {
+    pub start_date: time::Date,
+    pub end_date: time::Date,
+    pub user_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkSummaryReport {
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub period: String,
+    pub regular_shifts: i64,
+    pub ot_shifts: i64,
+    pub leave_days: i64,
+    pub total_hours: f64,
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct OrgSetting {
     pub id: Uuid,

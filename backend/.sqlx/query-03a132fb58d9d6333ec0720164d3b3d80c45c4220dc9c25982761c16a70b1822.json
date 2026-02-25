@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE duty_assignments\n        SET user_id    = COALESCE($2, user_id),\n            notes      = CASE WHEN $3 THEN $4 ELSE notes END,\n            updated_at = NOW()\n        WHERE id = $1 AND org_id = $5\n        RETURNING id, org_id, duty_position_id, user_id, date, shift_template_id, notes, assigned_by, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "duty_position_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "shift_template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "notes",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "assigned_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Varchar",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "03a132fb58d9d6333ec0720164d3b3d80c45c4220dc9c25982761c16a70b1822"
+}

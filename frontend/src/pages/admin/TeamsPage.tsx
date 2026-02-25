@@ -22,6 +22,7 @@ import type { TeamSummary } from '@/api/teams'
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   supervisor_id: z.string().optional(),
+  parent_team_id: z.string().optional(),
   is_active: z.boolean(),
 })
 
@@ -44,11 +45,12 @@ export default function TeamsPage() {
   })
 
   const supervisorId = watch('supervisor_id')
+  const parentTeamId = watch('parent_team_id')
   const isActive = watch('is_active')
 
   function openCreate() {
     setEditingItem(null)
-    reset({ name: '', supervisor_id: undefined, is_active: true })
+    reset({ name: '', supervisor_id: undefined, parent_team_id: undefined, is_active: true })
     setDialogOpen(true)
   }
 
@@ -57,10 +59,14 @@ export default function TeamsPage() {
     reset({
       name: item.name,
       supervisor_id: item.supervisor_id ?? undefined,
+      parent_team_id: item.parent_team_id ?? undefined,
       is_active: item.is_active,
     })
     setDialogOpen(true)
   }
+
+  // Filter out the current team from the parent dropdown to prevent self-referencing
+  const parentTeamOptions = (teams ?? []).filter((t) => t.is_active && (!editingItem || t.id !== editingItem.id))
 
   function onSubmit(values: FormValues) {
     if (editingItem) {
@@ -69,6 +75,7 @@ export default function TeamsPage() {
           id: editingItem.id,
           name: values.name,
           supervisor_id: values.supervisor_id || null,
+          parent_team_id: values.parent_team_id || null,
           is_active: values.is_active,
         },
         {
@@ -84,7 +91,7 @@ export default function TeamsPage() {
       )
     } else {
       createMut.mutate(
-        { name: values.name, supervisor_id: values.supervisor_id || undefined },
+        { name: values.name, supervisor_id: values.supervisor_id || undefined, parent_team_id: values.parent_team_id || undefined },
         {
           onSuccess: () => {
             toast.success('Team created')
@@ -120,7 +127,11 @@ export default function TeamsPage() {
     },
     {
       header: 'Supervisor',
-      cell: (r) => r.supervisor_name ?? <span className="text-muted-foreground">—</span>,
+      cell: (r) => r.supervisor_name ?? <span className="text-muted-foreground">--</span>,
+    },
+    {
+      header: 'Parent Team',
+      cell: (r) => r.parent_team_name ?? <span className="text-muted-foreground">--</span>,
     },
     { header: 'Slots', cell: (r) => r.slot_count, className: 'w-20' },
     {
@@ -180,6 +191,22 @@ export default function TeamsPage() {
                     <SelectItem key={u.id} value={u.id}>
                       {u.last_name}, {u.first_name}{!u.is_active ? ' (inactive)' : ''}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Parent Team" htmlFor="team-parent">
+              <Select
+                value={parentTeamId || NO_VALUE}
+                onValueChange={(v) => setValue('parent_team_id', v === NO_VALUE ? undefined : v)}
+              >
+                <SelectTrigger id="team-parent">
+                  <SelectValue placeholder="Select parent team…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_VALUE}>None</SelectItem>
+                  {parentTeamOptions.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -31,6 +31,9 @@ import {
   HeartHandshake,
   Timer,
   Hand,
+  ClipboardCheck,
+  BadgeCheck,
+  RotateCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -63,6 +66,7 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
     { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
     { to: '/my-schedule', label: 'My Schedule', icon: <CalendarCheck className="h-4 w-4" /> },
     { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
+    { to: '/duty-board', label: 'Duty Board', icon: <ClipboardCheck className="h-4 w-4" /> },
     { to: '/leave', label: 'Leave', icon: <ClipboardList className="h-4 w-4" />, badgeKey: 'pending_leave' },
     { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
     { to: '/leave/sellback', label: 'Sellback', icon: <Banknote className="h-4 w-4" /> },
@@ -88,14 +92,17 @@ function useNavItems(): { main: NavItem[]; admin: NavItem[] } {
     admin.push(
       { to: '/admin/classifications', label: 'Classifications', icon: <Shield className="h-4 w-4" /> },
       { to: '/admin/shift-templates', label: 'Shift Templates', icon: <Clock className="h-4 w-4" /> },
+      { to: '/admin/duty-positions', label: 'Duty Positions', icon: <ClipboardCheck className="h-4 w-4" /> },
       { to: '/admin/coverage-plans', label: 'Coverage Plans', icon: <Target className="h-4 w-4" /> },
       { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
+      { to: '/admin/special-assignments', label: 'Special Assignments', icon: <BadgeCheck className="h-4 w-4" /> },
       { to: '/admin/users', label: 'Users', icon: <Users className="h-4 w-4" /> },
       { to: '/admin/ot-queue', label: 'OT Queue', icon: <ListOrdered className="h-4 w-4" /> },
       { to: '/admin/leave-balances', label: 'Leave Balances', icon: <Wallet className="h-4 w-4" /> },
       { to: '/admin/schedule-periods', label: 'Bid Periods', icon: <CalendarDays className="h-4 w-4" /> },
       { to: '/admin/vacation-bids', label: 'Vacation Bids', icon: <TreePalm className="h-4 w-4" /> },
       { to: '/admin/holidays', label: 'Holidays', icon: <PartyPopper className="h-4 w-4" /> },
+      { to: '/admin/shift-patterns', label: 'Shift Patterns', icon: <RotateCw className="h-4 w-4" /> },
       { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
       { to: '/admin/settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
     )

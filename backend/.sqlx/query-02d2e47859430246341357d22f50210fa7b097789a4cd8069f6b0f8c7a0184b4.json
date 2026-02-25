@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE teams\n        SET name          = COALESCE($2, name),\n            supervisor_id = CASE WHEN $3 THEN $4 ELSE supervisor_id END,\n            is_active     = COALESCE($5, is_active),\n            updated_at    = NOW()\n        WHERE id = $1 AND org_id = $6\n        RETURNING id, org_id, name, supervisor_id, is_active, created_at, updated_at\n        ",
+  "query": "\n        UPDATE duty_positions\n        SET name              = COALESCE($2, name),\n            classification_id = CASE WHEN $3 THEN $4 ELSE classification_id END,\n            sort_order        = COALESCE($5, sort_order),\n            is_active         = COALESCE($6, is_active),\n            updated_at        = NOW()\n        WHERE id = $1 AND org_id = $7\n        RETURNING id, org_id, name, classification_id, sort_order, is_active, created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -16,25 +16,30 @@
       {
         "ordinal": 2,
         "name": "name",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,
-        "name": "supervisor_id",
+        "name": "classification_id",
         "type_info": "Uuid"
       },
       {
         "ordinal": 4,
+        "name": "sort_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -42,9 +47,10 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
+        "Varchar",
         "Bool",
         "Uuid",
+        "Int4",
         "Bool",
         "Uuid"
       ]
@@ -56,8 +62,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "8ee3d31fc4a5c77fb5a300c03cea12590daed4650e7e09aa3690610bf7193467"
+  "hash": "02d2e47859430246341357d22f50210fa7b097789a4cd8069f6b0f8c7a0184b4"
 }

@@ -3,6 +3,7 @@ pub mod bidding;
 pub mod callout;
 pub mod classifications;
 pub mod coverage_plans;
+pub mod duty_positions;
 pub mod employee;
 pub mod holidays;
 pub mod leave;
@@ -15,8 +16,11 @@ pub mod organizations;
 pub mod ot;
 pub mod ot_request;
 pub mod reports;
+pub mod saved_filters;
 pub mod schedule;
+pub mod shift_patterns;
 pub mod shifts;
+pub mod special_assignments;
 pub mod teams;
 pub mod trades;
 pub mod users;
@@ -59,6 +63,17 @@ pub fn router(state: AppState) -> Router {
         )
         // Shift slots (cross-team update)
         .route("/api/shift-slots/:id", patch(teams::update_slot))
+        // Special Assignments
+        .route(
+            "/api/special-assignments",
+            get(special_assignments::list).post(special_assignments::create),
+        )
+        .route(
+            "/api/special-assignments/:id",
+            get(special_assignments::get_one)
+                .patch(special_assignments::update)
+                .delete(special_assignments::delete),
+        )
         // Employee portal (must be before /api/users/:id to avoid param capture)
         .route(
             "/api/users/me/preferences",
@@ -186,6 +201,24 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/coverage-plans/:id/slots/bulk",
             post(coverage_plans::bulk_upsert_slots),
+        )
+        // Duty Positions
+        .route(
+            "/api/duty-positions",
+            get(duty_positions::list_positions).post(duty_positions::create_position),
+        )
+        .route(
+            "/api/duty-positions/:id",
+            patch(duty_positions::update_position).delete(duty_positions::delete_position),
+        )
+        // Duty Assignments
+        .route(
+            "/api/duty-assignments",
+            get(duty_positions::list_assignments).post(duty_positions::create_assignment),
+        )
+        .route(
+            "/api/duty-assignments/:id",
+            patch(duty_positions::update_assignment).delete(duty_positions::delete_assignment),
         )
         // Leave types
         .route("/api/leave/types", get(leave::list_types))
@@ -344,6 +377,34 @@ pub fn router(state: AppState) -> Router {
         .route("/api/reports/coverage", get(reports::coverage))
         .route("/api/reports/ot-summary", get(reports::ot_summary))
         .route("/api/reports/leave-summary", get(reports::leave_summary))
+        .route("/api/reports/ot-by-period", get(reports::ot_by_period))
+        .route("/api/reports/work-summary", get(reports::work_summary))
+        // Saved Filters
+        .route(
+            "/api/saved-filters",
+            get(saved_filters::list).post(saved_filters::create),
+        )
+        .route(
+            "/api/saved-filters/:id",
+            delete(saved_filters::delete),
+        )
+        .route(
+            "/api/saved-filters/:id/default",
+            patch(saved_filters::set_default),
+        )
+        // Shift Patterns
+        .route(
+            "/api/shift-patterns",
+            get(shift_patterns::list).post(shift_patterns::create),
+        )
+        .route(
+            "/api/shift-patterns/:id",
+            patch(shift_patterns::update).delete(shift_patterns::delete),
+        )
+        .route(
+            "/api/shift-patterns/:id/cycle",
+            get(shift_patterns::cycle),
+        )
         // Organization settings
         .route(
             "/api/organization/settings",

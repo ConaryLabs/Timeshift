@@ -21,14 +21,16 @@ pub async fn list_teams(
 ) -> Result<Json<Vec<TeamSummary>>> {
     let rows = sqlx::query!(
         r#"
-        SELECT t.id, t.name, t.supervisor_id, t.is_active,
+        SELECT t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active,
                u.first_name || ' ' || u.last_name AS supervisor_name,
+               pt.name AS "parent_team_name?",
                COUNT(ss.id)::BIGINT AS slot_count
         FROM teams t
         LEFT JOIN users u ON u.id = t.supervisor_id
+        LEFT JOIN teams pt ON pt.id = t.parent_team_id
         LEFT JOIN shift_slots ss ON ss.team_id = t.id AND ss.is_active = true
         WHERE t.org_id = $1 AND t.is_active = true
-        GROUP BY t.id, t.name, t.supervisor_id, t.is_active, u.first_name, u.last_name
+        GROUP BY t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active, u.first_name, u.last_name, pt.name
         ORDER BY t.name
         "#,
         auth.org_id
@@ -43,6 +45,8 @@ pub async fn list_teams(
             name: r.name,
             supervisor_id: r.supervisor_id,
             supervisor_name: r.supervisor_name,
+            parent_team_id: r.parent_team_id,
+            parent_team_name: r.parent_team_name,
             is_active: r.is_active,
             slot_count: r.slot_count.unwrap_or(0),
         })
@@ -59,7 +63,7 @@ pub async fn get_team(
     let team = sqlx::query_as!(
         Team,
         r#"
-        SELECT id, org_id, name, supervisor_id, is_active, created_at, updated_at
+        SELECT id, org_id, name, supervisor_id, parent_team_id, is_active, created_at, updated_at
         FROM teams WHERE id = $1 AND org_id = $2
         "#,
         id,
@@ -90,17 +94,22 @@ pub async fn create_team(
         org_guard::verify_user(&pool, sup_id, auth.org_id).await?;
     }
 
+    if let Some(parent_id) = req.parent_team_id {
+        verify_team_in_org(&pool, parent_id, auth.org_id).await?;
+    }
+
     let team = sqlx::query_as!(
         Team,
         r#"
-        INSERT INTO teams (id, org_id, name, supervisor_id)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, org_id, name, supervisor_id, is_active, created_at, updated_at
+        INSERT INTO teams (id, org_id, name, supervisor_id, parent_team_id)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, org_id, name, supervisor_id, parent_team_id, is_active, created_at, updated_at
         "#,
         Uuid::new_v4(),
         auth.org_id,
         req.name,
         req.supervisor_id,
+        req.parent_team_id,
     )
     .fetch_one(&pool)
     .await?;
@@ -142,19 +151,33 @@ pub async fn update_team(
         org_guard::verify_user(&pool, sup_id, auth.org_id).await?;
     }
 
+    // Verify optional parent team and check for cycles
+    if let Some(Some(parent_id)) = req.parent_team_id {
+        if parent_id == id {
+            return Err(AppError::BadRequest(
+                "A team cannot be its own parent".into(),
+            ));
+        }
+        verify_team_in_org(&pool, parent_id, auth.org_id).await?;
+        check_team_cycle(&pool, id, parent_id).await?;
+    }
+
     let sup_provided = req.supervisor_id.is_some();
     let sup_val = req.supervisor_id.flatten();
+    let parent_provided = req.parent_team_id.is_some();
+    let parent_val = req.parent_team_id.flatten();
 
     let team = sqlx::query_as!(
         Team,
         r#"
         UPDATE teams
-        SET name          = COALESCE($2, name),
-            supervisor_id = CASE WHEN $3 THEN $4 ELSE supervisor_id END,
-            is_active     = COALESCE($5, is_active),
-            updated_at    = NOW()
+        SET name            = COALESCE($2, name),
+            supervisor_id   = CASE WHEN $3 THEN $4 ELSE supervisor_id END,
+            parent_team_id  = CASE WHEN $7 THEN $8 ELSE parent_team_id END,
+            is_active       = COALESCE($5, is_active),
+            updated_at      = NOW()
         WHERE id = $1 AND org_id = $6
-        RETURNING id, org_id, name, supervisor_id, is_active, created_at, updated_at
+        RETURNING id, org_id, name, supervisor_id, parent_team_id, is_active, created_at, updated_at
         "#,
         id,
         req.name,
@@ -162,6 +185,8 @@ pub async fn update_team(
         sup_val,
         req.is_active,
         auth.org_id,
+        parent_provided,
+        parent_val,
     )
     .fetch_optional(&pool)
     .await?
@@ -355,6 +380,43 @@ pub async fn update_slot(
         label: row.label,
         is_active: row.is_active,
     }))
+}
+
+async fn verify_team_in_org(pool: &PgPool, team_id: Uuid, org_id: Uuid) -> Result<()> {
+    let exists = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
+        team_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if !exists.unwrap_or(false) {
+        return Err(AppError::NotFound("Parent team not found".into()));
+    }
+    Ok(())
+}
+
+async fn check_team_cycle(pool: &PgPool, team_id: Uuid, new_parent_id: Uuid) -> Result<()> {
+    let mut current = Some(new_parent_id);
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(team_id);
+
+    while let Some(cid) = current {
+        if !visited.insert(cid) {
+            return Err(AppError::BadRequest(
+                "Setting this parent would create a circular reference".into(),
+            ));
+        }
+        current = sqlx::query_scalar!(
+            "SELECT parent_team_id FROM teams WHERE id = $1",
+            cid
+        )
+        .fetch_optional(pool)
+        .await?
+        .flatten();
+    }
+    Ok(())
 }
 
 async fn fetch_slot_views(

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, name, supervisor_id, is_active, created_at, updated_at\n        FROM teams WHERE id = $1 AND org_id = $2\n        ",
+  "query": "\n        SELECT id, org_id, name, classification_id, sort_order, is_active,\n               created_at, updated_at\n        FROM duty_positions\n        WHERE org_id = $1 AND is_active = true\n        ORDER BY sort_order, name\n        ",
   "describe": {
     "columns": [
       {
@@ -16,32 +16,36 @@
       {
         "ordinal": 2,
         "name": "name",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,
-        "name": "supervisor_id",
+        "name": "classification_id",
         "type_info": "Uuid"
       },
       {
         "ordinal": 4,
+        "name": "sort_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Uuid"
       ]
     },
@@ -52,8 +56,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "3fd1d4bef6ee4f246429fa33d4d510f1e8c03df8d08426eb40067d6848dd5120"
+  "hash": "51873eded6bb12c773790577077b1239b61f06e32de535bace9b11f49a6bffe4"
 }
