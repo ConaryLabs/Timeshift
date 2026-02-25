@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
-import { useSchedulePeriods, useCreatePeriod } from '@/hooks/queries'
+import { useSchedulePeriods, useCreatePeriod, useBargainingUnits } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SchedulePeriod } from '@/api/schedulePeriods'
 import { extractApiError } from '@/lib/format'
@@ -30,16 +30,10 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-const BU_OPTIONS = [
-  { value: '', label: '(All employees)' },
-  { value: 'vccea', label: 'VCCEA' },
-  { value: 'vcsg', label: 'VCSG' },
-] as const
-
-function bargainingUnitLabel(bu: string | null): string | null {
+function bargainingUnitLabel(bu: string | null, bargainingUnits: { code: string; name: string }[]): string | null {
   if (!bu) return null
-  const found = BU_OPTIONS.find((o) => o.value === bu)
-  return found ? found.label : bu.toUpperCase()
+  const found = bargainingUnits.find((o) => o.code === bu)
+  return found ? found.name : bu.toUpperCase()
 }
 
 export default function SchedulePeriodsPage() {
@@ -47,6 +41,7 @@ export default function SchedulePeriodsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const { data: periods, isLoading, isError } = useSchedulePeriods()
+  const { data: bargainingUnits = [] } = useBargainingUnits()
   const createMut = useCreatePeriod()
 
   const { confirmClose, confirmDialog } = useConfirmClose()
@@ -90,7 +85,7 @@ export default function SchedulePeriodsPage() {
         <span className="flex items-center gap-2">
           {r.name}
           {r.bargaining_unit && (
-            <Badge variant="outline" className="text-xs">{bargainingUnitLabel(r.bargaining_unit)}</Badge>
+            <Badge variant="outline" className="text-xs">{bargainingUnitLabel(r.bargaining_unit, bargainingUnits)}</Badge>
           )}
         </span>
       ),
@@ -159,9 +154,10 @@ export default function SchedulePeriodsPage() {
                   <SelectValue placeholder="(All employees)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BU_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value || '__all'} value={opt.value || '__all'}>
-                      {opt.label}
+                  <SelectItem value="__all">(All employees)</SelectItem>
+                  {bargainingUnits.map((bu) => (
+                    <SelectItem key={bu.code} value={bu.code}>
+                      {bu.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE vacation_bid_periods\n        SET status = 'completed'\n        WHERE id = $1\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at,\n                  allowance_hours, min_block_hours,\n                  bargaining_unit::TEXT AS bargaining_unit\n        ",
+  "query": "\n        UPDATE vacation_bid_periods\n        SET status = 'completed'\n        WHERE id = $1\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at,\n                  allowance_hours, min_block_hours,\n                  bargaining_unit\n        ",
   "describe": {
     "columns": [
       {
@@ -75,8 +75,8 @@
       false,
       true,
       true,
-      null
+      true
     ]
   },
-  "hash": "dfa7d7919505269febb56b35b325640101230949944a9fcec3b4200aeb040938"
+  "hash": "e1a5d512d2ce29aac4df73bf6f951994a4710a4fec10efd507233719e14c14b9"
 }

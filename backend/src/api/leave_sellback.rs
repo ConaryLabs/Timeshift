@@ -83,26 +83,23 @@ pub async fn create(
         ));
     }
 
-    // Fetch user bargaining_unit to determine cap
-    let bu = sqlx::query_scalar!(
-        "SELECT bargaining_unit::TEXT FROM users WHERE id = $1 AND org_id = $2 AND is_active = true",
+    // Fetch sellback cap from the user's bargaining unit config
+    let annual_cap: f64 = sqlx::query_scalar!(
+        r#"
+        SELECT bu.sellback_annual_cap AS "cap?"
+        FROM users u
+        JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
+        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true AND bu.is_active = true
+        "#,
         auth.id,
         auth.org_id,
     )
     .fetch_optional(&pool)
     .await?
     .flatten()
-    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-
-    let annual_cap: f64 = match bu.as_str() {
-        "vccea" => 96.0,
-        "vcsg" => 88.0,
-        _ => {
-            return Err(AppError::BadRequest(
-                "Holiday sellback is only available to VCCEA and VCSG employees".into(),
-            ))
-        }
-    };
+    .ok_or_else(|| {
+        AppError::BadRequest("Holiday sellback is not available for your bargaining unit".into())
+    })?;
 
     // Check annual cap (sum of approved + pending requests this fiscal year)
     let already_requested: f64 = sqlx::query_scalar!(

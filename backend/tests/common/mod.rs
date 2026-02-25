@@ -283,6 +283,7 @@ pub async fn cleanup_test_org(pool: &PgPool, org_id: Uuid) {
         // Org-level
         "DELETE FROM holiday_calendar WHERE org_id = $1",
         "DELETE FROM org_settings WHERE org_id = $1",
+        "DELETE FROM bargaining_units WHERE org_id = $1",
         "DELETE FROM classifications WHERE org_id = $1",
         "DELETE FROM organizations WHERE id = $1",
     ];

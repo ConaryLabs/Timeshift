@@ -11,8 +11,7 @@ use crate::{
     auth::{AuthUser, Role},
     error::{AppError, Result},
     models::user::{
-        BargainingUnit, CreateUserRequest, EmployeeStatus, EmployeeType, UpdateUserRequest,
-        UserProfile,
+        CreateUserRequest, EmployeeStatus, EmployeeType, UpdateUserRequest, UserProfile,
     },
     org_guard,
 };
@@ -30,7 +29,7 @@ fn build_user_profile(
     classification_id: Option<uuid::Uuid>,
     classification_name: Option<String>,
     employee_type: EmployeeType,
-    bargaining_unit: BargainingUnit,
+    bargaining_unit: String,
     hire_date: Option<time::Date>,
     overall_seniority_date: Option<time::Date>,
     bargaining_unit_seniority_date: Option<time::Date>,
@@ -104,7 +103,7 @@ pub async fn list(
                u.classification_id,
                c.name AS "classification_name?",
                u.employee_type AS "employee_type: EmployeeType",
-               u.bargaining_unit AS "bargaining_unit: BargainingUnit",
+               u.bargaining_unit,
                u.hire_date,
                sr.overall_seniority_date AS "overall_seniority_date?",
                sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
@@ -209,7 +208,7 @@ pub async fn get_one(
                u.classification_id,
                c.name AS "classification_name?",
                u.employee_type AS "employee_type: EmployeeType",
-               u.bargaining_unit AS "bargaining_unit: BargainingUnit",
+               u.bargaining_unit,
                u.hire_date,
                sr.overall_seniority_date AS "overall_seniority_date?",
                sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
@@ -285,7 +284,7 @@ pub async fn create(
     let employee_type = req.employee_type.unwrap_or(EmployeeType::RegularFullTime);
     let bargaining_unit = req
         .bargaining_unit
-        .unwrap_or(BargainingUnit::NonRepresented);
+        .unwrap_or_else(|| "non_represented".to_string());
 
     let user_id = Uuid::new_v4();
 
@@ -300,7 +299,7 @@ pub async fn create(
                   role AS "role: Role",
                   classification_id,
                   employee_type AS "employee_type: EmployeeType",
-                  bargaining_unit AS "bargaining_unit: BargainingUnit",
+                  bargaining_unit,
                   hire_date,
                   cto_designation, admin_training_supervisor_since,
                   employee_status AS "employee_status: EmployeeStatus",
@@ -318,7 +317,7 @@ pub async fn create(
         req.role as Role,
         req.classification_id,
         employee_type as EmployeeType,
-        bargaining_unit as BargainingUnit,
+        bargaining_unit,
         req.hire_date,
         req.cto_designation.unwrap_or(false),
         req.admin_training_supervisor_since,
@@ -506,7 +505,7 @@ pub async fn update(
                   role AS "role: Role",
                   classification_id,
                   employee_type AS "employee_type: EmployeeType",
-                  bargaining_unit AS "bargaining_unit: BargainingUnit",
+                  bargaining_unit,
                   hire_date,
                   cto_designation, admin_training_supervisor_since,
                   employee_status AS "employee_status: EmployeeStatus",
@@ -528,7 +527,7 @@ pub async fn update(
         hire_provided,
         hire_val,
         auth.org_id,
-        req.bargaining_unit as Option<BargainingUnit>,
+        req.bargaining_unit,
         req.cto_designation,
         admin_sup_provided,
         admin_sup_val,
