@@ -749,11 +749,12 @@ pub async fn process_bids(
 
                 sqlx::query!(
                     r#"
-                    INSERT INTO leave_requests (id, user_id, leave_type_id, start_date, end_date, hours, reason, status, reviewed_by)
-                    VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC, 'Vacation bid award', 'approved', $7)
+                    INSERT INTO leave_requests (id, user_id, org_id, leave_type_id, start_date, end_date, hours, reason, status, reviewed_by)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7::FLOAT8::NUMERIC, 'Vacation bid award', 'approved', $8)
                     "#,
                     leave_request_id,
                     window.user_id,
+                    auth.org_id,
                     lt_id,
                     bid.start_date,
                     bid.end_date,

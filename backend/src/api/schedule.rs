@@ -481,6 +481,7 @@ pub async fn grid(
             '1 day'::interval
         ) AS d
         WHERE u.org_id = $1
+          AND lr.org_id = $1
           AND lr.status = 'approved'
           AND d::date BETWEEN $2 AND $3
         GROUP BY d::date
@@ -846,8 +847,7 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         r#"
         SELECT COUNT(*) AS "count!"
         FROM leave_requests lr
-        JOIN users u ON u.id = lr.user_id
-        WHERE u.org_id = $1 AND lr.status = 'pending'
+        WHERE lr.org_id = $1 AND lr.status = 'pending'
         "#,
         auth.org_id,
     )

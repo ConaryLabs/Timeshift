@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO leave_requests\n            (id, user_id, leave_type_id, start_date, end_date, hours,\n             start_time, scheduled_shift_id, is_rdo,\n             reason, emergency_contact, bereavement_relationship, bereavement_name,\n             status)\n        VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC,\n                $7, $8, $9,\n                $10, $11, $12, $13,\n                'pending')\n        RETURNING id, user_id, leave_type_id, start_date, end_date,\n                  hours::FLOAT8 AS hours, start_time,\n                  scheduled_shift_id, is_rdo,\n                  reason, emergency_contact, bereavement_relationship, bereavement_name,\n                  status AS \"status: LeaveStatus\",\n                  reviewed_by, reviewer_notes, created_at, updated_at\n        ",
+  "query": "\n        SELECT lr.id, lr.user_id,\n               u.first_name, u.last_name,\n               lr.leave_type_id,\n               lt.code AS leave_type_code, lt.name AS leave_type_name,\n               lr.start_date, lr.end_date,\n               lr.hours::FLOAT8 AS hours,\n               lr.start_time,\n               lr.scheduled_shift_id,\n               lr.is_rdo,\n               lr.reason,\n               lr.emergency_contact,\n               lr.bereavement_relationship,\n               lr.bereavement_name,\n               lr.status AS \"status: LeaveStatus\",\n               lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE lr.id = $1 AND lr.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -15,61 +15,81 @@
       },
       {
         "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
         "name": "leave_type_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
+        "name": "leave_type_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "leave_type_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
         "name": "start_date",
         "type_info": "Date"
       },
       {
-        "ordinal": 4,
+        "ordinal": 8,
         "name": "end_date",
         "type_info": "Date"
       },
       {
-        "ordinal": 5,
+        "ordinal": 9,
         "name": "hours",
         "type_info": "Float8"
       },
       {
-        "ordinal": 6,
+        "ordinal": 10,
         "name": "start_time",
         "type_info": "Time"
       },
       {
-        "ordinal": 7,
+        "ordinal": 11,
         "name": "scheduled_shift_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 8,
+        "ordinal": 12,
         "name": "is_rdo",
         "type_info": "Bool"
       },
       {
-        "ordinal": 9,
+        "ordinal": 13,
         "name": "reason",
         "type_info": "Text"
       },
       {
-        "ordinal": 10,
+        "ordinal": 14,
         "name": "emergency_contact",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 15,
         "name": "bereavement_relationship",
         "type_info": "Text"
       },
       {
-        "ordinal": 12,
+        "ordinal": 16,
         "name": "bereavement_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 13,
+        "ordinal": 17,
         "name": "status: LeaveStatus",
         "type_info": {
           "Custom": {
@@ -86,22 +106,22 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 18,
         "name": "reviewed_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 15,
+        "ordinal": 19,
         "name": "reviewer_notes",
         "type_info": "Text"
       },
       {
-        "ordinal": 16,
+        "ordinal": 20,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 21,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -109,21 +129,14 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Uuid",
-        "Date",
-        "Date",
-        "Float8",
-        "Time",
-        "Uuid",
-        "Bool",
-        "Text",
-        "Text",
-        "Text",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
+      false,
+      false,
+      false,
+      false,
       false,
       false,
       false,
@@ -144,5 +157,5 @@
       false
     ]
   },
-  "hash": "a8906e91ab99a6c806fa93151862ff5d00b0799f3cec2b0014f95069e2b02fa7"
+  "hash": "c460936d13add916a62030b7fbfb3b503c3b31b8495ad4b77c48c1c42ea18a44"
 }

@@ -20,8 +20,7 @@ pub async fn badges(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<N
             r#"
             SELECT COUNT(*) AS "count!"
             FROM leave_requests lr
-            JOIN users u ON u.id = lr.user_id
-            WHERE u.org_id = $1 AND lr.status = 'pending'
+            WHERE lr.org_id = $1 AND lr.status = 'pending'
             "#,
             auth.org_id,
         )
@@ -32,9 +31,10 @@ pub async fn badges(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<N
             r#"
             SELECT COUNT(*) AS "count!"
             FROM leave_requests
-            WHERE user_id = $1 AND status = 'pending'
+            WHERE user_id = $1 AND org_id = $2 AND status = 'pending'
             "#,
             auth.id,
+            auth.org_id,
         )
         .fetch_one(&pool)
         .await?

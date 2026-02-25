@@ -777,12 +777,11 @@ pub async fn deactivate(
     .execute(&mut *tx)
     .await?;
 
-    // Cancel pending leave requests for this user (scoped via user org membership)
+    // Cancel pending leave requests for this user (scoped to org)
     sqlx::query!(
         r#"
         UPDATE leave_requests SET status = 'cancelled', updated_at = NOW()
-        WHERE user_id = $1 AND status = 'pending'
-          AND user_id IN (SELECT id FROM users WHERE id = $1 AND org_id = $2)
+        WHERE user_id = $1 AND org_id = $2 AND status = 'pending'
         "#,
         id,
         auth.org_id,

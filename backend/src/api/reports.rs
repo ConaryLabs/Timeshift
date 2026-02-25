@@ -177,6 +177,7 @@ pub async fn leave_summary(
         JOIN leave_types lt ON lt.id = lr.leave_type_id
         JOIN users u ON u.id = lr.user_id
         WHERE u.org_id = $1
+          AND lr.org_id = $1
           AND lr.start_date <= $3
           AND lr.end_date >= $2
         GROUP BY lt.id, lt.code, lt.name
@@ -341,6 +342,7 @@ pub async fn work_summary(
                 '1 day'::interval
             ) AS d
             WHERE lr.user_id = u.id
+              AND lr.org_id = $1
               AND lr.status = 'approved'
               AND lr.start_date <= $3
               AND lr.end_date >= $2

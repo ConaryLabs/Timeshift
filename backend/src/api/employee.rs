@@ -326,9 +326,10 @@ pub async fn my_dashboard(
         r#"
         SELECT COUNT(*) AS "count!"
         FROM leave_requests
-        WHERE user_id = $1 AND status = 'pending'
+        WHERE user_id = $1 AND org_id = $2 AND status = 'pending'
         "#,
         auth.id,
+        auth.org_id,
     )
     .fetch_one(&pool)
     .await?;
