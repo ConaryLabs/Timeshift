@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { Save, Star, StarOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,8 @@ export function SavedFilterBar({ page, currentFilters, onApplyFilter, className 
   // Track the user's explicit selection; null means "no explicit choice yet"
   const [userSelectedId, setUserSelectedId] = useState<string | null>(null)
   const defaultAppliedRef = useRef(false)
+  const onApplyFilterRef = useRef(onApplyFilter)
+  useLayoutEffect(() => { onApplyFilterRef.current = onApplyFilter })
 
   // Derive the default filter ID from data (pure derivation, no side effects)
   const defaultFilterId = useMemo(() => {
@@ -42,15 +44,16 @@ export function SavedFilterBar({ page, currentFilters, onApplyFilter, className 
   // Apply default filter on initial data load.
   // Only the parent callback (onApplyFilter) runs here -- no setState.
   // The ref is only accessed inside this effect, not during render.
+  // Using onApplyFilterRef to avoid re-running when the parent doesn't stabilize the callback.
   useEffect(() => {
     if (filters && !defaultAppliedRef.current) {
       defaultAppliedRef.current = true
       const defaultFilter = filters.find((f) => f.is_default)
       if (defaultFilter) {
-        onApplyFilter(defaultFilter.filters)
+        onApplyFilterRef.current(defaultFilter.filters)
       }
     }
-  }, [filters, onApplyFilter])
+  }, [filters])
 
   function handleApply(filterId: string) {
     if (filterId === 'none') {

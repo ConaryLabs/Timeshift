@@ -359,6 +359,7 @@ export function useUpdateUser() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.users.all })
       qc.invalidateQueries({ queryKey: queryKeys.users.detail(vars.id) })
+      qc.invalidateQueries({ queryKey: queryKeys.auth.me })
     },
   })
 }
@@ -772,6 +773,8 @@ export function useVolunteer() {
     mutationFn: otApi.volunteer,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.volunteersAll })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
     },
   })
 }
@@ -789,8 +792,9 @@ export function useAdvanceCalloutStep() {
   return useMutation({
     mutationFn: ({ eventId, step }: { eventId: string; step: CalloutStep }) =>
       otApi.advanceStep(eventId, step),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
+      qc.invalidateQueries({ queryKey: queryKeys.callout.list(vars.eventId) })
     },
   })
 }
@@ -1506,6 +1510,7 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: queryKeys.notifications.unreadCount,
     queryFn: notificationsApi.unreadCount,
+    staleTime: 30_000,
     refetchInterval: 30_000,
   })
 }

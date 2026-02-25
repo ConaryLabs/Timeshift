@@ -185,7 +185,8 @@ function WeekView({
   todayStr: string
 }) {
   return (
-    <div className="grid grid-cols-7 gap-3">
+    <div className="overflow-x-auto">
+    <div className="grid grid-cols-7 gap-3 min-w-[640px]">
       {days.map((day) => {
         const dateStr = toDateStr(day)
         const shifts = entryMap.get(dateStr) ?? []
@@ -244,6 +245,7 @@ function WeekView({
           </div>
         )
       })}
+    </div>
     </div>
   )
 }

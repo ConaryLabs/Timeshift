@@ -243,7 +243,7 @@ export default function BidPage() {
               <CardHeader>
                 <CardTitle className="text-lg">Your Ranked Preferences</CardTitle>
                 <CardDescription>
-                  Drag to reorder. #1 is your top choice.
+                  Use the arrows to reorder. #1 is your top choice.
                 </CardDescription>
               </CardHeader>
               <CardContent>

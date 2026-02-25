@@ -21,7 +21,7 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const config = err.config
-    if (err.response?.status === 401 && !config._retry && useAuthStore.getState().user) {
+    if (err.response?.status === 401 && !config._retry && config.url !== '/api/auth/refresh' && useAuthStore.getState().user) {
       if (refreshing) {
         return new Promise((resolve, reject) => {
           refreshQueue.push((ok) => (ok ? resolve(api(config)) : reject(SESSION_EXPIRED)))

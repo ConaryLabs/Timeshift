@@ -102,10 +102,23 @@ export default function VacationBidPage() {
   const hasSubmitted = !!bidWindow?.submitted_at
 
   const year = useMemo(() => {
-    if (!bidWindow) return new Date().getFullYear()
-    // Infer year from window dates
-    return new Date(bidWindow.opens_at).getFullYear()
-  }, [bidWindow])
+    if (!data) return new Date().getFullYear()
+    // Prefer the year from actual bid/vacation dates (dates_taken or existing bids)
+    // since the window opens_at can be in December of the prior year for a January vacation year.
+    if (data.dates_taken.length > 0) {
+      return new Date(data.dates_taken[0] + 'T00:00:00').getFullYear()
+    }
+    if (data.bids.length > 0) {
+      return new Date(data.bids[0].start_date + 'T00:00:00').getFullYear()
+    }
+    // Fallback: use window opens_at. This may be wrong if a December window opens for
+    // next-year bids, but the period year is not included in the API response.
+    // TODO: Include period.year in VacationWindowDetail API response to fix edge case.
+    if (bidWindow) {
+      return new Date(bidWindow.opens_at).getFullYear()
+    }
+    return new Date().getFullYear()
+  }, [data, bidWindow])
 
   const handleDayClick = useCallback((date: Date) => {
     const dateStr = dateToStr(date)
