@@ -596,6 +596,7 @@ pub async fn cancel(
                         hours,
                         id,
                         auth.id,
+                        &auth.org_timezone,
                     )
                     .await?;
                 }
@@ -612,6 +613,7 @@ pub async fn cancel(
                         seg.hours,
                         id,
                         auth.id,
+                        &auth.org_timezone,
                     )
                     .await?;
                 }
@@ -772,6 +774,7 @@ pub async fn review(
                         hours,
                         id,
                         auth.id,
+                        &auth.org_timezone,
                     )
                     .await?;
                 }
@@ -807,6 +810,7 @@ pub async fn review(
                         seg.hours,
                         id,
                         auth.id,
+                        &auth.org_timezone,
                     )
                     .await?;
                 }
@@ -1009,6 +1013,7 @@ pub async fn bulk_review(
                             hours,
                             *id,
                             auth.id,
+                            &auth.org_timezone,
                         )
                         .await?;
                     }
@@ -1043,6 +1048,7 @@ pub async fn bulk_review(
                             seg.hours,
                             *id,
                             auth.id,
+                            &auth.org_timezone,
                         )
                         .await?;
                     }
@@ -1229,17 +1235,19 @@ pub async fn carryover_enforcement(
             .execute(&mut *tx)
             .await?;
 
+            let today = crate::services::timezone::org_today(&auth.org_timezone);
             sqlx::query!(
                 r#"
                 UPDATE leave_balances
                 SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
-                    as_of_date = CURRENT_DATE,
+                    as_of_date = $4,
                     updated_at = NOW()
                 WHERE user_id = $1 AND leave_type_id = $2
                 "#,
                 user.id,
                 row.leave_type_id,
                 deduct,
+                today,
             )
             .execute(&mut *tx)
             .await?;
@@ -1315,7 +1323,7 @@ pub async fn longevity_credit(
         .or(user.hire_date)
         .ok_or_else(|| AppError::BadRequest("User has no seniority or hire date set".into()))?;
 
-    let today = time::OffsetDateTime::now_utc().date();
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
     let mut years_of_service = (today.year() - service_start.year()) as i32;
     if (today.month() as u8) < (service_start.month() as u8)
         || ((today.month() as u8) == (service_start.month() as u8)
@@ -1371,13 +1379,14 @@ pub async fn longevity_credit(
     .execute(&mut *tx)
     .await?;
 
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
     sqlx::query!(
         r#"
         INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
         ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
         SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-            as_of_date = CURRENT_DATE,
+            as_of_date = $6,
             updated_at = NOW()
         "#,
         Uuid::new_v4(),
@@ -1385,6 +1394,7 @@ pub async fn longevity_credit(
         body.user_id,
         vacation_type_id,
         VACATION_CREDIT,
+        today,
     )
     .execute(&mut *tx)
     .await?;

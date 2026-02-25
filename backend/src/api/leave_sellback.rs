@@ -279,16 +279,18 @@ pub async fn review(
             .execute(&mut *tx)
             .await?;
 
+            let today = crate::services::timezone::org_today(&auth.org_timezone);
             sqlx::query!(
                 r#"
                 UPDATE leave_balances
                 SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
-                    as_of_date = CURRENT_DATE, updated_at = NOW()
+                    as_of_date = $4, updated_at = NOW()
                 WHERE user_id = $1 AND leave_type_id = $2
                 "#,
                 req.user_id,
                 ht.leave_type_id,
                 deduct,
+                today,
             )
             .execute(&mut *tx)
             .await?;

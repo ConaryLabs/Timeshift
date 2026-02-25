@@ -178,13 +178,14 @@ pub async fn adjust(
     .await?;
 
     // Upsert leave balance
+    let today = crate::services::timezone::org_today(&auth.org_timezone);
     sqlx::query!(
         r#"
         INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, CURRENT_DATE, NOW())
+        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
         ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
         SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-            as_of_date = CURRENT_DATE,
+            as_of_date = $6,
             updated_at = NOW()
         "#,
         Uuid::new_v4(),
@@ -192,6 +193,7 @@ pub async fn adjust(
         body.user_id,
         body.leave_type_id,
         body.hours,
+        today,
     )
     .execute(&mut *tx)
     .await?;
@@ -276,7 +278,7 @@ pub async fn create_accrual_schedule(
     let years_min = body.years_of_service_min.unwrap_or(0);
     let effective = body
         .effective_date
-        .unwrap_or_else(|| time::OffsetDateTime::now_utc().date());
+        .unwrap_or_else(|| crate::services::timezone::org_today(&auth.org_timezone));
 
     let r = sqlx::query!(
         r#"

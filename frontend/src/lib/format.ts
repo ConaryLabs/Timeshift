@@ -38,5 +38,15 @@ export function extractApiError(err: unknown, fallback: string): string {
   return fallback
 }
 
+/** Format a Date as YYYY-MM-DD using local time (not UTC).
+ *  Use this instead of `date.toISOString().slice(0, 10)` which returns UTC date
+ *  and can be off by one day for users in negative UTC offsets. */
+export function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /** Sentinel value for Select dropdowns representing "no selection" / clear field */
 export const NO_VALUE = '__none__'
