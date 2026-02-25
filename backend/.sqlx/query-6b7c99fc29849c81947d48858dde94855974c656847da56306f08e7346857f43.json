@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT bw.id, bw.period_id, bw.user_id,\n               u.first_name, u.last_name,\n               bw.seniority_rank, bw.opens_at, bw.closes_at, bw.submitted_at,\n               bw.unlocked_at, bw.approved_at,\n               bw.approved_by AS \"approved_by?\",\n               (u.employee_type::TEXT = 'job_share') AS \"is_job_share!\"\n        FROM bid_windows bw\n        JOIN users u ON u.id = bw.user_id\n        JOIN schedule_periods sp ON sp.id = bw.period_id\n        WHERE bw.id = $1 AND sp.org_id = $2\n        ",
+  "query": "\n            INSERT INTO bid_windows (id, period_id, user_id, seniority_rank, opens_at, closes_at, unlocked_at)\n            VALUES ($1, $2, $3, $4, $5, $6, $7)\n            RETURNING id, period_id, user_id,\n                      $8::text AS \"first_name!\",\n                      $9::text AS \"last_name!\",\n                      seniority_rank, opens_at, closes_at, submitted_at,\n                      unlocked_at, approved_at,\n                      approved_by AS \"approved_by?\",\n                      $10::bool AS \"is_job_share!\",\n                      auto_advanced_at\n            ",
   "describe": {
     "columns": [
       {
@@ -20,12 +20,12 @@
       },
       {
         "ordinal": 3,
-        "name": "first_name",
+        "name": "first_name!",
         "type_info": "Text"
       },
       {
         "ordinal": 4,
-        "name": "last_name",
+        "name": "last_name!",
         "type_info": "Text"
       },
       {
@@ -67,20 +67,33 @@
         "ordinal": 12,
         "name": "is_job_share!",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "auto_advanced_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Bool"
       ]
     },
     "nullable": [
       false,
       false,
       false,
-      false,
-      false,
+      null,
+      null,
       false,
       false,
       false,
@@ -88,8 +101,9 @@
       true,
       true,
       true,
-      null
+      null,
+      true
     ]
   },
-  "hash": "4d4fcede7b0750bd462989a907a514c04e82a85aced6b7810f728c4d7a29d373"
+  "hash": "6b7c99fc29849c81947d48858dde94855974c656847da56306f08e7346857f43"
 }

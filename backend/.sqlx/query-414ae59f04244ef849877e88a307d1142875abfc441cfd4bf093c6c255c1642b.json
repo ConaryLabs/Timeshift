@@ -1,12 +1,24 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT status, date, CAST(hours AS FLOAT8) AS \"hours!\", classification_id, is_fixed_coverage\n           FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE",
+  "query": "SELECT status AS \"status: OtRequestStatus\", date, CAST(hours AS FLOAT8) AS \"hours!\", classification_id, is_fixed_coverage\n           FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "status",
-        "type_info": "Text"
+        "name": "status: OtRequestStatus",
+        "type_info": {
+          "Custom": {
+            "name": "ot_request_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "partially_filled",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
       },
       {
         "ordinal": 1,
@@ -43,5 +55,5 @@
       false
     ]
   },
-  "hash": "91265f9a96830dbb22605ea398cf42960e81158aedfda92bec50cf7ab7bafcb4"
+  "hash": "414ae59f04244ef849877e88a307d1142875abfc441cfd4bf093c6c255c1642b"
 }

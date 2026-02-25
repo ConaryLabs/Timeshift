@@ -771,7 +771,7 @@ pub async fn process_bids(
                 .await?;
 
                 // Deduct leave balance for the awarded vacation bid
-                crate::api::leave::deduct_leave_balance(
+                crate::services::leave::deduct_leave_balance(
                     &mut tx,
                     auth.org_id,
                     window.user_id,

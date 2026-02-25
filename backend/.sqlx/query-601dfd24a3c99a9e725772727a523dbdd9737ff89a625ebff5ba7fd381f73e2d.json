@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: OtRequestStatus\" FROM ot_requests WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: OtRequestStatus",
+        "type_info": {
+          "Custom": {
+            "name": "ot_request_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "partially_filled",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "601dfd24a3c99a9e725772727a523dbdd9737ff89a625ebff5ba7fd381f73e2d"
+}

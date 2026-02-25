@@ -33,6 +33,12 @@ pub struct BidWindow {
     pub approved_at: Option<OffsetDateTime>,
     pub approved_by: Option<Uuid>,
     pub is_job_share: bool,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub auto_advanced_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -50,6 +56,7 @@ pub struct BidWindowRow {
     pub approved_at: Option<OffsetDateTime>,
     pub approved_by: Option<Uuid>,
     pub is_job_share: bool,
+    pub auto_advanced_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]

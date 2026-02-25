@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, period_id, seniority_rank\n        FROM bid_windows\n        WHERE period_id = $1\n          AND submitted_at IS NULL\n          AND auto_advanced_at IS NULL\n          AND closes_at < $2\n        ORDER BY seniority_rank ASC\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "period_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "seniority_rank",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9aacc7f5fbcbc19873c0484ba069b2cc7b498a746a592829e5705f3dc2fa5f5c"
+}

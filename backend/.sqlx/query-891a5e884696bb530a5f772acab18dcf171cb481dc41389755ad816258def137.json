@@ -6,7 +6,19 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text"
+        {
+          "Custom": {
+            "name": "ot_request_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "partially_filled",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
       ]
     },
     "nullable": []
