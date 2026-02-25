@@ -101,18 +101,27 @@ pub async fn create(
         AppError::BadRequest("Holiday sellback is not available for your bargaining unit".into())
     })?;
 
-    // Check annual cap (sum of approved + pending requests this fiscal year)
+    // Wrap cap check, balance check, and INSERT in a transaction to prevent
+    // concurrent requests from both passing checks (TOCTOU).
+    let mut tx = pool.begin().await?;
+
+    // Check annual cap (sum of approved + pending requests this fiscal year).
+    // Subquery locks rows with FOR UPDATE to serialize concurrent requests.
     let already_requested: f64 = sqlx::query_scalar!(
         r#"
-        SELECT COALESCE(SUM(CAST(hours_requested AS FLOAT8)), 0.0) AS "total!"
-        FROM holiday_sellback_requests
-        WHERE user_id = $1 AND fiscal_year = $2
-          AND status IN ('pending', 'approved')
+        SELECT COALESCE(SUM(locked.hrs), 0.0) AS "total!"
+        FROM (
+            SELECT CAST(hours_requested AS FLOAT8) AS hrs
+            FROM holiday_sellback_requests
+            WHERE user_id = $1 AND fiscal_year = $2
+              AND status IN ('pending', 'approved')
+            FOR UPDATE
+        ) locked
         "#,
         auth.id,
         body.fiscal_year,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if already_requested + body.hours_requested > annual_cap {
@@ -122,19 +131,24 @@ pub async fn create(
         )));
     }
 
-    // Verify employee has enough holiday balance
+    // Verify employee has enough holiday balance.
+    // Subquery locks balance rows with FOR UPDATE to prevent concurrent modifications.
     let holiday_balance: f64 = sqlx::query_scalar!(
         r#"
-        SELECT COALESCE(SUM(CAST(lb.balance_hours AS FLOAT8)), 0.0) AS "total!"
-        FROM leave_balances lb
-        JOIN leave_types lt ON lt.id = lb.leave_type_id
-        WHERE lb.user_id = $1 AND lb.org_id = $2
-          AND lt.category = 'holiday'
+        SELECT COALESCE(SUM(locked.bal), 0.0) AS "total!"
+        FROM (
+            SELECT CAST(lb.balance_hours AS FLOAT8) AS bal
+            FROM leave_balances lb
+            JOIN leave_types lt ON lt.id = lb.leave_type_id
+            WHERE lb.user_id = $1 AND lb.org_id = $2
+              AND lt.category = 'holiday'
+            FOR UPDATE OF lb
+        ) locked
         "#,
         auth.id,
         auth.org_id,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if holiday_balance < body.hours_requested {
@@ -159,8 +173,10 @@ pub async fn create(
         body.period,
         body.hours_requested,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(HolidaySellbackRequest {
         id: r.id,
@@ -337,9 +353,12 @@ pub async fn cancel(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
-    // Verify ownership
+    // Use a single atomic UPDATE with WHERE status = 'pending' to prevent race
+    // with a concurrent review that could approve (and deduct balance) between
+    // a status check and the cancel.
+    // First verify ownership without FOR UPDATE (read-only auth check).
     let req = sqlx::query!(
-        "SELECT user_id, status FROM holiday_sellback_requests WHERE id = $1 AND org_id = $2",
+        "SELECT user_id FROM holiday_sellback_requests WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id,
     )
@@ -351,16 +370,11 @@ pub async fn cancel(
         return Err(AppError::Forbidden);
     }
 
-    if req.status != "pending" {
-        return Err(AppError::Conflict(format!(
-            "Cannot cancel a request in '{}' status",
-            req.status
-        )));
-    }
-
+    // Atomic cancel: only succeeds if still pending. If a concurrent review
+    // changed the status, rows_affected will be 0.
     let rows = sqlx::query!(
         "UPDATE holiday_sellback_requests SET status = 'cancelled', updated_at = NOW()
-         WHERE id = $1 AND org_id = $2",
+         WHERE id = $1 AND org_id = $2 AND status = 'pending'",
         id,
         auth.org_id,
     )
@@ -369,7 +383,9 @@ pub async fn cancel(
     .rows_affected();
 
     if rows == 0 {
-        return Err(AppError::NotFound("Sellback request not found".into()));
+        return Err(AppError::Conflict(
+            "Request is no longer pending (may have been reviewed already)".into(),
+        ));
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))

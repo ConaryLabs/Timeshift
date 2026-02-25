@@ -706,17 +706,21 @@ pub async fn review(
 
     let status = body.status;
 
-    // Optimistic locking: check if the record has been modified since the client last fetched it
+    let mut tx = pool.begin().await?;
+
+    // Optimistic locking: check inside the transaction with FOR UPDATE to prevent
+    // race between the timestamp check and the subsequent UPDATE.
     if let Some(expected) = body.expected_updated_at {
         let current = sqlx::query_scalar!(
             r#"
             SELECT lr.updated_at FROM leave_requests lr
             WHERE lr.id = $1 AND lr.org_id = $2
+            FOR UPDATE
             "#,
             id,
             auth.org_id
         )
-        .fetch_optional(&pool)
+        .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| AppError::NotFound("Leave request not found".into()))?;
 
@@ -727,8 +731,6 @@ pub async fn review(
             ));
         }
     }
-
-    let mut tx = pool.begin().await?;
 
     let rows_affected = sqlx::query!(
         r#"

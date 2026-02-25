@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT lr.updated_at FROM leave_requests lr\n            WHERE lr.id = $1 AND lr.org_id = $2\n            ",
+  "query": "SELECT updated_at FROM trade_requests WHERE id = $1 AND org_id = $2 FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       false
     ]
   },
-  "hash": "5140e0845dcc55a417572eec2fe9bf75370c970f041f58310e100ec27cfcf300"
+  "hash": "4602935db48140f07d0c7e4bff539019ee64601a0773c0806d38d0282faf63a8"
 }

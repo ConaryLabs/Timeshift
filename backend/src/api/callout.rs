@@ -709,7 +709,12 @@ pub async fn cancel_ot_assignment(
     auth: AuthUser,
     Path(event_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
-    // 1. Fetch event + shift timing.
+    // All checks and mutations must be in a single transaction to prevent a
+    // concurrent cancellation from slipping through between the status check
+    // and the actual cancel.
+    let mut tx = pool.begin().await?;
+
+    // 1. Fetch event + shift timing (FOR UPDATE to prevent concurrent cancel).
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus",
@@ -720,11 +725,12 @@ pub async fn cancel_ot_assignment(
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         JOIN shift_templates st ON st.id = ss.shift_template_id
         WHERE ce.id = $1 AND ss.org_id = $2
+        FOR UPDATE OF ce
         "#,
         event_id,
         auth.org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
     if event.status != CalloutStatus::Filled {
@@ -742,11 +748,12 @@ pub async fn cancel_ot_assignment(
         JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id AND ss.org_id = $2
         JOIN callout_attempts ca ON ca.event_id = $1 AND ca.user_id = a.user_id AND ca.response = 'accepted'
         WHERE a.is_overtime = true AND a.cancelled_at IS NULL
+        FOR UPDATE OF a
         "#,
         event_id,
         auth.org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("No active OT assignment for this event".into()))?;
 
@@ -791,10 +798,6 @@ pub async fn cancel_ot_assignment(
             _ => {} // NULL ot_type or unknown -- allow (shouldn't happen)
         }
     }
-
-    // 6+7 must be atomic: if the server crashes between them the event would be
-    // permanently stuck in 'filled' with no active assignment.
-    let mut tx = pool.begin().await?;
 
     // 6. Soft-cancel the assignment.
     sqlx::query!(

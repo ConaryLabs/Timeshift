@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            v.id, v.ot_request_id, v.user_id,\n            (u.first_name || ' ' || u.last_name) AS \"user_name!\",\n            u.email AS user_email,\n            cl.name AS \"classification_name?\",\n            v.volunteered_at,\n            v.withdrawn_at\n        FROM ot_request_volunteers v\n        JOIN users u ON u.id = v.user_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE v.ot_request_id = $1\n        ORDER BY v.volunteered_at ASC\n        ",
+  "query": "\n        SELECT\n            v.id, v.ot_request_id, v.user_id,\n            (u.first_name || ' ' || u.last_name) AS \"user_name!\",\n            u.email AS user_email,\n            cl.name AS \"classification_name?\",\n            v.volunteered_at,\n            v.withdrawn_at\n        FROM ot_request_volunteers v\n        JOIN ot_requests r ON r.id = v.ot_request_id AND r.org_id = $2\n        JOIN users u ON u.id = v.user_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE v.ot_request_id = $1\n        ORDER BY v.volunteered_at ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -60,5 +61,5 @@
       true
     ]
   },
-  "hash": "563405704c3d4c2e9407b5e112bcba0b2603d50f5b4b418e4b2a085cfd2b4c9c"
+  "hash": "465d73845a1a2b5c182456e3b10ec45d2e49878df3064b7461074d33b0136704"
 }

@@ -407,6 +407,7 @@ pub async fn get_window(
     Ok(Json(VacationWindowDetail {
         window,
         round: w.round,
+        year: w.year,
         bids,
         dates_taken: awarded_dates,
         allowance_hours: w.allowance_hours,

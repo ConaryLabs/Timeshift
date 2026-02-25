@@ -465,14 +465,18 @@ pub async fn review(
         ));
     }
 
-    // Optimistic locking: check if the record has been modified since the client last fetched it
+    // Entire review is one transaction — fetch with FOR UPDATE to prevent TOCTOU race
+    let mut tx = pool.begin().await?;
+
+    // Optimistic locking: check inside the transaction to prevent race between
+    // the timestamp check and the subsequent UPDATE.
     if let Some(expected) = body.expected_updated_at {
         let current = sqlx::query_scalar!(
-            "SELECT updated_at FROM trade_requests WHERE id = $1 AND org_id = $2",
+            "SELECT updated_at FROM trade_requests WHERE id = $1 AND org_id = $2 FOR UPDATE",
             id,
             auth.org_id
         )
-        .fetch_optional(&pool)
+        .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| AppError::NotFound("Trade request not found".into()))?;
 
@@ -483,9 +487,6 @@ pub async fn review(
             ));
         }
     }
-
-    // Entire review is one transaction — fetch with FOR UPDATE to prevent TOCTOU race
-    let mut tx = pool.begin().await?;
 
     let r = sqlx::query!(
         r#"

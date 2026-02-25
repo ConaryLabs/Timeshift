@@ -154,7 +154,7 @@ pub async fn get_one(
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
-    // Fetch volunteers
+    // Fetch volunteers (org_id filter via JOIN to ot_requests for tenant isolation)
     let volunteer_rows = sqlx::query!(
         r#"
         SELECT
@@ -165,12 +165,14 @@ pub async fn get_one(
             v.volunteered_at,
             v.withdrawn_at
         FROM ot_request_volunteers v
+        JOIN ot_requests r ON r.id = v.ot_request_id AND r.org_id = $2
         JOIN users u ON u.id = v.user_id
         LEFT JOIN classifications cl ON cl.id = u.classification_id
         WHERE v.ot_request_id = $1
         ORDER BY v.volunteered_at ASC
         "#,
         id,
+        auth.org_id,
     )
     .fetch_all(&pool)
     .await?;
@@ -189,7 +191,7 @@ pub async fn get_one(
         })
         .collect();
 
-    // Fetch assignments
+    // Fetch assignments (org_id filter via JOIN to ot_requests for tenant isolation)
     let assignment_rows = sqlx::query!(
         r#"
         SELECT
@@ -202,12 +204,14 @@ pub async fn get_one(
             a.cancelled_at,
             a.cancelled_by
         FROM ot_request_assignments a
+        JOIN ot_requests r ON r.id = a.ot_request_id AND r.org_id = $2
         JOIN users u ON u.id = a.user_id
         JOIN users ab ON ab.id = a.assigned_by
         WHERE a.ot_request_id = $1
         ORDER BY a.assigned_at ASC
         "#,
         id,
+        auth.org_id,
     )
     .fetch_all(&pool)
     .await?;

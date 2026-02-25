@@ -429,8 +429,9 @@ pub async fn cancel(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
+    // Verify ownership (read-only auth check).
     let donation = sqlx::query!(
-        "SELECT donor_id, status FROM sick_leave_donations WHERE id = $1 AND org_id = $2",
+        "SELECT donor_id FROM sick_leave_donations WHERE id = $1 AND org_id = $2",
         id,
         auth.org_id,
     )
@@ -442,16 +443,12 @@ pub async fn cancel(
         return Err(AppError::Forbidden);
     }
 
-    if donation.status != "pending" {
-        return Err(AppError::Conflict(format!(
-            "Cannot cancel a donation in '{}' status",
-            donation.status
-        )));
-    }
-
+    // Atomic cancel: only succeeds if still pending. Prevents race with a
+    // concurrent review that could approve (and transfer balance) between
+    // a status check and the cancel.
     let rows = sqlx::query!(
         "UPDATE sick_leave_donations SET status = 'cancelled', updated_at = NOW()
-         WHERE id = $1 AND org_id = $2",
+         WHERE id = $1 AND org_id = $2 AND status = 'pending'",
         id,
         auth.org_id,
     )
@@ -460,7 +457,9 @@ pub async fn cancel(
     .rows_affected();
 
     if rows == 0 {
-        return Err(AppError::NotFound("Donation request not found".into()));
+        return Err(AppError::Conflict(
+            "Request is no longer pending (may have been reviewed already)".into(),
+        ));
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))
