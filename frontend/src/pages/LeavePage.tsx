@@ -83,7 +83,7 @@ export default function LeavePage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const debouncedSearch = useDebounce(search)
 
-  const { data: requests, isLoading, isError } = useLeaveRequests()
+  const { data: requests, isLoading, isError, refetch } = useLeaveRequests()
   const { data: leaveTypes } = useLeaveTypes()
   const { data: balances } = useLeaveBalances()
   const createMut = useCreateLeave()
@@ -295,7 +295,10 @@ export default function LeavePage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load leave requests.</p>
+        <div className="flex items-center gap-3 text-sm text-destructive">
+          <p>Failed to load leave requests.</p>
+          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
+        </div>
       ) : (
         <DataTable
           columns={columns}

@@ -752,6 +752,34 @@ pub async fn process_bids(
             // Create approved leave request if we have a vacation leave type
             if let Some(lt_id) = leave_type_id {
                 let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
+
+                // Verify sufficient balance before deducting (FOR UPDATE to prevent
+                // concurrent modifications from causing negative balances).
+                let balance: f64 = sqlx::query_scalar!(
+                    r#"
+                    SELECT COALESCE(SUM(locked.bal), 0.0) AS "total!"
+                    FROM (
+                        SELECT CAST(lb.balance_hours AS FLOAT8) AS bal
+                        FROM leave_balances lb
+                        WHERE lb.user_id = $1 AND lb.org_id = $2 AND lb.leave_type_id = $3
+                        FOR UPDATE OF lb
+                    ) locked
+                    "#,
+                    window.user_id,
+                    auth.org_id,
+                    lt_id,
+                )
+                .fetch_one(&mut *tx)
+                .await?;
+
+                if balance < hours {
+                    tracing::warn!(
+                        "Skipping vacation bid deduction for user {} — insufficient balance ({:.1} hrs available, {:.1} needed)",
+                        window.user_id, balance, hours
+                    );
+                    continue;
+                }
+
                 let leave_request_id = Uuid::new_v4();
 
                 sqlx::query!(

@@ -3,8 +3,8 @@ use serde_json::json;
 
 #[derive(thiserror::Error, Debug)]
 pub enum AppError {
-    #[error("Authentication required")]
-    Unauthorized,
+    #[error("{}", .0.as_deref().unwrap_or("Authentication required"))]
+    Unauthorized(Option<String>),
 
     #[error("Insufficient permissions")]
     Forbidden,
@@ -34,7 +34,7 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match &self {
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, self.to_string()),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
             AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),

@@ -182,6 +182,9 @@ pub struct UpdateUserRequest {
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+    /// Optional org slug for multi-org login disambiguation.
+    /// When multiple orgs share the same email, this field is required.
+    pub org_slug: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

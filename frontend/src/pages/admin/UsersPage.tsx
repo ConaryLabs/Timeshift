@@ -112,7 +112,7 @@ export default function UsersPage() {
   const debouncedSearch = useDebounce(search)
   const [conflictOpen, setConflictOpen] = useState(false)
 
-  const { data: users, isLoading, isError } = useUsers({ include_inactive: showInactive })
+  const { data: users, isLoading, isError, refetch } = useUsers({ include_inactive: showInactive })
   const { data: classifications } = useClassifications()
   const createMut = useCreateUser()
   const updateMut = useUpdateUser()
@@ -189,7 +189,7 @@ export default function UsersPage() {
           setDialogOpen(false)
         },
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to create user')
           toast.error(msg)
         },
       },
@@ -221,7 +221,7 @@ export default function UsersPage() {
           setConflictOpen(true)
           return
         }
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to update user')
         toast.error(msg)
       },
     })
@@ -242,7 +242,7 @@ export default function UsersPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to update user')
         toast.error(msg)
       },
     })
@@ -256,7 +256,7 @@ export default function UsersPage() {
         setDeactivateTarget(null)
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to deactivate user')
         toast.error(msg)
       },
     })
@@ -321,7 +321,7 @@ export default function UsersPage() {
                   {
                     onSuccess: () => toast.success('User activated'),
                     onError: (err: unknown) => {
-                      const msg = extractApiError(err, 'Operation failed')
+                      const msg = extractApiError(err, 'Failed to activate user')
                       toast.error(msg)
                     },
                   },
@@ -389,7 +389,10 @@ export default function UsersPage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load users.</p>
+        <div className="flex items-center gap-3 text-sm text-destructive">
+          <p>Failed to load users.</p>
+          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
+        </div>
       ) : (
         <DataTable
           columns={columns}

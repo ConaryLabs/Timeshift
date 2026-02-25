@@ -214,5 +214,9 @@ async fn security_headers(
         ),
     );
     headers.insert("referrer-policy", HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        "permissions-policy",
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+    );
     response
 }

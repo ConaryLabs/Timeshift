@@ -68,13 +68,13 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let headers = &parts.headers;
-        let token = extract_token_from_parts(headers).ok_or(AppError::Unauthorized)?;
+        let token = extract_token_from_parts(headers).ok_or(AppError::Unauthorized(None))?;
 
         let key = DecodingKey::from_secret(app_state.jwt_secret.as_bytes());
         let claims = decode::<Claims>(&token, &key, &Validation::new(Algorithm::HS256))
             .map_err(|e| {
                 tracing::warn!("JWT decode failed: {}", e);
-                AppError::Unauthorized
+                AppError::Unauthorized(None)
             })?
             .claims;
 
@@ -91,10 +91,10 @@ where
         .fetch_optional(&app_state.pool)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Auth DB check failed: {}", e)))?
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or(AppError::Unauthorized(None))?;
 
         if !row.is_active {
-            return Err(AppError::Unauthorized);
+            return Err(AppError::Unauthorized(None));
         }
 
         Ok(AuthUser {
@@ -119,7 +119,7 @@ where
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         extract_cookie(&parts.headers, "refresh_token")
             .map(RefreshTokenCookie)
-            .ok_or(AppError::Unauthorized)
+            .ok_or(AppError::Unauthorized(None))
     }
 }
 

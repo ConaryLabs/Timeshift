@@ -144,7 +144,7 @@ export default function CalloutPage() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
 
-  const { data: events, isLoading, isError } = useCalloutEvents()
+  const { data: events, isLoading, isError, refetch } = useCalloutEvents()
   const { data: calloutList } = useCalloutList(selectedEvent ?? '')
   const { data: volunteers } = useCalloutVolunteers(selectedEvent ?? '')
   const cancelMut = useCancelCalloutEvent()
@@ -326,7 +326,7 @@ export default function CalloutPage() {
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  This employee is from a different classification and is eligible per LOU 25-10 (within the org's cross-classification window).
+                  This employee is from a different classification and is eligible for cross-classification overtime (within the org's configured window).
                 </TooltipContent>
               </Tooltip>
             )}
@@ -404,7 +404,10 @@ export default function CalloutPage() {
           <h3 className="text-sm font-medium text-muted-foreground mb-3">Events</h3>
           {isLoading && <LoadingState />}
           {!isLoading && isError && (
-            <p className="text-sm text-destructive">Failed to load callout events.</p>
+            <div className="flex items-center gap-3 text-sm text-destructive">
+              <p>Failed to load callout events.</p>
+              <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
+            </div>
           )}
           {!isLoading && !isError && (events ?? []).length === 0 && (
             <EmptyState title="No callout events" description="Initiate a callout when coverage is needed." />
