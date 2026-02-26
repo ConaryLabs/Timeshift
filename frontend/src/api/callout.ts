@@ -30,6 +30,7 @@ export interface CalloutListEntry {
   classification_abbreviation: string | null
   overall_seniority_date: string | null
   ot_hours: number
+  phone: string | null
   is_available: boolean
   unavailable_reason: string | null
   is_cross_class: boolean

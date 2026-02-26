@@ -54,13 +54,19 @@ export default function VolunteeredOTPage() {
       className: 'max-w-[120px] truncate',
     },
     {
-      header: 'Status',
+      header: 'My Status',
+      cell: (r) => r.user_assigned
+        ? <StatusBadge status="assigned" />
+        : <StatusBadge status="volunteered" />,
+    },
+    {
+      header: 'Slot Status',
       cell: (r) => <StatusBadge status={r.status} />,
     },
     {
       header: 'Actions',
       cell: (r) =>
-        r.status === 'open' || r.status === 'partially_filled' ? (
+        !r.user_assigned && (r.status === 'open' || r.status === 'partially_filled') ? (
           <Button
             size="sm"
             variant="outline"

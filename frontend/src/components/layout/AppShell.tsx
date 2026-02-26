@@ -155,14 +155,29 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem; adminGroups: Nav
       },
     )
   } else if (isManager) {
-    adminGroups.push({
-      label: 'Operations',
-      items: [
-        { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-        { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
-        { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
-      ],
-    })
+    adminGroups.push(
+      {
+        label: 'Operations',
+        items: [
+          { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+          { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
+        ],
+      },
+      {
+        label: 'Scheduling',
+        items: [
+          { to: '/admin/duty-positions', label: 'Duty Positions', icon: <ClipboardCheck className="h-4 w-4" /> },
+          { to: '/admin/shift-patterns', label: 'Shift Patterns', icon: <RotateCw className="h-4 w-4" /> },
+          { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
+        ],
+      },
+      {
+        label: 'People',
+        items: [
+          { to: '/admin/special-assignments', label: 'Assignments', icon: <BadgeCheck className="h-4 w-4" /> },
+        ],
+      },
+    )
   }
 
   return { groups, profile, adminGroups }
@@ -610,11 +625,11 @@ export default function AppShell() {
                                   </span>
                                 </div>
                                 <button
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-accent-foreground/10"
+                                  className="p-0.5 rounded text-muted-foreground hover:bg-accent-foreground/10 hover:text-foreground transition-colors"
                                   title="Assign mandatory OT"
                                   onClick={() => { setOtDialogGap(gap); setCoverageOpen(false) }}
                                 >
-                                  <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <UserPlus className="h-3.5 w-3.5" />
                                 </button>
                               </div>
                             ))}

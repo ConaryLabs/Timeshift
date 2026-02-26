@@ -26,7 +26,7 @@ export default function RequireRole({ roles, children }: RequireRoleProps) {
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link to="/schedule">Back to Schedule</Link>
+              <Link to="/dashboard">Back to Dashboard</Link>
             </Button>
           </CardContent>
         </Card>

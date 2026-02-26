@@ -1,12 +1,18 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
-import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star, StickyNote } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star, StickyNote, Phone, Clock, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useDayView, useAnnotations } from '@/hooks/queries'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useDayView, useAnnotations, useCreateAnnotation } from '@/hooks/queries'
+import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/format'
 
@@ -21,16 +27,36 @@ function contrastText(hex: string): string {
 export default function DayViewPage() {
   const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
+  const { isManager } = usePermissions()
   const dateStr = date ?? format(new Date(), 'yyyy-MM-dd')
 
   const { data: entries, isLoading, error } = useDayView(dateStr)
   const { data: annotations } = useAnnotations(dateStr, dateStr)
+
+  const [annotationOpen, setAnnotationOpen] = useState(false)
+  const [annotationType, setAnnotationType] = useState<string>('note')
+  const [annotationContent, setAnnotationContent] = useState('')
+  const createAnnotation = useCreateAnnotation()
 
   const parsedDate = parseISO(dateStr)
 
   function goTo(offset: number) {
     const newDate = addDays(parsedDate, offset)
     navigate(`/schedule/day/${format(newDate, 'yyyy-MM-dd')}`)
+  }
+
+  function handleCreateAnnotation() {
+    if (!annotationContent.trim()) return
+    createAnnotation.mutate(
+      { date: dateStr, annotation_type: annotationType, content: annotationContent.trim() },
+      {
+        onSuccess: () => {
+          setAnnotationOpen(false)
+          setAnnotationContent('')
+          setAnnotationType('note')
+        },
+      },
+    )
   }
 
   return (
@@ -40,6 +66,20 @@ export default function DayViewPage() {
         description={format(parsedDate, 'EEEE, MMMM d, yyyy')}
         actions={
           <div className="flex items-center gap-2">
+            {isManager && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setAnnotationOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Annotation
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/available-ot">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Available OT
+                  </Link>
+                </Button>
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={() => goTo(-1)} aria-label="Previous day">
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -110,11 +150,24 @@ export default function DayViewPage() {
                     </span>
                   </div>
                 </div>
-                <CoverageIndicator
-                  actual={entry.coverage_actual}
-                  required={entry.coverage_required}
-                  status={entry.coverage_status}
-                />
+                <div className="flex items-center gap-2">
+                  <CoverageIndicator
+                    actual={entry.coverage_actual}
+                    required={entry.coverage_required}
+                    status={entry.coverage_status}
+                  />
+                  {isManager && entry.coverage_status === 'red' && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => navigate('/callout')}
+                    >
+                      <Phone className="h-3 w-3 mr-1" />
+                      Callout
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Timeline bar (Gantt-style) */}
@@ -171,6 +224,53 @@ export default function DayViewPage() {
           ))}
         </div>
       )}
+
+      {/* Add Annotation dialog (manager-only) */}
+      <Dialog open={annotationOpen} onOpenChange={setAnnotationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Annotation</DialogTitle>
+            <DialogDescription>
+              Add a note, alert, or holiday marker for {format(parsedDate, 'MMM d, yyyy')}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={annotationType} onValueChange={setAnnotationType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="note">Note</SelectItem>
+                  <SelectItem value="alert">Alert</SelectItem>
+                  <SelectItem value="holiday">Holiday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Message</Label>
+              <Textarea
+                value={annotationContent}
+                onChange={(e) => setAnnotationContent(e.target.value)}
+                placeholder="Enter annotation text..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnnotationOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateAnnotation}
+              disabled={!annotationContent.trim() || createAnnotation.isPending}
+            >
+              {createAnnotation.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

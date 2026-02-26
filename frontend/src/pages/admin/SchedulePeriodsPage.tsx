@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
-import { useSchedulePeriods, useCreatePeriod, useBargainingUnits } from '@/hooks/queries'
+import { useSchedulePeriods, useCreatePeriod, useUpdateSchedulePeriod, useBargainingUnits, useSlotAssignments } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SchedulePeriod } from '@/api/schedulePeriods'
 import { extractApiError } from '@/lib/format'
@@ -39,10 +39,16 @@ function bargainingUnitLabel(bu: string | null, bargainingUnits: { code: string;
 export default function SchedulePeriodsPage() {
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editPeriod, setEditPeriod] = useState<SchedulePeriod | null>(null)
 
   const { data: periods, isLoading, isError } = useSchedulePeriods()
   const { data: bargainingUnits = [] } = useBargainingUnits()
   const createMut = useCreatePeriod()
+  const updateMut = useUpdateSchedulePeriod()
+
+  // Check if the editing period has assignments (to decide if dates are editable)
+  const { data: editAssignments } = useSlotAssignments(editPeriod?.id ?? '')
+  const hasAssignments = (editAssignments ?? []).some((a) => a.assignment_id !== null)
 
   const { confirmClose, confirmDialog } = useConfirmClose()
 
@@ -50,9 +56,23 @@ export default function SchedulePeriodsPage() {
     resolver: zodResolver(schema),
   })
 
+  const editForm = useForm<FormValues>({
+    resolver: zodResolver(schema),
+  })
+
   function openCreate() {
     reset({ name: '', start_date: '', end_date: '', bargaining_unit: '' })
     setDialogOpen(true)
+  }
+
+  function openEdit(period: SchedulePeriod) {
+    setEditPeriod(period)
+    editForm.reset({
+      name: period.name,
+      start_date: period.start_date,
+      end_date: period.end_date,
+      bargaining_unit: period.bargaining_unit ?? '',
+    })
   }
 
   function onSubmit(values: FormValues) {
@@ -67,6 +87,28 @@ export default function SchedulePeriodsPage() {
       },
       onError: (err: unknown) => {
         const msg = extractApiError(err, 'Operation failed')
+        toast.error(msg)
+      },
+    })
+  }
+
+  function onEditSubmit(values: FormValues) {
+    if (!editPeriod) return
+    const payload: { id: string; name?: string; start_date?: string; end_date?: string } = {
+      id: editPeriod.id,
+      name: values.name,
+    }
+    if (!hasAssignments) {
+      payload.start_date = values.start_date
+      payload.end_date = values.end_date
+    }
+    updateMut.mutate(payload, {
+      onSuccess: () => {
+        toast.success('Schedule period updated')
+        setEditPeriod(null)
+      },
+      onError: (err: unknown) => {
+        const msg = extractApiError(err, 'Update failed')
         toast.error(msg)
       },
     })
@@ -101,9 +143,14 @@ export default function SchedulePeriodsPage() {
     {
       header: 'Actions',
       cell: (r) => (
-        <Button size="sm" variant="outline" onClick={() => navigate(`/admin/schedule-periods/${r.id}`)}>
-          Manage Assignments
-        </Button>
+        <span className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => navigate(`/admin/schedule-periods/${r.id}`)}>
+            Manage Assignments
+          </Button>
+        </span>
       ),
     },
   ]
@@ -118,6 +165,11 @@ export default function SchedulePeriodsPage() {
 
       {isError ? (
         <p className="text-sm text-destructive">Failed to load schedule periods.</p>
+      ) : !isLoading && (periods ?? []).length === 0 ? (
+        <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground text-center">
+          <p className="font-medium text-foreground mb-1">No schedule periods yet</p>
+          <p>Schedule periods define date ranges for assigning employees to shift slots (bid periods). Make sure you have <Link to="/admin/teams" className="text-primary underline">teams with shift slots</Link> set up before creating a period.</p>
+        </div>
       ) : (
         <DataTable
           columns={columns}
@@ -165,6 +217,32 @@ export default function SchedulePeriodsPage() {
             </FormField>
             <DialogFooter>
               <Button type="submit" disabled={createMut.isPending}>Create</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!editPeriod} onOpenChange={(open) => { if (!open) confirmClose(editForm.formState.isDirty, () => setEditPeriod(null)) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Schedule Period</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+            <FormField label="Name" htmlFor="sp-edit-name" required error={editForm.formState.errors.name?.message}>
+              <Input id="sp-edit-name" {...editForm.register('name')} />
+            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Start Date" htmlFor="sp-edit-start" required error={editForm.formState.errors.start_date?.message}>
+                <Input id="sp-edit-start" type="date" {...editForm.register('start_date')} disabled={hasAssignments} />
+              </FormField>
+              <FormField label="End Date" htmlFor="sp-edit-end" required error={editForm.formState.errors.end_date?.message}>
+                <Input id="sp-edit-end" type="date" {...editForm.register('end_date')} disabled={hasAssignments} />
+              </FormField>
+            </div>
+            {hasAssignments && (
+              <p className="text-xs text-muted-foreground">Dates cannot be changed because this period has slot assignments.</p>
+            )}
+            <DialogFooter>
+              <Button type="submit" disabled={updateMut.isPending}>Save Changes</Button>
             </DialogFooter>
           </form>
         </DialogContent>

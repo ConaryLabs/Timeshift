@@ -1,13 +1,23 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
+  MoreHorizontal,
+  CalendarOff,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useMySchedule, useMyPreferences } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
 import type { MyScheduleEntry } from '@/api/employee'
@@ -46,6 +56,7 @@ function addDays(d: Date, n: number) {
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function MySchedulePage() {
+  const nav = useNavigate()
   const { data: prefs } = useMyPreferences()
   const defaultView = (prefs?.preferred_view === 'month' ? 'month' : 'week') as ViewMode
   const [view, setView] = useState<ViewMode | null>(null)
@@ -160,7 +171,7 @@ export default function MySchedulePage() {
       )}
 
       {!isLoading && !isError && activeView === 'week' && (
-        <WeekView days={displayDays} entryMap={entryMap} todayStr={todayStr} />
+        <WeekView days={displayDays} entryMap={entryMap} todayStr={todayStr} onNavigate={nav} />
       )}
 
       {!isLoading && !isError && activeView === 'month' && (
@@ -169,9 +180,34 @@ export default function MySchedulePage() {
           entryMap={entryMap}
           todayStr={todayStr}
           currentMonth={anchor.getMonth()}
+          onNavigate={nav}
         />
       )}
     </div>
+  )
+}
+
+function DayActionMenu({ dateStr, hasShift, onNavigate }: { dateStr: string; hasShift: boolean; onNavigate: (path: string) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem onClick={() => onNavigate(`/leave?date=${dateStr}`)}>
+          <CalendarOff className="h-3.5 w-3.5 mr-2" />
+          Request Leave
+        </DropdownMenuItem>
+        {hasShift && (
+          <DropdownMenuItem onClick={() => onNavigate(`/trades?date=${dateStr}`)}>
+            <ArrowLeftRight className="h-3.5 w-3.5 mr-2" />
+            Propose Trade
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -179,10 +215,12 @@ function WeekView({
   days,
   entryMap,
   todayStr,
+  onNavigate,
 }: {
   days: Date[]
   entryMap: Map<string, MyScheduleEntry[]>
   todayStr: string
+  onNavigate: (path: string) => void
 }) {
   return (
     <div className="overflow-x-auto">
@@ -196,7 +234,7 @@ function WeekView({
           <div key={dateStr}>
             <div
               className={cn(
-                'text-center mb-2 py-1 rounded-md text-sm font-medium',
+                'text-center mb-2 py-1 rounded-md text-sm font-medium relative',
                 isToday
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground',
@@ -204,6 +242,9 @@ function WeekView({
             >
               <div className="text-xs">{DAY_NAMES[day.getDay()]}</div>
               <div className="text-lg">{day.getDate()}</div>
+              <div className="absolute top-1 right-1">
+                <DayActionMenu dateStr={dateStr} hasShift={shifts.length > 0} onNavigate={onNavigate} />
+              </div>
             </div>
 
             <div className="space-y-2 min-h-[100px]">
@@ -255,11 +296,13 @@ function MonthView({
   entryMap,
   todayStr,
   currentMonth,
+  onNavigate,
 }: {
   days: Date[]
   entryMap: Map<string, MyScheduleEntry[]>
   todayStr: string
   currentMonth: number
+  onNavigate: (path: string) => void
 }) {
   const weeks: Date[][] = []
   for (let i = 0; i < days.length; i += 7) {
@@ -290,22 +333,27 @@ function MonthView({
               <div
                 key={dateStr}
                 className={cn(
-                  'min-h-[80px] p-1 border-r last:border-r-0',
+                  'group min-h-[80px] p-1 border-r last:border-r-0',
                   !isCurrentMonth && 'bg-muted/30',
                 )}
               >
-                <div
-                  className={cn(
-                    'text-xs mb-1 w-6 h-6 flex items-center justify-center rounded-full',
-                    isToday && 'bg-primary text-primary-foreground',
-                    !isToday && !isCurrentMonth && 'text-muted-foreground/50',
-                    !isToday && isCurrentMonth && 'text-muted-foreground',
-                  )}
-                >
-                  {day.getDate()}
+                <div className="flex items-center justify-between">
+                  <div
+                    className={cn(
+                      'text-xs w-6 h-6 flex items-center justify-center rounded-full',
+                      isToday && 'bg-primary text-primary-foreground',
+                      !isToday && !isCurrentMonth && 'text-muted-foreground/50',
+                      !isToday && isCurrentMonth && 'text-muted-foreground',
+                    )}
+                  >
+                    {day.getDate()}
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DayActionMenu dateStr={dateStr} hasShift={shifts.length > 0} onNavigate={onNavigate} />
+                  </div>
                 </div>
 
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 mt-0.5">
                   {shifts.map((entry, i) => (
                     <div
                       key={i}

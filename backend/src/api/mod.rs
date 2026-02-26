@@ -143,7 +143,7 @@ pub fn router(state: AppState) -> Router {
             "/api/schedule/periods",
             get(schedule::list_periods).post(schedule::create_period),
         )
-        .route("/api/schedule/periods/:id", get(schedule::get_period))
+        .route("/api/schedule/periods/:id", get(schedule::get_period).patch(schedule::update_period))
         .route(
             "/api/schedule/periods/:id/assign",
             post(schedule::assign_slot),

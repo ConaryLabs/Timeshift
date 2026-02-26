@@ -80,6 +80,14 @@ pub struct CreateSchedulePeriodRequest {
     pub bargaining_unit: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateSchedulePeriodRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: Option<String>,
+    pub start_date: Option<time::Date>,
+    pub end_date: Option<time::Date>,
+}
+
 /// A slot assignment -- who holds a slot for a schedule period (result of bid).
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct SlotAssignment {

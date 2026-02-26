@@ -58,6 +58,7 @@ pub struct OtRequestRow {
     pub volunteer_count: i64,
     pub assignment_count: i64,
     pub user_volunteered: bool,
+    pub user_assigned: bool,
 }
 
 /// Single OT request detail with nested volunteers and assignments.

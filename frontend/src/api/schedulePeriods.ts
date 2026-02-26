@@ -51,6 +51,9 @@ export const schedulePeriodsApi = {
   create: (body: { name: string; start_date: string; end_date: string; bargaining_unit?: string | null }) =>
     api.post<SchedulePeriod>('/api/schedule/periods', body).then((r) => r.data),
 
+  update: (id: string, body: { name?: string; start_date?: string; end_date?: string }) =>
+    api.patch<SchedulePeriod>(`/api/schedule/periods/${id}`, body).then((r) => r.data),
+
   assignSlot: (periodId: string, body: { slot_id: string; user_id: string }) =>
     api.post<SlotAssignment>(`/api/schedule/periods/${periodId}/assign`, body).then((r) => r.data),
 

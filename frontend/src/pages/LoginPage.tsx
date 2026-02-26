@@ -26,7 +26,7 @@ export default function LoginPage() {
         { email, password },
       )
       setAuth(res.data.user)
-      navigate('/schedule')
+      navigate('/dashboard')
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }
       setError(axiosErr.response?.data?.error ?? 'Login failed')

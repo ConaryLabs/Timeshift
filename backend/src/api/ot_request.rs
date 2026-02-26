@@ -51,7 +51,9 @@ pub async fn list(
             (SELECT COUNT(*) FROM ot_request_assignments a
              WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS "assignment_count!",
             EXISTS(SELECT 1 FROM ot_request_volunteers v
-             WHERE v.ot_request_id = r.id AND v.user_id = $9 AND v.withdrawn_at IS NULL) AS "user_volunteered!"
+             WHERE v.ot_request_id = r.id AND v.user_id = $9 AND v.withdrawn_at IS NULL) AS "user_volunteered!",
+            EXISTS(SELECT 1 FROM ot_request_assignments a
+             WHERE a.ot_request_id = r.id AND a.user_id = $9 AND a.cancelled_at IS NULL) AS "user_assigned!"
         FROM ot_requests r
         JOIN classifications cl ON cl.id = r.classification_id
         JOIN users cu ON cu.id = r.created_by
@@ -107,6 +109,7 @@ pub async fn list(
             volunteer_count: r.volunteer_count,
             assignment_count: r.assignment_count,
             user_volunteered: r.user_volunteered,
+            user_assigned: r.user_assigned,
         })
         .collect();
 
@@ -394,6 +397,7 @@ pub async fn create(
         volunteer_count: 0,
         assignment_count: 0,
         user_volunteered: false,
+        user_assigned: false,
     }))
 }
 
@@ -528,7 +532,9 @@ pub async fn update(
             (SELECT COUNT(*) FROM ot_request_assignments a
              WHERE a.ot_request_id = r.id AND a.cancelled_at IS NULL) AS "assignment_count!",
             EXISTS(SELECT 1 FROM ot_request_volunteers v
-             WHERE v.ot_request_id = r.id AND v.user_id = $3 AND v.withdrawn_at IS NULL) AS "user_volunteered!"
+             WHERE v.ot_request_id = r.id AND v.user_id = $3 AND v.withdrawn_at IS NULL) AS "user_volunteered!",
+            EXISTS(SELECT 1 FROM ot_request_assignments a
+             WHERE a.ot_request_id = r.id AND a.user_id = $3 AND a.cancelled_at IS NULL) AS "user_assigned!"
         FROM ot_requests r
         JOIN classifications cl ON cl.id = r.classification_id
         JOIN users cu ON cu.id = r.created_by
@@ -566,6 +572,7 @@ pub async fn update(
         volunteer_count: row.volunteer_count,
         assignment_count: row.assignment_count,
         user_volunteered: row.user_volunteered,
+        user_assigned: row.user_assigned,
     }))
 }
 

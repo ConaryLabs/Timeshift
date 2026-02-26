@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +18,8 @@ import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { SearchInput } from '@/components/ui/search-input'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { MessageSquare } from 'lucide-react'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useBulkReviewLeave, useLeaveBalances } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -74,14 +77,25 @@ const INITIAL_FORM: LeaveFormState = {
 
 export default function LeavePage() {
   const { isManager } = usePermissions()
-  const [showForm, setShowForm] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialDate = searchParams.get('date')
+  const [showForm, setShowForm] = useState(!!initialDate)
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState<LeaveFormState>(INITIAL_FORM)
+  const [form, setForm] = useState<LeaveFormState>(
+    initialDate ? { ...INITIAL_FORM, start_date: initialDate, end_date: initialDate } : INITIAL_FORM
+  )
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reviewerNotes, setReviewerNotes] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const debouncedSearch = useDebounce(search)
+
+  // Clear date param from URL after reading it (clean URL for bookmarking)
+  useEffect(() => {
+    if (initialDate) {
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: requests, isLoading, isError, refetch } = useLeaveRequests()
   const { data: leaveTypes } = useLeaveTypes()
@@ -223,7 +237,27 @@ export default function LeavePage() {
       header: 'Hours',
       cell: (r) => r.hours != null ? r.hours.toFixed(1) : '-',
     },
-    { header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
+    {
+      header: 'Status',
+      cell: (r) => (
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={r.status} />
+          {r.reviewer_notes && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-muted-foreground hover:text-foreground transition-colors" title="Reviewer notes">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="top" className="w-64 text-sm">
+                <p className="font-medium text-xs text-muted-foreground mb-1">Reviewer Notes</p>
+                <p className="whitespace-pre-wrap">{r.reviewer_notes}</p>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      ),
+    },
     ...(isManager
       ? [{
           header: 'Actions',

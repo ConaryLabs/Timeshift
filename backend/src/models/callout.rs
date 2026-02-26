@@ -75,6 +75,7 @@ pub struct CalloutListEntry {
     pub ot_hours: f64,
     pub is_available: bool,
     pub unavailable_reason: Option<String>,
+    pub phone: Option<String>,
     /// True when this employee is from a different classification than the primary OT list.
     /// Only possible when the shift is within the org's cross-class eligibility window.
     pub is_cross_class: bool,

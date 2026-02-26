@@ -6,13 +6,14 @@ import {
   ArrowLeftRight,
   Sun,
   ChevronRight,
+  Siren,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
-import { useMyDashboard } from '@/hooks/queries'
+import { useMyDashboard, useOtRequests } from '@/hooks/queries'
 import { useAuthStore } from '@/store/auth'
 import type { MyScheduleEntry } from '@/api/employee'
 
@@ -95,6 +96,11 @@ function DayOffCard({ label }: { label: string }) {
 export default function MyDashboardPage() {
   const user = useAuthStore((s) => s.user)
   const { data: dashboard, isLoading, isError, refetch } = useMyDashboard()
+  const { data: volunteeredOt } = useOtRequests({ volunteered_by_me: true })
+  const activeVolunteers = volunteeredOt?.filter(
+    (r) => r.status === 'open' || r.status === 'partially_filled' || r.status === 'filled',
+  ) ?? []
+  const assignedCount = activeVolunteers.filter((r) => r.user_assigned).length
 
   if (isLoading) return <LoadingState message="Loading dashboard..." />
   if (isError) {
@@ -140,9 +146,9 @@ export default function MyDashboardPage() {
       </div>
 
       {/* Action items */}
-      {(dashboard?.pending_leave_count || dashboard?.pending_trade_count) ? (
+      {(dashboard?.pending_leave_count || dashboard?.pending_trade_count || activeVolunteers.length > 0) ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          {!!dashboard.pending_leave_count && (
+          {!!dashboard?.pending_leave_count && (
             <Card>
               <CardContent className="py-4">
                 <Link to="/leave" className="flex items-center justify-between group">
@@ -163,7 +169,7 @@ export default function MyDashboardPage() {
             </Card>
           )}
 
-          {!!dashboard.pending_trade_count && (
+          {!!dashboard?.pending_trade_count && (
             <Card>
               <CardContent className="py-4">
                 <Link to="/trades" className="flex items-center justify-between group">
@@ -175,6 +181,28 @@ export default function MyDashboardPage() {
                       <p className="font-medium text-sm">Pending Trades</p>
                       <p className="text-xs text-muted-foreground">
                         {dashboard.pending_trade_count} trade{dashboard.pending_trade_count !== 1 ? 's' : ''} pending
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeVolunteers.length > 0 && (
+            <Card>
+              <CardContent className="py-4">
+                <Link to="/volunteered-ot" className="flex items-center justify-between group">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      <Siren className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Volunteered OT</p>
+                      <p className="text-xs text-muted-foreground">
+                        {activeVolunteers.length} slot{activeVolunteers.length !== 1 ? 's' : ''}
+                        {assignedCount > 0 && ` \u00b7 ${assignedCount} assigned`}
                       </p>
                     </div>
                   </div>
