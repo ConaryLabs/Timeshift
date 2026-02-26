@@ -34,6 +34,7 @@ import {
   useCreateAccrualSchedule,
   useUpdateAccrualSchedule,
   useDeleteAccrualSchedule,
+  useBargainingUnits,
 } from '@/hooks/queries'
 import type { LeaveBalanceView } from '@/api/leaveBalances'
 import type { AccrualSchedule, AccrualTransaction } from '@/api/leaveBalances'
@@ -63,6 +64,7 @@ export default function LeaveBalancesPage() {
   const [scheduleForm, setScheduleForm] = useState({
     leave_type_id: '',
     employee_type: 'regular_full_time',
+    bargaining_unit: '',
     years_of_service_min: '0',
     years_of_service_max: '',
     hours_per_pay_period: '',
@@ -80,6 +82,7 @@ export default function LeaveBalancesPage() {
   const createScheduleMut = useCreateAccrualSchedule()
   const updateScheduleMut = useUpdateAccrualSchedule()
   const deleteScheduleMut = useDeleteAccrualSchedule()
+  const { data: bargainingUnits } = useBargainingUnits()
 
   function openAdjust(b: LeaveBalanceView) {
     setAdjustHours('')
@@ -116,6 +119,7 @@ export default function LeaveBalancesPage() {
     setScheduleForm({
       leave_type_id: '',
       employee_type: 'regular_full_time',
+      bargaining_unit: '',
       years_of_service_min: '0',
       years_of_service_max: '',
       hours_per_pay_period: '',
@@ -130,6 +134,7 @@ export default function LeaveBalancesPage() {
     setScheduleForm({
       leave_type_id: s.leave_type_id,
       employee_type: s.employee_type,
+      bargaining_unit: s.bargaining_unit ?? '',
       years_of_service_min: String(s.years_of_service_min),
       years_of_service_max: s.years_of_service_max != null ? String(s.years_of_service_max) : '',
       hours_per_pay_period: String(s.hours_per_pay_period),
@@ -166,6 +171,7 @@ export default function LeaveBalancesPage() {
         {
           leave_type_id: scheduleForm.leave_type_id,
           employee_type: scheduleForm.employee_type,
+          bargaining_unit: scheduleForm.bargaining_unit || null,
           years_of_service_min: parseInt(scheduleForm.years_of_service_min) || 0,
           years_of_service_max: scheduleForm.years_of_service_max ? parseInt(scheduleForm.years_of_service_max) : undefined,
           hours_per_pay_period: parseFloat(scheduleForm.hours_per_pay_period),
@@ -255,6 +261,14 @@ export default function LeaveBalancesPage() {
     {
       header: 'Employee Type',
       cell: (r) => EMPLOYEE_TYPES.find((t) => t.value === r.employee_type)?.label ?? r.employee_type,
+    },
+    {
+      header: 'Bargaining Unit',
+      cell: (r) => {
+        if (!r.bargaining_unit) return <span className="text-muted-foreground">All</span>
+        const bu = bargainingUnits?.find((b) => b.code === r.bargaining_unit)
+        return bu ? bu.name : r.bargaining_unit
+      },
     },
     {
       header: 'Years of Service',
@@ -489,6 +503,21 @@ export default function LeaveBalancesPage() {
                   <SelectContent>
                     {EMPLOYEE_TYPES.map((t) => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            )}
+            {!editingSchedule && (
+              <FormField label="Bargaining Unit" htmlFor="sched-bu">
+                <Select value={scheduleForm.bargaining_unit || '__all'} onValueChange={(v) => setScheduleForm({ ...scheduleForm, bargaining_unit: v === '__all' ? '' : v })}>
+                  <SelectTrigger id="sched-bu">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all">All Units</SelectItem>
+                    {(bargainingUnits ?? []).filter((bu) => bu.is_active).map((bu) => (
+                      <SelectItem key={bu.code} value={bu.code}>{bu.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

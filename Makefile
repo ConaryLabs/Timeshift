@@ -1,4 +1,4 @@
-.PHONY: dev db-reset migrate seed sqlx-prepare backend frontend dbhub test
+.PHONY: dev db-reset migrate seed reseed sqlx-prepare backend frontend dbhub test
 
 DB_URL ?= postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift
 
@@ -11,9 +11,13 @@ db-reset:
 migrate:
 	DATABASE_URL=$(DB_URL) sqlx migrate run --source backend/migrations
 
-# Load seed data (run after migrate)
+# Load seed data (run after migrate — first-time only)
 seed:
 	PGPASSWORD=timeshift_dev psql -U timeshift -h 127.0.0.1 -d timeshift < backend/seeds/valleycom.sql
+
+# Wipe and reload all seed data (works on both dev and production)
+reseed:
+	./scripts/reseed.sh
 
 # Regenerate sqlx offline query cache (run after changing SQL queries)
 sqlx-prepare:

@@ -53,6 +53,12 @@ async-trait = "0.1"
 # Validation
 validator = { version = "0.18", features = ["derive"] }
 
+# HTTP client (for Twilio SMS)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Async stream combinators
+futures = "0.3"
+
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }
 serde_json = "1"

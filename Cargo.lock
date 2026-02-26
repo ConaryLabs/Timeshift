@@ -2645,6 +2645,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "dotenvy",
+ "futures",
  "hex",
  "jsonwebtoken",
  "rand_core",

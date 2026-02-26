@@ -203,6 +203,10 @@ pub fn router(state: AppState) -> Router {
             delete(coverage_plans::delete_assignment),
         )
         .route(
+            "/api/coverage-plans/gaps/:date",
+            get(coverage_plans::classification_gaps),
+        )
+        .route(
             "/api/coverage-plans/resolved/:date",
             get(coverage_plans::resolved_coverage),
         )
@@ -257,6 +261,11 @@ pub fn router(state: AppState) -> Router {
             "/api/leave/accrual-schedules/:id",
             patch(leave_balances::update_accrual_schedule)
                 .delete(leave_balances::delete_accrual_schedule),
+        )
+        // Accrual run (manual trigger)
+        .route(
+            "/api/leave/accrual-run",
+            post(leave_balances::run_accrual),
         )
         // Leave requests
         .route("/api/leave", get(leave::list).post(leave::create))

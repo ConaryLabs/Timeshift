@@ -175,6 +175,20 @@ pub struct SlotCoverage {
     pub status: String,
 }
 
+// -- Classification Gap (per-shift coverage shortage) --
+
+#[derive(Debug, Serialize)]
+pub struct ClassificationGap {
+    pub classification_id: Uuid,
+    pub classification_abbreviation: String,
+    pub shift_template_id: Uuid,
+    pub shift_name: String,
+    pub shift_color: String,
+    pub target: i16,
+    pub actual: i16,
+    pub shortage: i16,
+}
+
 // -- Schedule Annotations --
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
