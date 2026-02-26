@@ -22,6 +22,7 @@ pub mod schedule;
 pub mod shift_patterns;
 pub mod shifts;
 pub mod special_assignments;
+pub mod staffing;
 pub mod teams;
 pub mod trades;
 pub mod users;
@@ -434,6 +435,8 @@ pub fn router(state: AppState) -> Router {
             "/api/organization/settings",
             get(organizations::list_settings).patch(organizations::set_setting),
         )
+        // Staffing
+        .route("/api/staffing/available", get(staffing::available_employees))
         // OT Queue & Hours
         .route("/api/ot/queue", get(ot::get_queue))
         .route("/api/ot/queue/set-position", patch(ot::set_queue_position))

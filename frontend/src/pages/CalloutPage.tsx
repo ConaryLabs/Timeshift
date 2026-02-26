@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react'
 import { format, addDays } from 'date-fns'
-import { Hand, Info, ArrowUpDown, Phone } from 'lucide-react'
+import { Hand, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -21,7 +20,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
-import { DataTable, type Column } from '@/components/ui/data-table'
+import { DataTable } from '@/components/ui/data-table'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -52,7 +51,10 @@ import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { NO_VALUE, extractApiError } from '@/lib/format'
-import type { CalloutEvent, CalloutListEntry, BumpRequest } from '@/api/callout'
+import { StepIndicator } from '@/components/callout/StepIndicator'
+import { CALLOUT_STEPS } from '@/components/callout/calloutSteps'
+import { useCalloutColumns } from '@/components/callout/CalloutListTable'
+import type { CalloutEvent, BumpRequest } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
 
 type CalloutStatusFilter = CalloutEvent['status'] | 'all'
@@ -72,68 +74,6 @@ const INITIAL_FORM = {
 }
 
 type AcceptTarget = { user_id: string; name: string }
-
-const CALLOUT_STEPS: { key: CalloutStep; label: string }[] = [
-  { key: 'volunteers', label: 'Volunteers' },
-  { key: 'low_ot_hours', label: 'Low OT Hours' },
-  { key: 'inverse_seniority', label: 'Inverse Seniority' },
-  { key: 'equal_ot_hours', label: 'Equal OT Hours' },
-  { key: 'mandatory', label: 'Mandatory' },
-]
-
-const STEP_DESCRIPTIONS: Record<string, string> = {
-  volunteers: 'Employees who volunteered for this shift',
-  low_ot_hours: 'Employees sorted by lowest overtime hours first',
-  inverse_seniority: 'Least senior employees contacted first',
-  equal_ot_hours: 'Employees with equal OT hours, sorted by seniority',
-  mandatory: 'Mandatory overtime assignment for remaining employees',
-}
-
-function StepIndicator({ currentStep }: { currentStep: CalloutStep | null }) {
-  const activeIndex = currentStep
-    ? CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
-    : -1
-
-  return (
-    <div className="flex items-center gap-1 flex-wrap mb-4">
-      <div className="flex items-center gap-2 mb-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-          </TooltipTrigger>
-          <TooltipContent side="right" className="max-w-sm">
-            The callout process contacts employees in order: first volunteers, then by lowest OT hours, inverse seniority, equal OT hours, and finally mandatory assignment.
-          </TooltipContent>
-        </Tooltip>
-      </div>
-      {CALLOUT_STEPS.map((step, i) => {
-        const isActive = i === activeIndex
-        const isPast = i < activeIndex
-        return (
-          <div key={step.key} className="flex items-center gap-1">
-            {i > 0 && <div className={cn("w-4 h-px", isPast ? "bg-primary" : "bg-border")} />}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge
-                  variant={isActive ? 'default' : isPast ? 'secondary' : 'outline'}
-                  className={cn(
-                    "text-xs whitespace-nowrap",
-                    isActive && "ring-2 ring-primary/30",
-                  )}
-                >
-                  {i + 1}. {step.label}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                {STEP_DESCRIPTIONS[step.key]}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 export default function CalloutPage() {
   const { isManager } = usePermissions()
@@ -335,95 +275,14 @@ export default function CalloutPage() {
 
   const pendingBumps = (bumpRequests ?? []).filter((b: BumpRequest) => b.status === 'pending')
 
-  const calloutColumns: Column<CalloutListEntry>[] = [
-    { header: '#', cell: (r) => <span className="font-semibold">{r.position}</span> },
-    {
-      header: 'Name',
-      cell: (r) => (
-        <div>
-          {r.last_name}, {r.first_name}
-          <span className="block text-xs text-muted-foreground">
-            {r.classification_abbreviation}
-            {r.is_cross_class && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-amber-700 border-amber-300">
-                    cross-class
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  This employee is from a different classification and is eligible for cross-classification overtime (within the org's configured window).
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </span>
-        </div>
-      ),
-    },
-    {
-      header: 'Phone',
-      cell: (r) =>
-        r.phone ? (
-          <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-primary hover:underline">
-            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-            {r.phone}
-          </a>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    { header: 'OT Hrs', cell: (r) => r.ot_hours.toFixed(1) },
-    {
-      header: 'Status',
-      cell: (r) =>
-        r.is_available ? (
-          <span className="text-green-600 font-medium">Available</span>
-        ) : (
-          <span className="text-muted-foreground text-xs">{r.unavailable_reason}</span>
-        ),
-    },
-    ...(isManager && eventIsOpen
-      ? [{
-          header: 'Contact',
-          cell: (r: CalloutListEntry) => {
-            const busy = recordMut.isPending && (recordMut.variables as { user_id: string } | undefined)?.user_id === r.user_id
-            return (
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-green-700 hover:bg-green-50"
-                  disabled={recordMut.isPending}
-                  aria-label={`Accept OT for ${r.first_name} ${r.last_name}`}
-                  onClick={() => setAcceptTarget({ user_id: r.user_id, name: `${r.last_name}, ${r.first_name}` })}
-                >
-                  Accept
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-700 hover:bg-red-50"
-                  disabled={recordMut.isPending}
-                  aria-label={`Record declined for ${r.first_name} ${r.last_name}`}
-                  onClick={() => recordResponse(r.user_id, 'declined')}
-                >
-                  {busy && (recordMut.variables as { response: string } | undefined)?.response === 'declined' ? '…' : 'Decline'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={recordMut.isPending}
-                  aria-label={`Record no answer for ${r.first_name} ${r.last_name}`}
-                  onClick={() => recordResponse(r.user_id, 'no_answer')}
-                >
-                  {busy && (recordMut.variables as { response: string } | undefined)?.response === 'no_answer' ? '…' : 'No Answer'}
-                </Button>
-              </div>
-            )
-          },
-        }]
-      : []),
-  ]
+  const calloutColumns = useCalloutColumns({
+    isManager,
+    eventIsOpen,
+    recordMut,
+    onAccept: (r) => setAcceptTarget({ user_id: r.user_id, name: `${r.last_name}, ${r.first_name}` }),
+    onDecline: (userId) => recordResponse(userId, 'declined'),
+    onNoAnswer: (userId) => recordResponse(userId, 'no_answer'),
+  })
 
   return (
     <div>

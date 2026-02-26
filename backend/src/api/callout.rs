@@ -173,59 +173,42 @@ pub async fn create_event(
     Ok(Json(event))
 }
 
-/// Computes the ordered callout list for a given event.
-pub async fn callout_list(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-    Path(event_id): Path<Uuid>,
-) -> Result<Json<Vec<CalloutListEntry>>> {
-    if !auth.role.can_manage_schedule() {
-        return Err(AppError::Forbidden);
-    }
-
-    let event = sqlx::query!(
-        r#"
-        SELECT ce.scheduled_shift_id, ce.classification_id, ss.date AS shift_date,
-               st.start_time AS shift_start_time, st.duration_minutes AS shift_duration
-        FROM callout_events ce
-        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        WHERE ce.id = $1 AND ss.org_id = $2
-        "#,
-        event_id,
-        auth.org_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
-    // Use shift date's calendar year so the displayed OT hours match what
-    // record_attempt will record (consistent with fiscal_year in that handler).
+/// Shared availability computation used by both callout queue and staffing endpoints.
+pub(crate) async fn compute_available_employees(
+    pool: &PgPool,
+    org_id: Uuid,
+    org_timezone: &str,
+    scheduled_shift_id: Uuid,
+    classification_id: Uuid,
+    shift_date: time::Date,
+    shift_start: time::Time,
+    shift_duration_minutes: i32,
+) -> Result<Vec<CalloutListEntry>> {
     let fy_start =
-        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
+        crate::services::org_settings::get_i64(pool, org_id, "fiscal_year_start_month", 1)
             .await as u32;
     let fiscal_year: i32 =
-        crate::services::timezone::fiscal_year_for_date(event.shift_date, fy_start);
+        crate::services::timezone::fiscal_year_for_date(shift_date, fy_start);
 
     // Precompute shift time bounds as minutes-from-midnight for partial-day leave overlap check.
     // shift_end_mins may exceed 1440 for overnight shifts (e.g., 22:00-06:00 → 1320..1800).
     let shift_start_mins: i32 =
-        event.shift_start_time.hour() as i32 * 60 + event.shift_start_time.minute() as i32;
-    let shift_end_mins: i32 = shift_start_mins + event.shift_duration;
+        shift_start.hour() as i32 * 60 + shift_start.minute() as i32;
+    let shift_end_mins: i32 = shift_start_mins + shift_duration_minutes;
 
     // Fetch the org's cross-classification eligibility window (default 10 days per LOU 25-10).
     // When the shift is within this many days, employees from other classifications are included.
     let window_days: i64 = sqlx::query_scalar!(
         r#"SELECT CAST(value AS BIGINT) FROM org_settings WHERE org_id = $1 AND key = 'ot_cross_class_window_days'"#,
-        auth.org_id
+        org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await?
     .flatten()
     .unwrap_or(10);
 
-    let today = crate::services::timezone::org_today(&auth.org_timezone);
-    let days_until_shift = (event.shift_date - today).whole_days();
+    let today = crate::services::timezone::org_today(org_timezone);
+    let days_until_shift = (shift_date - today).whole_days();
     let cross_class_eligible = days_until_shift >= 0 && days_until_shift <= window_days;
 
     let rows = sqlx::query!(
@@ -409,16 +392,16 @@ pub async fn callout_list(
             COALESCE(ot.hours_worked, 0.0) ASC,
             sr.overall_seniority_date ASC NULLS LAST
         "#,
-        event.scheduled_shift_id, // $1
-        auth.org_id,              // $2
-        fiscal_year,              // $3
-        event.classification_id,  // $4
-        cross_class_eligible,     // $5
-        shift_end_mins,           // $6
-        shift_start_mins,         // $7
-        event.shift_date,         // $8
+        scheduled_shift_id,   // $1
+        org_id,               // $2
+        fiscal_year,          // $3
+        classification_id,    // $4
+        cross_class_eligible, // $5
+        shift_end_mins,       // $6
+        shift_start_mins,     // $7
+        shift_date,           // $8
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
     let entries = rows
@@ -439,6 +422,47 @@ pub async fn callout_list(
             is_cross_class: r.is_cross_class,
         })
         .collect();
+
+    Ok(entries)
+}
+
+/// Computes the ordered callout list for a given event.
+pub async fn callout_list(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(event_id): Path<Uuid>,
+) -> Result<Json<Vec<CalloutListEntry>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let event = sqlx::query!(
+        r#"
+        SELECT ce.scheduled_shift_id, ce.classification_id, ss.date AS shift_date,
+               st.start_time AS shift_start_time, st.duration_minutes AS shift_duration
+        FROM callout_events ce
+        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE ce.id = $1 AND ss.org_id = $2
+        "#,
+        event_id,
+        auth.org_id
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
+
+    let entries = compute_available_employees(
+        &pool,
+        auth.org_id,
+        &auth.org_timezone,
+        event.scheduled_shift_id,
+        event.classification_id,
+        event.shift_date,
+        event.shift_start_time,
+        event.shift_duration,
+    )
+    .await?;
 
     Ok(Json(entries))
 }

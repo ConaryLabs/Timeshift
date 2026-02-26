@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/incompatible-library */
 import { useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
