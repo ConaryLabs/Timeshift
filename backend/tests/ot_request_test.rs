@@ -90,6 +90,7 @@ async fn admin_can_create_ot_request() {
     assert_eq!(body["volunteer_count"], 0);
     assert_eq!(body["assignment_count"], 0);
     assert_eq!(body["user_volunteered"], false);
+    assert_eq!(body["user_assigned"], false);
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;

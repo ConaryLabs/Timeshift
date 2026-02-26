@@ -191,7 +191,7 @@ function DayActionMenu({ dateStr, hasShift, onNavigate }: { dateStr: string; has
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+        <button className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors" aria-label="Day actions">
           <MoreHorizontal className="h-3.5 w-3.5" />
         </button>
       </DropdownMenuTrigger>
@@ -348,7 +348,7 @@ function MonthView({
                   >
                     {day.getDate()}
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <DayActionMenu dateStr={dateStr} hasShift={shifts.length > 0} onNavigate={onNavigate} />
                   </div>
                 </div>

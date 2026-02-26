@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -47,10 +48,12 @@ type ReviewTarget = { id: string; action: 'approve' | 'deny' }
 export default function TradesPage() {
   const user = useAuthStore((s) => s.user)
   const { isManager } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialDate = searchParams.get('date')
   const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>('all')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(!!initialDate)
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reviewerNotes, setReviewerNotes] = useState('')
 
@@ -58,6 +61,13 @@ export default function TradesPage() {
   const [partnerId, setPartnerId] = useState('')
   const [myAssignmentId, setMyAssignmentId] = useState('')
   const [partnerAssignmentId, setPartnerAssignmentId] = useState('')
+
+  // Clear date param from URL after reading it
+  useEffect(() => {
+    if (initialDate) {
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tradeParams = statusFilter === 'all' ? undefined : { status: statusFilter }
   const { data: trades, isLoading, isError, refetch } = useTrades(tradeParams)
@@ -83,6 +93,15 @@ export default function TradesPage() {
     () => (staffing ?? []).filter((a) => a.user_id === user?.id),
     [staffing, user?.id],
   )
+
+  // Auto-select assignment for the date param (derived, no effect needed)
+  const autoSelectedAssignmentId = useMemo(() => {
+    if (!initialDate || myAssignments.length === 0) return ''
+    return myAssignments.find((a) => a.date === initialDate)?.assignment_id ?? ''
+  }, [initialDate, myAssignments])
+
+  // User selection takes priority; auto-select is fallback
+  const effectiveMyAssignmentId = myAssignmentId || autoSelectedAssignmentId
 
   // Filter partner assignments
   const partnerAssignments = useMemo(
@@ -110,11 +129,11 @@ export default function TradesPage() {
 
   function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!partnerId || !myAssignmentId || !partnerAssignmentId) return
+    if (!partnerId || !effectiveMyAssignmentId || !partnerAssignmentId) return
     createMut.mutate(
       {
         partner_id: partnerId,
-        requester_assignment_id: myAssignmentId,
+        requester_assignment_id: effectiveMyAssignmentId,
         partner_assignment_id: partnerAssignmentId,
       },
       {
@@ -194,7 +213,7 @@ export default function TradesPage() {
           {r.reviewer_notes && (
             <Popover>
               <PopoverTrigger asChild>
-                <button className="text-muted-foreground hover:text-foreground transition-colors" title="Reviewer notes">
+                <button className="text-muted-foreground hover:text-foreground transition-colors" title="Reviewer notes" aria-label="View reviewer notes">
                   <MessageSquare className="h-3.5 w-3.5" />
                 </button>
               </PopoverTrigger>
@@ -346,7 +365,7 @@ export default function TradesPage() {
             </FormField>
 
             <FormField label="Your Assignment" htmlFor="my-assignment" required>
-              <Select value={myAssignmentId} onValueChange={setMyAssignmentId}>
+              <Select value={effectiveMyAssignmentId} onValueChange={setMyAssignmentId}>
                 <SelectTrigger id="my-assignment" className="w-[280px]">
                   <SelectValue placeholder="Select your shift..." />
                 </SelectTrigger>
@@ -380,7 +399,7 @@ export default function TradesPage() {
 
           <Button
             type="submit"
-            disabled={createMut.isPending || !partnerId || !myAssignmentId || !partnerAssignmentId}
+            disabled={createMut.isPending || !partnerId || !effectiveMyAssignmentId || !partnerAssignmentId}
           >
             Submit Trade Request
           </Button>

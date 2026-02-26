@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star, StickyNote, Phone, Clock, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -55,6 +56,10 @@ export default function DayViewPage() {
           setAnnotationContent('')
           setAnnotationType('note')
         },
+        onError: (err: unknown) => {
+          const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+          toast.error(message || 'Failed to save annotation')
+        },
       },
     )
   }
@@ -65,7 +70,7 @@ export default function DayViewPage() {
         title="Day View"
         description={format(parsedDate, 'EEEE, MMMM d, yyyy')}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 gap-y-2">
             {isManager && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setAnnotationOpen(true)}>
@@ -236,9 +241,9 @@ export default function DayViewPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Type</Label>
+              <Label htmlFor="annotation-type">Type</Label>
               <Select value={annotationType} onValueChange={setAnnotationType}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" id="annotation-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -249,8 +254,9 @@ export default function DayViewPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Message</Label>
+              <Label htmlFor="annotation-content">Message</Label>
               <Textarea
+                id="annotation-content"
                 value={annotationContent}
                 onChange={(e) => setAnnotationContent(e.target.value)}
                 placeholder="Enter annotation text..."

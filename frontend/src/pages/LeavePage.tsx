@@ -245,7 +245,7 @@ export default function LeavePage() {
           {r.reviewer_notes && (
             <Popover>
               <PopoverTrigger asChild>
-                <button className="text-muted-foreground hover:text-foreground transition-colors" title="Reviewer notes">
+                <button className="text-muted-foreground hover:text-foreground transition-colors" title="Reviewer notes" aria-label="View reviewer notes">
                   <MessageSquare className="h-3.5 w-3.5" />
                 </button>
               </PopoverTrigger>

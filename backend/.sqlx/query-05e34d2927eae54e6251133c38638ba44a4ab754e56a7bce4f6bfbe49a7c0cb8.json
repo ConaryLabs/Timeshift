@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE schedule_periods\n        SET name       = CASE WHEN $3 THEN $4 ELSE name END,\n            start_date = CASE WHEN $5 THEN $6 ELSE start_date END,\n            end_date   = CASE WHEN $7 THEN $8 ELSE end_date END,\n            updated_at = NOW()\n        WHERE id = $1 AND org_id = $2\n        RETURNING id, org_id, name, start_date, end_date, is_active,\n                  status AS \"status: BidPeriodStatus\",\n                  bid_opens_at, bid_closes_at,\n                  bargaining_unit,\n                  created_at, updated_at\n        ",
+  "query": "\n        UPDATE schedule_periods\n        SET name            = CASE WHEN $3 THEN $4 ELSE name END,\n            start_date      = CASE WHEN $5 THEN $6 ELSE start_date END,\n            end_date        = CASE WHEN $7 THEN $8 ELSE end_date END,\n            bargaining_unit = CASE WHEN $9 THEN $10 ELSE bargaining_unit END,\n            updated_at = NOW()\n        WHERE id = $1 AND org_id = $2\n        RETURNING id, org_id, name, start_date, end_date, is_active,\n                  status AS \"status: BidPeriodStatus\",\n                  bid_opens_at, bid_closes_at,\n                  bargaining_unit,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -86,7 +86,9 @@
         "Bool",
         "Date",
         "Bool",
-        "Date"
+        "Date",
+        "Bool",
+        "Text"
       ]
     },
     "nullable": [
@@ -104,5 +106,5 @@
       false
     ]
   },
-  "hash": "0f47ee3d3be3e0288f3fe54dda07bf67c02c139343d00739b2091930ab4fca0b"
+  "hash": "05e34d2927eae54e6251133c38638ba44a4ab754e56a7bce4f6bfbe49a7c0cb8"
 }

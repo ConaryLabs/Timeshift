@@ -428,7 +428,7 @@ export default function LeaveBalancesPage() {
             <Button onClick={openCreateSchedule}>+ Add Schedule</Button>
           </div>
           {!schedulesLoading && (schedules ?? []).length === 0 ? (
-            <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground text-center">
+            <div className="rounded-md border border-dashed px-4 py-4 text-sm text-muted-foreground text-center">
               <p className="font-medium text-foreground mb-1">No accrual schedules configured</p>
               <p>Accrual schedules automatically add leave hours to employee balances each pay period based on employee type, bargaining unit, and years of service. Check <Link to="/admin/settings" className="text-primary underline">organization settings</Link> for fiscal year and pay period configuration before creating schedules.</p>
             </div>

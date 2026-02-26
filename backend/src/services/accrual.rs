@@ -372,7 +372,7 @@ fn find_matching_schedules<'a>(schedules: &'a [Schedule], user: &AccrualUser) ->
         .filter(|s| {
             s.employee_type == user.employee_type
                 && yos >= s.years_of_service_min
-                && s.years_of_service_max.map_or(true, |max| yos < max)
+                && s.years_of_service_max.is_none_or(|max| yos < max)
         })
         .collect();
 
