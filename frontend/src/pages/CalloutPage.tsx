@@ -365,7 +365,7 @@ export default function CalloutPage() {
       cell: (r) =>
         r.phone ? (
           <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-primary hover:underline">
-            <Phone className="h-3.5 w-3.5" />
+            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
             {r.phone}
           </a>
         ) : (

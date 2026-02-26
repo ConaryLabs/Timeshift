@@ -94,9 +94,10 @@ export default function SchedulePeriodsPage() {
 
   function onEditSubmit(values: FormValues) {
     if (!editPeriod) return
-    const payload: { id: string; name?: string; start_date?: string; end_date?: string } = {
+    const payload: { id: string; name?: string; start_date?: string; end_date?: string; bargaining_unit?: string | null } = {
       id: editPeriod.id,
       name: values.name,
+      bargaining_unit: values.bargaining_unit || null,
     }
     if (!hasAssignments) {
       payload.start_date = values.start_date
@@ -166,7 +167,7 @@ export default function SchedulePeriodsPage() {
       {isError ? (
         <p className="text-sm text-destructive">Failed to load schedule periods.</p>
       ) : !isLoading && (periods ?? []).length === 0 ? (
-        <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground text-center">
+        <div className="rounded-md border border-dashed px-4 py-4 text-sm text-muted-foreground text-center">
           <p className="font-medium text-foreground mb-1">No schedule periods yet</p>
           <p>Schedule periods define date ranges for assigning employees to shift slots (bid periods). Make sure you have <Link to="/admin/teams" className="text-primary underline">teams with shift slots</Link> set up before creating a period.</p>
         </div>
@@ -241,6 +242,24 @@ export default function SchedulePeriodsPage() {
             {hasAssignments && (
               <p className="text-xs text-muted-foreground">Dates cannot be changed because this period has slot assignments.</p>
             )}
+            <FormField label="Bargaining Unit" htmlFor="sp-edit-bu">
+              <Select
+                value={editForm.watch('bargaining_unit') || '__all'}
+                onValueChange={(v) => editForm.setValue('bargaining_unit', v === '__all' ? '' : v, { shouldDirty: true })}
+              >
+                <SelectTrigger id="sp-edit-bu">
+                  <SelectValue placeholder="(All employees)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">(All employees)</SelectItem>
+                  {bargainingUnits.map((bu) => (
+                    <SelectItem key={bu.code} value={bu.code}>
+                      {bu.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
             <DialogFooter>
               <Button type="submit" disabled={updateMut.isPending}>Save Changes</Button>
             </DialogFooter>

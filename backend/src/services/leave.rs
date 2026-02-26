@@ -6,6 +6,7 @@ use crate::error::Result;
 
 /// Core balance adjustment: positive delta adds hours, negative deducts.
 /// Atomically records an accrual_transaction and upserts the leave_balances row.
+#[allow(clippy::too_many_arguments)]
 pub async fn adjust_leave_balance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
@@ -60,6 +61,7 @@ pub async fn adjust_leave_balance(
 }
 
 /// Deduct hours from leave balance when a leave request is approved.
+#[allow(clippy::too_many_arguments)]
 pub async fn deduct_leave_balance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
@@ -86,6 +88,7 @@ pub async fn deduct_leave_balance(
 }
 
 /// Refund hours to leave balance when a previously approved leave request is cancelled.
+#[allow(clippy::too_many_arguments)]
 pub async fn refund_leave_balance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,

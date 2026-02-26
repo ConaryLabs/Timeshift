@@ -287,6 +287,13 @@ pub async fn update_period(
 
     org_guard::verify_period(&pool, id, auth.org_id).await?;
 
+    // Reject whitespace-only names
+    if let Some(ref name) = req.name {
+        if name.trim().is_empty() {
+            return Err(AppError::BadRequest("Name cannot be blank".into()));
+        }
+    }
+
     // If dates are being changed, check that no slot_assignments exist for this period
     if req.start_date.is_some() || req.end_date.is_some() {
         let has_assignments = sqlx::query_scalar!(
@@ -303,27 +310,37 @@ pub async fn update_period(
         }
     }
 
-    // Resolve final start/end dates for validation
-    if let (Some(start), Some(end)) = (req.start_date, req.end_date) {
-        if end <= start {
-            return Err(AppError::BadRequest("End date must be after start date".into()));
-        }
+    // Fetch existing period to resolve effective dates for validation
+    let existing = sqlx::query!(
+        "SELECT start_date, end_date FROM schedule_periods WHERE id = $1",
+        id,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let effective_start = req.start_date.unwrap_or(existing.start_date);
+    let effective_end = req.end_date.unwrap_or(existing.end_date);
+
+    if effective_end <= effective_start {
+        return Err(AppError::BadRequest("End date must be after start date".into()));
     }
 
     let name_provided = req.name.is_some();
     let name_val = req.name.unwrap_or_default();
     let start_provided = req.start_date.is_some();
-    let start_val = req.start_date.unwrap_or(time::Date::from_calendar_date(2000, time::Month::January, 1).unwrap());
     let end_provided = req.end_date.is_some();
-    let end_val = req.end_date.unwrap_or(time::Date::from_calendar_date(2000, time::Month::January, 1).unwrap());
+    let bu_provided = req.bargaining_unit.is_some();
+    // Empty string means "clear to null"
+    let bu_val = req.bargaining_unit.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
     let row = sqlx::query_as!(
         SchedulePeriod,
         r#"
         UPDATE schedule_periods
-        SET name       = CASE WHEN $3 THEN $4 ELSE name END,
-            start_date = CASE WHEN $5 THEN $6 ELSE start_date END,
-            end_date   = CASE WHEN $7 THEN $8 ELSE end_date END,
+        SET name            = CASE WHEN $3 THEN $4 ELSE name END,
+            start_date      = CASE WHEN $5 THEN $6 ELSE start_date END,
+            end_date        = CASE WHEN $7 THEN $8 ELSE end_date END,
+            bargaining_unit = CASE WHEN $9 THEN $10 ELSE bargaining_unit END,
             updated_at = NOW()
         WHERE id = $1 AND org_id = $2
         RETURNING id, org_id, name, start_date, end_date, is_active,
@@ -337,12 +354,15 @@ pub async fn update_period(
         name_provided,
         name_val,
         start_provided,
-        start_val,
+        effective_start,
         end_provided,
-        end_val,
+        effective_end,
+        bu_provided,
+        bu_val as Option<String>,
     )
-    .fetch_one(&pool)
-    .await?;
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Schedule period not found".into()))?;
 
     Ok(Json(row))
 }

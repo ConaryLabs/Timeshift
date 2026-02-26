@@ -216,7 +216,7 @@ export default function TeamDetailPage() {
       />
 
       {!canAddSlot && (
-        <div className="rounded-md border border-dashed px-4 py-3 mb-4 text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed px-4 py-4 mb-4 text-sm text-muted-foreground">
           To add shift slots, you need{activeTemplates.length === 0 && <>{' '}<Link to="/admin/shift-templates" className="text-primary underline">shift templates</Link></>}
           {activeTemplates.length === 0 && activeClassifications.length === 0 && ' and'}
           {activeClassifications.length === 0 && <>{' '}<Link to="/admin/classifications" className="text-primary underline">classifications</Link></>} configured first.

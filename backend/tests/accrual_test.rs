@@ -26,6 +26,7 @@ async fn create_leave_type(pool: &PgPool, org_id: Uuid, code: &str, name: &str) 
 }
 
 /// Helper: create an accrual schedule
+#[allow(clippy::too_many_arguments)]
 async fn create_schedule(
     pool: &PgPool,
     org_id: Uuid,
@@ -59,6 +60,7 @@ async fn create_schedule(
 }
 
 /// Helper: create a user with employee_type and bargaining_unit, plus a seniority record
+#[allow(clippy::too_many_arguments)]
 async fn create_accrual_user(
     pool: &PgPool,
     org_id: Uuid,

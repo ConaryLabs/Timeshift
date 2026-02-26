@@ -40,6 +40,7 @@ pub async fn setup_test_app() -> (SocketAddr, PgPool) {
         access_token_expiry_minutes: ACCESS_TOKEN_EXPIRY_MINUTES,
         refresh_token_expiry_days: 30,
         cookie_secure: false,
+        twilio: None,
     };
 
     // Build the app router. Routes with rate limiting in main.rs are added here

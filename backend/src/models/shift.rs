@@ -86,6 +86,7 @@ pub struct UpdateSchedulePeriodRequest {
     pub name: Option<String>,
     pub start_date: Option<time::Date>,
     pub end_date: Option<time::Date>,
+    pub bargaining_unit: Option<String>,
 }
 
 /// A slot assignment -- who holds a slot for a schedule period (result of bid).

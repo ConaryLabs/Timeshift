@@ -651,11 +651,12 @@ async fn test_callout_list_ordering() {
         "Callout list should include at least 3 users (admin + 2 employees)"
     );
 
-    // All entries should have position, user_id, is_available
+    // All entries should have position, user_id, is_available, phone
     for entry in &entries {
         assert!(entry["position"].is_number());
         assert!(entry["user_id"].is_string());
         assert!(entry["is_available"].is_boolean());
+        assert!(entry.get("phone").is_some(), "Entry should have a phone field (can be null)");
     }
 
     // Positions should be sequential starting from 1
