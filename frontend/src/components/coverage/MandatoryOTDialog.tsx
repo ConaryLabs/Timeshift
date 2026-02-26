@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateOtRequest, useAssignOtRequest, useDayView } from '@/hooks/queries'
+import { formatTime } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
 
 interface Props {
@@ -26,62 +27,86 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
+type OtDirection = 'holdover' | 'early_callout'
+
+/** Add (or subtract) hours from a HH:MM:SS time string, wrapping around midnight. */
+function addHoursToTime(time: string, hours: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const totalMinutes = ((h * 60 + m + hours * 60) % 1440 + 1440) % 1440
+  const newH = Math.floor(totalMinutes / 60)
+  const newM = totalMinutes % 60
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}:00`
+}
+
 export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Props) {
   const [selectedUserId, setSelectedUserId] = useState<string>('')
+  const [direction, setDirection] = useState<OtDirection>('holdover')
+
   const { data: dayView } = useDayView(date)
   const createOt = useCreateOtRequest()
   const assignOt = useAssignOtRequest()
 
-  // Find the matching shift to get start/end times
   const shift = dayView?.find((s) => s.shift_template_id === gap.shift_template_id)
 
-  // Get employees currently on shift today that match the gap classification
-  const onShiftEmployees = shift?.assignments?.filter(
-    (a) => a.classification_abbreviation === gap.classification_abbreviation && !a.is_overtime
-  ) ?? []
+  // 2-hour OT window — holdover extends past the shift end; early callout precedes the shift start
+  const otStartTime = direction === 'holdover'
+    ? (shift?.end_time ?? '')
+    : (shift ? addHoursToTime(shift.start_time, -2) : '')
+  const otEndTime = direction === 'holdover'
+    ? (shift ? addHoursToTime(shift.end_time, 2) : '')
+    : (shift?.start_time ?? '')
 
-  // Also get all employees across all shifts that could cover
-  const allOnShift = dayView?.flatMap((s) =>
-    s.assignments
-      .filter((a) => !a.is_overtime)
-      .map((a) => ({ ...a, shiftName: s.shift_name }))
+  // Only employees on this shift matching the gap classification are eligible
+  const eligibleEmployees = shift?.assignments?.filter(
+    (a) => a.classification_abbreviation === gap.classification_abbreviation && !a.is_overtime,
   ) ?? []
-
-  // Deduplicate by user_id
-  const uniqueEmployees = Array.from(
-    new Map(allOnShift.map((e) => [e.user_id, e])).values()
-  )
 
   const isSubmitting = createOt.isPending || assignOt.isPending
 
+  function handleDirectionChange(d: OtDirection) {
+    setDirection(d)
+    setSelectedUserId('')
+  }
+
   async function handleSubmit() {
-    if (!selectedUserId || !shift) return
+    if (!selectedUserId || !shift || !otStartTime || !otEndTime) return
 
     try {
-      // Create OT request with is_fixed_coverage
       const otReq = await createOt.mutateAsync({
         date,
-        start_time: shift.start_time,
-        end_time: shift.end_time,
+        start_time: otStartTime,
+        end_time: otEndTime,
         classification_id: gap.classification_id,
         is_fixed_coverage: true,
-        notes: `Mandatory OT: ${gap.classification_abbreviation} shortage on ${gap.shift_name}`,
+        notes: `Mandatory OT (${direction === 'holdover' ? 'holdover' : 'early callout'}): ${gap.classification_abbreviation} shortage on ${gap.shift_name}`,
       })
 
-      // Immediately assign the selected employee
       await assignOt.mutateAsync({
         id: otReq.id,
         user_id: selectedUserId,
         ot_type: 'mandatory',
       })
 
-      toast.success('Mandatory OT assigned successfully')
+      toast.success('Mandatory OT assigned')
       onOpenChange(false)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to assign OT'
+      const message = err instanceof Error ? err.message : 'Failed to assign mandatory OT'
       toast.error(message)
     }
   }
+
+  const DIRECTIONS: { value: OtDirection; label: string; sublabel: (s: typeof shift) => string }[] = [
+    {
+      value: 'holdover',
+      label: 'Hold Over',
+      sublabel: (s) => s ? `${formatTime(s.end_time)} → ${formatTime(addHoursToTime(s.end_time, 2))}` : '',
+    },
+    {
+      value: 'early_callout',
+      label: 'Early Callout',
+      sublabel: (s) => s ? `${formatTime(addHoursToTime(s.start_time, -2))} → ${formatTime(s.start_time)}` : '',
+    },
+  ]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,23 +114,20 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
         <DialogHeader>
           <DialogTitle>Assign Mandatory OT</DialogTitle>
           <DialogDescription>
-            Fill a staffing gap by assigning mandatory overtime.
+            Contract limit: max 2 hours before or after the employee's scheduled shift (VCCEA § 4.4.3).
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Gap Info */}
+          {/* Gap summary */}
           <div className="rounded-lg border p-3 space-y-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: gap.shift_color }}
-                />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: gap.shift_color }} />
                 <span className="text-sm font-medium">{gap.shift_name}</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                {shift?.start_time} - {shift?.end_time}
+                {shift ? `${formatTime(shift.start_time)} – ${formatTime(shift.end_time)}` : '—'}
               </span>
             </div>
             <div className="flex items-center gap-2 text-sm">
@@ -119,44 +141,49 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
             </div>
           </div>
 
-          {/* Employee Picker */}
+          {/* Direction selector */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Select Employee</label>
-            {uniqueEmployees.length > 0 ? (
+            <p className="text-sm font-medium">Extension type</p>
+            <div className="grid grid-cols-2 gap-2">
+              {DIRECTIONS.map(({ value, label, sublabel }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleDirectionChange(value)}
+                  className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                    direction === value
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-input bg-background text-foreground hover:bg-accent'
+                  }`}
+                >
+                  <div className="font-medium">{label}</div>
+                  <div className="text-xs mt-0.5 text-muted-foreground">{sublabel(shift)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Employee picker */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Employee</p>
+            {eligibleEmployees.length > 0 ? (
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose an employee..." />
+                  <SelectValue placeholder="Select employee…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Show on-shift employees matching classification first */}
-                  {onShiftEmployees.length > 0 && (
-                    <>
-                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                        On this shift ({gap.classification_abbreviation})
-                      </div>
-                      {onShiftEmployees.map((e) => (
-                        <SelectItem key={`match-${e.user_id}`} value={e.user_id}>
-                          {e.first_name} {e.last_name}
-                          {e.employee_id ? ` (${e.employee_id})` : ''}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    All on-shift employees
-                  </div>
-                  {uniqueEmployees.map((e) => (
+                  {eligibleEmployees.map((e) => (
                     <SelectItem key={e.user_id} value={e.user_id}>
                       {e.first_name} {e.last_name}
-                      {e.employee_id ? ` (${e.employee_id})` : ''}
-                      <span className="text-muted-foreground ml-1">- {e.shiftName}</span>
+                      {e.employee_id ? ` · ${e.employee_id}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No employees currently on shift. Check the day schedule for available staff.
+                No {gap.classification_abbreviation} employees on {gap.shift_name}.
+                For day-off assignments, use the callout process.
               </p>
             )}
           </div>
@@ -170,7 +197,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
             onClick={handleSubmit}
             disabled={!selectedUserId || !shift || isSubmitting}
           >
-            {isSubmitting ? 'Assigning...' : 'Assign OT'}
+            {isSubmitting ? 'Assigning…' : 'Assign Mandatory OT'}
           </Button>
         </DialogFooter>
       </DialogContent>
