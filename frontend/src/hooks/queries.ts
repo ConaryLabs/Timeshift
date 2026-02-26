@@ -30,6 +30,7 @@ import { specialAssignmentsApi, type SpecialAssignmentListParams } from '@/api/s
 import { savedFiltersApi } from '@/api/savedFilters'
 import { shiftPatternsApi } from '@/api/shiftPatterns'
 import { bargainingUnitsApi } from '@/api/bargainingUnits'
+import { staffingApi } from '@/api/staffing'
 import { useAuthStore } from '@/store/auth'
 
 // -- Query key factories --
@@ -197,6 +198,10 @@ export const queryKeys = {
     all: ['special-assignments'] as const,
     list: (params?: SpecialAssignmentListParams) => ['special-assignments', params] as const,
     detail: (id: string) => ['special-assignments', id] as const,
+  },
+  staffing: {
+    available: (date: string, shiftTemplateId: string, classificationId?: string) =>
+      ['staffing', 'available', date, shiftTemplateId, classificationId] as const,
   },
 } as const
 
@@ -1733,5 +1738,16 @@ export function useDeleteSpecialAssignment() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
     },
+  })
+}
+
+// -- Staffing --
+
+export function useStaffingAvailable(date: string, shiftTemplateId: string, classificationId?: string) {
+  return useQuery({
+    queryKey: queryKeys.staffing.available(date, shiftTemplateId, classificationId),
+    queryFn: () => staffingApi.getAvailable({ date, shift_template_id: shiftTemplateId, classification_id: classificationId }),
+    enabled: !!date && !!shiftTemplateId,
+    staleTime: 15_000,
   })
 }

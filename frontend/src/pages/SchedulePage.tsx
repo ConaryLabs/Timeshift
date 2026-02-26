@@ -496,16 +496,25 @@ function MonthView({
                             : cell.coverage_actual > 0
                               ? 'bg-amber-500'
                               : 'bg-red-500'
+                      if (isUnder) {
+                        return (
+                          <button
+                            key={cell.shift_template_id}
+                            type="button"
+                            title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required} — Click to resolve`}
+                            className={cn('rounded-full flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary/50', status, 'w-auto h-4 px-1')}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/staffing/resolve?date=${dateStr}&shift_template_id=${cell.shift_template_id}`) }}
+                          >
+                            <span className="text-[8px] font-bold text-white leading-none">{cell.coverage_actual}/{cell.coverage_required}</span>
+                          </button>
+                        )
+                      }
                       return (
                         <div
                           key={cell.shift_template_id}
                           title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required}`}
-                          className={cn('rounded-full flex items-center justify-center', status, isUnder ? 'w-auto h-4 px-1' : 'w-2 h-2')}
-                        >
-                          {isUnder && (
-                            <span className="text-[8px] font-bold text-white leading-none">{cell.coverage_actual}/{cell.coverage_required}</span>
-                          )}
-                        </div>
+                          className={cn('rounded-full flex items-center justify-center', status, 'w-2 h-2')}
+                        />
                       )
                     })}
                     {dayCells.length > 4 && (

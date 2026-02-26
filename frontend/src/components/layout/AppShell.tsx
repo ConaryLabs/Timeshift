@@ -612,7 +612,11 @@ export default function AppShell() {
                           </div>
                           <div className="space-y-0.5 ml-4">
                             {shift.gaps.map((gap) => (
-                              <div key={`${gap.classification_id}-${gap.shift_template_id}`} className="flex items-center justify-between text-sm rounded-md px-2 py-1 hover:bg-accent transition-colors group">
+                              <button
+                                key={`${gap.classification_id}-${gap.shift_template_id}`}
+                                className="flex items-center justify-between text-sm rounded-md px-2 py-1 hover:bg-accent transition-colors group w-full cursor-pointer text-left"
+                                onClick={() => { setCoverageOpen(false); navigate(`/staffing/resolve?date=${today}&shift_template_id=${gap.shift_template_id}&classification_id=${gap.classification_id}`) }}
+                              >
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
                                     {gap.classification_abbreviation}
@@ -624,14 +628,8 @@ export default function AppShell() {
                                     (−{gap.shortage})
                                   </span>
                                 </div>
-                                <button
-                                  className="p-0.5 rounded text-muted-foreground hover:bg-accent-foreground/10 hover:text-foreground transition-colors"
-                                  title="Assign mandatory OT"
-                                  onClick={() => { setOtDialogGap(gap); setCoverageOpen(false) }}
-                                >
-                                  <UserPlus className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
+                                <UserPlus className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                              </button>
                             ))}
                           </div>
                         </div>

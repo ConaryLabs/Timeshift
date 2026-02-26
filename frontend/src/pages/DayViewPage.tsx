@@ -156,20 +156,33 @@ export default function DayViewPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CoverageIndicator
-                    actual={entry.coverage_actual}
-                    required={entry.coverage_required}
-                    status={entry.coverage_status}
-                  />
+                  {isManager && entry.coverage_status === 'red' ? (
+                    <button
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/staffing/resolve?date=${dateStr}&shift_template_id=${entry.shift_template_id}`)}
+                    >
+                      <CoverageIndicator
+                        actual={entry.coverage_actual}
+                        required={entry.coverage_required}
+                        status={entry.coverage_status}
+                      />
+                    </button>
+                  ) : (
+                    <CoverageIndicator
+                      actual={entry.coverage_actual}
+                      required={entry.coverage_required}
+                      status={entry.coverage_status}
+                    />
+                  )}
                   {isManager && entry.coverage_status === 'red' && (
                     <Button
                       variant="destructive"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={() => navigate('/callout')}
+                      onClick={() => navigate(`/staffing/resolve?date=${dateStr}&shift_template_id=${entry.shift_template_id}`)}
                     >
                       <Phone className="h-3 w-3 mr-1" />
-                      Callout
+                      Resolve
                     </Button>
                   )}
                 </div>
