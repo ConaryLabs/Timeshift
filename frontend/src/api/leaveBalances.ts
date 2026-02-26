@@ -13,6 +13,7 @@ export interface AccrualSchedule {
   org_id: string
   leave_type_id: string
   employee_type: string
+  bargaining_unit: string | null
   years_of_service_min: number
   years_of_service_max: number | null
   hours_per_pay_period: number
@@ -62,6 +63,7 @@ export const leaveBalancesApi = {
   createAccrualSchedule: (body: {
     leave_type_id: string
     employee_type?: string
+    bargaining_unit?: string | null
     years_of_service_min?: number
     years_of_service_max?: number
     hours_per_pay_period: number

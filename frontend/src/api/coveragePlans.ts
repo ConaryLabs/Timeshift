@@ -59,6 +59,22 @@ export interface SlotCoverage {
   status: 'green' | 'yellow' | 'red'
 }
 
+export interface ClassificationGap {
+  classification_id: string
+  classification_abbreviation: string
+  shift_template_id: string
+  shift_name: string
+  shift_color: string
+  target: number
+  actual: number
+  shortage: number
+}
+
+export interface SmsAlertResult {
+  sent: number
+  failed: number
+}
+
 export const coveragePlansApi = {
   listPlans: () =>
     api.get<CoveragePlanView[]>('/api/coverage-plans').then((r) => r.data),
@@ -92,4 +108,10 @@ export const coveragePlansApi = {
 
   getResolved: (date: string) =>
     api.get<SlotCoverage[]>(`/api/coverage-plans/resolved/${date}`).then((r) => r.data),
+
+  getGaps: (date: string) =>
+    api.get<ClassificationGap[]>(`/api/coverage-plans/gaps/${date}`).then((r) => r.data),
+
+  sendSmsAlert: (date: string, body?: { classification_id?: string }) =>
+    api.post<SmsAlertResult>(`/api/coverage-plans/gaps/${date}/sms-alert`, body ?? {}).then((r) => r.data),
 }

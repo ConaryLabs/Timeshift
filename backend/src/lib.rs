@@ -16,6 +16,7 @@ pub struct AppState {
     pub access_token_expiry_minutes: u64,
     pub refresh_token_expiry_days: u64,
     pub cookie_secure: bool,
+    pub twilio: Option<services::sms::TwilioConfig>,
 }
 
 impl axum::extract::FromRef<AppState> for PgPool {

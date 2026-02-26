@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT u.id, u.first_name, u.last_name,\n               u.employee_type::TEXT AS \"employee_type!\",\n               u.bargaining_unit AS \"bargaining_unit!\",\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               u.hire_date AS \"hire_date?\",\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\"\n        FROM users u\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.org_id = $1 AND u.is_active = true\n        ORDER BY u.last_name, u.first_name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "employee_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "bargaining_unit!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "hire_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "leave_accrual_paused_at?",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e9e78121ebd4a08ceca719c8f4e69d45908e0c54754e2b5566885794b16d4bc8"
+}

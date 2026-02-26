@@ -78,6 +78,7 @@ export const queryKeys = {
     slots: (planId: string) => ['coverage-plans', planId, 'slots'] as const,
     assignments: ['coverage-plans', 'assignments'] as const,
     resolved: (date: string) => ['coverage-plans', 'resolved', date] as const,
+    gaps: (date: string) => ['coverage-plans', 'gaps', date] as const,
   },
   periods: {
     all: ['schedule-periods'] as const,
@@ -1537,6 +1538,26 @@ export function useResolvedCoverage(date: string) {
     queryFn: () => coveragePlansApi.getResolved(date),
     enabled: !!date,
     staleTime: 30_000,
+  })
+}
+
+export function useCoverageGaps(date: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.gaps(date),
+    queryFn: () => coveragePlansApi.getGaps(date),
+    enabled: (options?.enabled ?? true) && !!date,
+    staleTime: 30_000,
+  })
+}
+
+export function useSendSmsAlert() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ date, classification_id }: { date: string; classification_id?: string }) =>
+      coveragePlansApi.sendSmsAlert(date, classification_id ? { classification_id } : undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+    },
   })
 }
 

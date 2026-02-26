@@ -35,6 +35,8 @@ import {
   BadgeCheck,
   RotateCw,
   ChevronDown,
+  Megaphone,
+  UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -45,13 +47,18 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { lazy, Suspense } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount } from '@/hooks/queries'
+import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount, useCoverageGaps } from '@/hooks/queries'
+import type { ClassificationGap } from '@/api/coveragePlans'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+
+const MandatoryOTDialog = lazy(() => import('@/components/coverage/MandatoryOTDialog'))
+const SmsAlertDialog = lazy(() => import('@/components/coverage/SmsAlertDialog'))
 
 interface NavItem {
   to: string
@@ -386,12 +393,15 @@ export default function AppShell() {
   const { groups, profile, adminGroups } = useNavItems()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [coverageOpen, setCoverageOpen] = useState(false)
+  const [otDialogGap, setOtDialogGap] = useState<ClassificationGap | null>(null)
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const { isManager } = usePermissions()
 
   useMe()
   const { data: org } = useOrganization()
   const today = format(new Date(), 'yyyy-MM-dd')
   const { data: todayCoverage } = useScheduleGrid(today, today, undefined, { enabled: isManager })
+  const { data: coverageGaps } = useCoverageGaps(today, { enabled: isManager })
   const { data: navBadges } = useNavBadges()
   const { data: unreadCountData } = useUnreadCount()
   const notificationCount = unreadCountData?.count ?? 0
@@ -415,6 +425,26 @@ export default function AppShell() {
     if (!isManager || !todayCoverage) return []
     return todayCoverage.filter((c) => c.coverage_required > 0 && c.coverage_actual < c.coverage_required)
   }, [isManager, todayCoverage])
+
+  const totalShortage = useMemo(() => {
+    if (!coverageGaps?.length) return 0
+    return coverageGaps.reduce((sum, g) => sum + g.shortage, 0)
+  }, [coverageGaps])
+
+  // Group gaps by shift for display
+  const gapsByShift = useMemo(() => {
+    if (!coverageGaps?.length) return []
+    const map = new Map<string, { shift_name: string; shift_color: string; shift_template_id: string; gaps: ClassificationGap[] }>()
+    for (const g of coverageGaps) {
+      let entry = map.get(g.shift_template_id)
+      if (!entry) {
+        entry = { shift_name: g.shift_name, shift_color: g.shift_color, shift_template_id: g.shift_template_id, gaps: [] }
+        map.set(g.shift_template_id, entry)
+      }
+      entry.gaps.push(g)
+    }
+    return Array.from(map.values())
+  }, [coverageGaps])
 
   // L7: Keyboard shortcut Cmd+B / Ctrl+B to toggle sidebar
   useEffect(() => {
@@ -537,25 +567,98 @@ export default function AppShell() {
                 </span>
               )}
             </button>
-            {isManager && understaffedShifts.length > 0 && (
+            {isManager && (totalShortage > 0 || understaffedShifts.length > 0) && (
               <Popover open={coverageOpen} onOpenChange={setCoverageOpen}>
                 <PopoverTrigger asChild>
                   <button className="relative p-1.5 rounded-md hover:bg-accent transition-colors" aria-label="Coverage alerts">
                     <AlertTriangle className="h-4 w-4 text-destructive" />
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
-                      {understaffedShifts.length}
+                      {totalShortage || understaffedShifts.length}
                     </span>
                   </button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-72">
-                  <p className="text-sm font-medium mb-2">Understaffed Shifts Today</p>
-                  <div className="space-y-1.5">
-                    {understaffedShifts.map((s) => (
-                      <div key={s.shift_template_id} className="flex items-center justify-between text-sm">
-                        <span>{s.shift_name}</span>
-                        <span className="text-destructive font-medium tabular-nums">{s.coverage_actual}/{s.coverage_required}</span>
-                      </div>
-                    ))}
+                <PopoverContent align="end" className="w-96 max-h-[70vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold">Staffing Gaps Today</p>
+                    {totalShortage > 0 && (
+                      <span className="text-xs text-destructive font-medium">{totalShortage} total short</span>
+                    )}
+                  </div>
+                  {gapsByShift.length > 0 ? (
+                    <div className="space-y-3">
+                      {gapsByShift.map((shift) => (
+                        <div key={shift.shift_template_id}>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: shift.shift_color }}
+                            />
+                            <span className="text-sm font-medium">{shift.shift_name}</span>
+                          </div>
+                          <div className="space-y-0.5 ml-4">
+                            {shift.gaps.map((gap) => (
+                              <div key={`${gap.classification_id}-${gap.shift_template_id}`} className="flex items-center justify-between text-sm rounded-md px-2 py-1 hover:bg-accent transition-colors group">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                    {gap.classification_abbreviation}
+                                  </span>
+                                  <span className="text-destructive font-medium tabular-nums text-xs">
+                                    {gap.actual}/{gap.target}
+                                  </span>
+                                  <span className="text-muted-foreground text-xs">
+                                    (−{gap.shortage})
+                                  </span>
+                                </div>
+                                <button
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-accent-foreground/10"
+                                  title="Assign mandatory OT"
+                                  onClick={() => { setOtDialogGap(gap); setCoverageOpen(false) }}
+                                >
+                                  <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : understaffedShifts.length > 0 ? (
+                    <div className="space-y-1">
+                      {understaffedShifts.map((s) => (
+                        <button
+                          key={s.shift_template_id}
+                          className="flex items-center justify-between text-sm w-full rounded-md px-2 py-1.5 hover:bg-accent transition-colors text-left"
+                          onClick={() => { setCoverageOpen(false); navigate(`/schedule/day/${today}`) }}
+                        >
+                          <span>{s.shift_name}</span>
+                          <span className="text-destructive font-medium tabular-nums">{s.coverage_actual}/{s.coverage_required}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t">
+                    <div className="flex gap-2">
+                      <button
+                        className="text-xs text-primary hover:underline"
+                        onClick={() => { setCoverageOpen(false); navigate(`/schedule/day/${today}`) }}
+                      >
+                        View Day Schedule
+                      </button>
+                      <span className="text-xs text-muted-foreground">|</span>
+                      <button
+                        className="text-xs text-primary hover:underline"
+                        onClick={() => { setCoverageOpen(false); navigate('/available-ot') }}
+                      >
+                        Available OT
+                      </button>
+                    </div>
+                    <button
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() => { setSmsDialogOpen(true); setCoverageOpen(false) }}
+                    >
+                      <Megaphone className="h-3 w-3" />
+                      Send OT Alert
+                    </button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -586,6 +689,30 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Mandatory OT Dialog */}
+      {otDialogGap && (
+        <Suspense fallback={null}>
+          <MandatoryOTDialog
+            gap={otDialogGap}
+            date={today}
+            open={!!otDialogGap}
+            onOpenChange={(open) => { if (!open) setOtDialogGap(null) }}
+          />
+        </Suspense>
+      )}
+
+      {/* SMS Alert Dialog */}
+      {smsDialogOpen && (
+        <Suspense fallback={null}>
+          <SmsAlertDialog
+            date={today}
+            gaps={coverageGaps ?? []}
+            open={smsDialogOpen}
+            onOpenChange={setSmsDialogOpen}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

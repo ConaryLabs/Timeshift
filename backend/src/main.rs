@@ -43,12 +43,29 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Database connected and migrations applied");
 
+    // Build optional Twilio config for SMS alerts
+    let twilio = match (&cfg.twilio_account_sid, &cfg.twilio_auth_token, &cfg.twilio_from_number) {
+        (Some(sid), Some(token), Some(from)) => {
+            tracing::info!("Twilio SMS configured (from: {})", from);
+            Some(timeshift_backend::services::sms::TwilioConfig {
+                account_sid: sid.clone(),
+                auth_token: token.clone(),
+                from_number: from.clone(),
+            })
+        }
+        _ => {
+            tracing::info!("Twilio SMS not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER to enable)");
+            None
+        }
+    };
+
     let state = AppState {
         pool,
         jwt_secret: cfg.jwt_secret.clone(),
         access_token_expiry_minutes: cfg.access_token_expiry_minutes,
         refresh_token_expiry_days: cfg.refresh_token_expiry_days,
         cookie_secure: cfg.cookie_secure,
+        twilio,
     };
 
     // CORS
@@ -112,10 +129,20 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     );
 
+    // Rate limiting for SMS alert endpoint: 1 request per 60 seconds per IP
+    let sms_governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(60)
+            .burst_size(1)
+            .finish()
+            .unwrap(),
+    );
+
     let governor_limiter = governor_conf.limiter().clone();
     let refresh_governor_limiter = refresh_governor_conf.limiter().clone();
     let callout_action_limiter = callout_action_governor_conf.limiter().clone();
     let password_limiter = password_governor_conf.limiter().clone();
+    let sms_limiter = sms_governor_conf.limiter().clone();
     let cleanup_interval = Duration::from_secs(60);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(cleanup_interval);
@@ -125,8 +152,13 @@ async fn main() -> anyhow::Result<()> {
             refresh_governor_limiter.retain_recent();
             callout_action_limiter.retain_recent();
             password_limiter.retain_recent();
+            sms_limiter.retain_recent();
         }
     });
+
+    // Background leave accrual runner (checks hourly, idempotent per org per day)
+    let accrual_pool = state.pool.clone();
+    tokio::spawn(timeshift_backend::services::accrual::background_accrual_task(accrual_pool));
 
     // Login route with rate limiting
     let login_router = Router::new()
@@ -170,11 +202,23 @@ async fn main() -> anyhow::Result<()> {
         })
         .with_state(state.clone());
 
+    // SMS alert route with rate limiting (1 per 60s per IP)
+    let sms_router = Router::new()
+        .route(
+            "/api/coverage-plans/gaps/:date/sms-alert",
+            post(api::coverage_plans::send_sms_alert),
+        )
+        .layer(GovernorLayer {
+            config: sms_governor_conf,
+        })
+        .with_state(state.clone());
+
     let app = api::router(state)
         .merge(login_router)
         .merge(refresh_router)
         .merge(callout_action_router)
         .merge(password_router)
+        .merge(sms_router)
         .layer(middleware::from_fn(security_headers))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

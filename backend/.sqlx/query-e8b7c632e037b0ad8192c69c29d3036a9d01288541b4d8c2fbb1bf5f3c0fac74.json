@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT s.id, s.leave_type_id,\n               lt.code AS leave_type_code,\n               s.employee_type::TEXT AS \"employee_type!\",\n               s.bargaining_unit AS \"bargaining_unit?\",\n               s.years_of_service_min,\n               s.years_of_service_max,\n               CAST(s.hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n               CAST(s.max_balance_hours AS FLOAT8) AS \"max_balance_hours?\"\n        FROM accrual_schedules s\n        JOIN leave_types lt ON lt.id = s.leave_type_id\n        WHERE s.org_id = $1 AND s.effective_date <= $2\n        ORDER BY s.leave_type_id, s.employee_type, s.years_of_service_min\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "leave_type_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "employee_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "bargaining_unit?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "years_of_service_min",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "years_of_service_max",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "hours_per_pay_period!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "max_balance_hours?",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "e8b7c632e037b0ad8192c69c29d3036a9d01288541b4d8c2fbb1bf5f3c0fac74"
+}

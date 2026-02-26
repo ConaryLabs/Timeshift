@@ -13,6 +13,7 @@ use crate::{
         CreateAccrualScheduleRequest, LeaveBalanceView, UpdateAccrualScheduleRequest,
     },
     org_guard,
+    services::accrual,
 };
 
 // -- Leave Balances --
@@ -420,4 +421,57 @@ pub async fn delete_accrual_schedule(
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// -- Accrual Run (manual trigger) --
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AccrualRunQuery {
+    /// If true, calculate accruals without writing to the database.
+    pub dry_run: Option<bool>,
+}
+
+pub async fn run_accrual(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Query(params): Query<AccrualRunQuery>,
+) -> Result<Json<accrual::AccrualRunResult>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    let dry_run = params.dry_run.unwrap_or(false);
+
+    // Get org info
+    let org = sqlx::query!(
+        "SELECT name, timezone FROM organizations WHERE id = $1",
+        auth.org_id,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let tz = &org.timezone;
+
+    let result = accrual::run_org_accrual(&pool, auth.org_id, &org.name, tz, dry_run).await?;
+
+    // Update last-run date if not dry run and credits were applied
+    if !dry_run && result.credits_applied > 0 {
+        let today_str = format!("{}", crate::services::timezone::org_today(tz));
+        let today_json = serde_json::json!(today_str);
+        sqlx::query!(
+            r#"
+            INSERT INTO org_settings (id, org_id, key, value, updated_at)
+            VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())
+            ON CONFLICT (org_id, key) DO UPDATE
+            SET value = $3, updated_at = NOW()
+            "#,
+            Uuid::new_v4(),
+            auth.org_id,
+            today_json,
+        )
+        .execute(&pool)
+        .await?;
+    }
+
+    Ok(Json(result))
 }

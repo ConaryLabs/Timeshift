@@ -9,6 +9,10 @@ pub struct Config {
     pub listen_addr: String,
     pub cors_origins: Vec<String>,
     pub cookie_secure: bool,
+    // Optional Twilio SMS config (SMS disabled if any field is absent)
+    pub twilio_account_sid: Option<String>,
+    pub twilio_auth_token: Option<String>,
+    pub twilio_from_number: Option<String>,
 }
 
 impl Config {
@@ -44,6 +48,9 @@ impl Config {
                 .unwrap_or_else(|_| "true".into())
                 .parse()
                 .context("COOKIE_SECURE must be 'true' or 'false'")?,
+            twilio_account_sid: std::env::var("TWILIO_ACCOUNT_SID").ok(),
+            twilio_auth_token: std::env::var("TWILIO_AUTH_TOKEN").ok(),
+            twilio_from_number: std::env::var("TWILIO_FROM_NUMBER").ok(),
         })
     }
 }

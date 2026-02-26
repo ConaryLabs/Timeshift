@@ -9,11 +9,12 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::schedule::{
-        BulkUpsertSlotsRequest, CoveragePlan, CoveragePlanAssignment, CoveragePlanSlot,
-        CoveragePlanView, CreateCoveragePlanAssignmentRequest, CreateCoveragePlanRequest,
-        SlotCoverage, UpdateCoveragePlanRequest,
+        BulkUpsertSlotsRequest, ClassificationGap, CoveragePlan, CoveragePlanAssignment,
+        CoveragePlanSlot, CoveragePlanView, CreateCoveragePlanAssignmentRequest,
+        CreateCoveragePlanRequest, SlotCoverage, UpdateCoveragePlanRequest,
     },
     org_guard,
+    AppState,
 };
 
 // ── Plan CRUD ─────────────────────────────────────────────────────────────────
@@ -681,6 +682,279 @@ pub(crate) async fn compute_slot_coverage(
         .collect();
 
     Ok(result)
+}
+
+// ── Classification Gaps ───────────────────────────────────────────────────────
+
+/// GET /api/coverage-plans/gaps/:date
+///
+/// Returns per-classification, per-shift gaps where actual < target.
+/// Reuses `compute_slot_coverage` to get fine-grained slot coverage,
+/// then aggregates by (classification, shift_template) using shift time windows.
+pub async fn classification_gaps(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(date_str): Path<String>,
+) -> Result<Json<Vec<ClassificationGap>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &date_str).await?;
+    if slot_coverage.is_empty() {
+        return Ok(Json(vec![]));
+    }
+
+    // Fetch active shift templates for this org
+    let shifts = sqlx::query!(
+        r#"
+        SELECT id, name, color, start_time, end_time, crosses_midnight
+        FROM shift_templates
+        WHERE org_id = $1 AND is_active = true
+        ORDER BY start_time
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    // Build a lookup: slot_index -> Vec<SlotCoverage>
+    use std::collections::HashMap;
+    let mut by_slot: HashMap<(Uuid, i16), &SlotCoverage> = HashMap::new();
+    for sc in &slot_coverage {
+        by_slot.insert((sc.classification_id, sc.slot_index), sc);
+    }
+
+    // Collect distinct classification_ids from coverage
+    let class_ids: std::collections::HashSet<Uuid> =
+        slot_coverage.iter().map(|sc| sc.classification_id).collect();
+
+    let mut gaps: Vec<ClassificationGap> = Vec::new();
+
+    for shift in &shifts {
+        let start_min = shift.start_time.hour() as i32 * 60 + shift.start_time.minute() as i32;
+        let end_min = if shift.crosses_midnight {
+            24 * 60
+        } else {
+            shift.end_time.hour() as i32 * 60 + shift.end_time.minute() as i32
+        };
+
+        let start_slot = (start_min / 30) as i16;
+        let end_slot = if end_min % 30 == 0 {
+            ((end_min / 30) - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+
+        for &class_id in &class_ids {
+            // Find peak target and sum actual across slots in this shift's window
+            let mut peak_target: i16 = 0;
+            let mut min_actual: i32 = i32::MAX;
+            let mut has_data = false;
+
+            for slot_idx in start_slot..=end_slot {
+                if let Some(sc) = by_slot.get(&(class_id, slot_idx)) {
+                    has_data = true;
+                    if sc.target_headcount > peak_target {
+                        peak_target = sc.target_headcount;
+                    }
+                    if sc.actual_headcount < min_actual {
+                        min_actual = sc.actual_headcount;
+                    }
+                }
+            }
+
+            if !has_data || peak_target == 0 {
+                continue;
+            }
+
+            let actual = min_actual as i16;
+            let shortage = peak_target - actual;
+            if shortage <= 0 {
+                continue;
+            }
+
+            // Get classification abbreviation from the first matching slot
+            let abbr = slot_coverage
+                .iter()
+                .find(|sc| sc.classification_id == class_id)
+                .map(|sc| sc.classification_abbreviation.clone())
+                .unwrap_or_default();
+
+            gaps.push(ClassificationGap {
+                classification_id: class_id,
+                classification_abbreviation: abbr,
+                shift_template_id: shift.id,
+                shift_name: shift.name.clone(),
+                shift_color: shift.color.clone(),
+                target: peak_target,
+                actual,
+                shortage,
+            });
+        }
+    }
+
+    // Sort by shortage descending (worst gaps first)
+    gaps.sort_by(|a, b| b.shortage.cmp(&a.shortage));
+
+    Ok(Json(gaps))
+}
+
+// ── SMS OT Alert ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SmsAlertRequest {
+    pub classification_id: Option<Uuid>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SmsAlertResponse {
+    pub sent: i64,
+    pub failed: i64,
+}
+
+/// POST /api/coverage-plans/gaps/:date/sms-alert
+///
+/// Sends an SMS OT alert to all employees who have `notification_sms = true`
+/// and a phone number on file. Requires Twilio configuration.
+pub async fn send_sms_alert(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(date_str): Path<String>,
+    Json(req): Json<SmsAlertRequest>,
+) -> Result<Json<SmsAlertResponse>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let twilio = state
+        .twilio
+        .as_ref()
+        .ok_or_else(|| AppError::BadRequest("SMS is not configured on this server".into()))?;
+
+    // Compute gaps for the message body
+    let pool = &state.pool;
+    let slot_coverage = compute_slot_coverage(pool, auth.org_id, &date_str).await?;
+
+    // Build a summary of gaps for the SMS body
+    let gap_summary = if slot_coverage.is_empty() {
+        "Coverage gaps detected.".to_string()
+    } else {
+        // Aggregate by classification
+        use std::collections::HashMap;
+        let mut class_gaps: HashMap<String, (i16, i32)> = HashMap::new();
+        for sc in &slot_coverage {
+            if sc.actual_headcount < sc.target_headcount as i32 {
+                // Only include if filtered classification matches (or no filter)
+                if let Some(filter_id) = req.classification_id {
+                    if sc.classification_id != filter_id {
+                        continue;
+                    }
+                }
+                let entry = class_gaps
+                    .entry(sc.classification_abbreviation.clone())
+                    .or_insert((0, 0));
+                entry.0 = entry.0.max(sc.target_headcount);
+                entry.1 = entry.1.min(sc.actual_headcount);
+            }
+        }
+        if class_gaps.is_empty() {
+            "OT is available today.".to_string()
+        } else {
+            let parts: Vec<String> = class_gaps
+                .iter()
+                .map(|(abbr, (target, actual))| {
+                    format!("{abbr}: {actual}/{target}")
+                })
+                .collect();
+            format!("Gaps: {}", parts.join(", "))
+        }
+    };
+
+    let message_body = format!(
+        "OT Available - {date_str}\n{gap_summary}\nReply STOP to opt out."
+    );
+
+    // Query opted-in employees with phone numbers
+    let recipients = sqlx::query!(
+        r#"
+        SELECT u.id, u.phone AS "phone!"
+        FROM users u
+        JOIN employee_preferences ep ON ep.user_id = u.id
+        WHERE u.org_id = $1
+          AND u.is_active = true
+          AND ep.notification_sms = true
+          AND u.phone IS NOT NULL
+          AND u.phone != ''
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if recipients.is_empty() {
+        return Ok(Json(SmsAlertResponse { sent: 0, failed: 0 }));
+    }
+
+    // Fan out SMS with concurrency limit
+    use futures::stream::{self, StreamExt};
+    let twilio_clone = twilio.clone();
+    let body_clone = message_body.clone();
+
+    let results: Vec<(Uuid, String, std::result::Result<(), String>)> = stream::iter(
+        recipients
+            .into_iter()
+            .map(|r| {
+                let tw = twilio_clone.clone();
+                let body = body_clone.clone();
+                let phone = r.phone.clone();
+                let user_id = r.id;
+                async move {
+                    let result =
+                        crate::services::sms::send_sms(&tw, &phone, &body).await;
+                    (user_id, phone, result)
+                }
+            }),
+    )
+    .buffer_unordered(10)
+    .collect()
+    .await;
+
+    // Log results to sms_log
+    let mut sent: i64 = 0;
+    let mut failed: i64 = 0;
+
+    for (user_id, phone, result) in &results {
+        let (status, error_detail) = match result {
+            Ok(()) => {
+                sent += 1;
+                ("sent", None)
+            }
+            Err(e) => {
+                failed += 1;
+                ("failed", Some(e.as_str()))
+            }
+        };
+
+        sqlx::query!(
+            r#"
+            INSERT INTO sms_log (org_id, sent_by, recipient_user_id, to_number, message_body, status, error_detail)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "#,
+            auth.org_id,
+            auth.id,
+            *user_id,
+            phone,
+            body_clone,
+            status,
+            error_detail,
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    Ok(Json(SmsAlertResponse { sent, failed }))
 }
 
 // ── Shared helpers for schedule.rs integration ─────────────────────────────────
