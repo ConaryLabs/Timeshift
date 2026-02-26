@@ -36,6 +36,7 @@ import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { NO_VALUE, extractApiError } from '@/lib/format'
 import { isConflictError } from '@/lib/utils'
+import { Link } from 'react-router-dom'
 import type { UserProfile, Role, EmployeeType, EmployeeStatus } from '@/store/auth'
 
 const ROLES: Role[] = ['admin', 'supervisor', 'employee']
@@ -361,6 +362,12 @@ export default function UsersPage() {
         <Switch id="show-inactive" checked={showInactive} onCheckedChange={setShowInactive} />
         <Label htmlFor="show-inactive" className="text-sm">Include inactive users</Label>
       </div>
+
+      {classifications && activeClassifications.length === 0 && (
+        <div className="rounded-md border border-dashed px-4 py-3 mb-4 text-sm text-muted-foreground">
+          No classifications configured yet. <Link to="/admin/classifications" className="text-primary underline">Create classifications</Link> first to assign them to users.
+        </div>
+      )}
 
       <div className="flex items-center gap-3 mb-4">
         <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email..." className="w-64" />

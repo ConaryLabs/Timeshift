@@ -17,6 +17,8 @@ const STATUS_VARIANTS: Record<string, string> = {
   partially_filled: "bg-cyan-100 text-cyan-800 border-cyan-200",
   submitted: "bg-green-100 text-green-800 border-green-200",
   completed: "bg-purple-100 text-purple-800 border-purple-200",
+  assigned: "bg-green-100 text-green-800 border-green-200",
+  volunteered: "bg-slate-100 text-slate-600 border-slate-200",
 }
 
 interface StatusBadgeProps {

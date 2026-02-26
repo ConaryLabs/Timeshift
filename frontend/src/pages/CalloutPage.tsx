@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { format, addDays } from 'date-fns'
-import { Hand, Info, ArrowUpDown } from 'lucide-react'
+import { Hand, Info, ArrowUpDown, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -52,8 +52,17 @@ import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { NO_VALUE, extractApiError } from '@/lib/format'
-import type { CalloutListEntry, BumpRequest } from '@/api/callout'
+import type { CalloutEvent, CalloutListEntry, BumpRequest } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
+
+type CalloutStatusFilter = CalloutEvent['status'] | 'all'
+
+const STATUS_TABS: { label: string; value: CalloutStatusFilter }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Open', value: 'open' },
+  { label: 'Filled', value: 'filled' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 const INITIAL_FORM = {
   scheduled_shift_id: NO_VALUE,
@@ -140,6 +149,8 @@ export default function CalloutPage() {
   const [bumpDisplacedUserId, setBumpDisplacedUserId] = useState(NO_VALUE)
   const [bumpReason, setBumpReason] = useState('')
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<CalloutStatusFilter>('all')
+  const [classificationFilter, setClassificationFilter] = useState(NO_VALUE)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
@@ -171,6 +182,21 @@ export default function CalloutPage() {
 
   // Check if current user already volunteered
   const hasVolunteered = (volunteers ?? []).some((v) => v.user_id === user?.id)
+
+  // Filter + sort events
+  const filteredEvents = useMemo(() => {
+    let result = events ?? []
+    if (statusFilter !== 'all') {
+      result = result.filter((e) => e.status === statusFilter)
+    }
+    if (classificationFilter !== NO_VALUE) {
+      result = result.filter((e) => e.classification_id === classificationFilter)
+    }
+    // Sort by created_at descending (most recent first)
+    return [...result].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )
+  }, [events, statusFilter, classificationFilter])
 
   const filteredCalloutList = useMemo(() => {
     if (!calloutList || !debouncedSearch) return calloutList ?? []
@@ -334,6 +360,18 @@ export default function CalloutPage() {
         </div>
       ),
     },
+    {
+      header: 'Phone',
+      cell: (r) =>
+        r.phone ? (
+          <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+            <Phone className="h-3.5 w-3.5" />
+            {r.phone}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
     { header: 'OT Hrs', cell: (r) => r.ot_hours.toFixed(1) },
     {
       header: 'Status',
@@ -402,6 +440,39 @@ export default function CalloutPage() {
         {/* Events list */}
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">Events</h3>
+
+          {/* Status filter tabs + classification filter */}
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <div className="flex gap-1">
+              {STATUS_TABS.map((tab) => (
+                <Button
+                  key={tab.value}
+                  size="sm"
+                  variant={statusFilter === tab.value ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter(tab.value)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+            <Select
+              value={classificationFilter}
+              onValueChange={setClassificationFilter}
+            >
+              <SelectTrigger className="w-[180px] h-8 text-sm">
+                <SelectValue placeholder="All classifications" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_VALUE}>All classifications</SelectItem>
+                {(classifications ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} ({c.abbreviation})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {isLoading && <LoadingState />}
           {!isLoading && isError && (
             <div className="flex items-center gap-3 text-sm text-destructive">
@@ -409,11 +480,16 @@ export default function CalloutPage() {
               <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
             </div>
           )}
-          {!isLoading && !isError && (events ?? []).length === 0 && (
-            <EmptyState title="No callout events" description="Initiate a callout when coverage is needed." />
+          {!isLoading && !isError && filteredEvents.length === 0 && (
+            <EmptyState
+              title="No callout events"
+              description={statusFilter !== 'all' || classificationFilter !== NO_VALUE
+                ? 'No events match the current filters.'
+                : 'Initiate a callout when coverage is needed.'}
+            />
           )}
           <div className="space-y-2">
-            {(events ?? []).map((ev) => (
+            {filteredEvents.map((ev) => (
               <button
                 key={ev.id}
                 type="button"

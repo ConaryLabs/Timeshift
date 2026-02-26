@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries'
 import type { LeaveBalanceView } from '@/api/leaveBalances'
 import type { AccrualSchedule, AccrualTransaction } from '@/api/leaveBalances'
+import { Link } from 'react-router-dom'
 import { extractApiError } from '@/lib/format'
 
 const EMPLOYEE_TYPES = [
@@ -426,13 +427,20 @@ export default function LeaveBalancesPage() {
           <div className="flex justify-end mb-4">
             <Button onClick={openCreateSchedule}>+ Add Schedule</Button>
           </div>
-          <DataTable
-            columns={scheduleColumns}
-            data={schedules ?? []}
-            isLoading={schedulesLoading}
-            emptyMessage="No accrual schedules configured"
-            rowKey={(r) => r.id}
-          />
+          {!schedulesLoading && (schedules ?? []).length === 0 ? (
+            <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground text-center">
+              <p className="font-medium text-foreground mb-1">No accrual schedules configured</p>
+              <p>Accrual schedules automatically add leave hours to employee balances each pay period based on employee type, bargaining unit, and years of service. Check <Link to="/admin/settings" className="text-primary underline">organization settings</Link> for fiscal year and pay period configuration before creating schedules.</p>
+            </div>
+          ) : (
+            <DataTable
+              columns={scheduleColumns}
+              data={schedules ?? []}
+              isLoading={schedulesLoading}
+              emptyMessage="No accrual schedules configured"
+              rowKey={(r) => r.id}
+            />
+          )}
         </div>
       )}
 

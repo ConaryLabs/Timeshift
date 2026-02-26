@@ -20,7 +20,7 @@ use crate::{
     },
     models::shift::{
         CreateSchedulePeriodRequest, CreateSlotAssignmentRequest, SchedulePeriod, SlotAssignment,
-        SlotAssignmentView,
+        SlotAssignmentView, UpdateSchedulePeriodRequest,
     },
     org_guard,
 };
@@ -265,6 +265,81 @@ pub async fn create_period(
         req.start_date,
         req.end_date,
         req.bargaining_unit,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(row))
+}
+
+pub async fn update_period(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateSchedulePeriodRequest>,
+) -> Result<Json<SchedulePeriod>> {
+    use validator::Validate;
+    req.validate()?;
+
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    org_guard::verify_period(&pool, id, auth.org_id).await?;
+
+    // If dates are being changed, check that no slot_assignments exist for this period
+    if req.start_date.is_some() || req.end_date.is_some() {
+        let has_assignments = sqlx::query_scalar!(
+            r#"SELECT EXISTS(SELECT 1 FROM slot_assignments WHERE period_id = $1) AS "exists!""#,
+            id,
+        )
+        .fetch_one(&pool)
+        .await?;
+
+        if has_assignments {
+            return Err(AppError::Conflict(
+                "Cannot change dates for a period that has slot assignments. Remove assignments first.".into(),
+            ));
+        }
+    }
+
+    // Resolve final start/end dates for validation
+    if let (Some(start), Some(end)) = (req.start_date, req.end_date) {
+        if end <= start {
+            return Err(AppError::BadRequest("End date must be after start date".into()));
+        }
+    }
+
+    let name_provided = req.name.is_some();
+    let name_val = req.name.unwrap_or_default();
+    let start_provided = req.start_date.is_some();
+    let start_val = req.start_date.unwrap_or(time::Date::from_calendar_date(2000, time::Month::January, 1).unwrap());
+    let end_provided = req.end_date.is_some();
+    let end_val = req.end_date.unwrap_or(time::Date::from_calendar_date(2000, time::Month::January, 1).unwrap());
+
+    let row = sqlx::query_as!(
+        SchedulePeriod,
+        r#"
+        UPDATE schedule_periods
+        SET name       = CASE WHEN $3 THEN $4 ELSE name END,
+            start_date = CASE WHEN $5 THEN $6 ELSE start_date END,
+            end_date   = CASE WHEN $7 THEN $8 ELSE end_date END,
+            updated_at = NOW()
+        WHERE id = $1 AND org_id = $2
+        RETURNING id, org_id, name, start_date, end_date, is_active,
+                  status AS "status: BidPeriodStatus",
+                  bid_opens_at, bid_closes_at,
+                  bargaining_unit,
+                  created_at, updated_at
+        "#,
+        id,
+        auth.org_id,
+        name_provided,
+        name_val,
+        start_provided,
+        start_val,
+        end_provided,
+        end_val,
     )
     .fetch_one(&pool)
     .await?;

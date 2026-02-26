@@ -508,6 +508,15 @@ export function useCreatePeriod() {
   })
 }
 
+export function useUpdateSchedulePeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; start_date?: string; end_date?: string }) =>
+      schedulePeriodsApi.update(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.periods.all }),
+  })
+}
+
 export function useSlotAssignments(periodId: string) {
   return useQuery({
     queryKey: queryKeys.periods.assignments(periodId),

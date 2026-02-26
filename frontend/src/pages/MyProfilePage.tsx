@@ -179,7 +179,6 @@ export default function MyProfilePage() {
                   <SelectContent>
                     <SelectItem value="week">Week</SelectItem>
                     <SelectItem value="month">Month</SelectItem>
-                    <SelectItem value="day">Day</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
