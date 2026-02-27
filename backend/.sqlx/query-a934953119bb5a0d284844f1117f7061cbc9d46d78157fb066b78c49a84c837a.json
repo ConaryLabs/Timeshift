@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            otr.date,\n            ora.user_id,\n            otr.classification_id,\n            otr.start_time,\n            otr.end_time\n        FROM ot_request_assignments ora\n        JOIN ot_requests otr ON otr.id = ora.ot_request_id\n        WHERE otr.org_id = $1 AND otr.date BETWEEN $2 AND $3\n          AND ora.cancelled_at IS NULL\n          AND otr.status != 'cancelled'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time",
+        "type_info": "Time"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a934953119bb5a0d284844f1117f7061cbc9d46d78157fb066b78c49a84c837a"
+}

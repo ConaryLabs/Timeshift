@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            cps.plan_id,\n            cps.slot_index,\n            cps.day_of_week,\n            cps.classification_id,\n            cl.abbreviation AS classification_abbreviation,\n            cps.min_headcount,\n            cps.target_headcount,\n            cps.max_headcount\n        FROM coverage_plan_slots cps\n        JOIN classifications cl ON cl.id = cps.classification_id\n        WHERE cps.plan_id = ANY($1)\n          AND cps.day_of_week = ANY($2)\n        ORDER BY cps.classification_id, cps.slot_index\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "plan_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slot_index",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "day_of_week",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "classification_abbreviation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "min_headcount",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "target_headcount",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "max_headcount",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int2Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ad1a998e2d8e90f68fd34fb331caa58184ccef83940373610f37d8df894b271c"
+}

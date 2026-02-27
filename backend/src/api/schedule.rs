@@ -8,7 +8,7 @@ use uuid::Uuid;
 use std::collections::HashMap;
 
 use crate::{
-    api::coverage_plans::{compute_slot_coverage, coverage_status_per_shift},
+    api::coverage_plans::{compute_slot_coverage, compute_slot_coverage_batch, coverage_status_per_shift},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -639,13 +639,18 @@ pub async fn grid(
         cell.coverage_actual = cell.assignments.len() as i32;
     }
 
-    // Compute per-date coverage using full slot coverage (accounts for cross-shift contributions)
-    let unique_dates: std::collections::HashSet<time::Date> =
-        cells_map.keys().map(|(d, _)| *d).collect();
+    // Compute per-date coverage using full slot coverage (accounts for cross-shift contributions).
+    // Batch all dates into a single set of queries instead of one query-chain per date.
+    let unique_dates: Vec<time::Date> = cells_map
+        .keys()
+        .map(|(d, _)| *d)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    let slot_coverage_batch =
+        compute_slot_coverage_batch(&pool, auth.org_id, &unique_dates).await?;
     let mut date_coverage: HashMap<time::Date, HashMap<Uuid, (String, i32)>> = HashMap::new();
-    for &d in &unique_dates {
-        let date_str = d.to_string();
-        let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &date_str).await?;
+    for (d, slot_coverage) in slot_coverage_batch {
         if !slot_coverage.is_empty() {
             let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
             date_coverage.insert(d, status_map);
