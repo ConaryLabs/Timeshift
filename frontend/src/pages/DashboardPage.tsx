@@ -7,6 +7,8 @@ import {
   MessageSquare,
   Calendar,
   Star,
+  ShieldAlert,
+  Timer,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,10 +47,20 @@ export default function DashboardPage() {
         title="Dashboard"
         description={format(new Date(), 'EEEE, MMMM d, yyyy')}
         actions={
-          <Button variant="outline" onClick={() => navigate(`/schedule/day/${today}`)}>
-            <Calendar className="h-4 w-4 mr-1.5" />
-            Day View
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate(`/staffing/resolve?date=${today}`)}>
+              <ShieldAlert className="h-4 w-4 mr-1.5" />
+              Daily Staffing
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/available-ot')}>
+              <Timer className="h-4 w-4 mr-1.5" />
+              Create OT Request
+            </Button>
+            <Button variant="outline" onClick={() => navigate(`/schedule/day/${today}`)}>
+              <Calendar className="h-4 w-4 mr-1.5" />
+              Day View
+            </Button>
+          </div>
         }
       />
 
