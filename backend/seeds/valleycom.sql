@@ -1169,64 +1169,89 @@ INSERT INTO coverage_plans (id, org_id, name, description, is_default, is_active
 VALUES (
     '00000000-0000-0000-0000-000000001001',
     '00000000-0000-0000-0000-000000000a01',
-    'Standard 24/7 Coverage',
-    'Default staffing requirements for 24-hour dispatch operations',
+    'Communications 2026',
+    'Matches SE "Communications 2026" coverage plan (03/01/2026 - 03/06/2027)',
     true, true,
     '00000000-0000-0000-0000-0000000000a1'
 );
 
--- COII (B Dispatcher) coverage — matched to SE "Communications 2026" plan
--- SE screenshot (Tue Feb 24 2026) Min row readings:
---   00:00-01:30 (slots 0-3):   10
---   02:00-07:30 (slots 4-15):   9
---   08:00-10:30 (slots 16-21): 10
---   11:00-21:30 (slots 22-43): 11
---   22:00-23:30 (slots 44-47): 10
+-- ══════════════════════════════════════════════════════════════════════
+-- Coverage slots — exact values from SE "Communications 2026" plan
+-- Source: research/se-coverage-minimums.md (Chrome MCP extraction Feb 2026)
+-- day_of_week: 0=Sunday, 1=Monday, 2=Tuesday, ... 6=Saturday
+-- slot_index:  0=00:00, 1=00:30, ... 47=23:30
+-- Max values from SE Tuesday (assumed same all days).
+-- Target = max - 2 (independent of day-of-week variation in min).
+-- ══════════════════════════════════════════════════════════════════════
+
+-- COII (B Dispatcher) coverage
+-- Baseline (Wed-Sat): 0-3:10, 4-7:10, 8-15:9, 16-23:10, 24-47:11
+-- Mon (dow=1): slots 0-7 = 9 (lower overnight into Monday)
+-- Tue (dow=2): slots 4-7 = 9 (lower early Tue morning)
+-- Sun (dow=0): slots 44-47 = 10 (lower Sun late night)
 INSERT INTO coverage_plan_slots (plan_id, classification_id, day_of_week, slot_index, min_headcount, target_headcount, max_headcount)
 SELECT
     '00000000-0000-0000-0000-000000001001',
     '00000000-0000-0000-0000-000000000c02',
     dow.d, slot.s,
+    -- Min (per-day)
     CASE
-        WHEN slot.s BETWEEN 0  AND 3  THEN 10
-        WHEN slot.s BETWEEN 4  AND 15 THEN 9
-        WHEN slot.s BETWEEN 16 AND 21 THEN 10
-        WHEN slot.s BETWEEN 22 AND 43 THEN 11
-        ELSE 10  -- 22:00-23:30
+        WHEN dow.d = 1 AND slot.s BETWEEN 0  AND 7  THEN 9   -- Mon overnight
+        WHEN dow.d = 2 AND slot.s BETWEEN 4  AND 7  THEN 9   -- Tue early morning
+        WHEN dow.d = 0 AND slot.s BETWEEN 44 AND 47 THEN 10  -- Sun late night
+        WHEN slot.s BETWEEN 0  AND 7  THEN 10
+        WHEN slot.s BETWEEN 8  AND 15 THEN 9
+        WHEN slot.s BETWEEN 16 AND 23 THEN 10
+        ELSE 11  -- slots 24-47
     END,
+    -- Target (slot-based, same all days = max - 2)
     CASE
-        WHEN slot.s BETWEEN 0  AND 3  THEN 12
-        WHEN slot.s BETWEEN 4  AND 15 THEN 11
-        WHEN slot.s BETWEEN 16 AND 21 THEN 12
-        WHEN slot.s BETWEEN 22 AND 43 THEN 13
-        ELSE 12  -- 22:00-23:30
+        WHEN slot.s BETWEEN 0  AND 3  THEN 11
+        WHEN slot.s BETWEEN 4  AND 15 THEN 10
+        WHEN slot.s BETWEEN 16 AND 23 THEN 11
+        ELSE 12  -- slots 24-47
     END,
+    -- Max (from SE Tue, same all days)
     CASE
+        WHEN slot.s BETWEEN 0  AND 3  THEN 13
         WHEN slot.s BETWEEN 4  AND 15 THEN 12
-        WHEN slot.s BETWEEN 22 AND 43 THEN 14
-        ELSE 13
+        WHEN slot.s BETWEEN 16 AND 23 THEN 13
+        ELSE 14  -- slots 24-47
     END
 FROM generate_series(0, 6) AS dow(d)
 CROSS JOIN generate_series(0, 47) AS slot(s);
 
--- COI (C Call Receiver) coverage — matched to SE "Communications 2026" plan
--- SE screenshot Min row readings:
---   00:00-01:30 (slots 0-3):    7
---   02:00-03:30 (slots 4-7):    6
---   04:00-05:30 (slots 8-11):   5
---   06:00-07:30 (slots 12-15):  6
---   08:00-11:30 (slots 16-23):  8
---   12:00-13:30 (slots 24-27): 11
---   14:00-15:30 (slots 28-31): 12
---   16:00-19:30 (slots 32-39): 13
---   20:00-21:30 (slots 40-43): 12
---   22:00-23:30 (slots 44-47):  8
+-- COI (C Call Receiver) coverage
+-- Baseline (Tue/Wed = dow 2,3):
+--   0-3:7, 4-7:6, 8-11:5, 12-15:6, 16-23:8, 24-27:11, 28-31:12,
+--   32-35:13, 36-39:12, 40-47:11
+-- Sat (dow=6): 0-3:8, 4-7:7 (higher overnight)
+-- Sun (dow=0): 0-3:8, 16-19:7, 24-27:9, 28-31:10, 32-39:11, 40-47:10
+-- Mon/Thu/Fri (dow=1,4,5): 24-27:10 (lower midday than Tue/Wed/Sat)
 INSERT INTO coverage_plan_slots (plan_id, classification_id, day_of_week, slot_index, min_headcount, target_headcount, max_headcount)
 SELECT
     '00000000-0000-0000-0000-000000001001',
     '00000000-0000-0000-0000-000000000c01',
     dow.d, slot.s,
+    -- Min (per-day)
     CASE
+        -- Sunday (dow=0) — significantly lower afternoon/evening
+        WHEN dow.d = 0 AND slot.s BETWEEN 0  AND 3  THEN 8
+        WHEN dow.d = 0 AND slot.s BETWEEN 4  AND 7  THEN 6
+        WHEN dow.d = 0 AND slot.s BETWEEN 8  AND 11 THEN 5
+        WHEN dow.d = 0 AND slot.s BETWEEN 12 AND 15 THEN 6
+        WHEN dow.d = 0 AND slot.s BETWEEN 16 AND 19 THEN 7
+        WHEN dow.d = 0 AND slot.s BETWEEN 20 AND 23 THEN 8
+        WHEN dow.d = 0 AND slot.s BETWEEN 24 AND 27 THEN 9
+        WHEN dow.d = 0 AND slot.s BETWEEN 28 AND 31 THEN 10
+        WHEN dow.d = 0 AND slot.s BETWEEN 32 AND 39 THEN 11
+        WHEN dow.d = 0 AND slot.s BETWEEN 40 AND 47 THEN 10
+        -- Saturday (dow=6) — higher overnight
+        WHEN dow.d = 6 AND slot.s BETWEEN 0  AND 3  THEN 8
+        WHEN dow.d = 6 AND slot.s BETWEEN 4  AND 7  THEN 7
+        -- Mon/Thu/Fri (dow=1,4,5) — lower midday
+        WHEN dow.d IN (1, 4, 5) AND slot.s BETWEEN 24 AND 27 THEN 10
+        -- Baseline (Tue/Wed, plus Sat daytime, Mon/Thu/Fri non-midday)
         WHEN slot.s BETWEEN 0  AND 3  THEN 7
         WHEN slot.s BETWEEN 4  AND 7  THEN 6
         WHEN slot.s BETWEEN 8  AND 11 THEN 5
@@ -1234,35 +1259,43 @@ SELECT
         WHEN slot.s BETWEEN 16 AND 23 THEN 8
         WHEN slot.s BETWEEN 24 AND 27 THEN 11
         WHEN slot.s BETWEEN 28 AND 31 THEN 12
-        WHEN slot.s BETWEEN 32 AND 39 THEN 13
-        WHEN slot.s BETWEEN 40 AND 43 THEN 12
-        ELSE 8  -- 22:00-23:30
+        WHEN slot.s BETWEEN 32 AND 35 THEN 13
+        WHEN slot.s BETWEEN 36 AND 39 THEN 12
+        ELSE 11  -- slots 40-47
     END,
+    -- Target (slot-based, same all days = max - 2)
     CASE
-        WHEN slot.s BETWEEN 0  AND 3  THEN 9
-        WHEN slot.s BETWEEN 4  AND 7  THEN 8
-        WHEN slot.s BETWEEN 8  AND 11 THEN 7
-        WHEN slot.s BETWEEN 12 AND 15 THEN 8
+        WHEN slot.s BETWEEN 0  AND 3  THEN 8
+        WHEN slot.s BETWEEN 4  AND 7  THEN 7
+        WHEN slot.s BETWEEN 8  AND 11 THEN 6
+        WHEN slot.s BETWEEN 12 AND 15 THEN 7
         WHEN slot.s BETWEEN 16 AND 23 THEN 9
-        WHEN slot.s BETWEEN 24 AND 27 THEN 13
-        WHEN slot.s BETWEEN 28 AND 31 THEN 14
-        WHEN slot.s BETWEEN 32 AND 39 THEN 15
-        WHEN slot.s BETWEEN 40 AND 43 THEN 14
-        ELSE 10  -- 22:00-23:30
+        WHEN slot.s BETWEEN 24 AND 27 THEN 12
+        WHEN slot.s BETWEEN 28 AND 31 THEN 13
+        WHEN slot.s BETWEEN 32 AND 35 THEN 14
+        WHEN slot.s BETWEEN 36 AND 39 THEN 13
+        ELSE 12  -- slots 40-47
     END,
+    -- Max (from SE Tue, same all days)
     CASE
-        WHEN slot.s BETWEEN 8  AND 11 THEN 9
-        WHEN slot.s BETWEEN 32 AND 39 THEN 16
-        WHEN slot.s BETWEEN 28 AND 31 THEN 15
+        WHEN slot.s BETWEEN 0  AND 3  THEN 10
+        WHEN slot.s BETWEEN 4  AND 7  THEN 9
+        WHEN slot.s BETWEEN 8  AND 11 THEN 8
+        WHEN slot.s BETWEEN 12 AND 15 THEN 9
+        WHEN slot.s BETWEEN 16 AND 23 THEN 11
         WHEN slot.s BETWEEN 24 AND 27 THEN 14
-        WHEN slot.s BETWEEN 40 AND 43 THEN 15
-        ELSE 11
+        WHEN slot.s BETWEEN 28 AND 31 THEN 15
+        WHEN slot.s BETWEEN 32 AND 35 THEN 16
+        WHEN slot.s BETWEEN 36 AND 39 THEN 15
+        ELSE 14  -- slots 40-47
     END
 FROM generate_series(0, 6) AS dow(d)
 CROSS JOIN generate_series(0, 47) AS slot(s);
 
--- Supervisor (A Supervisor) coverage — matched to SE "Communications 2026" plan
--- SE screenshot Min row: 1 overnight, 2 daytime (06:00+)
+-- Supervisor (A Supervisor) coverage — identical all 7 days
+-- Min: 1 (00-06, 22-24), 2 (06-22)
+-- Target: 2 (00-06, 22-24), 3 (06-22)
+-- Max: 4 (all slots)
 INSERT INTO coverage_plan_slots (plan_id, classification_id, day_of_week, slot_index, min_headcount, target_headcount, max_headcount)
 SELECT
     '00000000-0000-0000-0000-000000001001',
@@ -1279,8 +1312,8 @@ INSERT INTO coverage_plan_assignments (org_id, plan_id, start_date, end_date, no
 VALUES (
     '00000000-0000-0000-0000-000000000a01',
     '00000000-0000-0000-0000-000000001001',
-    '2026-01-01', '2026-03-31',
-    'Q1 2026 standard coverage',
+    '2026-03-01', '2027-03-06',
+    'Communications 2026 — matched to SE plan dates',
     '00000000-0000-0000-0000-0000000000a1'
 );
 
