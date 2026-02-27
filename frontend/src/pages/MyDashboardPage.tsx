@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useMyDashboard, useOtRequests } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
+import { formatDate } from '@/lib/format'
 import { useAuthStore } from '@/store/auth'
 import type { MyScheduleEntry } from '@/api/employee'
 
@@ -27,10 +28,6 @@ function formatTime(time: string) {
   return `${display}:${m} ${ampm}`
 }
 
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + 'T00:00:00')
-  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-}
 
 function ShiftCard({ entry, label }: { entry: MyScheduleEntry; label: string }) {
   return (

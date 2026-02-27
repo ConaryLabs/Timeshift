@@ -9,7 +9,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { useVacationBidWindow, useSubmitVacationBid } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateShort } from '@/lib/format'
 
 interface DatePick {
   start_date: string
@@ -23,11 +23,6 @@ const MONTHS = [
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function formatDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
-    month: 'short', day: 'numeric',
-  })
-}
 
 function dateToStr(d: Date): string {
   const y = d.getFullYear()
@@ -251,8 +246,8 @@ export default function VacationBidPage() {
                     >
                       <div>
                         <span className="text-muted-foreground mr-2">#{bid.preference_rank}</span>
-                        {formatDate(bid.start_date)}
-                        {bid.start_date !== bid.end_date && ` - ${formatDate(bid.end_date)}`}
+                        {formatDateShort(bid.start_date)}
+                        {bid.start_date !== bid.end_date && ` - ${formatDateShort(bid.end_date)}`}
                       </div>
                       {bid.awarded ? (
                         <Check className="h-4 w-4 text-green-600" />
@@ -280,8 +275,8 @@ export default function VacationBidPage() {
                     >
                       <div>
                         <span className="text-muted-foreground mr-2">#{i + 1}</span>
-                        {formatDate(pick.start_date)}
-                        {pick.start_date !== pick.end_date && ` - ${formatDate(pick.end_date)}`}
+                        {formatDateShort(pick.start_date)}
+                        {pick.start_date !== pick.end_date && ` - ${formatDateShort(pick.end_date)}`}
                       </div>
                       <Button
                         variant="ghost"

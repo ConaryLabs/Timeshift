@@ -209,9 +209,9 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   // Block-based mode: parse block times from gap.shift_name ("HH:MM-HH:MM")
   const blockTimes = useMemo(() => {
     if (!isBlockMode) return null
-    const parts = gap.shift_name.split('-')
-    if (parts.length !== 2) return null
-    return { start: parts[0].trim(), end: parts[1].trim() }
+    const match = gap.shift_name.match(/(\d{2}:\d{2})-(\d{2}:\d{2})$/)
+    if (!match) return null
+    return { start: match[1], end: match[2] }
   }, [isBlockMode, gap.shift_name])
 
   // Block mode: find eligible employees across all shifts

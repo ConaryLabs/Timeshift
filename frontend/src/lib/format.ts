@@ -25,6 +25,23 @@ export function formatDate(d: string) {
   })
 }
 
+/** Compact date without weekday: "Jan 5" */
+export function formatDateShort(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/** Date with year: "Jan 5, 2024" */
+export function formatDateFull(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function formatDay(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'long',

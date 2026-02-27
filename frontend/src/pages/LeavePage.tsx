@@ -363,7 +363,7 @@ export default function LeavePage() {
                   },
                 )}
               >
-                Approve All
+                Approve ({selectedKeys.size})
               </Button>
               <Button
                 size="sm"
@@ -380,7 +380,7 @@ export default function LeavePage() {
                   },
                 )}
               >
-                Deny All
+                Deny ({selectedKeys.size})
               </Button>
             </div>
           ) : undefined}

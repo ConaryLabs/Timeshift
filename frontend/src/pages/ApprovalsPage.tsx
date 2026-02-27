@@ -25,20 +25,15 @@ import {
   useNavBadges,
 } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateShort } from '@/lib/format'
 import type { LeaveRequest } from '@/api/leave'
 import type { TradeRequest } from '@/api/trades'
 
 type Tab = 'leave' | 'trades'
 
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + 'T00:00:00')
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 function formatDateRange(start: string, end: string) {
-  if (start === end) return formatDate(start)
-  return `${formatDate(start)} - ${formatDate(end)}`
+  if (start === end) return formatDateShort(start)
+  return `${formatDateShort(start)} - ${formatDateShort(end)}`
 }
 
 function timeAgo(dateStr: string) {
@@ -92,7 +87,7 @@ export default function ApprovalsPage() {
           toast.success('Leave request approved')
           setSelectedLeave((s) => { const n = new Set(s); n.delete(id); return n })
         },
-        onError: (e) => toast.error(extractApiError(e, 'Something went wrong')),
+        onError: (e) => toast.error(extractApiError(e, 'Failed to approve leave request')),
       },
     )
   }
@@ -105,7 +100,7 @@ export default function ApprovalsPage() {
           toast.success('Trade approved')
           setSelectedTrades((s) => { const n = new Set(s); n.delete(id); return n })
         },
-        onError: (e) => toast.error(extractApiError(e, 'Something went wrong')),
+        onError: (e) => toast.error(extractApiError(e, 'Failed to approve trade')),
       },
     )
   }
@@ -122,7 +117,7 @@ export default function ApprovalsPage() {
             setDenyReason('')
             setSelectedLeave((s) => { const n = new Set(s); n.delete(denyTarget.id); return n })
           },
-          onError: (e) => toast.error(extractApiError(e, 'Something went wrong')),
+          onError: (e) => toast.error(extractApiError(e, 'Failed to deny leave request')),
         },
       )
     } else {
@@ -135,7 +130,7 @@ export default function ApprovalsPage() {
             setDenyReason('')
             setSelectedTrades((s) => { const n = new Set(s); n.delete(denyTarget.id); return n })
           },
-          onError: (e) => toast.error(extractApiError(e, 'Something went wrong')),
+          onError: (e) => toast.error(extractApiError(e, 'Failed to deny trade')),
         },
       )
     }
@@ -150,7 +145,7 @@ export default function ApprovalsPage() {
             toast.success(`${res.reviewed} leave request${res.reviewed !== 1 ? 's' : ''} approved`)
             setSelectedLeave(new Set())
           },
-          onError: (e) => toast.error(extractApiError(e, 'Something went wrong')),
+          onError: (e) => toast.error(extractApiError(e, 'Failed to process bulk leave approval')),
         },
       )
     } else if (tab === 'trades' && selectedTrades.size > 0) {
@@ -161,7 +156,7 @@ export default function ApprovalsPage() {
             toast.success(`${res.reviewed} trade${res.reviewed !== 1 ? 's' : ''} approved`)
             setSelectedTrades(new Set())
           },
-          onError: (e) => toast.error(extractApiError(e, 'Something went wrong')),
+          onError: (e) => toast.error(extractApiError(e, 'Failed to process bulk trade approval')),
         },
       )
     }
@@ -429,7 +424,7 @@ function LeaveApprovalCard({
                 <div className="mt-1 space-y-0.5 ml-2">
                   {request.lines.map((line) => (
                     <div key={line.id} className="text-xs text-muted-foreground">
-                      {formatDate(line.date)} — {line.hours}h
+                      {formatDateShort(line.date)} — {line.hours}h
                     </div>
                   ))}
                 </div>
@@ -471,7 +466,7 @@ function TradeApprovalCard({
               {trade.requester_name} <span className="text-muted-foreground font-normal">\u2194</span> {trade.partner_name}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {formatDate(trade.requester_date)} \u2194 {formatDate(trade.partner_date)}
+              {formatDateShort(trade.requester_date)} \u2194 {formatDateShort(trade.partner_date)}
               {' \u00b7 Requested '}
               {timeAgo(trade.created_at)}
             </p>
