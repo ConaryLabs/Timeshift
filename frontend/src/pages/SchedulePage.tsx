@@ -448,15 +448,13 @@ function MonthView({
           const isToday = dateStr === todayStr
           const dayCells = byDate.get(dateStr) ?? []
 
-          // Compute overall coverage status for the day
-          let worstStatus: 'none' | 'green' | 'yellow' | 'red' = 'none'
+          // Compute overall coverage status for the day (min-only: green or red)
+          let worstStatus: 'none' | 'green' | 'red' = 'none'
           for (const cell of dayCells) {
             if (cell.coverage_required > 0) {
               if (cell.coverage_actual < cell.coverage_required) {
                 worstStatus = 'red'
                 break
-              } else if (cell.coverage_actual === cell.coverage_required) {
-                worstStatus = 'yellow'
               } else {
                 if (worstStatus === 'none') worstStatus = 'green'
               }
@@ -493,9 +491,7 @@ function MonthView({
                           ? 'bg-muted-foreground/30'
                           : cell.coverage_actual >= cell.coverage_required
                             ? 'bg-green-500'
-                            : cell.coverage_actual > 0
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'
+                            : 'bg-red-500'
                       if (isUnder) {
                         return (
                           <button

@@ -662,10 +662,8 @@ pub(crate) async fn compute_slot_coverage(
                 .get(&(s.classification_id, s.slot_index))
                 .copied()
                 .unwrap_or(0);
-            let status = if s.target_headcount == 0 || count >= s.target_headcount as i32 {
+            let status = if s.min_headcount == 0 || count >= s.min_headcount as i32 {
                 "green"
-            } else if count >= s.min_headcount as i32 {
-                "yellow"
             } else {
                 "red"
             };
@@ -749,16 +747,16 @@ pub async fn classification_gaps(
         let end_slot = end_slot.clamp(0, 47);
 
         for &class_id in &class_ids {
-            // Find peak target and sum actual across slots in this shift's window
-            let mut peak_target: i16 = 0;
+            // Find peak min and worst actual across slots in this shift's window
+            let mut peak_min: i16 = 0;
             let mut min_actual: i32 = i32::MAX;
             let mut has_data = false;
 
             for slot_idx in start_slot..=end_slot {
                 if let Some(sc) = by_slot.get(&(class_id, slot_idx)) {
                     has_data = true;
-                    if sc.target_headcount > peak_target {
-                        peak_target = sc.target_headcount;
+                    if sc.min_headcount > peak_min {
+                        peak_min = sc.min_headcount;
                     }
                     if sc.actual_headcount < min_actual {
                         min_actual = sc.actual_headcount;
@@ -766,12 +764,12 @@ pub async fn classification_gaps(
                 }
             }
 
-            if !has_data || peak_target == 0 {
+            if !has_data || peak_min == 0 {
                 continue;
             }
 
             let actual = min_actual as i16;
-            let shortage = peak_target - actual;
+            let shortage = peak_min - actual;
             if shortage <= 0 {
                 continue;
             }
@@ -789,7 +787,7 @@ pub async fn classification_gaps(
                 shift_template_id: shift.id,
                 shift_name: shift.name.clone(),
                 shift_color: shift.color.clone(),
-                target: peak_target,
+                target: peak_min,
                 actual,
                 shortage,
             });
@@ -846,7 +844,7 @@ pub async fn send_sms_alert(
         use std::collections::HashMap;
         let mut class_gaps: HashMap<String, (i16, i32)> = HashMap::new();
         for sc in &slot_coverage {
-            if sc.actual_headcount < sc.target_headcount as i32 {
+            if sc.actual_headcount < sc.min_headcount as i32 {
                 // Only include if filtered classification matches (or no filter)
                 if let Some(filter_id) = req.classification_id {
                     if sc.classification_id != filter_id {
@@ -856,7 +854,7 @@ pub async fn send_sms_alert(
                 let entry = class_gaps
                     .entry(sc.classification_abbreviation.clone())
                     .or_insert((0, 0));
-                entry.0 = entry.0.max(sc.target_headcount);
+                entry.0 = entry.0.max(sc.min_headcount);
                 entry.1 = entry.1.min(sc.actual_headcount);
             }
         }
@@ -1234,10 +1232,8 @@ pub async fn day_grid(
 
             let status = if !has_target && min_actual == 0 {
                 "green" // no requirement, no employees — fine
-            } else if peak_target == 0 || min_actual >= peak_target as i32 {
+            } else if peak_min == 0 || min_actual >= peak_min as i32 {
                 "green"
-            } else if min_actual >= peak_min as i32 {
-                "yellow"
             } else {
                 "red"
             };
@@ -1278,27 +1274,21 @@ pub async fn day_grid(
     // 7. Build aggregate coverage blocks
     let coverage_blocks: Vec<CoverageBlock> = (0u8..12)
         .map(|block_idx| {
-            let total_target: i32 = classifications
+            let total_min: i32 = classifications
                 .iter()
-                .map(|c| c.blocks[block_idx as usize].target as i32)
+                .map(|c| c.blocks[block_idx as usize].min as i32)
                 .sum();
             let total_actual: i32 = classifications
                 .iter()
                 .map(|c| c.blocks[block_idx as usize].actual)
                 .sum();
-            let status = if total_target == 0 || total_actual >= total_target {
-                "green"
-            } else if classifications
+            let any_red = classifications
                 .iter()
-                .any(|c| c.blocks[block_idx as usize].status == "red")
-            {
-                "red"
-            } else {
-                "yellow"
-            };
+                .any(|c| c.blocks[block_idx as usize].status == "red");
+            let status = if any_red { "red" } else { "green" };
             CoverageBlock {
                 block_index: block_idx,
-                total_target,
+                total_target: total_min, // field name kept for API compat, value is min
                 total_actual,
                 status: status.to_string(),
             }
@@ -1362,9 +1352,8 @@ pub(crate) async fn resolve_plan_id(
 
 /// Per-shift coverage status using per-classification gap analysis.
 ///
-/// Instead of summing targets across classifications (which inflates the number),
-/// this checks each classification independently and reports:
-/// - status: "red" if any classification is below min, "yellow" if below target, "green" if all met
+/// Checks each classification independently against its minimum headcount:
+/// - status: "red" if any classification is below min, "green" if all met
 /// - total_shortage: sum of shortages across all classifications (how many more people are needed)
 pub(crate) fn coverage_status_per_shift(
     slot_coverage: &[SlotCoverage],
@@ -1400,13 +1389,10 @@ pub(crate) fn coverage_status_per_shift(
         };
         let end_slot = end_slot.clamp(0, 47).max(start_slot);
 
-        let mut worst_status = "green";
+        let mut is_short = false;
         let mut total_shortage: i32 = 0;
 
         for &class_id in &class_ids {
-            // For this classification in this shift's time window,
-            // find the peak target and minimum actual
-            let mut peak_target: i16 = 0;
             let mut peak_min: i16 = 0;
             let mut min_actual: i32 = i32::MAX;
             let mut has_data = false;
@@ -1414,28 +1400,24 @@ pub(crate) fn coverage_status_per_shift(
             for slot_idx in start_slot..=end_slot {
                 if let Some(sc) = by_key.get(&(class_id, slot_idx)) {
                     has_data = true;
-                    peak_target = peak_target.max(sc.target_headcount);
                     peak_min = peak_min.max(sc.min_headcount);
                     min_actual = min_actual.min(sc.actual_headcount);
                 }
             }
 
-            if !has_data || peak_target == 0 {
+            if !has_data || peak_min == 0 {
                 continue;
             }
 
-            let shortage = (peak_target as i32) - min_actual;
+            let shortage = (peak_min as i32) - min_actual;
             if shortage > 0 {
                 total_shortage += shortage;
-                if min_actual < peak_min as i32 {
-                    worst_status = "red";
-                } else if worst_status != "red" {
-                    worst_status = "yellow";
-                }
+                is_short = true;
             }
         }
 
-        result.insert(template_id, (worst_status.to_string(), total_shortage));
+        let status = if is_short { "red" } else { "green" };
+        result.insert(template_id, (status.to_string(), total_shortage));
     }
 
     result
