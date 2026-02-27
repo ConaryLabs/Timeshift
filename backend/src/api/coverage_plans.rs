@@ -773,6 +773,382 @@ pub(crate) async fn compute_slot_coverage(
     Ok(result)
 }
 
+/// Batch version of `compute_slot_coverage` for multiple dates.
+///
+/// Reduces N×6 serial DB round-trips (one `compute_slot_coverage` call per date)
+/// to ~7 queries total by fetching coverage plan data and assignments for the
+/// entire date range at once, then computing per-date slot coverage in memory.
+///
+/// Returns a map of date → SlotCoverage vec (dates with no coverage plan are absent).
+pub(crate) async fn compute_slot_coverage_batch(
+    pool: &PgPool,
+    org_id: Uuid,
+    dates: &[time::Date],
+) -> Result<std::collections::HashMap<time::Date, Vec<SlotCoverage>>> {
+    use std::collections::{HashMap, HashSet};
+
+    if dates.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let min_date = *dates.iter().min().unwrap();
+    let max_date = *dates.iter().max().unwrap();
+    let prev_min = min_date.previous_day().unwrap_or(min_date);
+    let prev_max = max_date.previous_day().unwrap_or(max_date);
+
+    // 1. Resolve plan_id for each date — fetch all assignments covering the range.
+    let plan_assignments = sqlx::query!(
+        r#"
+        SELECT cpa.plan_id, cpa.start_date, cpa.end_date
+        FROM coverage_plan_assignments cpa
+        JOIN coverage_plans cp ON cp.id = cpa.plan_id
+        WHERE cpa.org_id = $1
+          AND cpa.start_date <= $3
+          AND (cpa.end_date IS NULL OR cpa.end_date >= $2)
+          AND cp.is_active = TRUE
+        ORDER BY cpa.start_date DESC
+        "#,
+        org_id,
+        min_date,
+        max_date,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let default_plan_id = sqlx::query_scalar!(
+        r#"
+        SELECT id AS "id!"
+        FROM coverage_plans
+        WHERE org_id = $1 AND is_default = TRUE AND is_active = TRUE
+        LIMIT 1
+        "#,
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    // Map each date to its plan_id (first matching assignment wins due to ORDER BY start_date DESC)
+    let mut plan_per_date: HashMap<time::Date, Uuid> = HashMap::new();
+    for &d in dates {
+        if let Some(pa) = plan_assignments
+            .iter()
+            .find(|pa| pa.start_date <= d && pa.end_date.map_or(true, |ed| ed >= d))
+        {
+            plan_per_date.insert(d, pa.plan_id);
+        } else if let Some(id) = default_plan_id {
+            plan_per_date.insert(d, id);
+        }
+    }
+
+    if plan_per_date.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    // 2. Collect unique plan_ids and day-of-week values needed
+    let needed_plan_ids: Vec<Uuid> = plan_per_date
+        .values()
+        .copied()
+        .collect::<HashSet<Uuid>>()
+        .into_iter()
+        .collect();
+    let needed_dows: Vec<i16> = dates
+        .iter()
+        .map(|d| d.weekday().number_days_from_sunday() as i16)
+        .collect::<HashSet<i16>>()
+        .into_iter()
+        .collect();
+
+    // 3. Fetch coverage plan slots for all needed (plan_id, day_of_week) combinations
+    let slot_rows = sqlx::query!(
+        r#"
+        SELECT
+            cps.plan_id,
+            cps.slot_index,
+            cps.day_of_week,
+            cps.classification_id,
+            cl.abbreviation AS classification_abbreviation,
+            cps.min_headcount,
+            cps.target_headcount,
+            cps.max_headcount
+        FROM coverage_plan_slots cps
+        JOIN classifications cl ON cl.id = cps.classification_id
+        WHERE cps.plan_id = ANY($1)
+          AND cps.day_of_week = ANY($2)
+        ORDER BY cps.classification_id, cps.slot_index
+        "#,
+        &needed_plan_ids as &[Uuid],
+        &needed_dows as &[i16],
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Build slot lookup: (plan_id, day_of_week) → rows
+    let mut slots_by_plan_dow: HashMap<(Uuid, i16), Vec<_>> = HashMap::new();
+    for s in &slot_rows {
+        slots_by_plan_dow
+            .entry((s.plan_id, s.day_of_week))
+            .or_default()
+            .push(s);
+    }
+
+    // 4. Fetch all regular assignments for the date range
+    let assignment_rows = sqlx::query!(
+        r#"
+        SELECT
+            ss.date,
+            a.user_id,
+            u.classification_id AS "classification_id?",
+            st.start_time,
+            st.end_time,
+            st.crosses_midnight
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates  st ON st.id = ss.shift_template_id
+        JOIN users            u  ON u.id  = a.user_id
+        WHERE ss.org_id = $1 AND ss.date BETWEEN $2 AND $3
+          AND a.cancelled_at IS NULL
+        "#,
+        org_id,
+        min_date,
+        max_date,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // 5. Fetch overnight assignments from the previous-day range that cross midnight
+    let overnight_rows = sqlx::query!(
+        r#"
+        SELECT
+            ss.date AS assign_date,
+            a.user_id,
+            u.classification_id AS "classification_id?",
+            st.end_time
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates  st ON st.id = ss.shift_template_id
+        JOIN users            u  ON u.id  = a.user_id
+        WHERE ss.org_id = $1 AND ss.date BETWEEN $2 AND $3
+          AND st.crosses_midnight = true
+          AND a.cancelled_at IS NULL
+        "#,
+        org_id,
+        prev_min,
+        prev_max,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // 6. Fetch OT request assignments for the date range
+    let ot_rows = sqlx::query!(
+        r#"
+        SELECT
+            otr.date,
+            ora.user_id,
+            otr.classification_id,
+            otr.start_time,
+            otr.end_time
+        FROM ot_request_assignments ora
+        JOIN ot_requests otr ON otr.id = ora.ot_request_id
+        WHERE otr.org_id = $1 AND otr.date BETWEEN $2 AND $3
+          AND ora.cancelled_at IS NULL
+          AND otr.status != 'cancelled'
+        "#,
+        org_id,
+        min_date,
+        max_date,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // 7. Fetch OT overnight (cross-midnight OT from previous-day range)
+    let ot_overnight_rows = sqlx::query!(
+        r#"
+        SELECT
+            otr.date AS assign_date,
+            ora.user_id,
+            otr.classification_id,
+            otr.end_time
+        FROM ot_request_assignments ora
+        JOIN ot_requests otr ON otr.id = ora.ot_request_id
+        WHERE otr.org_id = $1 AND otr.date BETWEEN $2 AND $3
+          AND otr.end_time < otr.start_time
+          AND ora.cancelled_at IS NULL
+          AND otr.status != 'cancelled'
+        "#,
+        org_id,
+        prev_min,
+        prev_max,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Group pre-fetched data by date for O(1) per-date lookup
+    let mut assignments_by_date: HashMap<time::Date, Vec<_>> = HashMap::new();
+    for a in &assignment_rows {
+        assignments_by_date.entry(a.date).or_default().push(a);
+    }
+
+    // overnight rows: indexed by target date (assign_date + 1 day = the date they spill into)
+    let mut overnight_by_target: HashMap<time::Date, Vec<_>> = HashMap::new();
+    for a in &overnight_rows {
+        let target = a.assign_date.next_day().unwrap_or(a.assign_date);
+        overnight_by_target.entry(target).or_default().push(a);
+    }
+
+    let mut ot_by_date: HashMap<time::Date, Vec<_>> = HashMap::new();
+    for a in &ot_rows {
+        ot_by_date.entry(a.date).or_default().push(a);
+    }
+
+    let mut ot_overnight_by_target: HashMap<time::Date, Vec<_>> = HashMap::new();
+    for a in &ot_overnight_rows {
+        let target = a.assign_date.next_day().unwrap_or(a.assign_date);
+        ot_overnight_by_target.entry(target).or_default().push(a);
+    }
+
+    // Compute per-date slot coverage using the same logic as compute_slot_coverage
+    let mut result: HashMap<time::Date, Vec<SlotCoverage>> = HashMap::new();
+
+    for &d in dates {
+        let plan_id = match plan_per_date.get(&d) {
+            Some(&id) => id,
+            None => continue,
+        };
+        let dow = d.weekday().number_days_from_sunday() as i16;
+        let slots = match slots_by_plan_dow.get(&(plan_id, dow)) {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
+
+        let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
+        let mut user_slot_covered: HashSet<(Uuid, Uuid, i16)> = HashSet::new();
+
+        // Regular assignments for this date
+        if let Some(day_assigns) = assignments_by_date.get(&d) {
+            for a in day_assigns.iter() {
+                let Some(class_id) = a.classification_id else {
+                    continue;
+                };
+                let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
+                let end_min = if a.crosses_midnight {
+                    24 * 60
+                } else {
+                    a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
+                };
+                let start_slot = (start_min / 30) as i16;
+                let end_slot = (if end_min % 30 == 0 {
+                    end_min / 30 - 1
+                } else {
+                    end_min / 30
+                } as i16)
+                    .clamp(0, 47);
+                for slot in start_slot..=end_slot {
+                    *actual.entry((class_id, slot)).or_insert(0) += 1;
+                    user_slot_covered.insert((a.user_id, class_id, slot));
+                }
+            }
+        }
+
+        // Overnight assignments from previous day
+        if let Some(overnight) = overnight_by_target.get(&d) {
+            for a in overnight.iter() {
+                let Some(class_id) = a.classification_id else {
+                    continue;
+                };
+                let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
+                if end_min == 0 {
+                    continue;
+                }
+                let end_slot = (if end_min % 30 == 0 {
+                    end_min / 30 - 1
+                } else {
+                    end_min / 30
+                } as i16)
+                    .clamp(0, 47);
+                for slot in 0..=end_slot {
+                    *actual.entry((class_id, slot)).or_insert(0) += 1;
+                    user_slot_covered.insert((a.user_id, class_id, slot));
+                }
+            }
+        }
+
+        // OT assignments for this date
+        if let Some(ot) = ot_by_date.get(&d) {
+            for a in ot.iter() {
+                let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
+                let crosses_midnight = a.end_time < a.start_time;
+                let end_min = if crosses_midnight {
+                    24 * 60
+                } else {
+                    a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
+                };
+                let start_slot = (start_min / 30) as i16;
+                let end_slot = (if end_min % 30 == 0 {
+                    end_min / 30 - 1
+                } else {
+                    end_min / 30
+                } as i16)
+                    .clamp(0, 47);
+                for slot in start_slot..=end_slot {
+                    if !user_slot_covered.contains(&(a.user_id, a.classification_id, slot)) {
+                        *actual.entry((a.classification_id, slot)).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        // OT overnight from previous day
+        if let Some(ot_overnight) = ot_overnight_by_target.get(&d) {
+            for a in ot_overnight.iter() {
+                let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
+                if end_min == 0 {
+                    continue;
+                }
+                let end_slot = (if end_min % 30 == 0 {
+                    end_min / 30 - 1
+                } else {
+                    end_min / 30
+                } as i16)
+                    .clamp(0, 47);
+                for slot in 0..=end_slot {
+                    if !user_slot_covered.contains(&(a.user_id, a.classification_id, slot)) {
+                        *actual.entry((a.classification_id, slot)).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        let coverage: Vec<SlotCoverage> = slots
+            .iter()
+            .map(|s| {
+                let count = actual
+                    .get(&(s.classification_id, s.slot_index))
+                    .copied()
+                    .unwrap_or(0);
+                let status = if s.min_headcount == 0 || count >= s.min_headcount as i32 {
+                    "green"
+                } else {
+                    "red"
+                };
+                SlotCoverage {
+                    slot_index: s.slot_index,
+                    classification_id: s.classification_id,
+                    classification_abbreviation: s.classification_abbreviation.clone(),
+                    min_headcount: s.min_headcount,
+                    target_headcount: s.target_headcount,
+                    max_headcount: s.max_headcount,
+                    actual_headcount: count,
+                    status: status.to_string(),
+                }
+            })
+            .collect();
+
+        result.insert(d, coverage);
+    }
+
+    Ok(result)
+}
+
 // ── Classification Gaps ───────────────────────────────────────────────────────
 
 /// GET /api/coverage-plans/gaps/:date

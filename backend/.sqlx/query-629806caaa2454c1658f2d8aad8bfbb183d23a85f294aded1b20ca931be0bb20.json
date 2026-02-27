@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT code, carryover_cap_hours AS \"carryover_cap_hours!\", carryover_categories\n        FROM bargaining_units\n        WHERE org_id = $1\n          AND is_active = true\n          AND carryover_cap_hours IS NOT NULL\n          AND carryover_categories != '{}'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "carryover_cap_hours!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "carryover_categories",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "629806caaa2454c1658f2d8aad8bfbb183d23a85f294aded1b20ca931be0bb20"
+}

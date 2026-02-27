@@ -16,17 +16,19 @@ use crate::{
     org_guard,
 };
 
-#[allow(clippy::too_many_arguments)]
-fn build_user_profile(
-    id: uuid::Uuid,
-    org_id: uuid::Uuid,
+/// Intermediate struct used to construct UserProfile from query rows.
+/// Replaces the 24-argument `build_user_profile` function — named fields prevent
+/// positional-arg ordering mistakes at call sites.
+struct UserProfileRow {
+    id: Uuid,
+    org_id: Uuid,
     employee_id: Option<String>,
     first_name: String,
     last_name: String,
     email: String,
     phone: Option<String>,
     role: Role,
-    classification_id: Option<uuid::Uuid>,
+    classification_id: Option<Uuid>,
     classification_name: Option<String>,
     employee_type: EmployeeType,
     bargaining_unit: String,
@@ -42,32 +44,36 @@ fn build_user_profile(
     medical_ot_exempt: bool,
     is_active: bool,
     updated_at: time::OffsetDateTime,
-) -> UserProfile {
-    UserProfile {
-        id,
-        org_id,
-        employee_id,
-        first_name,
-        last_name,
-        email,
-        phone,
-        role,
-        classification_id,
-        classification_name,
-        employee_type,
-        bargaining_unit,
-        hire_date,
-        overall_seniority_date,
-        bargaining_unit_seniority_date,
-        classification_seniority_date,
-        cto_designation,
-        admin_training_supervisor_since,
-        employee_status,
-        accrual_paused_since,
-        leave_accrual_paused_at,
-        medical_ot_exempt,
-        is_active,
-        updated_at,
+}
+
+impl From<UserProfileRow> for UserProfile {
+    fn from(r: UserProfileRow) -> Self {
+        UserProfile {
+            id: r.id,
+            org_id: r.org_id,
+            employee_id: r.employee_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            role: r.role,
+            classification_id: r.classification_id,
+            classification_name: r.classification_name,
+            employee_type: r.employee_type,
+            bargaining_unit: r.bargaining_unit,
+            hire_date: r.hire_date,
+            overall_seniority_date: r.overall_seniority_date,
+            bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
+            classification_seniority_date: r.classification_seniority_date,
+            cto_designation: r.cto_designation,
+            admin_training_supervisor_since: r.admin_training_supervisor_since,
+            employee_status: r.employee_status,
+            accrual_paused_since: r.accrual_paused_since,
+            leave_accrual_paused_at: r.leave_accrual_paused_at,
+            medical_ot_exempt: r.medical_ot_exempt,
+            is_active: r.is_active,
+            updated_at: r.updated_at,
+        }
     }
 }
 
@@ -135,32 +141,33 @@ pub async fn list(
     let profiles = rows
         .into_iter()
         .map(|r| {
-            build_user_profile(
-                r.id,
-                r.org_id,
-                r.employee_id,
-                r.first_name,
-                r.last_name,
-                r.email,
-                r.phone,
-                r.role,
-                r.classification_id,
-                r.classification_name,
-                r.employee_type,
-                r.bargaining_unit,
-                r.hire_date,
-                r.overall_seniority_date,
-                r.bargaining_unit_seniority_date,
-                r.classification_seniority_date,
-                r.cto_designation,
-                r.admin_training_supervisor_since,
-                r.employee_status,
-                r.accrual_paused_since,
-                r.leave_accrual_paused_at,
-                r.medical_ot_exempt,
-                r.is_active,
-                r.updated_at,
-            )
+            UserProfileRow {
+                id: r.id,
+                org_id: r.org_id,
+                employee_id: r.employee_id,
+                first_name: r.first_name,
+                last_name: r.last_name,
+                email: r.email,
+                phone: r.phone,
+                role: r.role,
+                classification_id: r.classification_id,
+                classification_name: r.classification_name,
+                employee_type: r.employee_type,
+                bargaining_unit: r.bargaining_unit,
+                hire_date: r.hire_date,
+                overall_seniority_date: r.overall_seniority_date,
+                bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
+                classification_seniority_date: r.classification_seniority_date,
+                cto_designation: r.cto_designation,
+                admin_training_supervisor_since: r.admin_training_supervisor_since,
+                employee_status: r.employee_status,
+                accrual_paused_since: r.accrual_paused_since,
+                leave_accrual_paused_at: r.leave_accrual_paused_at,
+                medical_ot_exempt: r.medical_ot_exempt,
+                is_active: r.is_active,
+                updated_at: r.updated_at,
+            }
+            .into()
         })
         .collect();
 
@@ -236,32 +243,35 @@ pub async fn get_one(
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-    Ok(Json(build_user_profile(
-        r.id,
-        r.org_id,
-        r.employee_id,
-        r.first_name,
-        r.last_name,
-        r.email,
-        r.phone,
-        r.role,
-        r.classification_id,
-        r.classification_name,
-        r.employee_type,
-        r.bargaining_unit,
-        r.hire_date,
-        r.overall_seniority_date,
-        r.bargaining_unit_seniority_date,
-        r.classification_seniority_date,
-        r.cto_designation,
-        r.admin_training_supervisor_since,
-        r.employee_status,
-        r.accrual_paused_since,
-        r.leave_accrual_paused_at,
-        r.medical_ot_exempt,
-        r.is_active,
-        r.updated_at,
-    )))
+    Ok(Json(
+        UserProfileRow {
+            id: r.id,
+            org_id: r.org_id,
+            employee_id: r.employee_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            role: r.role,
+            classification_id: r.classification_id,
+            classification_name: r.classification_name,
+            employee_type: r.employee_type,
+            bargaining_unit: r.bargaining_unit,
+            hire_date: r.hire_date,
+            overall_seniority_date: r.overall_seniority_date,
+            bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
+            classification_seniority_date: r.classification_seniority_date,
+            cto_designation: r.cto_designation,
+            admin_training_supervisor_since: r.admin_training_supervisor_since,
+            employee_status: r.employee_status,
+            accrual_paused_since: r.accrual_paused_since,
+            leave_accrual_paused_at: r.leave_accrual_paused_at,
+            medical_ot_exempt: r.medical_ot_exempt,
+            is_active: r.is_active,
+            updated_at: r.updated_at,
+        }
+        .into(),
+    ))
 }
 
 pub async fn create(
@@ -381,32 +391,39 @@ pub async fn create(
         None
     };
 
-    Ok(Json(build_user_profile(
-        r.id,
-        r.org_id,
-        r.employee_id,
-        r.first_name,
-        r.last_name,
-        r.email,
-        r.phone,
-        r.role,
-        r.classification_id,
-        classification_name,
-        r.employee_type,
-        r.bargaining_unit,
-        r.hire_date,
-        sr.as_ref().and_then(|s| s.overall_seniority_date),
-        sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
-        sr.as_ref().and_then(|s| s.classification_seniority_date),
-        r.cto_designation,
-        r.admin_training_supervisor_since,
-        r.employee_status,
-        sr.as_ref().and_then(|s| s.accrual_pause_started_at),
-        None,
-        r.medical_ot_exempt,
-        r.is_active,
-        r.updated_at,
-    )))
+    Ok(Json(
+        UserProfileRow {
+            id: r.id,
+            org_id: r.org_id,
+            employee_id: r.employee_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            role: r.role,
+            classification_id: r.classification_id,
+            classification_name,
+            employee_type: r.employee_type,
+            bargaining_unit: r.bargaining_unit,
+            hire_date: r.hire_date,
+            overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
+            bargaining_unit_seniority_date: sr
+                .as_ref()
+                .and_then(|s| s.bargaining_unit_seniority_date),
+            classification_seniority_date: sr
+                .as_ref()
+                .and_then(|s| s.classification_seniority_date),
+            cto_designation: r.cto_designation,
+            admin_training_supervisor_since: r.admin_training_supervisor_since,
+            employee_status: r.employee_status,
+            accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
+            leave_accrual_paused_at: None,
+            medical_ot_exempt: r.medical_ot_exempt,
+            is_active: r.is_active,
+            updated_at: r.updated_at,
+        }
+        .into(),
+    ))
 }
 
 pub async fn update(
@@ -751,32 +768,39 @@ pub async fn update(
     .await?
     .flatten();
 
-    Ok(Json(build_user_profile(
-        r.id,
-        r.org_id,
-        r.employee_id,
-        r.first_name,
-        r.last_name,
-        r.email,
-        r.phone,
-        r.role,
-        r.classification_id,
-        classification_name,
-        r.employee_type,
-        r.bargaining_unit,
-        r.hire_date,
-        sr.as_ref().and_then(|s| s.overall_seniority_date),
-        sr.as_ref().and_then(|s| s.bargaining_unit_seniority_date),
-        sr.as_ref().and_then(|s| s.classification_seniority_date),
-        r.cto_designation,
-        r.admin_training_supervisor_since,
-        r.employee_status,
-        sr.as_ref().and_then(|s| s.accrual_pause_started_at),
-        leave_accrual_paused_at,
-        r.medical_ot_exempt,
-        r.is_active,
-        r.updated_at,
-    )))
+    Ok(Json(
+        UserProfileRow {
+            id: r.id,
+            org_id: r.org_id,
+            employee_id: r.employee_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            role: r.role,
+            classification_id: r.classification_id,
+            classification_name,
+            employee_type: r.employee_type,
+            bargaining_unit: r.bargaining_unit,
+            hire_date: r.hire_date,
+            overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
+            bargaining_unit_seniority_date: sr
+                .as_ref()
+                .and_then(|s| s.bargaining_unit_seniority_date),
+            classification_seniority_date: sr
+                .as_ref()
+                .and_then(|s| s.classification_seniority_date),
+            cto_designation: r.cto_designation,
+            admin_training_supervisor_since: r.admin_training_supervisor_since,
+            employee_status: r.employee_status,
+            accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
+            leave_accrual_paused_at,
+            medical_ot_exempt: r.medical_ot_exempt,
+            is_active: r.is_active,
+            updated_at: r.updated_at,
+        }
+        .into(),
+    ))
 }
 
 pub async fn deactivate(

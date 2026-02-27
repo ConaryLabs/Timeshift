@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id AS user_id,\n            u.first_name,\n            u.last_name,\n            bu.carryover_cap_hours AS \"cap!\",\n            lb.leave_type_id,\n            CAST(lb.balance_hours AS FLOAT8) AS \"balance_hours!\"\n        FROM users u\n        JOIN bargaining_units bu\n            ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit\n        JOIN leave_balances lb\n            ON lb.user_id = u.id AND lb.org_id = u.org_id\n        JOIN leave_types lt\n            ON lt.id = lb.leave_type_id\n        WHERE u.org_id = $1\n          AND u.is_active = true\n          AND bu.carryover_cap_hours IS NOT NULL\n          AND bu.carryover_categories != '{}'\n          AND lt.code = ANY(bu.carryover_categories)\n          AND CAST(lb.balance_hours AS FLOAT8) > bu.carryover_cap_hours\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "cap!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "balance_hours!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "fae8e7480efcbcdcface7b0a79dc6598b46df7b3aa1f483c97152f7befa08d38"
+}

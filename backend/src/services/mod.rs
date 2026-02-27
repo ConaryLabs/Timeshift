@@ -1,4 +1,5 @@
 pub mod accrual;
+pub mod availability;
 pub mod bidding;
 pub mod leave;
 pub mod org_settings;

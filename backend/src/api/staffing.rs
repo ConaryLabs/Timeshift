@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-use super::callout::compute_available_employees;
+use crate::services::availability::compute_available_employees;
 
 #[derive(Debug, Deserialize)]
 pub struct AvailableQuery {

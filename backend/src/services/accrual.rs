@@ -71,6 +71,22 @@ pub async fn run_org_accrual(
 ) -> Result<AccrualRunResult> {
     let today = crate::services::timezone::org_today(org_timezone);
 
+    // Enforce carryover caps at fiscal year start before crediting new accruals.
+    // This ensures the cap is applied before any new hours land for the new year.
+    match enforce_carryover_caps(pool, org_id, org_timezone, dry_run).await {
+        Ok(n) if n > 0 => tracing::info!(
+            org_id = %org_id,
+            forfeitures = n,
+            "Carryover cap enforcement applied"
+        ),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(
+            org_id = %org_id,
+            error = %e,
+            "Carryover cap enforcement failed (continuing accrual)"
+        ),
+    }
+
     // Fetch active users with accrual-relevant fields (seniority lives in seniority_records)
     let user_rows = sqlx::query!(
         r#"
@@ -354,6 +370,229 @@ pub async fn run_all_orgs(pool: &PgPool, dry_run: bool) -> Result<Vec<AccrualRun
     }
 
     Ok(results)
+}
+
+/// Enforce carryover caps for an org at fiscal year rollover.
+///
+/// Called on the first day of each new fiscal year. For each active user, if their
+/// balance for a "carryover category" leave type exceeds their bargaining unit's
+/// `carryover_cap_hours`, the excess is forfeited and recorded as a transaction.
+///
+/// Returns the number of forfeitures applied.
+pub async fn enforce_carryover_caps(
+    pool: &PgPool,
+    org_id: Uuid,
+    org_timezone: &str,
+    dry_run: bool,
+) -> Result<u32> {
+    let today = crate::services::timezone::org_today(org_timezone);
+    let fy_start =
+        crate::services::org_settings::get_i64(pool, org_id, "fiscal_year_start_month", 1).await
+            as u32;
+
+    // Only run on the first day of the fiscal year
+    let is_fy_start_day = today.month() as u32 == fy_start && today.day() == 1;
+    if !is_fy_start_day {
+        return Ok(0);
+    }
+
+    // Prevent double-run: check if we already enforced caps for this fiscal year
+    let fy = crate::services::timezone::fiscal_year_for_date(today, fy_start);
+    let last_run_fy = crate::services::org_settings::get_i64(
+        pool,
+        org_id,
+        "carryover_cap_last_run_year",
+        0,
+    )
+    .await;
+    if last_run_fy == fy as i64 && !dry_run {
+        return Ok(0);
+    }
+
+    // Fetch bargaining units that have a carryover cap and at least one carryover category
+    let bu_rows = sqlx::query!(
+        r#"
+        SELECT code, carryover_cap_hours AS "carryover_cap_hours!", carryover_categories
+        FROM bargaining_units
+        WHERE org_id = $1
+          AND is_active = true
+          AND carryover_cap_hours IS NOT NULL
+          AND carryover_categories != '{}'
+        "#,
+        org_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if bu_rows.is_empty() {
+        return Ok(0);
+    }
+
+    // Collect all unique carryover leave type codes across all BUs
+    let all_categories: std::collections::HashSet<String> = bu_rows
+        .iter()
+        .flat_map(|r| r.carryover_categories.iter().cloned())
+        .collect();
+    let categories: Vec<String> = all_categories.into_iter().collect();
+
+    // Resolve leave type codes → IDs
+    let lt_rows = sqlx::query!(
+        "SELECT id, code FROM leave_types WHERE org_id = $1 AND code = ANY($2)",
+        org_id,
+        &categories as &[String],
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if lt_rows.is_empty() {
+        return Ok(0);
+    }
+
+    let lt_id_to_code: std::collections::HashMap<Uuid, String> =
+        lt_rows.iter().map(|r| (r.id, r.code.clone())).collect();
+
+    // Fetch current balances that are over the cap for capped BU users
+    // Join: users → bargaining_units → leave_balances → leave_types
+    let over_cap_rows = sqlx::query!(
+        r#"
+        SELECT
+            u.id AS user_id,
+            u.first_name,
+            u.last_name,
+            bu.carryover_cap_hours AS "cap!",
+            lb.leave_type_id,
+            CAST(lb.balance_hours AS FLOAT8) AS "balance_hours!"
+        FROM users u
+        JOIN bargaining_units bu
+            ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
+        JOIN leave_balances lb
+            ON lb.user_id = u.id AND lb.org_id = u.org_id
+        JOIN leave_types lt
+            ON lt.id = lb.leave_type_id
+        WHERE u.org_id = $1
+          AND u.is_active = true
+          AND bu.carryover_cap_hours IS NOT NULL
+          AND bu.carryover_categories != '{}'
+          AND lt.code = ANY(bu.carryover_categories)
+          AND CAST(lb.balance_hours AS FLOAT8) > bu.carryover_cap_hours
+        "#,
+        org_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if over_cap_rows.is_empty() {
+        if !dry_run {
+            // Record that we ran even if nothing was over cap
+            let fy_val = serde_json::Value::Number(serde_json::Number::from(fy));
+            sqlx::query!(
+                r#"
+                INSERT INTO org_settings (id, org_id, key, value, updated_at)
+                VALUES ($1, $2, 'carryover_cap_last_run_year', $3, NOW())
+                ON CONFLICT (org_id, key) DO UPDATE
+                SET value = $3, updated_at = NOW()
+                "#,
+                Uuid::new_v4(),
+                org_id,
+                fy_val,
+            )
+            .execute(pool)
+            .await?;
+        }
+        return Ok(0);
+    }
+
+    // Get system actor (first admin)
+    let actor_id = sqlx::query_scalar!(
+        "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true ORDER BY created_at LIMIT 1",
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    let actor_id = match actor_id {
+        Some(id) => id,
+        None => return Ok(0),
+    };
+
+    let mut forfeitures: u32 = 0;
+
+    if !dry_run {
+        let mut tx = pool.begin().await?;
+
+        for row in &over_cap_rows {
+            let forfeited = row.balance_hours - row.cap;
+            let leave_code = lt_id_to_code
+                .get(&row.leave_type_id)
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+
+            let note = format!(
+                "Carryover cap enforcement (FY {}): forfeited {:.2} hrs of {} (cap {:.0} hrs)",
+                fy, forfeited, leave_code, row.cap
+            );
+
+            // Record the forfeiture as a negative transaction
+            sqlx::query!(
+                r#"
+                INSERT INTO accrual_transactions
+                    (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
+                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'forfeiture', $6, $7)
+                "#,
+                Uuid::new_v4(),
+                org_id,
+                row.user_id,
+                row.leave_type_id,
+                -forfeited,
+                note,
+                actor_id,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            // Cap the balance
+            sqlx::query!(
+                r#"
+                UPDATE leave_balances
+                SET balance_hours = $3::FLOAT8::NUMERIC,
+                    as_of_date = $4,
+                    updated_at = NOW()
+                WHERE org_id = $1 AND user_id = $2 AND leave_type_id = $5
+                "#,
+                org_id,
+                row.user_id,
+                row.cap,
+                today,
+                row.leave_type_id,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            forfeitures += 1;
+        }
+
+        // Record last-run fiscal year
+        let fy_val = serde_json::Value::Number(serde_json::Number::from(fy));
+        sqlx::query!(
+            r#"
+            INSERT INTO org_settings (id, org_id, key, value, updated_at)
+            VALUES ($1, $2, 'carryover_cap_last_run_year', $3, NOW())
+            ON CONFLICT (org_id, key) DO UPDATE
+            SET value = $3, updated_at = NOW()
+            "#,
+            Uuid::new_v4(),
+            org_id,
+            fy_val,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+    } else {
+        forfeitures = over_cap_rows.len() as u32;
+    }
+
+    Ok(forfeitures)
 }
 
 /// Find all accrual schedules that match a given user.

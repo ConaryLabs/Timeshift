@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO org_settings (id, org_id, key, value, updated_at)\n            VALUES ($1, $2, 'carryover_cap_last_run_year', $3, NOW())\n            ON CONFLICT (org_id, key) DO UPDATE\n            SET value = $3, updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1c2a175ed0ad15bd6529bf3d7b236ff4bcceaa6d371cf520eebd189555059315"
+}
