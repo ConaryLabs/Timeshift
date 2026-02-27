@@ -778,28 +778,36 @@ function ClassificationRow({
 }) {
   const [expanded, setExpanded] = useState(true)
 
-  // Collect unique assignments across all blocks (keyed by assignment_id so
-  // an employee with two assignments — e.g. overnight carryover + today's shift — gets two bars)
-  const uniqueAssignments = useMemo(() => {
-    const seen = new Map<string, { assignmentId: string; userId: string; firstName: string; lastName: string; shiftName: string; shiftStart: string; shiftEnd: string; isOvertime: boolean }>()
+  // Group assignments by employee so each person gets ONE row with multiple bars
+  // (e.g. regular shift bar + OT bar side by side on the same line)
+  type BarSegment = { assignmentId: string; shiftName: string; shiftStart: string; shiftEnd: string; isOvertime: boolean }
+  type EmployeeRow = { userId: string; firstName: string; lastName: string; hasOvertime: boolean; bars: BarSegment[]; earliestStart: string }
+
+  const employeeRows = useMemo(() => {
+    const byUser = new Map<string, EmployeeRow>()
+    const seenAssignments = new Set<string>()
     for (const b of blocks) {
       for (const e of b.employees) {
-        if (!seen.has(e.assignment_id)) {
-          seen.set(e.assignment_id, {
-            assignmentId: e.assignment_id,
-            userId: e.user_id,
-            firstName: e.first_name,
-            lastName: e.last_name,
-            shiftName: e.shift_name,
-            shiftStart: e.shift_start,
-            shiftEnd: e.shift_end,
-            isOvertime: e.is_overtime,
-          })
+        if (seenAssignments.has(e.assignment_id)) continue
+        seenAssignments.add(e.assignment_id)
+        let row = byUser.get(e.user_id)
+        if (!row) {
+          row = { userId: e.user_id, firstName: e.first_name, lastName: e.last_name, hasOvertime: false, bars: [], earliestStart: e.shift_start }
+          byUser.set(e.user_id, row)
         }
+        row.bars.push({
+          assignmentId: e.assignment_id,
+          shiftName: e.shift_name,
+          shiftStart: e.shift_start,
+          shiftEnd: e.shift_end,
+          isOvertime: e.is_overtime,
+        })
+        if (e.is_overtime) row.hasOvertime = true
+        if (e.shift_start < row.earliestStart) row.earliestStart = e.shift_start
       }
     }
-    return Array.from(seen.values()).sort((a, b) =>
-      a.shiftStart.localeCompare(b.shiftStart) || a.lastName.localeCompare(b.lastName),
+    return Array.from(byUser.values()).sort((a, b) =>
+      a.earliestStart.localeCompare(b.earliestStart) || a.lastName.localeCompare(b.lastName),
     )
   }, [blocks])
 
@@ -835,7 +843,7 @@ function ClassificationRow({
         <span className="font-semibold text-sm">{abbreviation}</span>
         <span className="text-xs text-muted-foreground flex items-center gap-1">
           <Users className="h-3 w-3" />
-          {new Set(uniqueAssignments.map(a => a.userId)).size} {new Set(uniqueAssignments.map(a => a.userId)).size === 1 ? 'person' : 'people'}
+          {employeeRows.length} {employeeRows.length === 1 ? 'person' : 'people'}
         </span>
         {hasShortage && (
           <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
@@ -847,58 +855,60 @@ function ClassificationRow({
 
       {expanded && (
         <>
-          {/* Employee Gantt rows */}
-          {uniqueAssignments.length > 0 ? (
+          {/* Employee Gantt rows — one row per person, multiple bars if they have OT */}
+          {employeeRows.length > 0 ? (
             <div className="bg-card">
-              {uniqueAssignments.map((emp, idx) => {
-                const pos = barPosition(emp.shiftStart, emp.shiftEnd)
-                return (
-                  <div
-                    key={emp.assignmentId}
-                    className={cn('flex items-center', idx !== uniqueAssignments.length - 1 && 'border-b border-dashed border-border/50')}
-                  >
-                    {/* Name column */}
-                    <div className="w-36 shrink-0 border-r px-2 py-1 flex items-center gap-1 min-h-[28px]">
-                      <span className="text-xs truncate">
-                        {emp.lastName}, {emp.firstName[0]}.
-                      </span>
-                      {emp.isOvertime && (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 text-amber-700 border-amber-400 bg-amber-50 dark:text-amber-300 dark:border-amber-700 dark:bg-amber-900/30">
-                          OT
-                        </Badge>
-                      )}
-                    </div>
-                    {/* Gantt bar area */}
-                    <div className="flex-1 relative h-7">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={cn(
-                              'absolute top-1 h-5 rounded text-[10px] font-medium flex items-center px-1.5 truncate shadow-sm',
-                              emp.isOvertime
-                                ? 'bg-amber-300/80 text-amber-950 dark:bg-amber-700/70 dark:text-amber-50'
-                                : 'bg-indigo-300/70 text-indigo-950 dark:bg-indigo-700/60 dark:text-indigo-50',
-                            )}
-                            style={{ left: pos.left, width: pos.width }}
-                          >
-                            <span className="truncate">
-                              {emp.shiftName}
-                              {emp.isOvertime && ' OT'}
-                            </span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <div className="text-xs">
-                            <div className="font-medium">{emp.firstName} {emp.lastName}</div>
-                            <div>{emp.shiftName} ({emp.shiftStart}&ndash;{emp.shiftEnd})</div>
-                            {emp.isOvertime && <div className="text-amber-600 font-medium">Overtime</div>}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
+              {employeeRows.map((emp, idx) => (
+                <div
+                  key={emp.userId}
+                  className={cn('flex items-center', idx !== employeeRows.length - 1 && 'border-b border-dashed border-border/50')}
+                >
+                  {/* Name column */}
+                  <div className="w-36 shrink-0 border-r px-2 py-1 flex items-center gap-1 min-h-[28px]">
+                    <span className="text-xs truncate">
+                      {emp.lastName}, {emp.firstName[0]}.
+                    </span>
+                    {emp.hasOvertime && (
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 text-amber-700 border-amber-400 bg-amber-50 dark:text-amber-300 dark:border-amber-700 dark:bg-amber-900/30">
+                        OT
+                      </Badge>
+                    )}
                   </div>
-                )
-              })}
+                  {/* Gantt bar area — all bars for this employee on the same row */}
+                  <div className="flex-1 relative h-7">
+                    {emp.bars.map((bar) => {
+                      const pos = barPosition(bar.shiftStart, bar.shiftEnd)
+                      return (
+                        <Tooltip key={bar.assignmentId}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={cn(
+                                'absolute top-1 h-5 rounded text-[10px] font-medium flex items-center px-1.5 truncate shadow-sm',
+                                bar.isOvertime
+                                  ? 'bg-amber-300/80 text-amber-950 dark:bg-amber-700/70 dark:text-amber-50'
+                                  : 'bg-indigo-300/70 text-indigo-950 dark:bg-indigo-700/60 dark:text-indigo-50',
+                              )}
+                              style={{ left: pos.left, width: pos.width }}
+                            >
+                              <span className="truncate">
+                                {bar.shiftName}
+                                {bar.isOvertime && ' OT'}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="text-xs">
+                              <div className="font-medium">{emp.firstName} {emp.lastName}</div>
+                              <div>{bar.shiftName} ({bar.shiftStart}&ndash;{bar.shiftEnd})</div>
+                              {bar.isOvertime && <div className="text-amber-600 font-medium">Overtime</div>}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="px-4 py-3 text-xs text-muted-foreground italic bg-card">
