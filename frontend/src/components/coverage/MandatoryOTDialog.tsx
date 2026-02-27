@@ -73,6 +73,19 @@ function isTimeBetween(t: number, start: number, end: number): boolean {
 }
 
 /**
+ * Check if two time ranges overlap. All values in minutes [0, 1440).
+ * Handles ranges that cross midnight.
+ */
+function timeRangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  const aCrosses = aEnd <= aStart
+  const bCrosses = bEnd <= bStart
+  if (!aCrosses && !bCrosses) return aStart < bEnd && aEnd > bStart
+  if (aCrosses && !bCrosses) return aStart < bEnd || aEnd > bStart
+  if (!aCrosses && bCrosses) return bStart < aEnd || bEnd > aStart
+  return true // both cross midnight — must overlap
+}
+
+/**
  * Find employees eligible for mandatory OT relative to a time block.
  *
  * Holdover: employees whose shift ends near the block — they stay longer.
@@ -108,7 +121,20 @@ function findBlockEligible(
     if (matchingEmployees.length === 0) continue
 
     // Does this shift already fully cover the block? (no point holding them over)
-    const alreadyCoversBlock = shiftStartMin <= blockStartMin && shiftEndLinear >= blockEndLinear
+    const alreadyCoversBlock = (() => {
+      if (!shift.crosses_midnight) {
+        return shiftStartMin <= blockStartMin && shiftEndLinear >= blockEndLinear
+      }
+      // Midnight-crossing shift: normalize block into shift's linear timeframe
+      // e.g. Grave 22:00-06:00 covers block 04:00-06:00 (morning portion)
+      let normBlockStart = blockStartMin
+      let normBlockEnd = blockEndLinear
+      if (normBlockStart < shiftStartMin) {
+        normBlockStart += 1440
+        normBlockEnd += 1440
+      }
+      return shiftStartMin <= normBlockStart && shiftEndLinear >= normBlockEnd
+    })()
 
     if (direction === 'holdover') {
       // Holdover: shift ends near/within the block → employee stays longer.
@@ -118,6 +144,8 @@ function findBlockEligible(
       if (endInRange && !alreadyCoversBlock) {
         const otStart = shift.end_time
         const otEnd = addHoursToTime(shift.end_time, 2)
+        // Verify OT window actually overlaps the block (not just adjacent)
+        if (!timeRangesOverlap(parseTimeToMin(otStart), parseTimeToMin(otEnd), blockStartMin, rawBlockEndMin)) continue
         for (const emp of matchingEmployees) {
           eligible.push({
             user_id: emp.user_id,
@@ -138,6 +166,8 @@ function findBlockEligible(
       if (startInRange && !alreadyCoversBlock) {
         const otStart = addHoursToTime(shift.start_time, -2)
         const otEnd = shift.start_time
+        // Verify OT window actually overlaps the block (not just adjacent)
+        if (!timeRangesOverlap(parseTimeToMin(otStart), parseTimeToMin(otEnd), blockStartMin, rawBlockEndMin)) continue
         for (const emp of matchingEmployees) {
           eligible.push({
             user_id: emp.user_id,
