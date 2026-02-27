@@ -438,3 +438,62 @@ pub async fn block_available(
         existing_ot_requests,
     }))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct MandatoryOtOrderQuery {
+    pub classification_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MandatoryOtOrderEntry {
+    pub user_id: Uuid,
+    pub last_mandatory_at: Option<String>,
+}
+
+/// GET /api/staffing/mandatory-ot-order
+///
+/// Returns the last mandatory OT assignment date for each user in a classification,
+/// sorted by most overdue first (NULL = never mandated = top priority, then oldest first).
+/// Used by MandatoryOTDialog to order the employee dropdown.
+pub async fn mandatory_ot_order(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Query(params): Query<MandatoryOtOrderQuery>,
+) -> Result<Json<Vec<MandatoryOtOrderEntry>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            u.id AS user_id,
+            MAX(ora.assigned_at)::TEXT AS "last_mandatory_at?"
+        FROM users u
+        LEFT JOIN ot_request_assignments ora ON ora.user_id = u.id
+            AND ora.ot_type = 'mandatory'
+            AND ora.cancelled_at IS NULL
+        LEFT JOIN ot_requests otr ON otr.id = ora.ot_request_id
+            AND otr.org_id = $1
+        WHERE u.org_id = $1
+          AND u.is_active = true
+          AND u.classification_id = $2
+        GROUP BY u.id
+        ORDER BY MAX(ora.assigned_at) ASC NULLS FIRST
+        "#,
+        auth.org_id,
+        params.classification_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let entries: Vec<MandatoryOtOrderEntry> = rows
+        .into_iter()
+        .map(|r| MandatoryOtOrderEntry {
+            user_id: r.user_id,
+            last_mandatory_at: r.last_mandatory_at,
+        })
+        .collect();
+
+    Ok(Json(entries))
+}

@@ -568,6 +568,7 @@ pub(crate) async fn compute_slot_coverage(
     let assignments = sqlx::query!(
         r#"
         SELECT
+            a.user_id,
             u.classification_id AS "classification_id?",
             st.start_time,
             st.end_time,
@@ -590,6 +591,7 @@ pub(crate) async fn compute_slot_coverage(
     let overnight = sqlx::query!(
         r#"
         SELECT
+            a.user_id,
             u.classification_id AS "classification_id?",
             st.end_time
         FROM assignments a
@@ -607,8 +609,11 @@ pub(crate) async fn compute_slot_coverage(
     .await?;
 
     // Build actual headcount map: (classification_id, slot_index) -> count
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
+    // Track which (user_id, classification_id, slot) are covered by regular assignments
+    // so OT doesn't double-count the same person.
+    let mut user_slot_covered: HashSet<(Uuid, Uuid, i16)> = HashSet::new();
 
     for a in &assignments {
         let Some(class_id) = a.classification_id else {
@@ -632,6 +637,7 @@ pub(crate) async fn compute_slot_coverage(
 
         for slot in start_slot..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
+            user_slot_covered.insert((a.user_id, class_id, slot));
         }
     }
 
@@ -652,6 +658,7 @@ pub(crate) async fn compute_slot_coverage(
         let end_slot = end_slot.clamp(0, 47);
         for slot in 0..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
+            user_slot_covered.insert((a.user_id, class_id, slot));
         }
     }
 
@@ -660,6 +667,7 @@ pub(crate) async fn compute_slot_coverage(
     let ot_assignments = sqlx::query!(
         r#"
         SELECT
+            ora.user_id,
             otr.classification_id,
             otr.start_time,
             otr.end_time
@@ -693,7 +701,9 @@ pub(crate) async fn compute_slot_coverage(
         let end_slot = end_slot.clamp(0, 47);
 
         for slot in start_slot..=end_slot {
-            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            if !user_slot_covered.contains(&(ot.user_id, ot.classification_id, slot)) {
+                *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            }
         }
     }
 
@@ -701,6 +711,7 @@ pub(crate) async fn compute_slot_coverage(
     let ot_overnight = sqlx::query!(
         r#"
         SELECT
+            ora.user_id,
             otr.classification_id,
             otr.end_time
         FROM ot_request_assignments ora
@@ -728,7 +739,9 @@ pub(crate) async fn compute_slot_coverage(
         };
         let end_slot = end_slot.clamp(0, 47);
         for slot in 0..=end_slot {
-            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            if !user_slot_covered.contains(&(ot.user_id, ot.classification_id, slot)) {
+                *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            }
         }
     }
 
@@ -1147,6 +1160,7 @@ pub async fn day_grid(
     let ot_assignments = sqlx::query!(
         r#"
         SELECT
+            ora.id AS ora_id,
             ora.user_id,
             u.first_name,
             u.last_name,
@@ -1170,6 +1184,7 @@ pub async fn day_grid(
     let ot_overnight = sqlx::query!(
         r#"
         SELECT
+            ora.id AS ora_id,
             ora.user_id,
             u.first_name,
             u.last_name,
@@ -1190,7 +1205,7 @@ pub async fn day_grid(
     .await?;
 
     // 4. Build per-slot headcount and employee mapping
-    use std::collections::{BTreeMap, BTreeSet, HashMap};
+    use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
     // (classification_id, slot_index) -> count
     let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
@@ -1275,7 +1290,18 @@ pub async fn day_grid(
         }
     }
 
-    // OT request assignments: contribute to slots based on ot_requests start/end time
+    // Track which (user_id, classification_id, slot) are already covered by regular
+    // assignments so OT doesn't double-count the same person in the same slot.
+    let mut user_slot_covered: HashSet<(Uuid, Uuid, i16)> = HashSet::new();
+    for ((class_id, slot), emps) in &emp_map {
+        for e in emps {
+            user_slot_covered.insert((e.user_id, *class_id, *slot));
+        }
+    }
+
+    // OT request assignments: contribute to slots based on ot_requests start/end time.
+    // Only count toward headcount for slots not already covered by the same user's
+    // regular assignment (avoids double-counting).
     for ot in &ot_assignments {
         let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
         let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
@@ -1302,11 +1328,13 @@ pub async fn day_grid(
             shift_start: time_str(ot.start_time),
             shift_end: time_str(ot.end_time),
             is_overtime: true,
-            assignment_id: Uuid::nil(), // OT request assignments don't have an assignment_id
+            assignment_id: ot.ora_id,
         };
 
         for slot in start_slot..=end_slot {
-            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            if !user_slot_covered.contains(&(ot.user_id, ot.classification_id, slot)) {
+                *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            }
             emp_map
                 .entry((ot.classification_id, slot))
                 .or_default()
@@ -1335,11 +1363,13 @@ pub async fn day_grid(
             shift_start: "00:00".to_string(),
             shift_end: time_str(ot.end_time),
             is_overtime: true,
-            assignment_id: Uuid::nil(),
+            assignment_id: ot.ora_id,
         };
 
         for slot in 0..=end_slot {
-            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            if !user_slot_covered.contains(&(ot.user_id, ot.classification_id, slot)) {
+                *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            }
             emp_map
                 .entry((ot.classification_id, slot))
                 .or_default()

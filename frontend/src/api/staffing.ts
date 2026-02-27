@@ -28,10 +28,18 @@ export interface StaffingAvailableResponse {
   existing_ot_requests: OtRequestSummary[]
 }
 
+export interface MandatoryOtOrderEntry {
+  user_id: string
+  last_mandatory_at: string | null
+}
+
 export const staffingApi = {
   getAvailable: (params: { date: string; shift_template_id: string; classification_id?: string }) =>
     api.get<StaffingAvailableResponse>('/api/staffing/available', { params }).then((r) => r.data),
 
   blockAvailable: (params: { date: string; classification_id: string; block_start: string; block_end: string }) =>
     api.get<StaffingAvailableResponse>('/api/staffing/block-available', { params }).then((r) => r.data),
+
+  mandatoryOtOrder: (params: { classification_id: string }) =>
+    api.get<MandatoryOtOrderEntry[]>('/api/staffing/mandatory-ot-order', { params }).then((r) => r.data),
 }
