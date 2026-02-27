@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id,\n            u.employee_id,\n            u.first_name,\n            u.last_name,\n            u.phone AS \"phone?\",\n            (u.classification_id IS DISTINCT FROM $4) AS \"is_cross_class!: bool\",\n            cl.abbreviation AS \"classification_abbreviation?\",\n            sr.overall_seniority_date AS \"overall_seniority_date?\",\n            COALESCE(ot.hours_worked, 0.0)::FLOAT8 AS ot_hours,\n            NOT EXISTS (\n                SELECT 1 FROM assignments a\n                WHERE a.user_id = u.id AND a.scheduled_shift_id = $1\n                  AND a.cancelled_at IS NULL\n            ) AND NOT EXISTS (\n                SELECT 1 FROM leave_requests lr\n                WHERE lr.user_id = u.id\n                  AND lr.org_id = $2\n                  AND lr.status = 'approved'\n                  AND lr.start_date <= $8::DATE\n                  AND lr.end_date   >= $8::DATE\n                  -- Exclude non-overlapping partial-day leave\n                  AND NOT (\n                      -- Has at least one timed line on the shift date\n                      EXISTS (\n                          SELECT 1 FROM leave_request_lines lrl\n                          WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                      )\n                      -- No full-day lines on the shift date\n                      AND NOT EXISTS (\n                          SELECT 1 FROM leave_request_lines lrl\n                          WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                            AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)\n                      )\n                      -- No timed lines overlap with the shift hours\n                      AND NOT EXISTS (\n                          SELECT 1 FROM leave_request_lines lrl\n                          CROSS JOIN LATERAL (\n                              SELECT\n                                  EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                      + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,\n                                  CASE\n                                      WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                          <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.start_time)::INT\n                                      THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440\n                                      ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                  END AS le\n                          ) t\n                          WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                            AND (\n                                (t.ls < $6 AND t.le > $7)\n                                OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)\n                            )\n                      )\n                  )\n            ) AS is_available,\n            CASE\n                WHEN EXISTS (\n                    SELECT 1 FROM assignments a\n                    WHERE a.user_id = u.id AND a.scheduled_shift_id = $1\n                      AND a.cancelled_at IS NULL\n                ) THEN 'Already scheduled'\n                WHEN EXISTS (\n                    SELECT 1 FROM leave_requests lr\n                    WHERE lr.user_id = u.id\n                      AND lr.org_id = $2\n                      AND lr.status = 'approved'\n                      AND lr.start_date <= $8::DATE\n                      AND lr.end_date   >= $8::DATE\n                      AND NOT (\n                          EXISTS (\n                              SELECT 1 FROM leave_request_lines lrl\n                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                                AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                          )\n                          AND NOT EXISTS (\n                              SELECT 1 FROM leave_request_lines lrl\n                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                                AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)\n                          )\n                          AND NOT EXISTS (\n                              SELECT 1 FROM leave_request_lines lrl\n                              CROSS JOIN LATERAL (\n                                  SELECT\n                                      EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                          + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,\n                                      CASE\n                                          WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                              <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.start_time)::INT\n                                          THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440\n                                          ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                      END AS le\n                              ) t\n                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                                AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                                AND (\n                                    (t.ls < $6 AND t.le > $7)\n                                    OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)\n                                )\n                          )\n                      )\n                ) THEN 'On approved leave'\n                ELSE NULL\n            END AS unavailable_reason\n        FROM users u\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        LEFT JOIN ot_hours ot ON ot.user_id = u.id\n            AND ot.fiscal_year = $3\n            AND ot.classification_id = $4\n        LEFT JOIN ot_queue_positions oq ON\n            oq.org_id = $2\n            AND oq.user_id = u.id\n            AND oq.fiscal_year = $3\n            AND oq.classification_id = u.classification_id\n        WHERE u.is_active = true AND u.org_id = $2\n          AND u.medical_ot_exempt = false\n          AND ($5 OR u.classification_id = $4)\n          AND u.classification_id IS NOT NULL\n        ORDER BY\n            (u.classification_id = $4) DESC,\n            (NOT EXISTS (\n                SELECT 1 FROM assignments a2 WHERE a2.user_id = u.id AND a2.scheduled_shift_id = $1\n                  AND a2.cancelled_at IS NULL\n            ) AND NOT EXISTS (\n                SELECT 1 FROM leave_requests lr2\n                WHERE lr2.user_id = u.id AND lr2.org_id = $2\n                  AND lr2.status = 'approved'\n                  AND lr2.start_date <= $8::DATE AND lr2.end_date >= $8::DATE\n                  AND NOT (\n                      EXISTS (\n                          SELECT 1 FROM leave_request_lines lrl\n                          WHERE lrl.leave_request_id = lr2.id AND lrl.date = $8::DATE\n                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                      )\n                      AND NOT EXISTS (\n                          SELECT 1 FROM leave_request_lines lrl\n                          WHERE lrl.leave_request_id = lr2.id AND lrl.date = $8::DATE\n                            AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)\n                      )\n                      AND NOT EXISTS (\n                          SELECT 1 FROM leave_request_lines lrl\n                          CROSS JOIN LATERAL (\n                              SELECT\n                                  EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                      + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,\n                                  CASE\n                                      WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                          <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.start_time)::INT\n                                      THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440\n                                      ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                              + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                      END AS le\n                          ) t\n                          WHERE lrl.leave_request_id = lr2.id AND lrl.date = $8::DATE\n                            AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                            AND (\n                                (t.ls < $6 AND t.le > $7)\n                                OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)\n                            )\n                      )\n                  )\n            )) DESC,\n            oq.last_ot_event_at ASC NULLS FIRST,\n            COALESCE(ot.hours_worked, 0.0) ASC,\n            sr.overall_seniority_date ASC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "phone?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_cross_class!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "classification_abbreviation?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "ot_hours",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_available",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "unavailable_reason",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Uuid",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      null,
+      false,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "69d9e269e185579c796a991f5c4e5432cf29398f1e15d2ec5635c980dd414b71"
+}

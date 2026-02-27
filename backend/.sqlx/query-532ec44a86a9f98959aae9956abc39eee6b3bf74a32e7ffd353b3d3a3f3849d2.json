@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit,\n               u.hire_date,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               u.cto_designation, u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\",\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               u.is_active,\n               u.updated_at\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
+  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit,\n               u.hire_date, u.cto_designation,\n               u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               u.medical_ot_exempt,\n               u.is_active,\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               u.updated_at,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\"\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -93,31 +93,16 @@
       },
       {
         "ordinal": 13,
-        "name": "overall_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 14,
-        "name": "bargaining_unit_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 15,
-        "name": "classification_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 16,
         "name": "cto_designation",
         "type_info": "Bool"
       },
       {
-        "ordinal": 17,
+        "ordinal": 14,
         "name": "admin_training_supervisor_since",
         "type_info": "Date"
       },
       {
-        "ordinal": 18,
+        "ordinal": 15,
         "name": "employee_status: EmployeeStatus",
         "type_info": {
           "Custom": {
@@ -135,24 +120,44 @@
         }
       },
       {
-        "ordinal": 19,
-        "name": "accrual_paused_since?",
-        "type_info": "Date"
+        "ordinal": 16,
+        "name": "medical_ot_exempt",
+        "type_info": "Bool"
       },
       {
-        "ordinal": 20,
-        "name": "leave_accrual_paused_at?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 21,
+        "ordinal": 17,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 22,
+        "ordinal": 18,
+        "name": "leave_accrual_paused_at?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 21,
+        "name": "bargaining_unit_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 22,
+        "name": "classification_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 23,
+        "name": "accrual_paused_since?",
+        "type_info": "Date"
       }
     ],
     "parameters": {
@@ -175,17 +180,18 @@
       false,
       false,
       true,
+      false,
       true,
-      true,
-      true,
+      false,
+      false,
       false,
       true,
       false,
       true,
       true,
-      false,
-      false
+      true,
+      true
     ]
   },
-  "hash": "c7ab74c09b510e24dd5267ca1945685b92dcb810a221e5c5b5bb60ffaf897e1e"
+  "hash": "532ec44a86a9f98959aae9956abc39eee6b3bf74a32e7ffd353b3d3a3f3849d2"
 }

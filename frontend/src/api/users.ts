@@ -31,6 +31,7 @@ export interface UpdateUserRequest {
   bargaining_unit_seniority_date?: string | null
   classification_seniority_date?: string | null
   is_active?: boolean
+  medical_ot_exempt?: boolean
   employee_status?: EmployeeStatus
   /** Pass true when setting a pausing status for OJI/maternity/military (seniority not paused). */
   seniority_pause_exception?: boolean

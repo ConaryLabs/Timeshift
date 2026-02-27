@@ -32,6 +32,7 @@ export interface UserProfile {
   bargaining_unit: string
   employee_status: EmployeeStatus
   accrual_paused_since: string | null
+  medical_ot_exempt: boolean
   is_active: boolean
   /** Present when backend returns it; used for optimistic locking. */
   updated_at?: string

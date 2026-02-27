@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n               u.role AS \"role: Role\",\n               u.classification_id,\n               c.name AS \"classification_name?\",\n               u.employee_type AS \"employee_type: EmployeeType\",\n               u.bargaining_unit,\n               u.hire_date, u.cto_designation,\n               u.admin_training_supervisor_since,\n               u.employee_status AS \"employee_status: EmployeeStatus\",\n               u.is_active,\n               u.leave_accrual_paused_at AS \"leave_accrual_paused_at?\",\n               u.updated_at,\n               sr.overall_seniority_date AS \"overall_seniority_date?\",\n               sr.bargaining_unit_seniority_date AS \"bargaining_unit_seniority_date?\",\n               sr.classification_seniority_date AS \"classification_seniority_date?\",\n               sr.accrual_pause_started_at AS \"accrual_paused_since?\"\n        FROM users u\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        WHERE u.id = $1 AND u.org_id = $2\n        ",
+  "query": "\n            SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n                   password_hash,\n                   role AS \"role: Role\",\n                   classification_id,\n                   employee_type AS \"employee_type: EmployeeType\",\n                   bargaining_unit,\n                   hire_date, cto_designation,\n                   admin_training_supervisor_since,\n                   employee_status AS \"employee_status: EmployeeStatus\",\n                   medical_ot_exempt,\n                   is_active, leave_accrual_paused_at,\n                   created_at, updated_at\n            FROM users\n            WHERE email = $1 AND is_active = true\n            LIMIT 2\n            ",
   "describe": {
     "columns": [
       {
@@ -40,6 +40,11 @@
       },
       {
         "ordinal": 7,
+        "name": "password_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
         "name": "role: Role",
         "type_info": {
           "Custom": {
@@ -55,14 +60,9 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "classification_id",
         "type_info": "Uuid"
-      },
-      {
-        "ordinal": 9,
-        "name": "classification_name?",
-        "type_info": "Text"
       },
       {
         "ordinal": 10,
@@ -121,44 +121,33 @@
       },
       {
         "ordinal": 16,
-        "name": "is_active",
+        "name": "medical_ot_exempt",
         "type_info": "Bool"
       },
       {
         "ordinal": 17,
-        "name": "leave_accrual_paused_at?",
-        "type_info": "Date"
+        "name": "is_active",
+        "type_info": "Bool"
       },
       {
         "ordinal": 18,
-        "name": "updated_at",
-        "type_info": "Timestamptz"
+        "name": "leave_accrual_paused_at",
+        "type_info": "Date"
       },
       {
         "ordinal": 19,
-        "name": "overall_seniority_date?",
-        "type_info": "Date"
+        "name": "created_at",
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 20,
-        "name": "bargaining_unit_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 21,
-        "name": "classification_seniority_date?",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 22,
-        "name": "accrual_paused_since?",
-        "type_info": "Date"
+        "name": "updated_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
@@ -170,11 +159,6 @@
       false,
       true,
       false,
-      true,
-      false,
-      false,
-      false,
-      true,
       false,
       true,
       false,
@@ -182,10 +166,13 @@
       true,
       false,
       true,
+      false,
+      false,
+      false,
       true,
-      true,
-      true
+      false,
+      false
     ]
   },
-  "hash": "e27f941c0335ab66368d7da02297c7b2debd99ca049833c4ea8c02ff331a7475"
+  "hash": "37e37a3cfce87c2b83d56fc26c068f9832d7befcef517a0beb25954becdbed2b"
 }

@@ -39,6 +39,7 @@ fn build_user_profile(
     employee_status: EmployeeStatus,
     accrual_paused_since: Option<time::Date>,
     leave_accrual_paused_at: Option<time::Date>,
+    medical_ot_exempt: bool,
     is_active: bool,
     updated_at: time::OffsetDateTime,
 ) -> UserProfile {
@@ -64,6 +65,7 @@ fn build_user_profile(
         employee_status,
         accrual_paused_since,
         leave_accrual_paused_at,
+        medical_ot_exempt,
         is_active,
         updated_at,
     }
@@ -112,6 +114,7 @@ pub async fn list(
                u.employee_status AS "employee_status: EmployeeStatus",
                sr.accrual_pause_started_at AS "accrual_paused_since?",
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
+               u.medical_ot_exempt,
                u.is_active,
                u.updated_at
         FROM users u
@@ -154,6 +157,7 @@ pub async fn list(
                 r.employee_status,
                 r.accrual_paused_since,
                 r.leave_accrual_paused_at,
+                r.medical_ot_exempt,
                 r.is_active,
                 r.updated_at,
             )
@@ -217,6 +221,7 @@ pub async fn get_one(
                u.employee_status AS "employee_status: EmployeeStatus",
                sr.accrual_pause_started_at AS "accrual_paused_since?",
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
+               u.medical_ot_exempt,
                u.is_active,
                u.updated_at
         FROM users u
@@ -253,6 +258,7 @@ pub async fn get_one(
         r.employee_status,
         r.accrual_paused_since,
         r.leave_accrual_paused_at,
+        r.medical_ot_exempt,
         r.is_active,
         r.updated_at,
     )))
@@ -293,8 +299,9 @@ pub async fn create(
         INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, phone,
                            password_hash, role, classification_id, employee_type,
                            bargaining_unit, hire_date,
-                           cto_designation, admin_training_supervisor_since)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                           cto_designation, admin_training_supervisor_since,
+                           medical_ot_exempt)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING id, org_id, employee_id, first_name, last_name, email, phone,
                   role AS "role: Role",
                   classification_id,
@@ -303,6 +310,7 @@ pub async fn create(
                   hire_date,
                   cto_designation, admin_training_supervisor_since,
                   employee_status AS "employee_status: EmployeeStatus",
+                  medical_ot_exempt,
                   is_active,
                   updated_at
         "#,
@@ -321,6 +329,7 @@ pub async fn create(
         req.hire_date,
         req.cto_designation.unwrap_or(false),
         req.admin_training_supervisor_since,
+        req.medical_ot_exempt.unwrap_or(false),
     )
     .fetch_one(&pool)
     .await?;
@@ -394,6 +403,7 @@ pub async fn create(
         r.employee_status,
         sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         None,
+        r.medical_ot_exempt,
         r.is_active,
         r.updated_at,
     )))
@@ -499,6 +509,7 @@ pub async fn update(
             cto_designation                  = COALESCE($17, cto_designation),
             admin_training_supervisor_since  = CASE WHEN $18 THEN $19 ELSE admin_training_supervisor_since END,
             employee_status                  = COALESCE($20, employee_status),
+            medical_ot_exempt                = COALESCE($21, medical_ot_exempt),
             updated_at                       = NOW()
         WHERE id = $1 AND org_id = $15
         RETURNING id, org_id, employee_id, first_name, last_name, email, phone,
@@ -509,6 +520,7 @@ pub async fn update(
                   hire_date,
                   cto_designation, admin_training_supervisor_since,
                   employee_status AS "employee_status: EmployeeStatus",
+                  medical_ot_exempt,
                   is_active,
                   updated_at
         "#,
@@ -532,6 +544,7 @@ pub async fn update(
         admin_sup_provided,
         admin_sup_val,
         req.employee_status as Option<EmployeeStatus>,
+        req.medical_ot_exempt,
     )
     .fetch_optional(&mut *tx)
     .await?
@@ -747,6 +760,7 @@ pub async fn update(
         r.employee_status,
         sr.as_ref().and_then(|s| s.accrual_pause_started_at),
         leave_accrual_paused_at,
+        r.medical_ot_exempt,
         r.is_active,
         r.updated_at,
     )))

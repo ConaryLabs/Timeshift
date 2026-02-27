@@ -648,9 +648,9 @@ pub async fn volunteer(
         ));
     }
 
-    // Verify user is active
-    let user_active = sqlx::query_scalar!(
-        "SELECT is_active FROM users WHERE id = $1 AND org_id = $2",
+    // Verify user is active and not OT-exempt
+    let user_row = sqlx::query!(
+        "SELECT is_active, medical_ot_exempt FROM users WHERE id = $1 AND org_id = $2",
         auth.id,
         auth.org_id,
     )
@@ -658,8 +658,14 @@ pub async fn volunteer(
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-    if !user_active {
+    if !user_row.is_active {
         return Err(AppError::Forbidden);
+    }
+
+    if user_row.medical_ot_exempt {
+        return Err(AppError::BadRequest(
+            "You have a medical OT exemption and cannot volunteer for overtime.".into(),
+        ));
     }
 
     // Check for existing active volunteer entry (not withdrawn)
@@ -795,6 +801,20 @@ pub async fn assign(
 
     // Verify user belongs to org and is active
     org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
+
+    // Block assignment if user has a medical OT exemption
+    let is_ot_exempt = sqlx::query_scalar!(
+        "SELECT medical_ot_exempt FROM users WHERE id = $1",
+        req.user_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if is_ot_exempt {
+        return Err(AppError::BadRequest(
+            "This employee has a medical OT exemption and cannot be assigned overtime.".into(),
+        ));
+    }
 
     // Check for existing active assignment
     let already_assigned = sqlx::query_scalar!(

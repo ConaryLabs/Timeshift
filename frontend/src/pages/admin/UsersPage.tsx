@@ -88,6 +88,7 @@ const editSchema = z.object({
   employee_type: z.enum(['regular_full_time', 'job_share', 'medical_part_time', 'temp_part_time'] as const),
   hire_date: z.string().optional(),
   overall_seniority_date: z.string().optional(),
+  medical_ot_exempt: z.boolean().optional(),
   employee_status: z.enum(['active', 'unpaid_loa', 'lwop', 'layoff', 'separated'] as const),
   seniority_pause_exception: z.boolean().optional(),
 })
@@ -169,6 +170,7 @@ export default function UsersPage() {
       employee_type: item.employee_type,
       hire_date: item.hire_date ?? '',
       overall_seniority_date: item.overall_seniority_date ?? '',
+      medical_ot_exempt: item.medical_ot_exempt,
       employee_status: item.employee_status,
       seniority_pause_exception: false,
     })
@@ -208,6 +210,7 @@ export default function UsersPage() {
       classification_id: values.classification_id || null,
       hire_date: values.hire_date || null,
       overall_seniority_date: values.overall_seniority_date || null,
+      medical_ot_exempt: values.medical_ot_exempt,
       employee_status: values.employee_status,
       seniority_pause_exception: values.seniority_pause_exception ?? false,
       expected_updated_at: editingItem.updated_at,
@@ -336,6 +339,11 @@ export default function UsersPage() {
           {r.employee_status !== 'active' && (
             <Badge variant="outline" className={`text-xs capitalize ${STATUS_COLORS[r.employee_status]}`}>
               {EMPLOYEE_STATUSES.find((s) => s.value === r.employee_status)?.label ?? r.employee_status}
+            </Badge>
+          )}
+          {r.medical_ot_exempt && (
+            <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-200">
+              OT Exempt
             </Badge>
           )}
         </div>
@@ -511,6 +519,17 @@ export default function UsersPage() {
                 <FormField label="Seniority Date" htmlFor="ue-sen">
                   <Input id="ue-sen" type="date" {...editForm.register('overall_seniority_date')} />
                 </FormField>
+              </div>
+              <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <Label htmlFor="ue-ot-exempt" className="text-sm font-medium">Medical OT Exemption</Label>
+                  <p className="text-xs text-muted-foreground">Employee cannot be assigned or volunteer for overtime</p>
+                </div>
+                <Switch
+                  id="ue-ot-exempt"
+                  checked={editForm.watch('medical_ot_exempt') ?? false}
+                  onCheckedChange={(checked) => editForm.setValue('medical_ot_exempt', checked, { shouldDirty: true })}
+                />
               </div>
               <FormField label="Leave / Employment Status" htmlFor="ue-status">
                 <Select
