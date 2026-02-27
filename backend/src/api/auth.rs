@@ -246,8 +246,11 @@ pub async fn login(
         state.access_token_expiry_minutes * 60,
         secure_flag,
     );
+    // Cookie format: "{family_id}:{raw_token}" — family_id enables revocation of
+    // all tokens in a family when token reuse is detected (theft detection).
     let refresh_cookie = format!(
-        "refresh_token={}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        "refresh_token={}:{}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        family_id,
         refresh_raw,
         state.refresh_token_expiry_days * 86400,
         secure_flag,
@@ -365,7 +368,16 @@ pub async fn refresh(
     State(state): State<AppState>,
     RefreshTokenCookie(raw): RefreshTokenCookie,
 ) -> Result<impl IntoResponse> {
-    let hashed = hash_token(&raw);
+    // Cookie format: "{family_id}:{raw_token}" (new) or just "{raw_token}" (legacy).
+    // Extracting the family_id enables full-family revocation on token reuse.
+    let (cookie_family_id, raw_token) = if let Some(idx) = raw.find(':') {
+        let fam = Uuid::parse_str(&raw[..idx]).ok();
+        (fam, raw[idx + 1..].to_string())
+    } else {
+        (None, raw.clone())
+    };
+
+    let hashed = hash_token(&raw_token);
 
     struct RefreshRow {
         id: Uuid,
@@ -386,11 +398,23 @@ pub async fn refresh(
     let row = match row {
         Some(r) => r,
         None => {
-            // Token not found — possible reuse after rotation.
-            // We cannot determine the family without the token, so just reject.
-            // (A more aggressive approach would store the family_id in the cookie,
-            // but the SHA-256 hash means we can't look up the family from a reused token
-            // that's already been deleted. This is the standard trade-off.)
+            // Token not found — likely reuse of an already-rotated token (theft indicator).
+            // Revoke the entire token family to invalidate any stolen tokens.
+            if let Some(fam_id) = cookie_family_id {
+                tracing::warn!(
+                    family_id = %fam_id,
+                    "Refresh token reuse detected; revoking entire family"
+                );
+                if let Err(e) = sqlx::query!(
+                    "DELETE FROM refresh_tokens WHERE family_id = $1",
+                    fam_id
+                )
+                .execute(&state.pool)
+                .await
+                {
+                    tracing::warn!("Failed to revoke token family {fam_id}: {e}");
+                }
+            }
             return Err(AppError::Unauthorized(None));
         }
     };
@@ -482,7 +506,8 @@ pub async fn refresh(
         secure_flag,
     );
     let refresh_cookie = format!(
-        "refresh_token={}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        "refresh_token={}:{}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        row.family_id,
         new_refresh_raw,
         state.refresh_token_expiry_days * 86400,
         secure_flag,
