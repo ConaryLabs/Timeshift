@@ -205,6 +205,8 @@ export const queryKeys = {
       ['staffing', 'available', date, shiftTemplateId, classificationId] as const,
     blockAvailable: (date: string, classificationId: string, blockStart: string, blockEnd: string) =>
       ['staffing', 'block-available', date, classificationId, blockStart, blockEnd] as const,
+    mandatoryOtOrder: (classificationId: string) =>
+      ['staffing', 'mandatory-ot-order', classificationId] as const,
   },
 } as const
 
@@ -1771,6 +1773,15 @@ export function useBlockAvailable(date: string, classificationId: string, blockS
     queryFn: () => staffingApi.blockAvailable({ date, classification_id: classificationId, block_start: blockStart, block_end: blockEnd }),
     enabled: !!date && !!classificationId && !!blockStart && !!blockEnd,
     staleTime: 15_000,
+  })
+}
+
+export function useMandatoryOtOrder(classificationId: string) {
+  return useQuery({
+    queryKey: queryKeys.staffing.mandatoryOtOrder(classificationId),
+    queryFn: () => staffingApi.mandatoryOtOrder({ classification_id: classificationId }),
+    enabled: !!classificationId,
+    staleTime: 30_000,
   })
 }
 

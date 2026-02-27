@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCreateOtRequest, useAssignOtRequest, useDayView } from '@/hooks/queries'
+import { useCreateOtRequest, useAssignOtRequest, useDayView, useMandatoryOtOrder } from '@/hooks/queries'
 import { formatTime, extractApiError } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
 import type { DayViewEntry, GridAssignment } from '@/api/schedule'
@@ -162,6 +162,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   const [direction, setDirection] = useState<OtDirection>('holdover')
 
   const { data: dayView } = useDayView(date)
+  const { data: mandatoryOrder } = useMandatoryOtOrder(gap.classification_id)
   const createOt = useCreateOtRequest()
   const assignOt = useAssignOtRequest()
 
@@ -186,8 +187,18 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   // Block mode: find eligible employees across all shifts
   const blockEligible = useMemo(() => {
     if (!isBlockMode || !dayView || !blockTimes) return []
-    return findBlockEligible(dayView, gap.classification_abbreviation, blockTimes.start, blockTimes.end, direction)
-  }, [isBlockMode, dayView, blockTimes, gap.classification_abbreviation, direction])
+    const eligible = findBlockEligible(dayView, gap.classification_abbreviation, blockTimes.start, blockTimes.end, direction)
+    // Sort by mandatory OT order: most overdue first (never mandated → top, oldest → next)
+    if (mandatoryOrder) {
+      const orderMap = new Map(mandatoryOrder.map((e, i) => [e.user_id, i]))
+      eligible.sort((a, b) => {
+        const ai = orderMap.get(a.user_id) ?? Infinity
+        const bi = orderMap.get(b.user_id) ?? Infinity
+        return ai - bi
+      })
+    }
+    return eligible
+  }, [isBlockMode, dayView, blockTimes, gap.classification_abbreviation, direction, mandatoryOrder])
 
   const selectedBlockEmp = blockEligible.find((e) => e.user_id === selectedUserId)
 

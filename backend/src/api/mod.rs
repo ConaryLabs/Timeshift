@@ -442,6 +442,7 @@ pub fn router(state: AppState) -> Router {
         // Staffing
         .route("/api/staffing/available", get(staffing::available_employees))
         .route("/api/staffing/block-available", get(staffing::block_available))
+        .route("/api/staffing/mandatory-ot-order", get(staffing::mandatory_ot_order))
         // OT Queue & Hours
         .route("/api/ot/queue", get(ot::get_queue))
         .route("/api/ot/queue/set-position", patch(ot::set_queue_position))
