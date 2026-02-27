@@ -1143,6 +1143,52 @@ pub async fn day_grid(
     .fetch_all(&pool)
     .await?;
 
+    // 3b. Fetch active OT request assignments for this date
+    let ot_assignments = sqlx::query!(
+        r#"
+        SELECT
+            ora.user_id,
+            u.first_name,
+            u.last_name,
+            otr.classification_id,
+            otr.start_time,
+            otr.end_time
+        FROM ot_request_assignments ora
+        JOIN ot_requests otr ON otr.id = ora.ot_request_id
+        JOIN users u ON u.id = ora.user_id
+        WHERE otr.org_id = $1 AND otr.date = $2
+          AND ora.cancelled_at IS NULL
+          AND otr.status != 'cancelled'
+        "#,
+        auth.org_id,
+        date,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    // 3c. Fetch overnight OT request assignments from previous day (crossing midnight)
+    let ot_overnight = sqlx::query!(
+        r#"
+        SELECT
+            ora.user_id,
+            u.first_name,
+            u.last_name,
+            otr.classification_id,
+            otr.end_time
+        FROM ot_request_assignments ora
+        JOIN ot_requests otr ON otr.id = ora.ot_request_id
+        JOIN users u ON u.id = ora.user_id
+        WHERE otr.org_id = $1 AND otr.date = $2
+          AND otr.end_time < otr.start_time
+          AND ora.cancelled_at IS NULL
+          AND otr.status != 'cancelled'
+        "#,
+        auth.org_id,
+        prev_date,
+    )
+    .fetch_all(&pool)
+    .await?;
+
     // 4. Build per-slot headcount and employee mapping
     use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -1224,6 +1270,78 @@ pub async fn day_grid(
             *actual.entry((class_id, slot)).or_insert(0) += 1;
             emp_map
                 .entry((class_id, slot))
+                .or_default()
+                .push(emp.clone());
+        }
+    }
+
+    // OT request assignments: contribute to slots based on ot_requests start/end time
+    for ot in &ot_assignments {
+        let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
+        let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
+        let crosses_midnight = end_min <= start_min;
+
+        let effective_end = if crosses_midnight { 24 * 60 } else { end_min };
+        let start_slot = (start_min / 30) as i16;
+        let end_slot = if effective_end % 30 == 0 {
+            (effective_end / 30 - 1) as i16
+        } else {
+            (effective_end / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+
+        let emp = BlockEmployee {
+            user_id: ot.user_id,
+            first_name: ot.first_name.clone(),
+            last_name: ot.last_name.clone(),
+            shift_name: format!(
+                "OT {}-{}",
+                time_str(ot.start_time),
+                time_str(ot.end_time)
+            ),
+            shift_start: time_str(ot.start_time),
+            shift_end: time_str(ot.end_time),
+            is_overtime: true,
+            assignment_id: Uuid::nil(), // OT request assignments don't have an assignment_id
+        };
+
+        for slot in start_slot..=end_slot {
+            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            emp_map
+                .entry((ot.classification_id, slot))
+                .or_default()
+                .push(emp.clone());
+        }
+    }
+
+    // Overnight OT: these contribute from slot 0 to end_time on this date
+    for ot in &ot_overnight {
+        let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
+        if end_min == 0 {
+            continue;
+        }
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+
+        let emp = BlockEmployee {
+            user_id: ot.user_id,
+            first_name: ot.first_name.clone(),
+            last_name: ot.last_name.clone(),
+            shift_name: format!("OT (overnight) ->{}", time_str(ot.end_time)),
+            shift_start: "00:00".to_string(),
+            shift_end: time_str(ot.end_time),
+            is_overtime: true,
+            assignment_id: Uuid::nil(),
+        };
+
+        for slot in 0..=end_slot {
+            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+            emp_map
+                .entry((ot.classification_id, slot))
                 .or_default()
                 .push(emp.clone());
         }

@@ -228,6 +228,14 @@ pub(crate) async fn compute_available_employees(
                 WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
                   AND a.cancelled_at IS NULL
             ) AND NOT EXISTS (
+                SELECT 1 FROM ot_request_assignments ora
+                JOIN ot_requests otr ON otr.id = ora.ot_request_id
+                WHERE ora.user_id = u.id
+                  AND otr.org_id = $2
+                  AND otr.date = $8::DATE
+                  AND ora.cancelled_at IS NULL
+                  AND otr.status != 'cancelled'
+            ) AND NOT EXISTS (
                 SELECT 1 FROM leave_requests lr
                 WHERE lr.user_id = u.id
                   AND lr.org_id = $2
@@ -281,6 +289,15 @@ pub(crate) async fn compute_available_employees(
                     WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
                       AND a.cancelled_at IS NULL
                 ) THEN 'Already scheduled'
+                WHEN EXISTS (
+                    SELECT 1 FROM ot_request_assignments ora
+                    JOIN ot_requests otr ON otr.id = ora.ot_request_id
+                    WHERE ora.user_id = u.id
+                      AND otr.org_id = $2
+                      AND otr.date = $8::DATE
+                      AND ora.cancelled_at IS NULL
+                      AND otr.status != 'cancelled'
+                ) THEN 'Assigned to OT'
                 WHEN EXISTS (
                     SELECT 1 FROM leave_requests lr
                     WHERE lr.user_id = u.id
@@ -347,6 +364,14 @@ pub(crate) async fn compute_available_employees(
             (NOT EXISTS (
                 SELECT 1 FROM assignments a2 WHERE a2.user_id = u.id AND a2.scheduled_shift_id = $1
                   AND a2.cancelled_at IS NULL
+            ) AND NOT EXISTS (
+                SELECT 1 FROM ot_request_assignments ora2
+                JOIN ot_requests otr2 ON otr2.id = ora2.ot_request_id
+                WHERE ora2.user_id = u.id
+                  AND otr2.org_id = $2
+                  AND otr2.date = $8::DATE
+                  AND ora2.cancelled_at IS NULL
+                  AND otr2.status != 'cancelled'
             ) AND NOT EXISTS (
                 SELECT 1 FROM leave_requests lr2
                 WHERE lr2.user_id = u.id AND lr2.org_id = $2

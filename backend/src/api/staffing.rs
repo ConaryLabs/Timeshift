@@ -291,16 +291,27 @@ pub async fn block_available(
 
     for t in &templates {
         let t_start = t.start_time.hour() as i32 * 60 + t.start_time.minute() as i32;
-        let t_end = if t.crosses_midnight {
-            24 * 60
-        } else {
-            t.end_time.hour() as i32 * 60 + t.end_time.minute() as i32
-        };
+        let t_end_raw = t.end_time.hour() as i32 * 60 + t.end_time.minute() as i32;
 
-        // Calculate overlap
-        let overlap_start = t_start.max(block_start_min);
-        let overlap_end = t_end.min(block_end_min);
-        let overlap = (overlap_end - overlap_start).max(0);
+        let overlap = if t.crosses_midnight {
+            // Midnight-crossing shift spans two intervals:
+            //   evening portion: [t_start, 1440)  and  morning portion: [0, t_end_raw)
+            let evening_overlap = {
+                let os = t_start.max(block_start_min);
+                let oe = 1440i32.min(block_end_min);
+                (oe - os).max(0)
+            };
+            let morning_overlap = {
+                let os = 0i32.max(block_start_min);
+                let oe = t_end_raw.min(block_end_min);
+                (oe - os).max(0)
+            };
+            evening_overlap + morning_overlap
+        } else {
+            let os = t_start.max(block_start_min);
+            let oe = t_end_raw.min(block_end_min);
+            (oe - os).max(0)
+        };
 
         if overlap > best_overlap {
             best_overlap = overlap;
@@ -377,7 +388,7 @@ pub async fn block_available(
         current_step: r.current_step,
     });
 
-    // Check for OT requests on this date + classification
+    // Check for OT requests on this date + classification that overlap this block
     let ot_rows = sqlx::query!(
         r#"
         SELECT otr.id,
@@ -391,11 +402,15 @@ pub async fn block_available(
           AND otr.date = $2
           AND otr.classification_id = $3
           AND otr.status != 'cancelled'
+          AND otr.start_time < $5
+          AND otr.end_time > $4
         ORDER BY otr.start_time
         "#,
         auth.org_id,
         params.date,
         params.classification_id,
+        block_start,
+        block_end,
     )
     .fetch_all(&pool)
     .await?;
