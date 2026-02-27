@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/select'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { formatTime, formatDate, extractApiError } from '@/lib/format'
-import { isConflictError } from '@/lib/utils'
+import { isConflictError, isSoftLimitError } from '@/lib/utils'
 import type { OtRequestVolunteer, OtRequestAssignment, OtType } from '@/api/otRequests'
 
 function formatDateTime(iso: string): string {
@@ -73,7 +73,9 @@ function otTypeLabel(ot: OtType): string {
     case 'voluntary':
       return 'Voluntary'
     case 'mandatory':
-      return 'Mandatory'
+      return 'Mandatory (on-shift)'
+    case 'mandatory_day_off':
+      return 'Mandatory (day off)'
     case 'fixed_coverage':
       return 'Fixed Coverage'
     default:
@@ -95,6 +97,7 @@ export default function OtRequestDetailPage() {
 
   const [assigningVolunteer, setAssigningVolunteer] = useState<OtRequestVolunteer | null>(null)
   const [assignOtType, setAssignOtType] = useState<OtType>('voluntary')
+  const [softLimitMessage, setSoftLimitMessage] = useState<string | null>(null)
   const [cancellingAssignment, setCancellingAssignment] = useState<OtRequestAssignment | null>(null)
   const [showCancelRequest, setShowCancelRequest] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -135,16 +138,21 @@ export default function OtRequestDetailPage() {
   const activeAssignments = request.assignments.filter((a) => !a.cancelled_at)
   const cancelledAssignments = request.assignments.filter((a) => a.cancelled_at)
 
-  function handleAssign() {
+  function handleAssign(force?: boolean) {
     if (!assigningVolunteer || !id) return
     assignMut.mutate(
-      { id, user_id: assigningVolunteer.user_id, ot_type: assignOtType },
+      { id, user_id: assigningVolunteer.user_id, ot_type: assignOtType, force },
       {
         onSuccess: () => {
           toast.success(`Assigned ${assigningVolunteer.user_name}`)
           setAssigningVolunteer(null)
+          setSoftLimitMessage(null)
         },
         onError: (err: unknown) => {
+          if (isSoftLimitError(err)) {
+            setSoftLimitMessage(extractApiError(err, 'Approaching daily hour limit.'))
+            return
+          }
           toast.error(extractApiError(err, 'Failed to assign'))
         },
       },
@@ -503,7 +511,8 @@ export default function OtRequestDetailPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="voluntary">Voluntary</SelectItem>
-                  <SelectItem value="mandatory">Mandatory</SelectItem>
+                  <SelectItem value="mandatory">Mandatory (on-shift)</SelectItem>
+                  <SelectItem value="mandatory_day_off">Mandatory (day off)</SelectItem>
                   <SelectItem value="fixed_coverage">Fixed Coverage</SelectItem>
                 </SelectContent>
               </Select>
@@ -513,12 +522,34 @@ export default function OtRequestDetailPage() {
             <Button variant="outline" onClick={() => setAssigningVolunteer(null)}>
               Cancel
             </Button>
-            <Button onClick={handleAssign} disabled={assignMut.isPending}>
+            <Button onClick={() => handleAssign()} disabled={assignMut.isPending}>
               Assign
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Soft-limit warning — voluntary OT approaching 14-hour daily max */}
+      <AlertDialog open={!!softLimitMessage} onOpenChange={(open) => { if (!open) setSoftLimitMessage(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approaching Daily Hour Limit</AlertDialogTitle>
+            <AlertDialogDescription>{softLimitMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setSoftLimitMessage(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setSoftLimitMessage(null)
+                handleAssign(true)
+              }}
+              disabled={assignMut.isPending}
+            >
+              Assign Anyway
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel assignment confirmation */}
       <AlertDialog open={!!cancellingAssignment} onOpenChange={(open) => { if (!open) setCancellingAssignment(null) }}>

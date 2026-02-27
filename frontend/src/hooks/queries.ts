@@ -1427,7 +1427,7 @@ export function useWithdrawVolunteerOtRequest() {
 export function useAssignOtRequest() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'fixed_coverage' }) =>
+    mutationFn: ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'mandatory_day_off' | 'fixed_coverage'; force?: boolean }) =>
       otRequestsApi.assign(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
   })

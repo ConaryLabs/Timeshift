@@ -819,21 +819,28 @@ pub async fn assign(
     // Validate ot_type
     if !matches!(
         ot_type.as_str(),
-        "voluntary" | "mandatory" | "fixed_coverage"
+        "voluntary" | "mandatory" | "mandatory_day_off" | "fixed_coverage"
     ) {
         return Err(AppError::BadRequest(
-            "ot_type must be one of: voluntary, mandatory, fixed_coverage".into(),
+            "ot_type must be one of: voluntary, mandatory, mandatory_day_off, fixed_coverage"
+                .into(),
         ));
     }
 
     // ── Contract rule enforcement ────────────────────────────────────────────
-    // Rule 1: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
-    // Day-off mandatory OT (4–6h blocks) is handled via the callout process.
+    // Rule 1a: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
     if ot_type == "mandatory" && request.hours > 2.0 {
         return Err(AppError::BadRequest(
             "Mandatory OT cannot exceed 2 hours before or after the employee's scheduled shift \
-             (VCCEA § 4.4.3). For day-off assignments, use the callout process."
+             (VCCEA § 4.4.3). For day-off assignments, use the day-off mandatory OT path."
                 .into(),
+        ));
+    }
+
+    // Rule 1b: Day-off mandatory OT must be 4–6 hours (VCCEA § 4.4.3).
+    if ot_type == "mandatory_day_off" && !(4.0..=6.0).contains(&request.hours) {
+        return Err(AppError::BadRequest(
+            "Day-off mandatory OT must be between 4 and 6 hours (VCCEA § 4.4.3).".into(),
         ));
     }
 
@@ -874,6 +881,18 @@ pub async fn assign(
     .await?;
 
     let total_hours = scheduled_hours_today + ot_hours_today + request.hours;
+
+    // Rule 2a: Voluntary OT soft warning — flag when the assignment would bring the employee
+    // to 12+ hours. The supervisor can bypass with `force: true`.
+    if ot_type == "voluntary" && total_hours >= 12.0 && !req.force.unwrap_or(false) {
+        return Err(AppError::SoftLimit(format!(
+            "Assigning this OT would bring the employee to {:.1} hours on {} — approaching \
+             the 14-hour daily maximum. Confirm to proceed.",
+            total_hours, request.date,
+        )));
+    }
+
+    // Rule 2b: Hard 14-hour daily maximum for all OT types (VCCEA § 4.4.3 / SOP 120 § 3.7).
     if total_hours > 14.0 {
         return Err(AppError::BadRequest(format!(
             "Assignment would bring employee to {:.1} hours on {} — exceeding the 14-hour \
@@ -882,9 +901,9 @@ pub async fn assign(
         )));
     }
 
-    // Rule 3: Mandatory OT must leave ≥ 10 hours before the employee's next regular shift
-    // (VCCEA § 4.4.3). For midnight-crossing OT the effective end is on the following day.
-    if ot_type == "mandatory" {
+    // Rule 3: Mandatory OT (on-shift or day-off) must leave ≥ 10 hours before the employee's
+    // next regular shift (VCCEA § 4.4.3). Midnight-crossing OT ends on the following day.
+    if ot_type == "mandatory" || ot_type == "mandatory_day_off" {
         let ot_crosses_midnight = request.end_time < request.start_time;
         let search_date = if ot_crosses_midnight {
             request.date.next_day().unwrap_or(request.date)

@@ -24,6 +24,11 @@ pub enum AppError {
     #[error("Too many requests: {0}")]
     TooManyRequests(String),
 
+    /// Soft contract limit — can be bypassed by the caller with `force: true`.
+    /// Returns 409 with `{"error": "...", "soft_limit": true}`.
+    #[error("Soft limit: {0}")]
+    SoftLimit(String),
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -40,6 +45,13 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
+            AppError::SoftLimit(msg) => {
+                return (
+                    StatusCode::CONFLICT,
+                    Json(json!({ "error": msg, "soft_limit": true })),
+                )
+                    .into_response();
+            }
             AppError::Validation(e) => {
                 let messages: Vec<String> = e
                     .field_errors()
