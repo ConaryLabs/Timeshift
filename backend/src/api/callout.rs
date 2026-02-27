@@ -339,6 +339,7 @@ pub(crate) async fn compute_available_employees(
             AND oq.fiscal_year = $3
             AND oq.classification_id = u.classification_id
         WHERE u.is_active = true AND u.org_id = $2
+          AND u.medical_ot_exempt = false
           AND ($5 OR u.classification_id = $4)
           AND u.classification_id IS NOT NULL
         ORDER BY

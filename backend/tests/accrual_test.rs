@@ -59,6 +59,40 @@ async fn create_schedule(
     id
 }
 
+/// Helper: ensure the test org has an admin user (needed by accrual engine for created_by).
+/// Idempotent — safe to call multiple times for the same org.
+async fn ensure_admin_user(pool: &PgPool, org_id: Uuid) {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true)",
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+
+    if !exists {
+        let salt = SaltString::generate(&mut OsRng);
+        let hash = Argon2::default()
+            .hash_password(b"admin123", &salt)
+            .unwrap()
+            .to_string();
+
+        sqlx::query(
+            "INSERT INTO users (id, org_id, first_name, last_name, email, password_hash, role, \
+             employee_type, bargaining_unit, is_active) \
+             VALUES ($1, $2, 'System', 'Admin', $3, $4, 'admin'::app_role, \
+             'temp_part_time'::employee_type_enum, 'non_represented', true)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(org_id)
+        .bind(format!("admin-{}@accrual.test", &org_id.to_string()[..8]))
+        .bind(&hash)
+        .execute(pool)
+        .await
+        .expect("create admin user for accrual");
+    }
+}
+
 /// Helper: create a user with employee_type and bargaining_unit, plus a seniority record
 #[allow(clippy::too_many_arguments)]
 async fn create_accrual_user(
@@ -150,6 +184,7 @@ async fn count_transactions(pool: &PgPool, user_id: Uuid, leave_type_id: Uuid) -
 async fn test_accrual_basic_credit() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-basic").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
     // Schedule: 4.0 hrs/period for regular_full_time, 0+ YOS
@@ -166,7 +201,7 @@ async fn test_accrual_basic_credit() {
     ).await.expect("accrual run");
 
     assert_eq!(result.credits_applied, 1);
-    assert_eq!(result.users_processed, 1);
+    assert!(result.users_processed >= 1, "At least the test user should be processed");
     assert!((get_balance(&pool, org_id, user_id, vac_id).await - 4.0).abs() < 0.01);
     assert_eq!(count_transactions(&pool, user_id, vac_id).await, 1);
 
@@ -177,6 +212,7 @@ async fn test_accrual_basic_credit() {
 async fn test_accrual_yos_tier_matching() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-yos").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
 
@@ -226,6 +262,7 @@ async fn test_accrual_yos_tier_matching() {
 async fn test_accrual_bu_precedence() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-bu").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
 
@@ -265,6 +302,7 @@ async fn test_accrual_bu_precedence() {
 async fn test_accrual_pause_skips_user() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-pause").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
     create_schedule(&pool, org_id, vac_id, "regular_full_time", None, 0, None, 4.0, None).await;
@@ -297,6 +335,7 @@ async fn test_accrual_pause_skips_user() {
 async fn test_accrual_max_balance_cap() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-cap").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
     // Schedule: 4.0 hrs/period, max 5.0 hrs balance
@@ -339,6 +378,7 @@ async fn test_accrual_max_balance_cap() {
 async fn test_accrual_max_balance_already_at_cap() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-atcap").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
     create_schedule(&pool, org_id, vac_id, "regular_full_time", None, 0, None, 4.0, Some(10.0)).await;
@@ -375,6 +415,7 @@ async fn test_accrual_max_balance_already_at_cap() {
 async fn test_accrual_idempotent_rerun() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-idempotent").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
     create_schedule(&pool, org_id, vac_id, "regular_full_time", None, 0, None, 4.0, None).await;
@@ -425,6 +466,7 @@ async fn test_accrual_idempotent_rerun() {
 async fn test_accrual_dry_run() {
     let (_addr, pool) = setup_test_app().await;
     let org_id = create_test_org(&pool, "accrual-dryrun").await;
+    ensure_admin_user(&pool, org_id).await;
 
     let vac_id = create_leave_type(&pool, org_id, "VAC", "Vacation").await;
     create_schedule(&pool, org_id, vac_id, "regular_full_time", None, 0, None, 4.0, None).await;

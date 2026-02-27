@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, org_id, employee_id, first_name, last_name, email, phone,\n                   password_hash,\n                   role AS \"role: Role\",\n                   classification_id,\n                   employee_type AS \"employee_type: EmployeeType\",\n                   bargaining_unit,\n                   hire_date, cto_designation,\n                   admin_training_supervisor_since,\n                   employee_status AS \"employee_status: EmployeeStatus\",\n                   is_active, leave_accrual_paused_at,\n                   created_at, updated_at\n            FROM users\n            WHERE email = $1 AND is_active = true\n            LIMIT 2\n            ",
+  "query": "\n            SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,\n                   u.password_hash,\n                   u.role AS \"role: Role\",\n                   u.classification_id,\n                   u.employee_type AS \"employee_type: EmployeeType\",\n                   u.bargaining_unit,\n                   u.hire_date, u.cto_designation,\n                   u.admin_training_supervisor_since,\n                   u.employee_status AS \"employee_status: EmployeeStatus\",\n                   u.medical_ot_exempt,\n                   u.is_active, u.leave_accrual_paused_at,\n                   u.created_at, u.updated_at\n            FROM users u\n            JOIN organizations o ON o.id = u.org_id\n            WHERE u.email = $1 AND u.is_active = true AND o.slug = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -121,27 +121,33 @@
       },
       {
         "ordinal": 16,
-        "name": "is_active",
+        "name": "medical_ot_exempt",
         "type_info": "Bool"
       },
       {
         "ordinal": 17,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
         "name": "leave_accrual_paused_at",
         "type_info": "Date"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Text"
       ]
     },
@@ -163,10 +169,11 @@
       true,
       false,
       false,
+      false,
       true,
       false,
       false
     ]
   },
-  "hash": "99700f89429a56396584381f50508e4beedb1ae7c797910f8c99937891db71b1"
+  "hash": "268b0c45a2281f05aa5be4bfbd19664b5e17e07b48cf3bb98640dc37c389abfa"
 }

@@ -52,6 +52,7 @@ pub async fn login(
                    u.hire_date, u.cto_designation,
                    u.admin_training_supervisor_since,
                    u.employee_status AS "employee_status: EmployeeStatus",
+                   u.medical_ot_exempt,
                    u.is_active, u.leave_accrual_paused_at,
                    u.created_at, u.updated_at
             FROM users u
@@ -77,6 +78,7 @@ pub async fn login(
                    hire_date, cto_designation,
                    admin_training_supervisor_since,
                    employee_status AS "employee_status: EmployeeStatus",
+                   medical_ot_exempt,
                    is_active, leave_accrual_paused_at,
                    created_at, updated_at
             FROM users
@@ -294,6 +296,7 @@ pub async fn login(
                 employee_status: user.employee_status,
                 accrual_paused_since: seniority.as_ref().and_then(|s| s.accrual_pause_started_at),
                 leave_accrual_paused_at: user.leave_accrual_paused_at,
+                medical_ot_exempt: user.medical_ot_exempt,
                 is_active: user.is_active,
                 updated_at: user.updated_at,
             },
@@ -514,6 +517,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
                u.hire_date, u.cto_designation,
                u.admin_training_supervisor_since,
                u.employee_status AS "employee_status: EmployeeStatus",
+               u.medical_ot_exempt,
                u.is_active,
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
                u.updated_at,
@@ -555,6 +559,7 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
         employee_status: row.employee_status,
         accrual_paused_since: row.accrual_paused_since,
         leave_accrual_paused_at: row.leave_accrual_paused_at,
+        medical_ot_exempt: row.medical_ot_exempt,
         is_active: row.is_active,
         updated_at: row.updated_at,
     }))

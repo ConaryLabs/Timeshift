@@ -47,6 +47,7 @@ pub struct User {
     /// serving as Admin Supervisor or Training Supervisor (VCSG only; 36-month rotations).
     pub admin_training_supervisor_since: Option<time::Date>,
     pub employee_status: EmployeeStatus,
+    pub medical_ot_exempt: bool,
     pub is_active: bool,
     pub leave_accrual_paused_at: Option<time::Date>,
     #[serde(with = "time::serde::rfc3339")]
@@ -101,6 +102,7 @@ pub struct UserProfile {
     /// Set when leave balance accruals are paused (same triggering conditions as seniority).
     /// Cleared when employee returns to active status.
     pub leave_accrual_paused_at: Option<time::Date>,
+    pub medical_ot_exempt: bool,
     pub is_active: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
@@ -126,6 +128,7 @@ pub struct CreateUserRequest {
     pub classification_seniority_date: Option<time::Date>,
     pub cto_designation: Option<bool>,
     pub admin_training_supervisor_since: Option<time::Date>,
+    pub medical_ot_exempt: Option<bool>,
     #[validate(length(min = 8, max = 128))]
     pub password: String,
 }
@@ -168,6 +171,7 @@ pub struct UpdateUserRequest {
     /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub admin_training_supervisor_since: Option<Option<time::Date>>,
+    pub medical_ot_exempt: Option<bool>,
     pub employee_status: Option<EmployeeStatus>,
     /// When setting a pausing status (unpaid_loa / lwop / layoff), pass true to indicate
     /// the absence is an exception (OJI / pregnancy / military) so seniority is NOT paused.
