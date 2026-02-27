@@ -223,7 +223,8 @@ pub(crate) async fn compute_available_employees(
             cl.abbreviation AS "classification_abbreviation?",
             sr.overall_seniority_date AS "overall_seniority_date?",
             COALESCE(ot.hours_worked, 0.0)::FLOAT8 AS ot_hours,
-            NOT EXISTS (
+            NOT u.medical_ot_exempt
+            AND NOT EXISTS (
                 SELECT 1 FROM assignments a
                 WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
                   AND a.cancelled_at IS NULL
@@ -284,6 +285,7 @@ pub(crate) async fn compute_available_employees(
                   )
             ) AS is_available,
             CASE
+                WHEN u.medical_ot_exempt THEN 'Medical OT exempt'
                 WHEN EXISTS (
                     SELECT 1 FROM assignments a
                     WHERE a.user_id = u.id AND a.scheduled_shift_id = $1
@@ -356,12 +358,12 @@ pub(crate) async fn compute_available_employees(
             AND oq.fiscal_year = $3
             AND oq.classification_id = u.classification_id
         WHERE u.is_active = true AND u.org_id = $2
-          AND u.medical_ot_exempt = false
           AND ($5 OR u.classification_id = $4)
           AND u.classification_id IS NOT NULL
         ORDER BY
             (u.classification_id = $4) DESC,
-            (NOT EXISTS (
+            (NOT u.medical_ot_exempt
+            AND NOT EXISTS (
                 SELECT 1 FROM assignments a2 WHERE a2.user_id = u.id AND a2.scheduled_shift_id = $1
                   AND a2.cancelled_at IS NULL
             ) AND NOT EXISTS (
