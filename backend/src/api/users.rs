@@ -477,18 +477,31 @@ pub async fn update(
     // Prevent demoting the last admin in the org — check inside tx with row locking
     if let Some(new_role) = &req.role {
         if !new_role.is_admin() {
-            // Lock all admin rows to prevent concurrent demotion (TOCTOU)
-            let admin_ids: Vec<Uuid> = sqlx::query_scalar!(
-                "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true FOR UPDATE",
-                auth.org_id
+            // Only apply last-admin protection if the target is currently an admin
+            let target_is_admin: bool = sqlx::query_scalar!(
+                "SELECT (role = 'admin') FROM users WHERE id = $1 AND org_id = $2",
+                id,
+                auth.org_id,
             )
-            .fetch_all(&mut *tx)
-            .await?;
+            .fetch_optional(&mut *tx)
+            .await?
+            .flatten()
+            .unwrap_or(false);
 
-            if admin_ids.len() <= 1 {
-                return Err(AppError::BadRequest(
-                    "Cannot remove the last admin. Promote another user to admin first.".into(),
-                ));
+            if target_is_admin {
+                // Lock all admin rows to prevent concurrent demotion (TOCTOU)
+                let admin_ids: Vec<Uuid> = sqlx::query_scalar!(
+                    "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true FOR UPDATE",
+                    auth.org_id
+                )
+                .fetch_all(&mut *tx)
+                .await?;
+
+                if admin_ids.len() <= 1 {
+                    return Err(AppError::BadRequest(
+                        "Cannot remove the last admin. Promote another user to admin first.".into(),
+                    ));
+                }
             }
         }
     }

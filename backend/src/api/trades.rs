@@ -196,6 +196,13 @@ pub async fn create(
         .fetch_optional(&mut *tx)
         .await?;
 
+        // If no period covers both shifts, reject the trade
+        if deadline.is_none() {
+            return Err(AppError::BadRequest(
+                "Both shifts must fall within the same schedule period".into(),
+            ));
+        }
+
         deadline.map(|d| {
             crate::services::timezone::local_to_utc(
                 d,

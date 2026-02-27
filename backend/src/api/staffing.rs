@@ -108,16 +108,24 @@ pub async fn available_employees(
             .await?
             .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
 
-            // Auto-create the scheduled_shift
+            // Auto-create the scheduled_shift (ON CONFLICT handles concurrent duplicate inserts)
             let new_id = Uuid::new_v4();
             sqlx::query!(
-                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4)",
+                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, shift_template_id, date) DO NOTHING",
                 new_id,
                 auth.org_id,
                 params.shift_template_id,
                 params.date,
             )
             .execute(&pool)
+            .await?;
+            let actual_id = sqlx::query_scalar!(
+                "SELECT id FROM scheduled_shifts WHERE org_id = $1 AND shift_template_id = $2 AND date = $3",
+                auth.org_id,
+                params.shift_template_id,
+                params.date,
+            )
+            .fetch_one(&pool)
             .await?;
 
             // Return the same shape as the query above
@@ -129,7 +137,7 @@ pub async fn available_employees(
                 duration_minutes: i32,
             }
             let info = ShiftInfo {
-                scheduled_shift_id: new_id,
+                scheduled_shift_id: actual_id,
                 shift_template_name: tmpl.name,
                 start_time: tmpl.start_time,
                 end_time: tmpl.end_time,
@@ -337,7 +345,7 @@ pub async fn block_available(
         None => {
             let new_id = Uuid::new_v4();
             sqlx::query!(
-                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4)",
+                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, shift_template_id, date) DO NOTHING",
                 new_id,
                 auth.org_id,
                 template_id,
@@ -345,7 +353,14 @@ pub async fn block_available(
             )
             .execute(&pool)
             .await?;
-            new_id
+            sqlx::query_scalar!(
+                "SELECT id FROM scheduled_shifts WHERE org_id = $1 AND shift_template_id = $2 AND date = $3",
+                auth.org_id,
+                template_id,
+                params.date,
+            )
+            .fetch_one(&pool)
+            .await?
         }
     };
 

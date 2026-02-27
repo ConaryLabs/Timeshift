@@ -5,7 +5,7 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{
     api::coverage_plans::{compute_slot_coverage, coverage_status_per_shift},
@@ -607,64 +607,6 @@ pub async fn grid(
         .iter()
         .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
         .collect();
-
-    // Batch resolve plans: fetch all assignments overlapping the range
-    let plan_assignments = sqlx::query!(
-        r#"
-        SELECT cpa.plan_id, cpa.start_date, cpa.end_date AS "end_date?"
-        FROM coverage_plan_assignments cpa
-        JOIN coverage_plans cp ON cp.id = cpa.plan_id
-        WHERE cpa.org_id = $1
-          AND cpa.start_date <= $2
-          AND (cpa.end_date IS NULL OR cpa.end_date >= $3)
-          AND cp.is_active = TRUE
-        ORDER BY cpa.start_date DESC
-        "#,
-        auth.org_id,
-        q.end_date,
-        q.start_date,
-    )
-    .fetch_all(&pool)
-    .await?;
-
-    let default_plan_id = sqlx::query_scalar!(
-        r#"
-        SELECT id AS "id!"
-        FROM coverage_plans
-        WHERE org_id = $1 AND is_default = TRUE AND is_active = TRUE
-        LIMIT 1
-        "#,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?;
-
-    // Build date -> plan_id mapping in memory
-    let pa_tuples: Vec<(Uuid, time::Date, Option<time::Date>)> = plan_assignments
-        .iter()
-        .map(|r| (r.plan_id, r.start_date, r.end_date))
-        .collect();
-
-    let mut plan_dows: HashSet<(Uuid, i16)> = HashSet::new();
-    let mut date_plan: HashMap<time::Date, Option<Uuid>> = HashMap::new();
-
-    let mut d = q.start_date;
-    while d <= q.end_date {
-        let plan = pa_tuples
-            .iter()
-            .find(|(_, start, end)| *start <= d && end.is_none_or(|e| e >= d))
-            .map(|(pid, _, _)| *pid)
-            .or(default_plan_id);
-        if let Some(pid) = plan {
-            let dow = d.weekday().number_days_from_sunday() as i16;
-            plan_dows.insert((pid, dow));
-        }
-        date_plan.insert(d, plan);
-        d = match d.next_day() {
-            Some(next) => next,
-            None => break,
-        };
-    }
 
     let mut cells_map: HashMap<(time::Date, Uuid), GridCell> = HashMap::new();
 

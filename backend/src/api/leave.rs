@@ -408,6 +408,27 @@ pub async fn create(
                     break;
                 }
             }
+        } else {
+            // Partial-day but no lines provided: fall back to date-range overlap check
+            let overlap: Option<bool> = sqlx::query_scalar!(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1 FROM leave_requests
+                    WHERE user_id = $1
+                      AND status IN ('pending', 'approved')
+                      AND start_date <= $3
+                      AND end_date >= $2
+                      AND org_id = $4
+                )
+                "#,
+                auth.id,
+                body.start_date,
+                body.end_date,
+                auth.org_id,
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            found_overlap = overlap.unwrap_or(false);
         }
         Some(found_overlap)
     } else {
