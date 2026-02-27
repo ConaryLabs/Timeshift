@@ -204,4 +204,6 @@ pub struct OtRequestAssignmentRow {
 pub struct CreateOtRequestAssignment {
     pub user_id: Uuid,
     pub ot_type: Option<String>,
+    /// When `true`, bypasses the voluntary OT soft-limit warning (12–14 h).
+    pub force: Option<bool>,
 }

@@ -17,3 +17,15 @@ export function isConflictError(error: unknown): boolean {
     error.response?.data?.error === 'conflict'
   )
 }
+
+/**
+ * Returns true when the backend responded with a soft-limit 409 that the
+ * caller can bypass by re-submitting with `force: true`.
+ */
+export function isSoftLimitError(error: unknown): boolean {
+  return (
+    error instanceof AxiosError &&
+    error.response?.status === 409 &&
+    error.response?.data?.soft_limit === true
+  )
+}

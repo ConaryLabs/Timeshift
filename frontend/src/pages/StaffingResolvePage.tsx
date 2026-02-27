@@ -28,6 +28,7 @@ import { StepIndicator } from '@/components/callout/StepIndicator'
 import { CALLOUT_STEPS } from '@/components/callout/calloutSteps'
 import { useCalloutColumns } from '@/components/callout/CalloutListTable'
 import MandatoryOTDialog from '@/components/coverage/MandatoryOTDialog'
+import DayOffMandatoryDialog from '@/components/coverage/DayOffMandatoryDialog'
 import SmsAlertDialog from '@/components/coverage/SmsAlertDialog'
 import {
   useStaffingAvailable,
@@ -66,6 +67,7 @@ export default function StaffingResolvePage() {
   const debouncedSearch = useDebounce(search)
   const [showSmsDialog, setShowSmsDialog] = useState(false)
   const [mandatoryGap, setMandatoryGap] = useState<ClassificationGap | null>(null)
+  const [showDayOffDialog, setShowDayOffDialog] = useState(false)
   const [showCreateOt, setShowCreateOt] = useState(false)
   const [otNotes, setOtNotes] = useState('')
 
@@ -382,7 +384,13 @@ export default function StaffingResolvePage() {
             {currentGap && (
               <Button variant="outline" onClick={() => setMandatoryGap(currentGap)}>
                 <AlertTriangle className="h-4 w-4 mr-1" />
-                Assign Mandatory OT
+                Mandate On-Shift
+              </Button>
+            )}
+            {classificationId && staffing && (
+              <Button variant="outline" onClick={() => setShowDayOffDialog(true)}>
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                Mandate Day Off
               </Button>
             )}
           </div>
@@ -691,13 +699,26 @@ export default function StaffingResolvePage() {
         onOpenChange={setShowSmsDialog}
       />
 
-      {/* Mandatory OT dialog */}
+      {/* Mandatory OT dialog (on-shift: holdover / early callout) */}
       {mandatoryGap && (
         <MandatoryOTDialog
           gap={mandatoryGap}
           date={date}
           open={!!mandatoryGap}
           onOpenChange={(open) => !open && setMandatoryGap(null)}
+        />
+      )}
+
+      {/* Day-off mandatory OT dialog */}
+      {staffing && classificationId && (
+        <DayOffMandatoryDialog
+          date={date}
+          defaultStartTime={staffing.shift_start_time}
+          classificationId={classificationId}
+          classificationAbbreviation={classInfo?.abbreviation ?? classificationId}
+          employees={employees.filter((e) => e.is_available)}
+          open={showDayOffDialog}
+          onOpenChange={setShowDayOffDialog}
         />
       )}
     </div>

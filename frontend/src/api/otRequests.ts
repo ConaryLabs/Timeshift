@@ -1,7 +1,7 @@
 import { api } from './client'
 
 export type OtRequestStatus = 'open' | 'partially_filled' | 'filled' | 'cancelled'
-export type OtType = 'voluntary' | 'mandatory' | 'fixed_coverage'
+export type OtType = 'voluntary' | 'mandatory' | 'mandatory_day_off' | 'fixed_coverage'
 
 export interface OtRequest {
   id: string
@@ -70,6 +70,8 @@ export interface CreateOtRequest {
 export interface CreateOtRequestAssignment {
   user_id: string
   ot_type?: OtType
+  /** When true, bypasses the voluntary OT soft-limit warning (12–14 h daily). */
+  force?: boolean
 }
 
 export interface OtRequestListParams {
