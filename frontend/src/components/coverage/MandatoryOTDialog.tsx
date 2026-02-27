@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCreateOtRequest, useAssignOtRequest, useDayView, useMandatoryOtOrder } from '@/hooks/queries'
+import { useCreateOtRequest, useAssignOtRequest, useDayView, useMandatoryOtOrder, useDayGrid } from '@/hooks/queries'
 import { formatTime, extractApiError } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
 import type { DayViewEntry, GridAssignment } from '@/api/schedule'
@@ -198,6 +198,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   const [direction, setDirection] = useState<OtDirection>('holdover')
 
   const { data: dayView } = useDayView(date)
+  const { data: dayGrid } = useDayGrid(date)
   const { data: mandatoryOrder } = useMandatoryOtOrder(gap.classification_id)
   const createOt = useCreateOtRequest()
   const assignOt = useAssignOtRequest()
@@ -220,10 +221,33 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
     return { start: match[1], end: match[2] }
   }, [isBlockMode, gap.shift_name])
 
+  // Collect user IDs who already have OT covering this block (from day-grid data)
+  const alreadyOtUserIds = useMemo(() => {
+    if (!dayGrid || !blockTimes) return new Set<string>()
+    const blockStartMin = parseTimeToMin(blockTimes.start)
+    const blockEndMin = parseTimeToMin(blockTimes.end)
+    const ids = new Set<string>()
+    const classData = dayGrid.classifications.find((c) => c.classification_id === gap.classification_id)
+    if (!classData) return ids
+    for (const block of classData.blocks) {
+      const bStart = parseTimeToMin(block.start_time)
+      const bEnd = parseTimeToMin(block.end_time)
+      if (!timeRangesOverlap(bStart, bEnd, blockStartMin, blockEndMin)) continue
+      for (const emp of block.employees) {
+        if (emp.is_overtime) ids.add(emp.user_id)
+      }
+    }
+    return ids
+  }, [dayGrid, blockTimes, gap.classification_id])
+
   // Block mode: find eligible employees across all shifts
   const blockEligible = useMemo(() => {
     if (!isBlockMode || !dayView || !blockTimes) return []
-    const eligible = findBlockEligible(dayView, gap.classification_abbreviation, blockTimes.start, blockTimes.end, direction)
+    let eligible = findBlockEligible(dayView, gap.classification_abbreviation, blockTimes.start, blockTimes.end, direction)
+    // Exclude employees who already have OT covering this block
+    if (alreadyOtUserIds.size > 0) {
+      eligible = eligible.filter((e) => !alreadyOtUserIds.has(e.user_id))
+    }
     // Sort by mandatory OT order: most overdue first (never mandated → top, oldest → next)
     if (mandatoryOrder) {
       const orderMap = new Map(mandatoryOrder.map((e, i) => [e.user_id, i]))
@@ -234,7 +258,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
       })
     }
     return eligible
-  }, [isBlockMode, dayView, blockTimes, gap.classification_abbreviation, direction, mandatoryOrder])
+  }, [isBlockMode, dayView, blockTimes, gap.classification_abbreviation, direction, mandatoryOrder, alreadyOtUserIds])
 
   const selectedBlockEmp = blockEligible.find((e) => e.user_id === selectedUserId)
 
