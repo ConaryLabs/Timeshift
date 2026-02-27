@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM duty_position_hours\n        WHERE id = $1 AND duty_position_id IN (\n            SELECT id FROM duty_positions WHERE org_id = $2\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9374460d695e0bc0d084ffd77c9bd49c79233dbc61fb1820be724c40fb5666ad"
+}

@@ -27,6 +27,7 @@ import {
   useDeleteDutyPosition,
   useClassifications,
 } from '@/hooks/queries'
+import { useQualifications, usePositionQualifications, useAddPositionQualification, useRemovePositionQualification } from '@/hooks/useDutyBoard'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { DutyPosition } from '@/api/dutyPositions'
 import { extractApiError } from '@/lib/format'
@@ -40,10 +41,62 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+function QualificationsDialog({ position, open, onOpenChange }: {
+  position: DutyPosition | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { data: allQuals } = useQualifications()
+  const { data: posQuals } = usePositionQualifications(position?.id ?? '')
+  const addMut = useAddPositionQualification()
+  const removeMut = useRemovePositionQualification()
+
+  if (!position) return null
+
+  const posQualIds = new Set(posQuals?.map((q) => q.id) ?? [])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Qualifications for {position.name}</DialogTitle>
+          <DialogDescription>
+            Select which qualifications are required to be assigned to this position.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          {allQuals?.map((q) => (
+            <div key={q.id} className="flex items-center justify-between py-1">
+              <div>
+                <div className="text-sm font-medium">{q.name}</div>
+                {q.description && <div className="text-xs text-muted-foreground">{q.description}</div>}
+              </div>
+              <Switch
+                checked={posQualIds.has(q.id)}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    addMut.mutate({ positionId: position.id, qualificationId: q.id })
+                  } else {
+                    removeMut.mutate({ positionId: position.id, qualificationId: q.id })
+                  }
+                }}
+              />
+            </div>
+          )) ?? <p className="text-sm text-muted-foreground">No qualifications defined. Create them first.</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function DutyPositionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<DutyPosition | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DutyPosition | null>(null)
+  const [qualTarget, setQualTarget] = useState<DutyPosition | null>(null)
 
   const { data: positions, isLoading, isError } = useDutyPositions()
   const { data: classifications } = useClassifications()
@@ -133,6 +186,9 @@ export default function DutyPositionsPage() {
           <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
             Edit
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setQualTarget(r)}>
+            Quals
+          </Button>
           <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDeleteTarget(r)}>
             Delete
           </Button>
@@ -208,6 +264,8 @@ export default function DutyPositionsPage() {
         </DialogContent>
       </Dialog>
       {confirmDialog}
+
+      <QualificationsDialog position={qualTarget} open={!!qualTarget} onOpenChange={(open) => !open && setQualTarget(null)} />
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

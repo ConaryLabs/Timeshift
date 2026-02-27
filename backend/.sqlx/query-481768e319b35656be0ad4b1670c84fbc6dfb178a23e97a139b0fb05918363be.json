@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT da.id, da.duty_position_id,\n               da.block_index AS \"block_index!\",\n               da.user_id AS \"user_id?\",\n               u.first_name AS \"user_first_name?\",\n               u.last_name AS \"user_last_name?\",\n               da.status\n        FROM duty_assignments da\n        LEFT JOIN users u ON u.id = da.user_id\n        WHERE da.org_id = $1 AND da.date = $2\n        ORDER BY da.duty_position_id, da.block_index\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "duty_position_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "block_index!",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "user_first_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_last_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "481768e319b35656be0ad4b1670c84fbc6dfb178a23e97a139b0fb05918363be"
+}

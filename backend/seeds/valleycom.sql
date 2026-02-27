@@ -1543,4 +1543,84 @@ WHERE u.org_id = '00000000-0000-0000-0000-000000000a01'
   AND u.is_active = true
   AND u.classification_id IN ('00000000-0000-0000-0000-000000000c01', '00000000-0000-0000-0000-000000000c02');
 
+-- ── Qualifications ─────────────────────────────────────────────────────────
+-- Qualification definitions for Valleycom dispatch positions
+INSERT INTO qualifications (id, org_id, name, description) VALUES
+    ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-000000000a01', 'Fire Dispatch', 'Qualified to operate fire dispatch consoles (FIRE 1-3)'),
+    ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-000000000a01', 'Police Dispatch', 'Qualified to operate police city consoles (Auburn, Fed Way, Kent, Renton)');
+
+-- ── Duty Positions ────────────────────────────────────────────────────────
+-- 14 console positions for the COII dispatcher seating chart
+-- All positions are COII classification (entire board is dispatcher floor management)
+INSERT INTO duty_positions (id, org_id, name, classification_id, sort_order) VALUES
+    ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000a01', 'FIRE 1',   '00000000-0000-0000-0000-000000000c02', 1),
+    ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-000000000a01', 'FIRE 2',   '00000000-0000-0000-0000-000000000c02', 2),
+    ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-000000000a01', 'FIRE 3',   '00000000-0000-0000-0000-000000000c02', 3),
+    ('00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-000000000a01', 'DATA',     '00000000-0000-0000-0000-000000000c02', 4),
+    ('00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-000000000a01', 'AUBURN',   '00000000-0000-0000-0000-000000000c02', 5),
+    ('00000000-0000-0000-0000-0000000000d6', '00000000-0000-0000-0000-000000000a01', 'FED WAY',  '00000000-0000-0000-0000-000000000c02', 6),
+    ('00000000-0000-0000-0000-0000000000d7', '00000000-0000-0000-0000-000000000a01', 'KENT',     '00000000-0000-0000-0000-000000000c02', 7),
+    ('00000000-0000-0000-0000-0000000000d8', '00000000-0000-0000-0000-000000000a01', 'RENTON',   '00000000-0000-0000-0000-000000000c02', 8),
+    ('00000000-0000-0000-0000-0000000000d9', '00000000-0000-0000-0000-000000000a01', 'L BREAKS', '00000000-0000-0000-0000-000000000c02', 9),
+    ('00000000-0000-0000-0000-000000000da0', '00000000-0000-0000-0000-000000000a01', 'R BREAKS', '00000000-0000-0000-0000-000000000c02', 10),
+    ('00000000-0000-0000-0000-000000000db0', '00000000-0000-0000-0000-000000000a01', 'CR 1',     '00000000-0000-0000-0000-000000000c02', 11),
+    ('00000000-0000-0000-0000-000000000dc0', '00000000-0000-0000-0000-000000000a01', 'CR 2',     '00000000-0000-0000-0000-000000000c02', 12),
+    ('00000000-0000-0000-0000-000000000dd0', '00000000-0000-0000-0000-000000000a01', 'CR 3',     '00000000-0000-0000-0000-000000000c02', 13),
+    ('00000000-0000-0000-0000-000000000de0', '00000000-0000-0000-0000-000000000a01', 'ACCESS',   '00000000-0000-0000-0000-000000000c02', 14);
+
+-- ── Position Qualification Mappings ───────────────────────────────────────
+-- Fire consoles require Fire Dispatch qualification
+INSERT INTO duty_position_qualifications (duty_position_id, qualification_id) VALUES
+    ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e1'),  -- FIRE 1
+    ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000e1'),  -- FIRE 2
+    ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000e1');  -- FIRE 3
+
+-- Police city consoles require Police Dispatch qualification
+INSERT INTO duty_position_qualifications (duty_position_id, qualification_id) VALUES
+    ('00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000000e2'),  -- AUBURN
+    ('00000000-0000-0000-0000-0000000000d6', '00000000-0000-0000-0000-0000000000e2'),  -- FED WAY
+    ('00000000-0000-0000-0000-0000000000d7', '00000000-0000-0000-0000-0000000000e2'),  -- KENT
+    ('00000000-0000-0000-0000-0000000000d8', '00000000-0000-0000-0000-0000000000e2');  -- RENTON
+
+-- DATA, BREAKS, CR, ACCESS: no special qualification beyond COII classification
+
+-- ── Position Operating Hours ──────────────────────────────────────────────
+-- FIRE 3: closed 00:00-08:00 all days → open 08:00-23:59
+-- day_of_week: 0=Sunday, 1=Monday, 2=Tuesday, ..., 6=Saturday
+INSERT INTO duty_position_hours (duty_position_id, day_of_week, open_time, close_time, crosses_midnight) VALUES
+    ('00000000-0000-0000-0000-0000000000d3', 0, '08:00', '23:59', false),
+    ('00000000-0000-0000-0000-0000000000d3', 1, '08:00', '23:59', false),
+    ('00000000-0000-0000-0000-0000000000d3', 2, '08:00', '23:59', false),
+    ('00000000-0000-0000-0000-0000000000d3', 3, '08:00', '23:59', false),
+    ('00000000-0000-0000-0000-0000000000d3', 4, '08:00', '23:59', false),
+    ('00000000-0000-0000-0000-0000000000d3', 5, '08:00', '23:59', false),
+    ('00000000-0000-0000-0000-0000000000d3', 6, '08:00', '23:59', false);
+
+-- DATA: variable hours per day
+-- Sunday: 12:00-22:00
+INSERT INTO duty_position_hours (duty_position_id, day_of_week, open_time, close_time, crosses_midnight) VALUES
+    ('00000000-0000-0000-0000-0000000000d4', 0, '12:00', '22:00', false);
+-- Monday: 12:00-02:00 (crosses midnight)
+INSERT INTO duty_position_hours (duty_position_id, day_of_week, open_time, close_time, crosses_midnight) VALUES
+    ('00000000-0000-0000-0000-0000000000d4', 1, '12:00', '02:00', true);
+-- Tuesday-Saturday: 12:00-04:00 (crosses midnight)
+INSERT INTO duty_position_hours (duty_position_id, day_of_week, open_time, close_time, crosses_midnight) VALUES
+    ('00000000-0000-0000-0000-0000000000d4', 2, '12:00', '04:00', true),
+    ('00000000-0000-0000-0000-0000000000d4', 3, '12:00', '04:00', true),
+    ('00000000-0000-0000-0000-0000000000d4', 4, '12:00', '04:00', true),
+    ('00000000-0000-0000-0000-0000000000d4', 5, '12:00', '04:00', true),
+    ('00000000-0000-0000-0000-0000000000d4', 6, '12:00', '04:00', true);
+
+-- ── User Qualifications ───────────────────────────────────────────────────
+-- All seeded COII users get both Fire + Police qualifications
+-- (Admin can remove Police for new hires who are fire-only, or vice versa)
+INSERT INTO user_qualifications (user_id, qualification_id)
+SELECT u.id, q.id
+FROM users u
+CROSS JOIN qualifications q
+WHERE u.org_id = '00000000-0000-0000-0000-000000000a01'
+  AND u.classification_id = '00000000-0000-0000-0000-000000000c02'
+  AND u.is_active = true
+  AND q.org_id = '00000000-0000-0000-0000-000000000a01';
+
 COMMIT;

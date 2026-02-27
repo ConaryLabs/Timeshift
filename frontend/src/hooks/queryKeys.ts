@@ -163,6 +163,18 @@ export const queryKeys = {
     assignments: (date: string, shiftTemplateId?: string) =>
       ['duty-assignments', date, shiftTemplateId] as const,
   },
+  dutyBoard: {
+    board: (date: string) => ['duty-board', date] as const,
+    available: (date: string, blockIndex: number, positionId: string) =>
+      ['duty-board', date, 'available', blockIndex, positionId] as const,
+    consoleHours: (startDate: string, endDate: string) =>
+      ['duty-board', 'console-hours', startDate, endDate] as const,
+  },
+  qualifications: {
+    all: ['qualifications'] as const,
+    position: (positionId: string) => ['qualifications', 'position', positionId] as const,
+    user: (userId: string) => ['qualifications', 'user', userId] as const,
+  },
   specialAssignments: {
     all: ['special-assignments'] as const,
     list: (params?: SpecialAssignmentListParams) => ['special-assignments', params] as const,

@@ -44,6 +44,7 @@ const VolunteeredOTPage = lazy(() => import('@/pages/VolunteeredOTPage'))
 const OtRequestDetailPage = lazy(() => import('@/pages/OtRequestDetailPage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const DutyBoardPage = lazy(() => import('@/pages/DutyBoardPage'))
+const DutyBoardDisplayPage = lazy(() => import('@/pages/DutyBoardDisplayPage'))
 const DutyPositionsPage = lazy(() => import('@/pages/admin/DutyPositionsPage'))
 const StaffingResolvePage = lazy(() => import('@/pages/StaffingResolvePage'))
 const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'))
@@ -276,6 +277,8 @@ export default function App() {
             />
           </Route>
         </Route>
+        {/* Public display route for hallway monitors (no auth required) */}
+        <Route path="duty-board/display" element={<PageSuspense><DutyBoardDisplayPage /></PageSuspense>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </ErrorBoundary>

@@ -1,0 +1,320 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
+import { useMemo, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { format } from 'date-fns'
+import { dutyBoardApi } from '@/api/dutyBoard'
+import { queryKeys } from '@/hooks/queryKeys'
+import type { BoardAssignment } from '@/api/dutyBoard'
+
+const BLOCK_LABELS = [
+  '0000', '0200', '0400', '0600', '0800', '1000',
+  '1200', '1400', '1600', '1800', '2000', '2200',
+]
+
+function getCurrentBlockIndex(): number {
+  const now = new Date()
+  return Math.floor((now.getHours() * 60 + now.getMinutes()) / 120)
+}
+
+/** Map position name to its row label color from the original seating chart */
+function getPositionColor(name: string): { bg: string; text: string } {
+  const upper = name.toUpperCase()
+  if (upper.startsWith('FIRE'))
+    return { bg: '#C00000', text: '#ffffff' }
+  if (['DATA', 'AUBURN', 'FED WAY', 'KENT', 'RENTON'].includes(upper))
+    return { bg: '#2F75B5', text: '#ffffff' }
+  if (upper.includes('BREAK'))
+    return { bg: '#548235', text: '#ffffff' }
+  if (upper === 'ACCESS')
+    return { bg: '#F4B084', text: '#000000' }
+  if (upper.startsWith('CR'))
+    return { bg: '#F4B084', text: '#000000' }
+  // Default fallback
+  return { bg: '#2F75B5', text: '#ffffff' }
+}
+
+export default function DutyBoardDisplayPage() {
+  const [now, setNow] = useState(new Date())
+  const dateStr = format(now, 'yyyy-MM-dd')
+  const currentBlock = getCurrentBlockIndex()
+
+  // Update clock every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch board with 30s auto-refresh
+  const { data: board } = useQuery({
+    queryKey: queryKeys.dutyBoard.board(dateStr),
+    queryFn: () => dutyBoardApi.getBoard(dateStr),
+    refetchInterval: 30_000,
+  })
+
+  const assignmentMap = useMemo(() => {
+    const map = new Map<string, BoardAssignment>()
+    if (board?.assignments) {
+      for (const a of board.assignments) {
+        map.set(`${a.duty_position_id}:${a.block_index}`, a)
+      }
+    }
+    return map
+  }, [board?.assignments])
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#ffffff',
+        color: '#000000',
+        fontFamily: 'Tahoma, "Segoe UI", Arial, sans-serif',
+        padding: '12px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Header */}
+      <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+        <h1
+          style={{
+            fontSize: '22px',
+            fontWeight: 700,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            margin: 0,
+          }}
+        >
+          Daily Dispatch Seating Assignments
+        </h1>
+        <div style={{ fontSize: '18px', fontWeight: 600, marginTop: '2px' }}>
+          {format(now, 'EEEE, MMMM d, yyyy')}
+          <span style={{ marginLeft: '16px', color: '#666666' }}>
+            {format(now, 'HH:mm')}
+          </span>
+        </div>
+      </div>
+
+      {/* Grid */}
+      {board?.positions.length ? (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              tableLayout: 'fixed',
+            }}
+          >
+            <thead>
+              <tr>
+                {/* CONSOLE header cell */}
+                <th
+                  style={{
+                    background: '#000000',
+                    color: '#ffffff',
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    padding: '6px 10px',
+                    border: '1px solid #000000',
+                    textAlign: 'center',
+                    width: '120px',
+                    minWidth: '120px',
+                  }}
+                >
+                  CONSOLE
+                </th>
+                {BLOCK_LABELS.map((label, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      background: i === currentBlock ? '#5B9BD5' : '#9BC2E6',
+                      color: '#000000',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      padding: '6px 4px',
+                      border: '1px solid #ffffff',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {board.positions.map((position) => {
+                const posColor = getPositionColor(position.name)
+                return (
+                  <tr key={position.id}>
+                    {/* Position label */}
+                    <td
+                      style={{
+                        background: posColor.bg,
+                        color: posColor.text,
+                        fontSize: '17px',
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        border: '1px solid #333333',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {position.name}
+                    </td>
+                    {Array.from({ length: 12 }, (_, blockIndex) => {
+                      const assignment = assignmentMap.get(
+                        `${position.id}:${blockIndex}`
+                      )
+                      const isOpen = position.open_blocks[blockIndex]
+                      const isCurrent = blockIndex === currentBlock
+
+                      // Closed block
+                      if (!isOpen) {
+                        return (
+                          <td
+                            key={blockIndex}
+                            style={{
+                              background: '#D9D9D9',
+                              color: '#888888',
+                              fontSize: '14px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              padding: '4px 2px',
+                              border: '1px solid #aaaaaa',
+                              ...(isCurrent
+                                ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
+                                : {}),
+                            }}
+                          >
+                            X
+                          </td>
+                        )
+                      }
+
+                      // OT needed
+                      if (assignment?.status === 'ot_needed') {
+                        return (
+                          <td
+                            key={blockIndex}
+                            style={{
+                              background: '#FFC000',
+                              color: '#000000',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              padding: '4px 2px',
+                              border: '1px solid #333333',
+                              ...(isCurrent
+                                ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
+                                : {}),
+                            }}
+                          >
+                            OT
+                          </td>
+                        )
+                      }
+
+                      // Assigned person
+                      if (
+                        assignment?.status === 'assigned' &&
+                        assignment.user_first_name
+                      ) {
+                        return (
+                          <td
+                            key={blockIndex}
+                            style={{
+                              background: '#ffffff',
+                              color: '#000000',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              padding: '4px 2px',
+                              border: '1px solid #333333',
+                              ...(isCurrent
+                                ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
+                                : {}),
+                            }}
+                            title={`${assignment.user_first_name} ${assignment.user_last_name}`}
+                          >
+                            {assignment.user_first_name}
+                          </td>
+                        )
+                      }
+
+                      // Empty open cell
+                      return (
+                        <td
+                          key={blockIndex}
+                          style={{
+                            background: '#ffffff',
+                            color: '#000000',
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            textAlign: 'center',
+                            padding: '4px 2px',
+                            border: '1px solid #cccccc',
+                            ...(isCurrent
+                              ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
+                              : {}),
+                          }}
+                        >
+                          &nbsp;
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+            {/* Bottom header row (mirror of top, like original) */}
+            <tfoot>
+              <tr>
+                <td
+                  style={{
+                    background: '#000000',
+                    color: '#ffffff',
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    padding: '6px 10px',
+                    border: '1px solid #000000',
+                    textAlign: 'center',
+                  }}
+                >
+                  CONSOLE
+                </td>
+                {BLOCK_LABELS.map((label, i) => (
+                  <td
+                    key={i}
+                    style={{
+                      background: i === currentBlock ? '#5B9BD5' : '#9BC2E6',
+                      color: '#000000',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      padding: '6px 4px',
+                      border: '1px solid #ffffff',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {label}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#888888',
+            fontSize: '20px',
+          }}
+        >
+          Loading duty board...
+        </div>
+      )}
+    </div>
+  )
+}

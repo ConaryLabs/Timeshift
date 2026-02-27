@@ -4,6 +4,7 @@ pub mod bidding;
 pub mod callout;
 pub mod classifications;
 pub mod coverage_plans;
+pub mod duty_board;
 pub mod duty_positions;
 pub mod employee;
 pub mod holidays;
@@ -238,7 +239,43 @@ pub fn router(state: AppState) -> Router {
             "/api/duty-positions/:id",
             patch(duty_positions::update_position).delete(duty_positions::delete_position),
         )
-        // Duty Assignments
+        // Duty Position Hours
+        .route(
+            "/api/duty-positions/:id/hours",
+            get(duty_positions::list_position_hours).post(duty_positions::set_position_hours),
+        )
+        .route(
+            "/api/duty-position-hours/:id",
+            patch(duty_positions::update_position_hours).delete(duty_positions::delete_position_hours),
+        )
+        // Duty Position Qualifications
+        .route(
+            "/api/duty-positions/:id/qualifications",
+            get(duty_positions::list_position_qualifications).post(duty_positions::add_position_qualification),
+        )
+        .route(
+            "/api/duty-positions/:id/qualifications/:qualification_id",
+            delete(duty_positions::remove_position_qualification),
+        )
+        // User Qualifications
+        .route(
+            "/api/users/:id/qualifications",
+            get(duty_positions::list_user_qualifications).post(duty_positions::add_user_qualification),
+        )
+        .route(
+            "/api/users/:id/qualifications/:qualification_id",
+            delete(duty_positions::remove_user_qualification),
+        )
+        // Qualifications (org-level)
+        .route(
+            "/api/qualifications",
+            get(duty_positions::list_qualifications).post(duty_positions::create_qualification),
+        )
+        .route(
+            "/api/qualifications/:id",
+            patch(duty_positions::update_qualification).delete(duty_positions::delete_qualification),
+        )
+        // Duty Assignments (legacy CRUD)
         .route(
             "/api/duty-assignments",
             get(duty_positions::list_assignments).post(duty_positions::create_assignment),
@@ -246,6 +283,23 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/duty-assignments/:id",
             patch(duty_positions::update_assignment).delete(duty_positions::delete_assignment),
+        )
+        // Duty Board (aggregate endpoints)
+        .route(
+            "/api/duty-board/console-hours",
+            get(duty_board::console_hours),
+        )
+        .route(
+            "/api/duty-board/:date",
+            get(duty_board::get_board),
+        )
+        .route(
+            "/api/duty-board/:date/cells",
+            post(duty_board::cell_action),
+        )
+        .route(
+            "/api/duty-board/:date/available",
+            get(duty_board::available_staff),
         )
         // Leave types
         .route("/api/leave/types", get(leave::list_types))
