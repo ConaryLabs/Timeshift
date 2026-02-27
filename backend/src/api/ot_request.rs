@@ -828,6 +828,19 @@ pub async fn assign(
     }
 
     // ── Contract rule enforcement ────────────────────────────────────────────
+
+    // Serialize concurrent assignments for the same employee on the same day.
+    // Without this, two parallel assigns could both read the same daily total and
+    // both pass the 14-hour cap check.
+    let lock_key = {
+        let date_days = request.date.to_julian_day();
+        let user_half = req.user_id.as_u128() as i32; // lower 32 bits — enough for lock uniqueness
+        (date_days, user_half)
+    };
+    sqlx::query!("SELECT pg_advisory_xact_lock($1, $2)", lock_key.0, lock_key.1)
+        .execute(&mut *tx)
+        .await?;
+
     // Rule 1a: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
     if ot_type == "mandatory" && request.hours > 2.0 {
         return Err(AppError::BadRequest(
