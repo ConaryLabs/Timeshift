@@ -33,7 +33,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import type { TradeRequest, TradeStatus } from '@/api/trades'
-import { extractApiError, toLocalDateStr } from '@/lib/format'
+import { extractApiError, toLocalDateStr, formatDateFull } from '@/lib/format'
 
 const STATUS_TABS: { label: string; value: TradeStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -178,14 +178,6 @@ export default function TradesPage() {
     )
   }
 
-  function formatDate(d: string) {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
   const columns: Column<TradeRequest>[] = [
     {
       header: 'Requester',
@@ -194,7 +186,7 @@ export default function TradesPage() {
     },
     {
       header: 'Requester Date',
-      cell: (r) => formatDate(r.requester_date),
+      cell: (r) => formatDateFull(r.requester_date),
     },
     {
       header: 'Partner',
@@ -203,7 +195,7 @@ export default function TradesPage() {
     },
     {
       header: 'Partner Date',
-      cell: (r) => formatDate(r.partner_date),
+      cell: (r) => formatDateFull(r.partner_date),
     },
     {
       header: 'Status',
@@ -460,7 +452,7 @@ export default function TradesPage() {
                   },
                 )}
               >
-                Approve Selected
+                Approve ({selectedKeys.size})
               </Button>
               <Button
                 size="sm"
@@ -477,7 +469,7 @@ export default function TradesPage() {
                   },
                 )}
               >
-                Deny Selected
+                Deny ({selectedKeys.size})
               </Button>
             </div>
           ) : undefined}

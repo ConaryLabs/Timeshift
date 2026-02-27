@@ -17,7 +17,7 @@ import { FormField } from '@/components/ui/form-field'
 import { useSchedulePeriods, useCreatePeriod, useUpdateSchedulePeriod, useBargainingUnits, useSlotAssignments } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SchedulePeriod } from '@/api/schedulePeriods'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateFull } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -116,11 +116,6 @@ export default function SchedulePeriodsPage() {
     })
   }
 
-  function formatDate(d: string) {
-    return new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
-      year: 'numeric', month: 'short', day: 'numeric',
-    })
-  }
 
   const columns: Column<SchedulePeriod>[] = [
     {
@@ -136,7 +131,7 @@ export default function SchedulePeriodsPage() {
     },
     {
       header: 'Date Range',
-      cell: (r) => `${formatDate(r.start_date)} – ${formatDate(r.end_date)}`,
+      cell: (r) => `${formatDateFull(r.start_date)} – ${formatDateFull(r.end_date)}`,
     },
     {
       header: 'Status',

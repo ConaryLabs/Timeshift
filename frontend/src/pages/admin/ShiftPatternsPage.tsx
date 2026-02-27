@@ -31,7 +31,7 @@ import {
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { ShiftPattern } from '@/api/shiftPatterns'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateFull } from '@/lib/format'
 
 const simpleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -194,11 +194,7 @@ export default function ShiftPatternsPage() {
     {
       header: 'Anchor Date',
       cell: (r) =>
-        new Date(r.anchor_date + 'T00:00:00').toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }),
+        formatDateFull(r.anchor_date),
       sortable: true,
       sortValue: (r) => r.anchor_date,
     },

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Download } from 'lucide-react'
-import { toLocalDateStr } from '@/lib/format'
+import { toLocalDateStr, formatDate } from '@/lib/format'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -25,13 +25,6 @@ import type { CoverageReport, OtSummaryReport, LeaveSummaryReport, OtByPeriodRep
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]) {
   const csvContent = [

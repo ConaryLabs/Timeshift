@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useHolidays, useCreateHoliday, useUpdateHoliday, useDeleteHoliday } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { Holiday } from '@/api/holidays'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDate } from '@/lib/format'
 
 const schema = z.object({
   date: z.string().min(1, 'Date is required'),
@@ -122,11 +122,7 @@ export default function HolidayCalendarPage() {
   const columns: Column<Holiday>[] = [
     {
       header: 'Date',
-      cell: (r) => new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-      }),
+      cell: (r) => formatDate(r.date),
     },
     { header: 'Name', accessorKey: 'name' },
     {

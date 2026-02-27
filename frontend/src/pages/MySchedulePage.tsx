@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useMySchedule, useMyPreferences } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
+import { formatDateShort, formatDateFull } from '@/lib/format'
 import type { MyScheduleEntry } from '@/api/employee'
 
 type ViewMode = 'week' | 'month'
@@ -117,7 +118,7 @@ export default function MySchedulePage() {
   const todayStr = toDateStr(new Date())
 
   const headerLabel = activeView === 'week'
-    ? `${new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    ? `${formatDateShort(startDate)} - ${formatDateFull(endDate)}`
     : anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   return (

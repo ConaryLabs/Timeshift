@@ -39,7 +39,7 @@ import {
   useDeleteCoveragePlanAssignment,
 } from '@/hooks/queries'
 import type { CoveragePlanAssignment } from '@/api/coveragePlans'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateFull } from '@/lib/format'
 
 const INITIAL_FORM = { plan_id: '', start_date: '', end_date: '', notes: '' }
 
@@ -92,11 +92,6 @@ export default function CoveragePlanAssignmentsPage() {
     })
   }
 
-  function fmtDate(d: string) {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    })
-  }
 
   const columns: Column<CoveragePlanAssignment>[] = [
     {
@@ -105,10 +100,10 @@ export default function CoveragePlanAssignmentsPage() {
         <span className="font-medium">{planLookup.get(r.plan_id) ?? r.plan_id.slice(0, 8)}</span>
       ),
     },
-    { header: 'Start Date', cell: (r) => fmtDate(r.start_date) },
+    { header: 'Start Date', cell: (r) => formatDateFull(r.start_date) },
     {
       header: 'End Date',
-      cell: (r) => r.end_date ? fmtDate(r.end_date) : <Badge variant="outline">Open-ended</Badge>,
+      cell: (r) => r.end_date ? formatDateFull(r.end_date) : <Badge variant="outline">Open-ended</Badge>,
     },
     { header: 'Notes', cell: (r) => r.notes ?? '\u2014' },
     {

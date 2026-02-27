@@ -30,18 +30,13 @@ import {
   useProcessBids,
   useApproveBidWindow,
 } from '@/hooks/queries'
-import { formatTime, NO_VALUE, extractApiError } from '@/lib/format'
+import { formatTime, NO_VALUE, extractApiError, formatDateFull } from '@/lib/format'
 import type { SlotAssignmentView } from '@/api/schedulePeriods'
 import type { BidWindow } from '@/api/bidding'
 import type { BidPeriodStatus } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function formatDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-}
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -331,7 +326,7 @@ export default function SchedulePeriodDetailPage() {
         title={period?.name ?? 'Schedule Period'}
         description={
           period
-            ? `${formatDate(period.start_date)} – ${formatDate(period.end_date)}`
+            ? `${formatDateFull(period.start_date)} – ${formatDateFull(period.end_date)}`
             : undefined
         }
         actions={
