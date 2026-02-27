@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
-import { ArrowLeft, ChevronLeft, ChevronRight, Phone as PhoneIcon, Megaphone, Plus, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Phone as PhoneIcon, Megaphone, Plus, AlertTriangle, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -402,7 +402,19 @@ export default function StaffingResolvePage() {
       )}
 
       {dayGrid && (
-        <div className="space-y-1">
+        <div className="space-y-3">
+          {/* Time header row (shared across all classifications) */}
+          <div className="flex border rounded-t-lg overflow-hidden bg-muted/30">
+            <div className="w-36 shrink-0 border-r" />
+            <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${blockColumns.length}, 1fr)` }}>
+              {blockColumns.map((col) => (
+                <div key={col.index} className="text-[11px] font-medium text-muted-foreground text-center border-r last:border-r-0 px-0.5 py-1.5">
+                  {col.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
           {aggregatedClassifications.map((cls) => (
             <ClassificationRow
               key={cls.classification_id}
@@ -410,10 +422,56 @@ export default function StaffingResolvePage() {
               abbreviation={cls.abbreviation}
               blocks={cls.blocks}
               blockColumns={blockColumns}
-              blockSize={blockSize}
               onBlockClick={(block) => handleBlockClick(cls.classification_id, cls.abbreviation, block)}
             />
           ))}
+
+          {/* Total summary row */}
+          {dayGrid.blocks.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              {/* Total target */}
+              <div className="flex bg-muted/30">
+                <div className="w-36 shrink-0 border-r flex items-center px-2">
+                  <span className="text-[10px] text-muted-foreground">Total Target</span>
+                </div>
+                <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${blockColumns.length}, 1fr)` }}>
+                  {blockColumns.map((col) => {
+                    const aggBlock = dayGrid.blocks[Math.floor(col.index * (12 / blockColumns.length))]
+                    return (
+                      <div key={col.index} className="border-r last:border-r-0 h-5 flex items-center justify-center text-[10px] tabular-nums text-muted-foreground">
+                        {aggBlock?.total_target ?? ''}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* Total actual */}
+              <div className="flex bg-muted/30">
+                <div className="w-36 shrink-0 border-r flex items-center px-2">
+                  <span className="text-[10px] font-bold">Total Actual</span>
+                </div>
+                <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${blockColumns.length}, 1fr)` }}>
+                  {blockColumns.map((col) => {
+                    const aggBlock = dayGrid.blocks[Math.floor(col.index * (12 / blockColumns.length))]
+                    if (!aggBlock) return <div key={col.index} className="border-r last:border-r-0 h-6" />
+                    return (
+                      <div
+                        key={col.index}
+                        className={cn(
+                          'border-r last:border-r-0 h-6 flex items-center justify-center text-xs tabular-nums font-bold',
+                          aggBlock.status === 'green' && 'text-green-800 dark:text-green-400',
+                          aggBlock.status === 'yellow' && 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
+                          aggBlock.status === 'red' && 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
+                        )}
+                      >
+                        {aggBlock.total_actual}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {aggregatedClassifications.length === 0 && (
             <EmptyState
@@ -705,7 +763,7 @@ export default function StaffingResolvePage() {
   )
 }
 
-// ── Classification Row with Gantt bars ─────────────────────────────────────
+// ── Classification Row: Employee Gantt + Coverage Summary ──────────────────
 
 function ClassificationRow({
   abbreviation,
@@ -717,21 +775,19 @@ function ClassificationRow({
   abbreviation: string
   blocks: ClassificationBlock[]
   blockColumns: { index: number; startTime: string; endTime: string; label: string }[]
-  blockSize: BlockSize
   onBlockClick: (block: ClassificationBlock) => void
 }) {
-  // Find a matching block for each column
-  function getBlock(colIndex: number): ClassificationBlock | undefined {
-    return blocks[colIndex]
-  }
+  const [expanded, setExpanded] = useState(true)
 
-  // Collect unique employees across all blocks (for Gantt bars)
-  const uniqueEmployees = useMemo(() => {
-    const seen = new Map<string, { userId: string; firstName: string; lastName: string; shiftName: string; shiftStart: string; shiftEnd: string; isOvertime: boolean }>()
+  // Collect unique assignments across all blocks (keyed by assignment_id so
+  // an employee with two assignments — e.g. overnight carryover + today's shift — gets two bars)
+  const uniqueAssignments = useMemo(() => {
+    const seen = new Map<string, { assignmentId: string; userId: string; firstName: string; lastName: string; shiftName: string; shiftStart: string; shiftEnd: string; isOvertime: boolean }>()
     for (const b of blocks) {
       for (const e of b.employees) {
-        if (!seen.has(e.user_id)) {
-          seen.set(e.user_id, {
+        if (!seen.has(e.assignment_id)) {
+          seen.set(e.assignment_id, {
+            assignmentId: e.assignment_id,
             userId: e.user_id,
             firstName: e.first_name,
             lastName: e.last_name,
@@ -743,11 +799,13 @@ function ClassificationRow({
         }
       }
     }
-    return Array.from(seen.values()).sort((a, b) => a.shiftStart.localeCompare(b.shiftStart) || a.lastName.localeCompare(b.lastName))
+    return Array.from(seen.values()).sort((a, b) =>
+      a.shiftStart.localeCompare(b.shiftStart) || a.lastName.localeCompare(b.lastName),
+    )
   }, [blocks])
 
-  // Total columns
   const totalCols = blockColumns.length
+  const hasShortage = blocks.some((b) => b.status === 'red' || b.status === 'yellow')
 
   // Calculate bar position (left% and width%)
   function barPosition(shiftStart: string, shiftEnd: string) {
@@ -762,100 +820,160 @@ function ClassificationRow({
     return { left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }
   }
 
-  // Determine if any block has a shortage
-  const hasShortage = blocks.some((b) => b.status === 'red' || b.status === 'yellow')
+  function getBlock(colIndex: number): ClassificationBlock | undefined {
+    return blocks[colIndex]
+  }
 
   return (
-    <div className={cn('border rounded-lg overflow-hidden', hasShortage && 'border-amber-300/50')}>
-      {/* Classification header + coverage blocks */}
-      <div className="flex">
-        {/* Label column */}
-        <div className="w-16 shrink-0 bg-muted/50 flex flex-col items-center justify-center border-r p-1">
-          <span className="font-mono text-xs font-semibold">{abbreviation}</span>
-        </div>
+    <div className={cn('border rounded-lg overflow-hidden', hasShortage && 'border-amber-300/60')}>
+      {/* Classification header (collapsible) */}
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-muted/40 hover:bg-muted/60 transition-colors border-b"
+      >
+        {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+        <span className="font-semibold text-sm">{abbreviation}</span>
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Users className="h-3 w-3" />
+          {new Set(uniqueAssignments.map(a => a.userId)).size} {new Set(uniqueAssignments.map(a => a.userId)).size === 1 ? 'person' : 'people'}
+        </span>
+        {hasShortage && (
+          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+            <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+            Shortage
+          </Badge>
+        )}
+      </button>
 
-        {/* Coverage block grid */}
-        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
-          {/* Time headers */}
-          {blockColumns.map((col) => (
-            <div key={col.index} className="text-[10px] text-muted-foreground text-center border-r last:border-r-0 border-b px-0.5 py-0.5 leading-tight">
-              {col.label}
-            </div>
-          ))}
-
-          {/* Target/actual cells */}
-          {blockColumns.map((col) => {
-            const block = getBlock(col.index)
-            if (!block) {
-              return <div key={`cell-${col.index}`} className="border-r last:border-r-0 h-8" />
-            }
-            const isClickable = block.status !== 'green' || block.actual < block.target
-            return (
-              <button
-                key={`cell-${col.index}`}
-                type="button"
-                disabled={!isClickable}
-                onClick={() => isClickable && onBlockClick(block)}
-                className={cn(
-                  'border-r last:border-r-0 h-8 flex flex-col items-center justify-center text-[10px] tabular-nums transition-colors',
-                  block.status === 'green' && 'bg-green-50 dark:bg-green-950/20',
-                  block.status === 'yellow' && 'bg-amber-50 dark:bg-amber-950/20',
-                  block.status === 'red' && 'bg-red-50 dark:bg-red-950/20',
-                  isClickable && 'cursor-pointer hover:ring-1 hover:ring-inset hover:ring-primary/50',
-                  !isClickable && 'cursor-default',
-                )}
-                title={`${abbreviation} ${block.start_time}-${block.end_time}: ${block.actual}/${block.target} (min: ${block.min})`}
-              >
-                <span className={cn(
-                  'font-medium leading-none',
-                  block.status === 'red' && 'text-red-700 dark:text-red-400',
-                  block.status === 'yellow' && 'text-amber-700 dark:text-amber-400',
-                  block.status === 'green' && 'text-green-700 dark:text-green-400',
-                )}>
-                  {block.actual}/{block.target}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Gantt bars for employees */}
-      {uniqueEmployees.length > 0 && (
-        <div className="relative border-t bg-muted/10">
-          <div className="flex">
-            <div className="w-16 shrink-0" />
-            <div className="flex-1 relative">
-              {uniqueEmployees.map((emp) => {
+      {expanded && (
+        <>
+          {/* Employee Gantt rows */}
+          {uniqueAssignments.length > 0 ? (
+            <div className="bg-card">
+              {uniqueAssignments.map((emp, idx) => {
                 const pos = barPosition(emp.shiftStart, emp.shiftEnd)
                 return (
-                  <div key={emp.userId} className="h-5 relative">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={cn(
-                            'absolute top-0.5 h-4 rounded-sm text-[9px] font-medium flex items-center px-1 truncate',
-                            emp.isOvertime
-                              ? 'bg-amber-200 text-amber-900 dark:bg-amber-800/60 dark:text-amber-100'
-                              : 'bg-indigo-200 text-indigo-900 dark:bg-indigo-800/60 dark:text-indigo-100',
-                          )}
-                          style={{ left: pos.left, width: pos.width }}
-                        >
-                          {emp.lastName}, {emp.firstName[0]}
-                          {emp.isOvertime && <span className="ml-0.5 font-bold">OT</span>}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {emp.firstName} {emp.lastName} &mdash; {emp.shiftName} ({emp.shiftStart}&ndash;{emp.shiftEnd})
-                        {emp.isOvertime && ' [OT]'}
-                      </TooltipContent>
-                    </Tooltip>
+                  <div
+                    key={emp.assignmentId}
+                    className={cn('flex items-center', idx !== uniqueAssignments.length - 1 && 'border-b border-dashed border-border/50')}
+                  >
+                    {/* Name column */}
+                    <div className="w-36 shrink-0 border-r px-2 py-1 flex items-center gap-1 min-h-[28px]">
+                      <span className="text-xs truncate">
+                        {emp.lastName}, {emp.firstName[0]}.
+                      </span>
+                      {emp.isOvertime && (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 text-amber-700 border-amber-400 bg-amber-50 dark:text-amber-300 dark:border-amber-700 dark:bg-amber-900/30">
+                          OT
+                        </Badge>
+                      )}
+                    </div>
+                    {/* Gantt bar area */}
+                    <div className="flex-1 relative h-7">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              'absolute top-1 h-5 rounded text-[10px] font-medium flex items-center px-1.5 truncate shadow-sm',
+                              emp.isOvertime
+                                ? 'bg-amber-300/80 text-amber-950 dark:bg-amber-700/70 dark:text-amber-50'
+                                : 'bg-indigo-300/70 text-indigo-950 dark:bg-indigo-700/60 dark:text-indigo-50',
+                            )}
+                            style={{ left: pos.left, width: pos.width }}
+                          >
+                            <span className="truncate">
+                              {emp.shiftName}
+                              {emp.isOvertime && ' OT'}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <div className="text-xs">
+                            <div className="font-medium">{emp.firstName} {emp.lastName}</div>
+                            <div>{emp.shiftName} ({emp.shiftStart}&ndash;{emp.shiftEnd})</div>
+                            {emp.isOvertime && <div className="text-amber-600 font-medium">Overtime</div>}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                   </div>
                 )
               })}
             </div>
+          ) : (
+            <div className="px-4 py-3 text-xs text-muted-foreground italic bg-card">
+              No employees assigned
+            </div>
+          )}
+
+          {/* Coverage summary rows: Target, Actual, Min (matching SE layout) */}
+          <div className="border-t bg-muted/20">
+            {/* Target row */}
+            <div className="flex">
+              <div className="w-36 shrink-0 border-r flex items-center px-2">
+                <span className="text-[10px] text-muted-foreground">Target</span>
+              </div>
+              <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
+                {blockColumns.map((col) => {
+                  const block = getBlock(col.index)
+                  return (
+                    <div key={col.index} className="border-r last:border-r-0 h-5 flex items-center justify-center text-[10px] tabular-nums text-muted-foreground">
+                      {block?.target ?? ''}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {/* Actual row (main — bold, color-coded, clickable) */}
+            <div className="flex">
+              <div className="w-36 shrink-0 border-r flex items-center px-2">
+                <span className="text-[10px] font-semibold text-foreground">Actual</span>
+              </div>
+              <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
+                {blockColumns.map((col) => {
+                  const block = getBlock(col.index)
+                  if (!block) return <div key={col.index} className="border-r last:border-r-0 h-6" />
+                  const isClickable = block.status !== 'green' || block.actual < block.target
+                  return (
+                    <button
+                      key={col.index}
+                      type="button"
+                      disabled={!isClickable}
+                      onClick={() => isClickable && onBlockClick(block)}
+                      className={cn(
+                        'border-r last:border-r-0 h-6 flex items-center justify-center text-xs tabular-nums font-bold transition-colors',
+                        block.status === 'green' && 'text-green-800 dark:text-green-400',
+                        block.status === 'yellow' && 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
+                        block.status === 'red' && 'bg-red-100 text-red-800 font-black dark:bg-red-950/30 dark:text-red-400',
+                        isClickable && 'cursor-pointer hover:bg-accent/50',
+                      )}
+                      title={`${abbreviation} ${block.start_time}-${block.end_time}: ${block.actual} staffed (target: ${block.target}, min: ${block.min})`}
+                    >
+                      {block.actual}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            {/* Min row */}
+            <div className="flex">
+              <div className="w-36 shrink-0 border-r flex items-center px-2">
+                <span className="text-[10px] text-muted-foreground">Min</span>
+              </div>
+              <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
+                {blockColumns.map((col) => {
+                  const block = getBlock(col.index)
+                  return (
+                    <div key={col.index} className="border-r last:border-r-0 h-5 flex items-center justify-center text-[10px] tabular-nums text-muted-foreground">
+                      {block?.min ?? ''}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

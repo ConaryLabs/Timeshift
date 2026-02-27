@@ -160,23 +160,21 @@ async fn main() -> anyhow::Result<()> {
     let accrual_pool = state.pool.clone();
     tokio::spawn(timeshift_backend::services::accrual::background_accrual_task(accrual_pool));
 
-    // Login route with rate limiting
+    // Rate-limited routes: use route_layer + with_state to scope governor per-router
     let login_router = Router::new()
         .route("/api/auth/login", post(api::auth::login))
-        .layer(GovernorLayer {
+        .route_layer(GovernorLayer {
             config: governor_conf,
         })
         .with_state(state.clone());
 
-    // Refresh route with rate limiting
     let refresh_router = Router::new()
         .route("/api/auth/refresh", post(api::auth::refresh))
-        .layer(GovernorLayer {
+        .route_layer(GovernorLayer {
             config: refresh_governor_conf,
         })
         .with_state(state.clone());
 
-    // Callout action routes (bump, volunteer) with rate limiting
     let callout_action_router = Router::new()
         .route(
             "/api/callout/events/:id/bump",
@@ -186,29 +184,27 @@ async fn main() -> anyhow::Result<()> {
             "/api/callout/events/:id/volunteer",
             post(api::ot::volunteer),
         )
-        .layer(GovernorLayer {
+        .route_layer(GovernorLayer {
             config: callout_action_governor_conf,
         })
         .with_state(state.clone());
 
-    // Password change route with rate limiting
     let password_router = Router::new()
         .route(
             "/api/users/me/password",
             axum::routing::patch(api::users::change_password),
         )
-        .layer(GovernorLayer {
+        .route_layer(GovernorLayer {
             config: password_governor_conf,
         })
         .with_state(state.clone());
 
-    // SMS alert route with rate limiting (1 per 60s per IP)
     let sms_router = Router::new()
         .route(
             "/api/coverage-plans/gaps/:date/sms-alert",
             post(api::coverage_plans::send_sms_alert),
         )
-        .layer(GovernorLayer {
+        .route_layer(GovernorLayer {
             config: sms_governor_conf,
         })
         .with_state(state.clone());
