@@ -1407,7 +1407,12 @@ export function useCreateOtRequest() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: otRequestsApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: ['staffing'] })
+    },
   })
 }
 
@@ -1432,7 +1437,12 @@ export function useAssignOtRequest() {
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'mandatory_day_off' | 'fixed_coverage'; force?: boolean }) =>
       otRequestsApi.assign(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: ['staffing'] })
+    },
   })
 }
 
