@@ -61,10 +61,25 @@ interface EligibleEmployee {
 }
 
 /**
+ * Check if time `t` falls between `start` and `end` on a circular 24h clock.
+ * All values in minutes [0, 1440). Handles ranges that cross midnight.
+ */
+function isTimeBetween(t: number, start: number, end: number): boolean {
+  t = ((t % 1440) + 1440) % 1440
+  start = ((start % 1440) + 1440) % 1440
+  end = ((end % 1440) + 1440) % 1440
+  if (start <= end) return t >= start && t <= end
+  return t >= start || t <= end // range crosses midnight
+}
+
+/**
  * Find employees eligible for mandatory OT relative to a time block.
  *
  * Holdover: employees whose shift ends near the block — they stay longer.
  * Early callout: employees whose shift starts near the block — they come in early.
+ *
+ * Uses circular time comparison to handle midnight-crossing shifts and blocks
+ * (e.g. Grave 22:00-06:00 people are holdover candidates for a 06:00-14:00 gap).
  */
 function findBlockEligible(
   dayView: DayViewEntry[],
@@ -74,13 +89,17 @@ function findBlockEligible(
   direction: OtDirection,
 ): EligibleEmployee[] {
   const blockStartMin = parseTimeToMin(blockStart)
-  const blockEndMin = parseTimeToMin(blockEnd)
+  const rawBlockEndMin = parseTimeToMin(blockEnd)
+  // Linear blockEnd for "already covers" check (extend past 1440 if block crosses midnight)
+  const blockEndLinear = rawBlockEndMin <= blockStartMin ? rawBlockEndMin + 1440 : rawBlockEndMin
+
   const eligible: EligibleEmployee[] = []
 
   for (const shift of dayView) {
     const shiftStartMin = parseTimeToMin(shift.start_time)
-    let shiftEndMin = parseTimeToMin(shift.end_time)
-    if (shift.crosses_midnight) shiftEndMin += 24 * 60
+    // Linear end for "already covers" check
+    let shiftEndLinear = parseTimeToMin(shift.end_time)
+    if (shift.crosses_midnight) shiftEndLinear += 1440
 
     // Filter to employees in the matching classification who aren't already on OT
     const matchingEmployees = shift.assignments.filter(
@@ -88,14 +107,15 @@ function findBlockEligible(
     )
     if (matchingEmployees.length === 0) continue
 
+    // Does this shift already fully cover the block? (no point holding them over)
+    const alreadyCoversBlock = shiftStartMin <= blockStartMin && shiftEndLinear >= blockEndLinear
+
     if (direction === 'holdover') {
-      // Holdover: shift ends near the block start.
-      // The shift end should be within [blockStart - 2h, blockEnd].
-      // And the shift shouldn't already fully cover the block (otherwise they're working, not ending).
-      const endInRange = shiftEndMin >= blockStartMin - 120 && shiftEndMin <= blockEndMin
-      const alreadyCoversBlock = shiftStartMin <= blockStartMin && shiftEndMin >= blockEndMin
+      // Holdover: shift ends near/within the block → employee stays longer.
+      // Circular check: shiftEnd ∈ [blockStart - 2h, blockEnd]
+      const shiftEndCircular = parseTimeToMin(shift.end_time)
+      const endInRange = isTimeBetween(shiftEndCircular, blockStartMin - 120, rawBlockEndMin)
       if (endInRange && !alreadyCoversBlock) {
-        // OT window: from shift end to shift end + 2h
         const otStart = shift.end_time
         const otEnd = addHoursToTime(shift.end_time, 2)
         for (const emp of matchingEmployees) {
@@ -112,13 +132,10 @@ function findBlockEligible(
         }
       }
     } else {
-      // Early callout: shift starts near the block end.
-      // The shift start should be within [blockStart, blockEnd + 2h].
-      // And the shift shouldn't already fully cover the block.
-      const startInRange = shiftStartMin >= blockStartMin && shiftStartMin <= blockEndMin + 120
-      const alreadyCoversBlock = shiftStartMin <= blockStartMin && shiftEndMin >= blockEndMin
+      // Early callout: shift starts near/within the block → employee comes in early.
+      // Circular check: shiftStart ∈ [blockStart, blockEnd + 2h]
+      const startInRange = isTimeBetween(shiftStartMin, blockStartMin, rawBlockEndMin + 120)
       if (startInRange && !alreadyCoversBlock) {
-        // OT window: from shift start - 2h to shift start
         const otStart = addHoursToTime(shift.start_time, -2)
         const otEnd = shift.start_time
         for (const emp of matchingEmployees) {
