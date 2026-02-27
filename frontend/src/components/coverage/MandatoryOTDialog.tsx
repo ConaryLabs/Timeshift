@@ -141,6 +141,9 @@ function findBlockEligible(
       // Circular check: shiftEnd ∈ [blockStart - 2h, blockEnd]
       const shiftEndCircular = parseTimeToMin(shift.end_time)
       const endInRange = isTimeBetween(shiftEndCircular, blockStartMin - 120, rawBlockEndMin)
+      // Guard: midnight-crossing shift that starts AFTER the block hasn't started
+      // yet (it's tonight's shift, not last night's carry-over). Skip it.
+      if (shift.crosses_midnight && shiftStartMin > blockStartMin) continue
       if (endInRange && !alreadyCoversBlock) {
         const otStart = shift.end_time
         const otEnd = addHoursToTime(shift.end_time, 2)
@@ -163,6 +166,9 @@ function findBlockEligible(
       // Early callout: shift starts near/within the block → employee comes in early.
       // Circular check: shiftStart ∈ [blockStart, blockEnd + 2h]
       const startInRange = isTimeBetween(shiftStartMin, blockStartMin, rawBlockEndMin + 120)
+      // Guard: midnight-crossing shift that starts BEFORE the block has already
+      // ended (it was last night's shift, employee already went home). Skip it.
+      if (shift.crosses_midnight && shiftStartMin < blockStartMin) continue
       if (startInRange && !alreadyCoversBlock) {
         const otStart = addHoursToTime(shift.start_time, -2)
         const otEnd = shift.start_time
