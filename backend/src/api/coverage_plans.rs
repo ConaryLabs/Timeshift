@@ -655,6 +655,83 @@ pub(crate) async fn compute_slot_coverage(
         }
     }
 
+    // Add active OT request assignments (mandatory OT, voluntary OT, etc.)
+    // These live in ot_request_assignments → ot_requests, separate from regular assignments.
+    let ot_assignments = sqlx::query!(
+        r#"
+        SELECT
+            otr.classification_id,
+            otr.start_time,
+            otr.end_time
+        FROM ot_request_assignments ora
+        JOIN ot_requests otr ON otr.id = ora.ot_request_id
+        WHERE otr.org_id = $1 AND otr.date = $2
+          AND ora.cancelled_at IS NULL
+          AND otr.status != 'cancelled'
+        "#,
+        org_id,
+        date,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for ot in &ot_assignments {
+        let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
+        let crosses_midnight = ot.end_time < ot.start_time;
+        let end_min = if crosses_midnight {
+            24 * 60
+        } else {
+            ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32
+        };
+
+        let start_slot = (start_min / 30) as i16;
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+
+        for slot in start_slot..=end_slot {
+            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+        }
+    }
+
+    // Also count OT that crosses midnight from the previous day into today's early slots
+    let ot_overnight = sqlx::query!(
+        r#"
+        SELECT
+            otr.classification_id,
+            otr.end_time
+        FROM ot_request_assignments ora
+        JOIN ot_requests otr ON otr.id = ora.ot_request_id
+        WHERE otr.org_id = $1 AND otr.date = $2
+          AND otr.end_time < otr.start_time
+          AND ora.cancelled_at IS NULL
+          AND otr.status != 'cancelled'
+        "#,
+        org_id,
+        prev_date,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for ot in &ot_overnight {
+        let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
+        if end_min == 0 {
+            continue;
+        }
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+        for slot in 0..=end_slot {
+            *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
+        }
+    }
+
     let result = slots
         .into_iter()
         .map(|s| {
