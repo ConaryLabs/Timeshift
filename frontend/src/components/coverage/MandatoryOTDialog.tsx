@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateOtRequest, useAssignOtRequest, useDayView } from '@/hooks/queries'
-import { formatTime } from '@/lib/format'
+import { formatTime, extractApiError } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
 
 interface Props {
@@ -71,6 +71,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   async function handleSubmit() {
     if (!selectedUserId || !shift || !otStartTime || !otEndTime) return
 
+    let createdOtId: string | undefined
     try {
       const otReq = await createOt.mutateAsync({
         date,
@@ -80,6 +81,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
         is_fixed_coverage: true,
         notes: `Mandatory OT (${direction === 'holdover' ? 'holdover' : 'early callout'}): ${gap.classification_abbreviation} shortage on ${gap.shift_name}`,
       })
+      createdOtId = otReq.id
 
       await assignOt.mutateAsync({
         id: otReq.id,
@@ -90,8 +92,14 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
       toast.success('Mandatory OT assigned')
       onOpenChange(false)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to assign mandatory OT'
-      toast.error(message)
+      // If the OT request was created but assignment failed, cancel the orphan
+      if (createdOtId) {
+        try {
+          const { api: client } = await import('@/api/client')
+          await client.patch(`/api/ot-requests/${createdOtId}/cancel`)
+        } catch { /* cleanup is best-effort */ }
+      }
+      toast.error(extractApiError(err, 'Failed to assign mandatory OT'))
     }
   }
 
@@ -150,6 +158,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
                   key={value}
                   type="button"
                   onClick={() => handleDirectionChange(value)}
+                  disabled={isSubmitting}
                   className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     direction === value
                       ? 'border-primary bg-primary/5 text-primary'
@@ -167,7 +176,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
           <div className="space-y-2">
             <p className="text-sm font-medium">Employee</p>
             {eligibleEmployees.length > 0 ? (
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={isSubmitting}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select employee…" />
                 </SelectTrigger>

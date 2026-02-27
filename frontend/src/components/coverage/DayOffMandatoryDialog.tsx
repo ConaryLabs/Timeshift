@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { FormField } from '@/components/ui/form-field'
 import { useCreateOtRequest, useAssignOtRequest } from '@/hooks/queries'
-import { formatTime } from '@/lib/format'
+import { formatTime, extractApiError } from '@/lib/format'
 
 /** Add (or subtract) hours from a HH:MM:SS time string, wrapping at midnight. */
 function addHoursToTime(time: string, hours: number): string {
@@ -91,6 +91,7 @@ export default function DayOffMandatoryDialog({
 
   async function handleSubmit() {
     if (!selectedUserId || !startTimeInput) return
+    let createdOtId: string | undefined
     try {
       const otReq = await createOt.mutateAsync({
         date,
@@ -100,6 +101,7 @@ export default function DayOffMandatoryDialog({
         is_fixed_coverage: true,
         notes: `Mandatory OT (day off – ${duration}h): ${classificationAbbreviation} shortage`,
       })
+      createdOtId = otReq.id
 
       await assignOt.mutateAsync({
         id: otReq.id,
@@ -110,8 +112,14 @@ export default function DayOffMandatoryDialog({
       toast.success('Day-off mandatory OT assigned')
       onOpenChange(false)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to assign day-off mandatory OT'
-      toast.error(message)
+      // If the OT request was created but assignment failed, cancel the orphan
+      if (createdOtId) {
+        try {
+          const { api: client } = await import('@/api/client')
+          await client.patch(`/api/ot-requests/${createdOtId}/cancel`)
+        } catch { /* cleanup is best-effort */ }
+      }
+      toast.error(extractApiError(err, 'Failed to assign day-off mandatory OT'))
     }
   }
 
@@ -134,6 +142,7 @@ export default function DayOffMandatoryDialog({
               type="time"
               value={startTimeInput}
               onChange={(e) => setStartTimeInput(e.target.value)}
+              disabled={isSubmitting}
             />
           </FormField>
 
@@ -146,6 +155,7 @@ export default function DayOffMandatoryDialog({
                   key={d}
                   type="button"
                   onClick={() => setDuration(d)}
+                  disabled={isSubmitting}
                   className={`rounded-md border px-4 py-2 text-sm transition-colors ${
                     duration === d
                       ? 'border-primary bg-primary/5 text-primary font-medium'
@@ -166,7 +176,7 @@ export default function DayOffMandatoryDialog({
           {/* Employee picker */}
           <FormField label="Employee" htmlFor="doo-employee" required>
             {employees.length > 0 ? (
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={isSubmitting}>
                 <SelectTrigger id="doo-employee">
                   <SelectValue placeholder="Select employee…" />
                 </SelectTrigger>
