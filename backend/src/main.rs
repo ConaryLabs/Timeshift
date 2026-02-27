@@ -12,7 +12,7 @@ use axum::{
     Router,
 };
 use sqlx::postgres::PgPoolOptions;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::{governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorLayer};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -94,10 +94,12 @@ async fn main() -> anyhow::Result<()> {
         .allow_origin(allowed_origins);
 
     // Rate limiting for login endpoint: 5 requests burst, replenish 1 per 2 seconds per IP
+    // SmartIpKeyExtractor reads X-Forwarded-For/X-Real-IP headers set by Caddy proxy
     let governor_conf = Arc::new(
         GovernorConfigBuilder::default()
             .per_second(2)
             .burst_size(5)
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .unwrap(),
     );
@@ -107,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
         GovernorConfigBuilder::default()
             .per_millisecond(200)
             .burst_size(10)
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .unwrap(),
     );
@@ -116,6 +119,7 @@ async fn main() -> anyhow::Result<()> {
         GovernorConfigBuilder::default()
             .per_second(1)
             .burst_size(3)
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .unwrap(),
     );
@@ -125,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
         GovernorConfigBuilder::default()
             .per_second(12)
             .burst_size(5)
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .unwrap(),
     );
@@ -134,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         GovernorConfigBuilder::default()
             .per_second(60)
             .burst_size(1)
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .unwrap(),
     );
@@ -156,9 +162,30 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Background leave accrual runner (checks hourly, idempotent per org per day)
+    // Background leave accrual runner (checks hourly, idempotent per org per day).
+    // Monitored spawn: if the task panics, log the error and restart after 60s.
     let accrual_pool = state.pool.clone();
-    tokio::spawn(timeshift_backend::services::accrual::background_accrual_task(accrual_pool));
+    tokio::spawn(async move {
+        loop {
+            match tokio::spawn(timeshift_backend::services::accrual::background_accrual_task(
+                accrual_pool.clone(),
+            ))
+            .await
+            {
+                Ok(()) => {
+                    tracing::warn!(
+                        "accrual background task exited unexpectedly, restarting in 60s"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "accrual background task panicked: {e}, restarting in 60s"
+                    );
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        }
+    });
 
     // Rate-limited routes: use route_layer + with_state to scope governor per-router
     let login_router = Router::new()
@@ -227,9 +254,36 @@ async fn main() -> anyhow::Result<()> {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal())
     .await?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("shutdown signal received, starting graceful shutdown");
 }
 
 async fn security_headers(
