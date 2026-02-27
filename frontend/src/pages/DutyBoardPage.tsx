@@ -1,27 +1,15 @@
-import { useState, useMemo } from 'react'
-import { format } from 'date-fns'
-import { toast } from 'sonner'
-import { CalendarIcon, UserPlus, X, Pencil } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+/* eslint-disable react-hooks/preserve-manual-memoization */
+import { useState, useMemo, useCallback } from 'react'
+import { format, addDays, subDays } from 'date-fns'
 import { PageHeader } from '@/components/ui/page-header'
-import { LoadingState } from '@/components/ui/loading-state'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -29,323 +17,587 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
-import {
-  useDutyPositions,
-  useDutyAssignments,
-  useCreateDutyAssignment,
-  useUpdateDutyAssignment,
-  useDeleteDutyAssignment,
-  useUserDirectory,
-  useShiftTemplates,
-} from '@/hooks/queries'
-import { usePermissions } from '@/hooks/usePermissions'
+import { Loader2, ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { DutyPosition } from '@/api/dutyPositions'
-import type { DutyAssignment } from '@/api/dutyPositions'
-import { extractApiError } from '@/lib/format'
+import { usePermissions } from '@/hooks/usePermissions'
+import { useDutyBoard, useCellAction, useAvailableStaff, useConsoleHours, useCreateDatePosition, useDeleteDatePosition } from '@/hooks/useDutyBoard'
+import { useClassifications } from '@/hooks/queries'
+import type { BoardAssignment, AvailableEmployee } from '@/api/dutyBoard'
+
+const BLOCK_LABELS = [
+  '0000', '0200', '0400', '0600', '0800', '1000',
+  '1200', '1400', '1600', '1800', '2000', '2200',
+]
+
+function getCurrentBlockIndex(): number {
+  const now = new Date()
+  return Math.floor((now.getHours() * 60 + now.getMinutes()) / 120)
+}
+
+function getMonthRange(date: Date): { start: string; end: string } {
+  const start = new Date(date.getFullYear(), date.getMonth(), 1)
+  return {
+    start: format(start, 'yyyy-MM-dd'),
+    end: format(date, 'yyyy-MM-dd'),
+  }
+}
+
+// Staff list shown in the assignment dialog
+function StaffRow({
+  employee,
+  onSelect,
+}: {
+  employee: AvailableEmployee
+  onSelect: () => void
+}) {
+  const isAlreadyAssigned = !!employee.already_assigned_position
+  return (
+    <button
+      className={cn(
+        'w-full text-left px-3 py-2 hover:bg-accent rounded flex items-center justify-between gap-2 text-sm',
+        isAlreadyAssigned && 'opacity-50'
+      )}
+      onClick={onSelect}
+      disabled={isAlreadyAssigned}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="font-medium truncate">
+          {employee.last_name}, {employee.first_name}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {employee.shift_name} ({employee.shift_start}-{employee.shift_end})
+          {employee.is_overtime && <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">OT</Badge>}
+        </div>
+        {isAlreadyAssigned && (
+          <div className="text-xs text-yellow-600 dark:text-yellow-400">
+            Already at {employee.already_assigned_position}
+          </div>
+        )}
+      </div>
+      <div className="text-xs text-muted-foreground whitespace-nowrap">
+        {employee.console_hours_this_month}h
+      </div>
+    </button>
+  )
+}
+
+// The assignment dialog content
+function AssignmentDialogContent({
+  date,
+  positionId,
+  positionName,
+  blockIndex,
+  currentAssignment,
+  onAssign,
+  onMarkOt,
+  onClear,
+}: {
+  date: string
+  positionId: string
+  positionName: string
+  blockIndex: number
+  currentAssignment: BoardAssignment | undefined
+  onAssign: (userId: string) => void
+  onMarkOt: () => void
+  onClear: () => void
+}) {
+  const { data: available, isLoading } = useAvailableStaff(
+    date, blockIndex, positionId, true
+  )
+
+  return (
+    <div className="space-y-4">
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-yellow-700 dark:text-yellow-400 border-yellow-300"
+          onClick={onMarkOt}
+        >
+          Mark OT Needed
+        </Button>
+        {currentAssignment && (
+          <Button variant="outline" size="sm" onClick={onClear}>
+            {currentAssignment.status === 'ot_needed' ? 'Clear OT' : 'Clear Assignment'}
+          </Button>
+        )}
+      </div>
+
+      {/* Available staff list */}
+      <div>
+        <h4 className="text-sm font-medium mb-2">
+          Available Staff
+          <span className="text-xs text-muted-foreground ml-2">(sorted by fewest hours at {positionName})</span>
+        </h4>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <span className="text-sm text-muted-foreground">Loading eligible staff...</span>
+          </div>
+        ) : !available?.length ? (
+          <div className="py-6 text-sm text-muted-foreground text-center border rounded-lg">
+            No eligible staff for this block
+          </div>
+        ) : (
+          <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
+            {available.map((emp) => (
+              <StaffRow
+                key={emp.user_id}
+                employee={emp}
+                onSelect={() => onAssign(emp.user_id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Console Hours Sheet content
+function ConsoleHoursSheet({ date }: { date: Date }) {
+  const { start, end } = getMonthRange(date)
+  const { data: hours, isLoading } = useConsoleHours(start, end)
+
+  const grouped = useMemo(() => {
+    if (!hours) return []
+    const map = new Map<string, { name: string; positions: Map<string, number>; total: number }>()
+    for (const entry of hours) {
+      const key = entry.user_id
+      if (!map.has(key)) {
+        map.set(key, {
+          name: `${entry.last_name}, ${entry.first_name}`,
+          positions: new Map(),
+          total: 0,
+        })
+      }
+      const user = map.get(key)!
+      user.positions.set(entry.position_name, (user.positions.get(entry.position_name) || 0) + entry.hours)
+      user.total += entry.hours
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [hours])
+
+  const positions = useMemo(() => {
+    if (!hours) return []
+    return [...new Set(hours.map((h) => h.position_name))].sort()
+  }, [hours])
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Console hours for {format(new Date(start), 'MMMM yyyy')} (through {format(date, 'MMM d')})
+      </p>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : !grouped.length ? (
+        <p className="text-sm text-muted-foreground text-center py-8">No duty assignments this month</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-1.5 px-2 font-medium">Name</th>
+                {positions.map((p) => (
+                  <th key={p} className="text-right py-1.5 px-2 font-medium">{p}</th>
+                ))}
+                <th className="text-right py-1.5 px-2 font-medium">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map((user) => (
+                <tr key={user.name} className="border-b">
+                  <td className="py-1.5 px-2 font-medium">{user.name}</td>
+                  {positions.map((p) => (
+                    <td key={p} className="text-right py-1.5 px-2">
+                      {user.positions.get(p) || '-'}
+                    </td>
+                  ))}
+                  <td className="text-right py-1.5 px-2 font-medium">{user.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function DutyBoardPage() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [calendarOpen, setCalendarOpen] = useState(false)
-  const [shiftFilter, setShiftFilter] = useState<string>('')
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
-  const [selectedPosition, setSelectedPosition] = useState<DutyPosition | null>(null)
-  const [editingAssignment, setEditingAssignment] = useState<DutyAssignment | null>(null)
-  const [removeTarget, setRemoveTarget] = useState<DutyAssignment | null>(null)
-  const [selectedUserId, setSelectedUserId] = useState('')
-  const [assignNotes, setAssignNotes] = useState('')
-
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [activeCell, setActiveCell] = useState<{ positionId: string; blockIndex: number } | null>(null)
+  const [addRowOpen, setAddRowOpen] = useState(false)
+  const [newRowName, setNewRowName] = useState('')
+  const [newRowClassification, setNewRowClassification] = useState<string>('')
   const { isManager } = usePermissions()
+
   const dateStr = format(selectedDate, 'yyyy-MM-dd')
+  const { data: board, isLoading } = useDutyBoard(dateStr)
+  const cellAction = useCellAction(dateStr)
+  const createDatePosition = useCreateDatePosition(dateStr)
+  const deleteDatePosition = useDeleteDatePosition(dateStr)
+  const { data: classifications } = useClassifications()
+  const currentBlock = getCurrentBlockIndex()
 
-  const { data: positions, isLoading: positionsLoading } = useDutyPositions()
-  const { data: assignments, isLoading: assignmentsLoading } = useDutyAssignments(
-    dateStr,
-    shiftFilter && shiftFilter !== 'all' ? shiftFilter : undefined,
-  )
-  const { data: users } = useUserDirectory()
-  const { data: shiftTemplates } = useShiftTemplates()
-
-  const createMut = useCreateDutyAssignment()
-  const updateMut = useUpdateDutyAssignment()
-  const deleteMut = useDeleteDutyAssignment()
-
-  const assignmentsByPosition = useMemo(() => {
-    const map = new Map<string, DutyAssignment>()
-    if (assignments) {
-      for (const a of assignments) {
-        map.set(a.duty_position_id, a)
+  // Build assignment lookup: positionId+blockIndex -> assignment
+  const assignmentMap = useMemo(() => {
+    const map = new Map<string, BoardAssignment>()
+    if (board?.assignments) {
+      for (const a of board.assignments) {
+        map.set(`${a.duty_position_id}:${a.block_index}`, a)
       }
     }
     return map
-  }, [assignments])
+  }, [board?.assignments])
 
-  const sortedUsers = useMemo(() => {
-    if (!users) return []
-    return [...users].sort((a, b) => {
-      const nameA = `${a.last_name} ${a.first_name}`.toLowerCase()
-      const nameB = `${b.last_name} ${b.first_name}`.toLowerCase()
-      return nameA.localeCompare(nameB)
-    })
-  }, [users])
+  const handleCellClick = useCallback((positionId: string, blockIndex: number) => {
+    if (!isManager) return
+    setActiveCell({ positionId, blockIndex })
+  }, [isManager])
 
-  function openAssignDialog(position: DutyPosition, existing?: DutyAssignment) {
-    setSelectedPosition(position)
-    if (existing) {
-      setEditingAssignment(existing)
-      setSelectedUserId(existing.user_id)
-      setAssignNotes(existing.notes ?? '')
-    } else {
-      setEditingAssignment(null)
-      setSelectedUserId('')
-      setAssignNotes('')
-    }
-    setAssignDialogOpen(true)
-  }
-
-  function handleAssign() {
-    if (!selectedPosition || !selectedUserId) return
-
-    if (editingAssignment) {
-      updateMut.mutate(
-        { id: editingAssignment.id, user_id: selectedUserId, notes: assignNotes || null },
-        {
-          onSuccess: () => {
-            toast.success('Assignment updated')
-            setAssignDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
-            toast.error(msg)
-          },
-        },
-      )
-    } else {
-      createMut.mutate(
-        {
-          duty_position_id: selectedPosition.id,
-          user_id: selectedUserId,
-          date: dateStr,
-          shift_template_id: shiftFilter && shiftFilter !== 'all' ? shiftFilter : undefined,
-          notes: assignNotes || undefined,
-        },
-        {
-          onSuccess: () => {
-            toast.success('User assigned to position')
-            setAssignDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
-            toast.error(msg)
-          },
-        },
-      )
-    }
-  }
-
-  function handleRemove() {
-    if (!removeTarget) return
-    deleteMut.mutate(removeTarget.id, {
-      onSuccess: () => {
-        toast.success('Assignment removed')
-        setRemoveTarget(null)
+  const handleAssign = useCallback((userId: string) => {
+    if (!activeCell) return
+    cellAction.mutate(
+      {
+        duty_position_id: activeCell.positionId,
+        block_index: activeCell.blockIndex,
+        action: 'assign',
+        user_id: userId,
       },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
-        toast.error(msg)
-      },
-    })
-  }
+      { onSuccess: () => setActiveCell(null) }
+    )
+  }, [activeCell, cellAction])
 
-  const isLoading = positionsLoading || assignmentsLoading
+  const handleMarkOt = useCallback(() => {
+    if (!activeCell) return
+    cellAction.mutate(
+      {
+        duty_position_id: activeCell.positionId,
+        block_index: activeCell.blockIndex,
+        action: 'mark_ot',
+      },
+      { onSuccess: () => setActiveCell(null) }
+    )
+  }, [activeCell, cellAction])
+
+  const handleClear = useCallback(() => {
+    if (!activeCell) return
+    cellAction.mutate(
+      {
+        duty_position_id: activeCell.positionId,
+        block_index: activeCell.blockIndex,
+        action: 'clear',
+      },
+      { onSuccess: () => setActiveCell(null) }
+    )
+  }, [activeCell, cellAction])
+
+  const activePosition = activeCell ? board?.positions.find((p) => p.id === activeCell.positionId) : null
+  const activeAssignment = activeCell ? assignmentMap.get(`${activeCell.positionId}:${activeCell.blockIndex}`) : undefined
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Duty Board"
-        description="Daily position assignments"
+        description="Daily dispatch seating assignments"
+        actions={
+          <div className="flex items-center gap-2">
+            {isManager && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setNewRowName('')
+                  setNewRowClassification('')
+                  setAddRowOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Row
+              </Button>
+            )}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Clock className="h-4 w-4 mr-1" />
+                  Console Hours
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="sm:max-w-xl overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Console Hours Report</SheetTitle>
+                </SheetHeader>
+                <ConsoleHoursSheet date={selectedDate} />
+              </SheetContent>
+            </Sheet>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setSelectedDate((d) => subDays(d, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-w-[140px]">
+                    <CalendarIcon className="h-4 w-4 mr-1" />
+                    {format(selectedDate, 'EEE, MMM d')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(d) => d && setSelectedDate(d)}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(new Date())}
+              >
+                Today
+              </Button>
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setSelectedDate((d) => addDays(d, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        }
       />
 
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <CalendarIcon className="h-4 w-4" />
-              {format(selectedDate, 'EEE, MMM d, yyyy')}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(d) => {
-                if (d) setSelectedDate(d)
-                setCalendarOpen(false)
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Select value={shiftFilter} onValueChange={setShiftFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="All shifts" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All shifts</SelectItem>
-            {shiftTemplates?.map((st) => (
-              <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       {isLoading ? (
-        <LoadingState />
-      ) : !positions?.length ? (
-        <p className="text-sm text-muted-foreground">
-          No duty positions defined. {isManager ? 'Go to Admin > Duty Positions to create some.' : 'Contact an administrator to set up duty positions.'}
-        </p>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : !board?.positions.length ? (
+        <div className="text-center py-12 text-muted-foreground">
+          No duty positions configured. Go to Admin &gt; Duty Positions to set them up.
+        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {positions.map((pos) => {
-            const assignment = assignmentsByPosition.get(pos.id)
-            return (
-              <Card key={pos.id} className={cn('transition-colors', assignment ? 'border-primary/30' : 'border-dashed')}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="font-medium text-sm">{pos.name}</h3>
-                    </div>
-                  </div>
-
-                  {assignment ? (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {assignment.user_first_name} {assignment.user_last_name}
-                        </p>
-                        {assignment.notes && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{assignment.notes}</p>
-                        )}
-                      </div>
-                      {isManager && (
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => openAssignDialog(pos, assignment)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
-                            onClick={() => setRemoveTarget(assignment)}
-                            disabled={deleteMut.isPending}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      {isManager ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground gap-1.5 px-2"
-                          onClick={() => openAssignDialog(pos)}
+        <div className="overflow-x-auto border rounded-lg">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-muted/40">
+                <th className="border px-3 py-2 text-left font-semibold whitespace-nowrap w-[100px]">
+                  Console
+                </th>
+                {BLOCK_LABELS.map((label, i) => (
+                  <th
+                    key={i}
+                    className={cn(
+                      'border px-1 py-2 text-center font-medium text-xs w-[72px]',
+                      i === currentBlock && 'bg-blue-100 dark:bg-blue-900/30'
+                    )}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {board.positions.map((position) => (
+                <tr key={position.id} className={cn('hover:bg-muted/20', position.board_date && 'bg-blue-50/50 dark:bg-blue-950/20')}>
+                  <td className="border px-3 py-1 font-semibold text-xs whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                      {position.name}
+                      {position.required_qualifications.length > 0 && (
+                        <span
+                          className="text-[10px] text-muted-foreground"
+                          title={position.required_qualifications.join(', ')}
                         >
-                          <UserPlus className="h-3.5 w-3.5" />
-                          Assign
-                        </Button>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">Unassigned</p>
+                          ({position.required_qualifications.map((q) =>
+                            q === 'Fire Dispatch' ? 'F' : q === 'Police Dispatch' ? 'P' : q[0]
+                          ).join('')})
+                        </span>
+                      )}
+                      {position.board_date && isManager && (
+                        <button
+                          className="ml-auto text-muted-foreground hover:text-destructive transition-colors"
+                          title="Remove date-specific row"
+                          onClick={() => deleteDatePosition.mutate(position.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
+                  </td>
+                  {Array.from({ length: 12 }, (_, blockIndex) => {
+                    const assignment = assignmentMap.get(`${position.id}:${blockIndex}`)
+                    const isOpen = position.open_blocks[blockIndex]
+                    const isActive =
+                      activeCell?.positionId === position.id &&
+                      activeCell?.blockIndex === blockIndex
+
+                    // Closed cell
+                    if (!isOpen) {
+                      return (
+                        <td
+                          key={blockIndex}
+                          className={cn(
+                            'border px-1 py-0.5 text-center text-xs font-medium text-muted-foreground bg-muted/60 select-none',
+                            blockIndex === currentBlock && 'ring-1 ring-inset ring-blue-400/40'
+                          )}
+                        >
+                          X
+                        </td>
+                      )
+                    }
+
+                    // OT needed
+                    if (assignment?.status === 'ot_needed') {
+                      return (
+                        <td
+                          key={blockIndex}
+                          className={cn(
+                            'border px-1 py-0.5 text-center text-xs font-bold bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
+                            blockIndex === currentBlock && 'ring-1 ring-inset ring-blue-400/40',
+                            isManager && 'cursor-pointer hover:bg-yellow-200 dark:hover:bg-yellow-900/60',
+                            isActive && 'ring-2 ring-primary'
+                          )}
+                          onClick={() => handleCellClick(position.id, blockIndex)}
+                        >
+                          OT
+                        </td>
+                      )
+                    }
+
+                    // Assigned
+                    if (assignment?.status === 'assigned' && assignment.user_first_name) {
+                      return (
+                        <td
+                          key={blockIndex}
+                          className={cn(
+                            'border px-1 py-0.5 text-center text-xs font-medium truncate max-w-[80px]',
+                            blockIndex === currentBlock && 'ring-1 ring-inset ring-blue-400/40',
+                            isManager && 'cursor-pointer hover:bg-accent',
+                            isActive && 'ring-2 ring-primary'
+                          )}
+                          title={`${assignment.user_first_name} ${assignment.user_last_name}`}
+                          onClick={() => handleCellClick(position.id, blockIndex)}
+                        >
+                          {assignment.user_first_name}
+                        </td>
+                      )
+                    }
+
+                    // Empty open cell
+                    return (
+                      <td
+                        key={blockIndex}
+                        className={cn(
+                          'border px-1 py-0.5 text-center text-xs',
+                          blockIndex === currentBlock && 'ring-1 ring-inset ring-blue-400/40',
+                          isManager && 'cursor-pointer hover:bg-accent/50',
+                          isActive && 'ring-2 ring-primary'
+                        )}
+                        onClick={() => handleCellClick(position.id, blockIndex)}
+                      >
+                        &nbsp;
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Assign / Edit dialog */}
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent>
+      {/* Assignment dialog — renders outside the table */}
+      <Dialog open={!!activeCell} onOpenChange={(open) => { if (!open) setActiveCell(null) }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editingAssignment ? 'Edit Assignment' : 'Assign Position'}
-              {selectedPosition && ` - ${selectedPosition.name}`}
+              {activePosition?.name} &mdash; {activeCell ? BLOCK_LABELS[activeCell.blockIndex] : ''}-{activeCell ? (BLOCK_LABELS[activeCell.blockIndex + 1] || '2400') : ''}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Employee</label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
+          {activeCell && activePosition && (
+            <AssignmentDialogContent
+              date={dateStr}
+              positionId={activeCell.positionId}
+              positionName={activePosition.name}
+              blockIndex={activeCell.blockIndex}
+              currentAssignment={activeAssignment}
+              onAssign={handleAssign}
+              onMarkOt={handleMarkOt}
+              onClear={handleClear}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Row dialog for date-specific positions */}
+      <Dialog open={addRowOpen} onOpenChange={setAddRowOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Row for {format(selectedDate, 'MMM d')}</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newRowName.trim()) return
+              createDatePosition.mutate(
+                {
+                  name: newRowName.trim(),
+                  classification_id: newRowClassification || undefined,
+                },
+                { onSuccess: () => setAddRowOpen(false) }
+              )
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="add-row-name">Position Name</Label>
+              <Input
+                id="add-row-name"
+                placeholder="e.g., FIRE 4"
+                value={newRowName}
+                onChange={(e) => setNewRowName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-row-class">Classification (optional)</Label>
+              <Select value={newRowClassification} onValueChange={setNewRowClassification}>
+                <SelectTrigger id="add-row-class">
+                  <SelectValue placeholder="Any classification" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.last_name}, {u.first_name}
-                    </SelectItem>
+                  <SelectItem value="__none__">Any classification</SelectItem>
+                  {classifications?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Notes</label>
-              <Input
-                value={assignNotes}
-                onChange={(e) => setAssignNotes(e.target.value)}
-                placeholder="Optional notes"
-              />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAddRowOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!newRowName.trim() || createDatePosition.isPending}>
+                Add Row
+              </Button>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAssign}
-              disabled={!selectedUserId || createMut.isPending || updateMut.isPending}
-            >
-              {editingAssignment ? 'Save' : 'Assign'}
-            </Button>
-          </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
-
-      {/* Remove assignment confirmation */}
-      <AlertDialog open={!!removeTarget} onOpenChange={(open) => { if (!open) setRemoveTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Assignment?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Remove {removeTarget?.user_first_name} {removeTarget?.user_last_name} from this position? This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setRemoveTarget(null)}>Cancel</Button>
-            <Button
-              variant="destructive"
-              onClick={handleRemove}
-              disabled={deleteMut.isPending}
-            >
-              Remove
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

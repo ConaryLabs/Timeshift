@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO duty_positions (id, org_id, name, classification_id, sort_order)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, org_id, name, classification_id, sort_order, is_active, created_at, updated_at\n        ",
+  "query": "\n        SELECT id, org_id, name, classification_id, sort_order, is_active,\n               board_date, created_at, updated_at\n        FROM duty_positions\n        WHERE org_id = $1 AND is_active = true\n        ORDER BY sort_order, name\n        ",
   "describe": {
     "columns": [
       {
@@ -35,22 +35,23 @@
       },
       {
         "ordinal": 6,
+        "name": "board_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Varchar",
-        "Uuid",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -60,9 +61,10 @@
       true,
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "42eff2395a3116756ac65fe36aad0f2630c9a85e4ba3011d40ed228cd7397f8c"
+  "hash": "f9b788eb551ad2d62d9a256c928eb740ead12a2ed1afb332e0d78ea9cf2bbfc3"
 }

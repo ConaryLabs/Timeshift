@@ -7,6 +7,7 @@ export interface DutyPosition {
   classification_id: string | null
   sort_order: number
   is_active: boolean
+  board_date: string | null
   created_at: string
   updated_at: string
 }
@@ -32,7 +33,7 @@ export const dutyPositionsApi = {
   list: () =>
     api.get<DutyPosition[]>('/api/duty-positions').then((r) => r.data),
 
-  create: (body: { name: string; classification_id?: string; sort_order?: number }) =>
+  create: (body: { name: string; classification_id?: string; sort_order?: number; board_date?: string }) =>
     api.post<DutyPosition>('/api/duty-positions', body).then((r) => r.data),
 
   update: (id: string, body: { name?: string; classification_id?: string | null; sort_order?: number; is_active?: boolean }) =>

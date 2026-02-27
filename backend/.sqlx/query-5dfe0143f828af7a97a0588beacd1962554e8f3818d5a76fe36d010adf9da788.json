@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT uq.user_id\n            FROM user_qualifications uq\n            WHERE uq.user_id = ANY($1)\n              AND uq.qualification_id = ANY($2)\n            GROUP BY uq.user_id\n            HAVING COUNT(DISTINCT uq.qualification_id) = $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5dfe0143f828af7a97a0588beacd1962554e8f3818d5a76fe36d010adf9da788"
+}

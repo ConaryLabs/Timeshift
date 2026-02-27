@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO duty_assignments (id, org_id, duty_position_id, user_id, date, shift_template_id, notes, assigned_by)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n        RETURNING id, org_id, duty_position_id, user_id, date, shift_template_id, notes, assigned_by, created_at, updated_at\n        ",
+  "query": "\n        INSERT INTO duty_assignments (id, org_id, duty_position_id, user_id, date, block_index, status, notes, assigned_by)\n        VALUES ($1, $2, $3, $4, $5, $6, 'assigned', $7, $8)\n        RETURNING id, org_id, duty_position_id, user_id, date, block_index, status, notes, assigned_by, created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -30,26 +30,31 @@
       },
       {
         "ordinal": 5,
-        "name": "shift_template_id",
-        "type_info": "Uuid"
+        "name": "block_index",
+        "type_info": "Int2"
       },
       {
         "ordinal": 6,
-        "name": "notes",
+        "name": "status",
         "type_info": "Varchar"
       },
       {
         "ordinal": 7,
+        "name": "notes",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
         "name": "assigned_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -61,7 +66,7 @@
         "Uuid",
         "Uuid",
         "Date",
-        "Uuid",
+        "Int2",
         "Varchar",
         "Uuid"
       ]
@@ -70,14 +75,15 @@
       false,
       false,
       false,
-      false,
+      true,
       false,
       true,
+      false,
       true,
       true,
       false,
       false
     ]
   },
-  "hash": "020ff27d7f495dc31522b61a860234e589f4590d3bf60ee0d1362b2f8bdadab0"
+  "hash": "52b1c9479657d05027870add0316fe6ec7bedd19ddf69e5c45766edd2ecefa31"
 }

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT user_id, COUNT(*) AS \"hours!\"\n        FROM duty_assignments\n        WHERE org_id = $1\n          AND duty_position_id = $2\n          AND date BETWEEN $3 AND $4\n          AND status = 'assigned'\n          AND user_id IS NOT NULL\n        GROUP BY user_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "hours!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "dfd81574b1b85069ed754618b0dd70781edb259d8068694e795eb713bacd2cb5"
+}

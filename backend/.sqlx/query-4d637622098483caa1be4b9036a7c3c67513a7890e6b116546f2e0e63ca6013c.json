@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE duty_position_hours\n        SET open_time        = COALESCE($2, open_time),\n            close_time       = COALESCE($3, close_time),\n            crosses_midnight = COALESCE($4, crosses_midnight)\n        WHERE id = $1\n        RETURNING id, duty_position_id, day_of_week, open_time, close_time, crosses_midnight\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "duty_position_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "day_of_week",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "open_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "close_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "crosses_midnight",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Time",
+        "Time",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4d637622098483caa1be4b9036a7c3c67513a7890e6b116546f2e0e63ca6013c"
+}
