@@ -64,7 +64,7 @@ type SelectedBlock = {
   classificationAbbr: string
   blockStart: string
   blockEnd: string
-  target: number
+  min: number
   actual: number
 }
 
@@ -233,13 +233,13 @@ export default function StaffingResolvePage() {
   }
 
   function handleBlockClick(classificationId: string, classificationAbbr: string, block: ClassificationBlock) {
-    if (block.status === 'green' && block.actual >= block.target) return
+    if (block.status === 'green') return
     setSelectedBlock({
       classificationId,
       classificationAbbr,
       blockStart: block.start_time,
       blockEnd: block.end_time,
-      target: block.target,
+      min: block.min,
       actual: block.actual,
     })
   }
@@ -332,7 +332,7 @@ export default function StaffingResolvePage() {
 
   const formattedDate = date ? format(parseISO(date), 'EEE, MMM d, yyyy') : ''
   const classInfo = selectedBlock ? classificationMap[selectedBlock.classificationId] : null
-  const shortage = selectedBlock ? Math.max(0, selectedBlock.target - selectedBlock.actual) : 0
+  const shortage = selectedBlock ? Math.max(0, selectedBlock.min - selectedBlock.actual) : 0
 
   // Build a fake ClassificationGap for MandatoryOTDialog
   const mandatoryGapForBlock: ClassificationGap | null = selectedBlock ? {
@@ -341,7 +341,7 @@ export default function StaffingResolvePage() {
     shift_template_id: '', // not used by MandatoryOTDialog for the block flow
     shift_name: `${selectedBlock.blockStart}-${selectedBlock.blockEnd}`,
     shift_color: '#dc2626',
-    target: selectedBlock.target,
+    target: selectedBlock.min,
     actual: selectedBlock.actual as unknown as number,
     shortage,
   } : null
@@ -429,10 +429,10 @@ export default function StaffingResolvePage() {
           {/* Total summary row */}
           {dayGrid.blocks.length > 0 && (
             <div className="border rounded-lg overflow-hidden">
-              {/* Total target */}
+              {/* Total min */}
               <div className="flex bg-muted/30">
                 <div className="w-36 shrink-0 border-r flex items-center px-2">
-                  <span className="text-[10px] text-muted-foreground">Total Target</span>
+                  <span className="text-[10px] text-muted-foreground">Total Min</span>
                 </div>
                 <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${blockColumns.length}, 1fr)` }}>
                   {blockColumns.map((col) => {
@@ -460,7 +460,6 @@ export default function StaffingResolvePage() {
                         className={cn(
                           'border-r last:border-r-0 h-6 flex items-center justify-center text-xs tabular-nums font-bold',
                           aggBlock.status === 'green' && 'text-green-800 dark:text-green-400',
-                          aggBlock.status === 'yellow' && 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
                           aggBlock.status === 'red' && 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
                         )}
                       >
@@ -491,8 +490,8 @@ export default function StaffingResolvePage() {
             </SheetTitle>
             <SheetDescription>
               {shortage > 0
-                ? `Need ${shortage} more (${selectedBlock?.actual}/${selectedBlock?.target} staffed)`
-                : `Below target (${selectedBlock?.actual}/${selectedBlock?.target} staffed)`}
+                ? `Need ${shortage} more (${selectedBlock?.actual}/${selectedBlock?.min} staffed)`
+                : `At minimum (${selectedBlock?.actual}/${selectedBlock?.min} staffed)`}
             </SheetDescription>
           </SheetHeader>
 
@@ -907,19 +906,19 @@ function ClassificationRow({
             </div>
           )}
 
-          {/* Coverage summary rows: Target, Actual, Min (matching SE layout) */}
+          {/* Coverage summary rows: Min and Actual */}
           <div className="border-t bg-muted/20">
-            {/* Target row */}
+            {/* Min row */}
             <div className="flex">
               <div className="w-36 shrink-0 border-r flex items-center px-2">
-                <span className="text-[10px] text-muted-foreground">Target</span>
+                <span className="text-[10px] text-muted-foreground">Min</span>
               </div>
               <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
                 {blockColumns.map((col) => {
                   const block = getBlock(col.index)
                   return (
                     <div key={col.index} className="border-r last:border-r-0 h-5 flex items-center justify-center text-[10px] tabular-nums text-muted-foreground">
-                      {block?.target ?? ''}
+                      {block?.min ?? ''}
                     </div>
                   )
                 })}
@@ -934,7 +933,7 @@ function ClassificationRow({
                 {blockColumns.map((col) => {
                   const block = getBlock(col.index)
                   if (!block) return <div key={col.index} className="border-r last:border-r-0 h-6" />
-                  const isClickable = block.status !== 'green' || block.actual < block.target
+                  const isClickable = block.status === 'red'
                   return (
                     <button
                       key={col.index}
@@ -944,30 +943,13 @@ function ClassificationRow({
                       className={cn(
                         'border-r last:border-r-0 h-6 flex items-center justify-center text-xs tabular-nums font-bold transition-colors',
                         block.status === 'green' && 'text-green-800 dark:text-green-400',
-                        block.status === 'yellow' && 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
                         block.status === 'red' && 'bg-red-100 text-red-800 font-black dark:bg-red-950/30 dark:text-red-400',
                         isClickable && 'cursor-pointer hover:bg-accent/50',
                       )}
-                      title={`${abbreviation} ${block.start_time}-${block.end_time}: ${block.actual} staffed (target: ${block.target}, min: ${block.min})`}
+                      title={`${abbreviation} ${block.start_time}-${block.end_time}: ${block.actual} staffed, min: ${block.min}`}
                     >
                       {block.actual}
                     </button>
-                  )
-                })}
-              </div>
-            </div>
-            {/* Min row */}
-            <div className="flex">
-              <div className="w-36 shrink-0 border-r flex items-center px-2">
-                <span className="text-[10px] text-muted-foreground">Min</span>
-              </div>
-              <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
-                {blockColumns.map((col) => {
-                  const block = getBlock(col.index)
-                  return (
-                    <div key={col.index} className="border-r last:border-r-0 h-5 flex items-center justify-center text-[10px] tabular-nums text-muted-foreground">
-                      {block?.min ?? ''}
-                    </div>
                   )
                 })}
               </div>
