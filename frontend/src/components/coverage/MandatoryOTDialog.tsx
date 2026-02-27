@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -19,6 +19,7 @@ import {
 import { useCreateOtRequest, useAssignOtRequest, useDayView } from '@/hooks/queries'
 import { formatTime, extractApiError } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
+import type { DayViewEntry, GridAssignment } from '@/api/schedule'
 
 interface Props {
   gap: ClassificationGap
@@ -29,13 +30,114 @@ interface Props {
 
 type OtDirection = 'holdover' | 'early_callout'
 
-/** Add (or subtract) hours from a HH:MM:SS time string, wrapping around midnight. */
-function addHoursToTime(time: string, hours: number): string {
+/** Parse "HH:MM" or "HH:MM:SS" to total minutes since midnight. */
+function parseTimeToMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
-  const totalMinutes = ((h * 60 + m + hours * 60) % 1440 + 1440) % 1440
+  return h * 60 + (m || 0)
+}
+
+/** Add hours to a time string, wrapping around midnight. Returns "HH:MM:SS". */
+function addHoursToTime(time: string, hours: number): string {
+  const totalMinutes = ((parseTimeToMin(time) + hours * 60) % 1440 + 1440) % 1440
   const newH = Math.floor(totalMinutes / 60)
   const newM = totalMinutes % 60
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}:00`
+}
+
+/** Format "HH:MM:SS" or "HH:MM" to displayable time. */
+function fmtTime(t: string): string {
+  return formatTime(t)
+}
+
+interface EligibleEmployee {
+  user_id: string
+  first_name: string
+  last_name: string
+  shift_name: string
+  shift_start: string
+  shift_end: string
+  ot_start: string
+  ot_end: string
+}
+
+/**
+ * Find employees eligible for mandatory OT relative to a time block.
+ *
+ * Holdover: employees whose shift ends near the block — they stay longer.
+ * Early callout: employees whose shift starts near the block — they come in early.
+ */
+function findBlockEligible(
+  dayView: DayViewEntry[],
+  classAbbr: string,
+  blockStart: string,
+  blockEnd: string,
+  direction: OtDirection,
+): EligibleEmployee[] {
+  const blockStartMin = parseTimeToMin(blockStart)
+  const blockEndMin = parseTimeToMin(blockEnd)
+  const eligible: EligibleEmployee[] = []
+
+  for (const shift of dayView) {
+    const shiftStartMin = parseTimeToMin(shift.start_time)
+    let shiftEndMin = parseTimeToMin(shift.end_time)
+    if (shift.crosses_midnight) shiftEndMin += 24 * 60
+
+    // Filter to employees in the matching classification who aren't already on OT
+    const matchingEmployees = shift.assignments.filter(
+      (a) => a.classification_abbreviation === classAbbr && !a.is_overtime,
+    )
+    if (matchingEmployees.length === 0) continue
+
+    if (direction === 'holdover') {
+      // Holdover: shift ends near the block start.
+      // The shift end should be within [blockStart - 2h, blockEnd].
+      // And the shift shouldn't already fully cover the block (otherwise they're working, not ending).
+      const endInRange = shiftEndMin >= blockStartMin - 120 && shiftEndMin <= blockEndMin
+      const alreadyCoversBlock = shiftStartMin <= blockStartMin && shiftEndMin >= blockEndMin
+      if (endInRange && !alreadyCoversBlock) {
+        // OT window: from shift end to shift end + 2h
+        const otStart = shift.end_time
+        const otEnd = addHoursToTime(shift.end_time, 2)
+        for (const emp of matchingEmployees) {
+          eligible.push({
+            user_id: emp.user_id,
+            first_name: emp.first_name,
+            last_name: emp.last_name,
+            shift_name: shift.shift_name,
+            shift_start: shift.start_time,
+            shift_end: shift.end_time,
+            ot_start: otStart,
+            ot_end: otEnd,
+          })
+        }
+      }
+    } else {
+      // Early callout: shift starts near the block end.
+      // The shift start should be within [blockStart, blockEnd + 2h].
+      // And the shift shouldn't already fully cover the block.
+      const startInRange = shiftStartMin >= blockStartMin && shiftStartMin <= blockEndMin + 120
+      const alreadyCoversBlock = shiftStartMin <= blockStartMin && shiftEndMin >= blockEndMin
+      if (startInRange && !alreadyCoversBlock) {
+        // OT window: from shift start - 2h to shift start
+        const otStart = addHoursToTime(shift.start_time, -2)
+        const otEnd = shift.start_time
+        for (const emp of matchingEmployees) {
+          eligible.push({
+            user_id: emp.user_id,
+            first_name: emp.first_name,
+            last_name: emp.last_name,
+            shift_name: shift.shift_name,
+            shift_start: shift.start_time,
+            shift_end: shift.end_time,
+            ot_start: otStart,
+            ot_end: otEnd,
+          })
+        }
+      }
+    }
+  }
+
+  return eligible
 }
 
 export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Props) {
@@ -46,20 +148,43 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   const createOt = useCreateOtRequest()
   const assignOt = useAssignOtRequest()
 
-  const shift = dayView?.find((s) => s.shift_template_id === gap.shift_template_id)
+  const isBlockMode = !gap.shift_template_id
 
-  // 2-hour OT window — holdover extends past the shift end; early callout precedes the shift start
-  const otStartTime = direction === 'holdover'
-    ? (shift?.end_time ?? '')
-    : (shift ? addHoursToTime(shift.start_time, -2) : '')
-  const otEndTime = direction === 'holdover'
-    ? (shift ? addHoursToTime(shift.end_time, 2) : '')
-    : (shift?.start_time ?? '')
+  // Legacy shift-based mode
+  const shift = isBlockMode ? undefined : dayView?.find((s) => s.shift_template_id === gap.shift_template_id)
 
-  // Only employees on this shift matching the gap classification are eligible
-  const eligibleEmployees = shift?.assignments?.filter(
+  // Legacy: eligible employees from a specific shift
+  const legacyEligible: GridAssignment[] = shift?.assignments?.filter(
     (a) => a.classification_abbreviation === gap.classification_abbreviation && !a.is_overtime,
   ) ?? []
+
+  // Block-based mode: parse block times from gap.shift_name ("HH:MM-HH:MM")
+  const blockTimes = useMemo(() => {
+    if (!isBlockMode) return null
+    const parts = gap.shift_name.split('-')
+    if (parts.length !== 2) return null
+    return { start: parts[0].trim(), end: parts[1].trim() }
+  }, [isBlockMode, gap.shift_name])
+
+  // Block mode: find eligible employees across all shifts
+  const blockEligible = useMemo(() => {
+    if (!isBlockMode || !dayView || !blockTimes) return []
+    return findBlockEligible(dayView, gap.classification_abbreviation, blockTimes.start, blockTimes.end, direction)
+  }, [isBlockMode, dayView, blockTimes, gap.classification_abbreviation, direction])
+
+  const selectedBlockEmp = blockEligible.find((e) => e.user_id === selectedUserId)
+
+  // OT time window
+  const otStartTime = isBlockMode
+    ? (selectedBlockEmp?.ot_start ?? '')
+    : direction === 'holdover'
+      ? (shift?.end_time ?? '')
+      : (shift ? addHoursToTime(shift.start_time, -2) : '')
+  const otEndTime = isBlockMode
+    ? (selectedBlockEmp?.ot_end ?? '')
+    : direction === 'holdover'
+      ? (shift ? addHoursToTime(shift.end_time, 2) : '')
+      : (shift?.start_time ?? '')
 
   const isSubmitting = createOt.isPending || assignOt.isPending
 
@@ -69,7 +194,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   }
 
   async function handleSubmit() {
-    if (!selectedUserId || !shift || !otStartTime || !otEndTime) return
+    if (!selectedUserId || !otStartTime || !otEndTime) return
 
     let createdOtId: string | undefined
     try {
@@ -79,7 +204,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
         end_time: otEndTime,
         classification_id: gap.classification_id,
         is_fixed_coverage: true,
-        notes: `Mandatory OT (${direction === 'holdover' ? 'holdover' : 'early callout'}): ${gap.classification_abbreviation} shortage on ${gap.shift_name}`,
+        notes: `Mandatory OT (${direction === 'holdover' ? 'holdover' : 'early callout'}): ${gap.classification_abbreviation} shortage${isBlockMode ? ` ${gap.shift_name}` : ` on ${gap.shift_name}`}`,
       })
       createdOtId = otReq.id
 
@@ -92,7 +217,6 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
       toast.success('Mandatory OT assigned')
       onOpenChange(false)
     } catch (err: unknown) {
-      // If the OT request was created but assignment failed, cancel the orphan
       if (createdOtId) {
         try {
           const { api: client } = await import('@/api/client')
@@ -103,18 +227,20 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
     }
   }
 
-  const DIRECTIONS: { value: OtDirection; label: string; sublabel: (s: typeof shift) => string }[] = [
-    {
-      value: 'holdover',
-      label: 'Hold Over',
-      sublabel: (s) => s ? `${formatTime(s.end_time)} → ${formatTime(addHoursToTime(s.end_time, 2))}` : '',
-    },
-    {
-      value: 'early_callout',
-      label: 'Early Callout',
-      sublabel: (s) => s ? `${formatTime(addHoursToTime(s.start_time, -2))} → ${formatTime(s.start_time)}` : '',
-    },
+  // Direction descriptions
+  const holdoverDesc = isBlockMode && blockTimes
+    ? `Extend past shift end to cover ${fmtTime(blockTimes.start)}-${fmtTime(blockTimes.end)}`
+    : shift ? `${fmtTime(shift.end_time)} → ${fmtTime(addHoursToTime(shift.end_time, 2))}` : ''
+  const earlyDesc = isBlockMode && blockTimes
+    ? `Come in early to cover ${fmtTime(blockTimes.start)}-${fmtTime(blockTimes.end)}`
+    : shift ? `${fmtTime(addHoursToTime(shift.start_time, -2))} → ${fmtTime(shift.start_time)}` : ''
+
+  const DIRECTIONS: { value: OtDirection; label: string; desc: string }[] = [
+    { value: 'holdover', label: 'Hold Over', desc: holdoverDesc },
+    { value: 'early_callout', label: 'Early Callout', desc: earlyDesc },
   ]
+
+  const eligibleList = isBlockMode ? blockEligible : legacyEligible
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,11 +258,13 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: gap.shift_color }} />
-                <span className="text-sm font-medium">{gap.shift_name}</span>
+                <span className="text-sm font-medium">{isBlockMode ? `Block ${gap.shift_name}` : gap.shift_name}</span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {shift ? `${formatTime(shift.start_time)} – ${formatTime(shift.end_time)}` : '—'}
-              </span>
+              {shift && (
+                <span className="text-xs text-muted-foreground">
+                  {fmtTime(shift.start_time)} – {fmtTime(shift.end_time)}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
@@ -153,7 +281,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
           <div className="space-y-2">
             <p className="text-sm font-medium">Extension type</p>
             <div className="grid grid-cols-2 gap-2">
-              {DIRECTIONS.map(({ value, label, sublabel }) => (
+              {DIRECTIONS.map(({ value, label, desc }) => (
                 <button
                   key={value}
                   type="button"
@@ -166,7 +294,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
                   }`}
                 >
                   <div className="font-medium">{label}</div>
-                  <div className="text-xs mt-0.5 text-muted-foreground">{sublabel(shift)}</div>
+                  <div className="text-xs mt-0.5 text-muted-foreground">{desc}</div>
                 </button>
               ))}
             </div>
@@ -175,24 +303,36 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
           {/* Employee picker */}
           <div className="space-y-2">
             <p className="text-sm font-medium">Employee</p>
-            {eligibleEmployees.length > 0 ? (
+            {eligibleList.length > 0 ? (
               <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={isSubmitting}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select employee…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {eligibleEmployees.map((e) => (
-                    <SelectItem key={e.user_id} value={e.user_id}>
-                      {e.first_name} {e.last_name}
-                      {e.employee_id ? ` · ${e.employee_id}` : ''}
-                    </SelectItem>
-                  ))}
+                  {isBlockMode
+                    ? blockEligible.map((e) => (
+                        <SelectItem key={e.user_id} value={e.user_id}>
+                          {e.first_name} {e.last_name} · {e.shift_name} ({fmtTime(e.shift_start)}–{fmtTime(e.shift_end)})
+                        </SelectItem>
+                      ))
+                    : legacyEligible.map((e) => (
+                        <SelectItem key={e.user_id} value={e.user_id}>
+                          {e.first_name} {e.last_name}
+                          {e.employee_id ? ` · ${e.employee_id}` : ''}
+                        </SelectItem>
+                      ))}
                 </SelectContent>
               </Select>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No {gap.classification_abbreviation} employees on {gap.shift_name}.
-                For day-off assignments, use the callout process.
+                {isBlockMode
+                  ? `No ${gap.classification_abbreviation} employees on adjacent shifts eligible for ${direction === 'holdover' ? 'holdover' : 'early callout'}.`
+                  : `No ${gap.classification_abbreviation} employees on ${gap.shift_name}. For day-off assignments, use the callout process.`}
+              </p>
+            )}
+            {isBlockMode && selectedBlockEmp && (
+              <p className="text-xs text-muted-foreground">
+                OT: {fmtTime(selectedBlockEmp.ot_start)} – {fmtTime(selectedBlockEmp.ot_end)} (2hr extension of {selectedBlockEmp.shift_name})
               </p>
             )}
           </div>
@@ -204,7 +344,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedUserId || !shift || isSubmitting}
+            disabled={!selectedUserId || isSubmitting}
           >
             {isSubmitting ? 'Assigning…' : 'Assign Mandatory OT'}
           </Button>

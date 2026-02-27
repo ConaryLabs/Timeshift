@@ -1139,7 +1139,7 @@ pub async fn day_grid(
             first_name: a.first_name.clone(),
             last_name: a.last_name.clone(),
             shift_name: a.shift_name.clone(),
-            shift_start: time_str(a.start_time),
+            shift_start: "00:00".to_string(), // effective start on this date
             shift_end: time_str(a.end_time),
             is_overtime: a.is_overtime,
             assignment_id: a.assignment_id,
@@ -1360,41 +1360,30 @@ pub(crate) async fn resolve_plan_id(
     Ok(default)
 }
 
-/// Fetch plan slot target totals (summed across all classifications) for a plan + day_of_week.
-/// Returns vec of (slot_index, total_target) pairs.
-pub(crate) async fn fetch_slot_totals(
-    pool: &PgPool,
-    plan_id: Uuid,
-    dow: i16,
-) -> Result<Vec<(i16, i32)>> {
-    let rows = sqlx::query!(
-        r#"
-        SELECT slot_index, CAST(SUM(target_headcount) AS INTEGER) AS "total!"
-        FROM coverage_plan_slots
-        WHERE plan_id = $1 AND day_of_week = $2
-        GROUP BY slot_index
-        ORDER BY slot_index
-        "#,
-        plan_id,
-        dow,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows.into_iter().map(|r| (r.slot_index, r.total)).collect())
-}
-
-/// Given per-slot target totals and shift template time ranges,
-/// compute coverage_required per shift as the peak total target
-/// across all 30-min slots in the shift's time range.
-pub(crate) fn coverage_required_for_shifts(
-    slot_totals: &[(i16, i32)],
+/// Per-shift coverage status using per-classification gap analysis.
+///
+/// Instead of summing targets across classifications (which inflates the number),
+/// this checks each classification independently and reports:
+/// - status: "red" if any classification is below min, "yellow" if below target, "green" if all met
+/// - total_shortage: sum of shortages across all classifications (how many more people are needed)
+pub(crate) fn coverage_status_per_shift(
+    slot_coverage: &[SlotCoverage],
     shifts: &[(Uuid, time::Time, time::Time, bool)],
-) -> std::collections::HashMap<Uuid, i32> {
+) -> std::collections::HashMap<Uuid, (String, i32)> {
     use std::collections::HashMap;
-    let slot_map: HashMap<i16, i32> = slot_totals.iter().copied().collect();
+
+    // Index slot coverage by (classification_id, slot_index)
+    let mut by_key: HashMap<(Uuid, i16), &SlotCoverage> = HashMap::new();
+    for sc in slot_coverage {
+        by_key.insert((sc.classification_id, sc.slot_index), sc);
+    }
+
+    // Collect distinct classification IDs
+    let class_ids: std::collections::HashSet<Uuid> =
+        slot_coverage.iter().map(|sc| sc.classification_id).collect();
 
     let mut result = HashMap::new();
+
     for &(template_id, start_time, end_time, crosses_midnight) in shifts {
         let start_min = start_time.hour() as i32 * 60 + start_time.minute() as i32;
         let end_min = if crosses_midnight {
@@ -1409,15 +1398,44 @@ pub(crate) fn coverage_required_for_shifts(
         } else {
             (end_min / 30) as i16
         };
-        let end_slot = end_slot.min(47).max(start_slot);
+        let end_slot = end_slot.clamp(0, 47).max(start_slot);
 
-        let mut max_required = 0i32;
-        for slot in start_slot..=end_slot {
-            let target = slot_map.get(&slot).copied().unwrap_or(0);
-            max_required = max_required.max(target);
+        let mut worst_status = "green";
+        let mut total_shortage: i32 = 0;
+
+        for &class_id in &class_ids {
+            // For this classification in this shift's time window,
+            // find the peak target and minimum actual
+            let mut peak_target: i16 = 0;
+            let mut peak_min: i16 = 0;
+            let mut min_actual: i32 = i32::MAX;
+            let mut has_data = false;
+
+            for slot_idx in start_slot..=end_slot {
+                if let Some(sc) = by_key.get(&(class_id, slot_idx)) {
+                    has_data = true;
+                    peak_target = peak_target.max(sc.target_headcount);
+                    peak_min = peak_min.max(sc.min_headcount);
+                    min_actual = min_actual.min(sc.actual_headcount);
+                }
+            }
+
+            if !has_data || peak_target == 0 {
+                continue;
+            }
+
+            let shortage = (peak_target as i32) - min_actual;
+            if shortage > 0 {
+                total_shortage += shortage;
+                if min_actual < peak_min as i32 {
+                    worst_status = "red";
+                } else if worst_status != "red" {
+                    worst_status = "yellow";
+                }
+            }
         }
 
-        result.insert(template_id, max_required);
+        result.insert(template_id, (worst_status.to_string(), total_shortage));
     }
 
     result

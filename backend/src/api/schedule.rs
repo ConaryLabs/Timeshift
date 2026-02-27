@@ -8,7 +8,7 @@ use uuid::Uuid;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    api::coverage_plans::{coverage_required_for_shifts, fetch_slot_totals, resolve_plan_id},
+    api::coverage_plans::{compute_slot_coverage, coverage_status_per_shift},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -666,27 +666,11 @@ pub async fn grid(
         };
     }
 
-    // Fetch slot totals for each unique (plan_id, dow) and compute per-shift coverage
-    let mut coverage_cache: HashMap<(Uuid, i16), HashMap<Uuid, i32>> = HashMap::new();
-    for (pid, dow) in &plan_dows {
-        let slot_totals = fetch_slot_totals(&pool, *pid, *dow).await?;
-        let per_shift = coverage_required_for_shifts(&slot_totals, &shift_info);
-        coverage_cache.insert((*pid, *dow), per_shift);
-    }
-
     let mut cells_map: HashMap<(time::Date, Uuid), GridCell> = HashMap::new();
 
     for r in rows {
         let key = (r.date, r.shift_template_id);
         let cell = cells_map.entry(key).or_insert_with(|| {
-            let dow = r.date.weekday().number_days_from_sunday() as i16;
-            let required = date_plan
-                .get(&r.date)
-                .and_then(|plan| *plan)
-                .and_then(|pid| coverage_cache.get(&(pid, dow)))
-                .and_then(|m| m.get(&r.shift_template_id))
-                .copied()
-                .unwrap_or(0);
             GridCell {
                 date: r.date,
                 shift_template_id: r.shift_template_id,
@@ -694,7 +678,7 @@ pub async fn grid(
                 shift_color: r.shift_color.clone(),
                 assignments: Vec::new(),
                 leave_count: *leave_map.get(&r.date).unwrap_or(&0),
-                coverage_required: required,
+                coverage_required: 0,
                 coverage_actual: 0,
             }
         });
@@ -711,6 +695,27 @@ pub async fn grid(
             notes: None,
         });
         cell.coverage_actual = cell.assignments.len() as i32;
+    }
+
+    // Compute per-date coverage using full slot coverage (accounts for cross-shift contributions)
+    let unique_dates: std::collections::HashSet<time::Date> =
+        cells_map.keys().map(|(d, _)| *d).collect();
+    let mut date_coverage: HashMap<time::Date, HashMap<Uuid, (String, i32)>> = HashMap::new();
+    for &d in &unique_dates {
+        let date_str = d.to_string();
+        let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &date_str).await?;
+        if !slot_coverage.is_empty() {
+            let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
+            date_coverage.insert(d, status_map);
+        }
+    }
+
+    for ((date, _), cell) in cells_map.iter_mut() {
+        if let Some(status_map) = date_coverage.get(date) {
+            if let Some((_status, shortage)) = status_map.get(&cell.shift_template_id) {
+                cell.coverage_required = cell.coverage_actual + shortage;
+            }
+        }
     }
 
     let mut cells: Vec<GridCell> = cells_map.into_values().collect();
@@ -788,34 +793,25 @@ pub async fn day_view(
             });
     }
 
-    let dow = date.weekday().number_days_from_sunday() as i16;
-
-    // Resolve coverage from coverage plans
-    let coverage_map: HashMap<Uuid, i32> =
-        if let Some(plan_id) = resolve_plan_id(&pool, auth.org_id, date).await? {
-            let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
-            let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
-                .iter()
-                .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
-                .collect();
-            coverage_required_for_shifts(&slot_totals, &shift_info)
-        } else {
-            HashMap::new()
-        };
+    // Per-classification coverage status (not summed totals)
+    let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &date_str).await?;
+    let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
+        .iter()
+        .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+        .collect();
+    let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
 
     let entries: Vec<DayViewEntry> = templates
         .into_iter()
         .map(|t| {
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
-            let required = coverage_map.get(&t.id).copied().unwrap_or(0);
-            let status = if required == 0 || actual >= required {
-                "green"
-            } else if actual > 0 {
-                "yellow"
-            } else {
-                "red"
-            };
+            let (status, shortage) = status_map
+                .get(&t.id)
+                .cloned()
+                .unwrap_or_else(|| ("green".to_string(), 0));
+            // coverage_required = actual + shortage so "8/11" means 8 assigned, need 3 more
+            let required = actual + shortage;
 
             DayViewEntry {
                 shift_template_id: t.id,
@@ -827,7 +823,7 @@ pub async fn day_view(
                 assignments: assigns,
                 coverage_required: required,
                 coverage_actual: actual,
-                coverage_status: status.to_string(),
+                coverage_status: status,
             }
         })
         .collect();
@@ -897,34 +893,24 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
             });
     }
 
-    let dow = today.weekday().number_days_from_sunday() as i16;
-
-    // Resolve coverage from coverage plans
-    let coverage_map: HashMap<Uuid, i32> =
-        if let Some(plan_id) = resolve_plan_id(&pool, auth.org_id, today).await? {
-            let slot_totals = fetch_slot_totals(&pool, plan_id, dow).await?;
-            let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
-                .iter()
-                .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
-                .collect();
-            coverage_required_for_shifts(&slot_totals, &shift_info)
-        } else {
-            HashMap::new()
-        };
+    let today_str = today.to_string(); // "YYYY-MM-DD"
+    let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &today_str).await?;
+    let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
+        .iter()
+        .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
+        .collect();
+    let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
 
     let current_coverage: Vec<DayViewEntry> = templates
         .into_iter()
         .map(|t| {
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
-            let required = coverage_map.get(&t.id).copied().unwrap_or(0);
-            let status = if required == 0 || actual >= required {
-                "green"
-            } else if actual > 0 {
-                "yellow"
-            } else {
-                "red"
-            };
+            let (status, shortage) = status_map
+                .get(&t.id)
+                .cloned()
+                .unwrap_or_else(|| ("green".to_string(), 0));
+            let required = actual + shortage;
 
             DayViewEntry {
                 shift_template_id: t.id,
@@ -936,7 +922,7 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
                 assignments: assigns,
                 coverage_required: required,
                 coverage_actual: actual,
-                coverage_status: status.to_string(),
+                coverage_status: status,
             }
         })
         .collect();
