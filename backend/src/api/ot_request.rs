@@ -774,7 +774,7 @@ pub async fn assign(
 
     // Verify request exists, belongs to org, and is not cancelled/filled
     let request = sqlx::query!(
-        r#"SELECT status AS "status: OtRequestStatus", date, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
+        r#"SELECT status AS "status: OtRequestStatus", date, start_time, end_time, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
         id,
         auth.org_id,
@@ -825,6 +825,117 @@ pub async fn assign(
             "ot_type must be one of: voluntary, mandatory, fixed_coverage".into(),
         ));
     }
+
+    // ── Contract rule enforcement ────────────────────────────────────────────
+    // Rule 1: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
+    // Day-off mandatory OT (4–6h blocks) is handled via the callout process.
+    if ot_type == "mandatory" && request.hours > 2.0 {
+        return Err(AppError::BadRequest(
+            "Mandatory OT cannot exceed 2 hours before or after the employee's scheduled shift \
+             (VCCEA § 4.4.3). For day-off assignments, use the callout process."
+                .into(),
+        ));
+    }
+
+    // Rule 2: 14-hour daily maximum across scheduled shifts + OT (VCCEA § 4.4.3 / SOP 120 § 3.7).
+    let scheduled_hours_today = sqlx::query_scalar!(
+        r#"
+        SELECT COALESCE(SUM(CAST(st.duration_minutes AS FLOAT8) / 60.0), 0.0) AS "h!"
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE a.user_id = $1
+          AND ss.org_id = $2
+          AND ss.date = $3
+          AND a.cancelled_at IS NULL
+        "#,
+        req.user_id,
+        auth.org_id,
+        request.date,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let ot_hours_today = sqlx::query_scalar!(
+        r#"
+        SELECT COALESCE(SUM(CAST(r.hours AS FLOAT8)), 0.0) AS "h!"
+        FROM ot_request_assignments a
+        JOIN ot_requests r ON r.id = a.ot_request_id
+        WHERE a.user_id = $1
+          AND r.org_id = $2
+          AND r.date = $3
+          AND a.cancelled_at IS NULL
+        "#,
+        req.user_id,
+        auth.org_id,
+        request.date,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let total_hours = scheduled_hours_today + ot_hours_today + request.hours;
+    if total_hours > 14.0 {
+        return Err(AppError::BadRequest(format!(
+            "Assignment would bring employee to {:.1} hours on {} — exceeding the 14-hour \
+             daily maximum (VCCEA § 4.4.3 / SOP 120 § 3.7).",
+            total_hours, request.date,
+        )));
+    }
+
+    // Rule 3: Mandatory OT must leave ≥ 10 hours before the employee's next regular shift
+    // (VCCEA § 4.4.3). For midnight-crossing OT the effective end is on the following day.
+    if ot_type == "mandatory" {
+        let ot_crosses_midnight = request.end_time < request.start_time;
+        let search_date = if ot_crosses_midnight {
+            request.date.next_day().unwrap_or(request.date)
+        } else {
+            request.date
+        };
+
+        let next_shift = sqlx::query!(
+            r#"
+            SELECT ss.date AS "shift_date!", st.start_time
+            FROM assignments a
+            JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+            JOIN shift_templates st ON st.id = ss.shift_template_id
+            WHERE a.user_id = $1
+              AND ss.org_id = $2
+              AND a.cancelled_at IS NULL
+              AND (
+                ss.date > $3
+                OR (ss.date = $3 AND st.start_time > $4)
+              )
+            ORDER BY ss.date ASC, st.start_time ASC
+            LIMIT 1
+            "#,
+            req.user_id,
+            auth.org_id,
+            search_date,
+            request.end_time,
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(next) = next_shift {
+            let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
+            let days_between = (next.shift_date - request.date).whole_days();
+            let ot_end_mins =
+                request.end_time.hour() as i64 * 60 + request.end_time.minute() as i64;
+            let next_start_mins =
+                next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
+            let gap_minutes =
+                (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
+
+            if gap_minutes < 10 * 60 {
+                return Err(AppError::BadRequest(format!(
+                    "Mandatory OT would leave less than 10 hours before the employee's next \
+                     scheduled shift on {} (VCCEA § 4.4.3).",
+                    next.shift_date,
+                )));
+            }
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     let assignment_id = Uuid::new_v4();
     sqlx::query!(

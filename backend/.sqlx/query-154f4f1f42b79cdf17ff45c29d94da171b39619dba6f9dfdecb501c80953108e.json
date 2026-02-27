@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: OtRequestStatus\", date, start_time, end_time, CAST(hours AS FLOAT8) AS \"hours!\", classification_id, is_fixed_coverage\n           FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: OtRequestStatus",
+        "type_info": {
+          "Custom": {
+            "name": "ot_request_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "partially_filled",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "hours!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "classification_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_fixed_coverage",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "154f4f1f42b79cdf17ff45c29d94da171b39619dba6f9dfdecb501c80953108e"
+}
