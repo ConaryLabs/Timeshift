@@ -159,7 +159,7 @@ export default function DayViewPage() {
                   {isManager && entry.coverage_status === 'red' ? (
                     <button
                       className="cursor-pointer"
-                      onClick={() => navigate(`/staffing/resolve?date=${dateStr}&shift_template_id=${entry.shift_template_id}`)}
+                      onClick={() => navigate(`/staffing/resolve?date=${dateStr}`)}
                     >
                       <CoverageIndicator
                         actual={entry.coverage_actual}
@@ -179,7 +179,7 @@ export default function DayViewPage() {
                       variant="destructive"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={() => navigate(`/staffing/resolve?date=${dateStr}&shift_template_id=${entry.shift_template_id}`)}
+                      onClick={() => navigate(`/staffing/resolve?date=${dateStr}`)}
                     >
                       <Phone className="h-3 w-3 mr-1" />
                       Resolve

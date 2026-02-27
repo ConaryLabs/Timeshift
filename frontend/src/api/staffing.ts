@@ -31,4 +31,7 @@ export interface StaffingAvailableResponse {
 export const staffingApi = {
   getAvailable: (params: { date: string; shift_template_id: string; classification_id?: string }) =>
     api.get<StaffingAvailableResponse>('/api/staffing/available', { params }).then((r) => r.data),
+
+  blockAvailable: (params: { date: string; classification_id: string; block_start: string; block_end: string }) =>
+    api.get<StaffingAvailableResponse>('/api/staffing/block-available', { params }).then((r) => r.data),
 }

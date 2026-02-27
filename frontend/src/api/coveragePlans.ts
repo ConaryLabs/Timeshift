@@ -70,6 +70,49 @@ export interface ClassificationGap {
   shortage: number
 }
 
+// -- Day Grid types --
+
+export interface BlockEmployee {
+  user_id: string
+  first_name: string
+  last_name: string
+  shift_name: string
+  shift_start: string
+  shift_end: string
+  is_overtime: boolean
+  assignment_id: string
+}
+
+export interface ClassificationBlock {
+  block_index: number
+  start_time: string
+  end_time: string
+  min: number
+  target: number
+  actual: number
+  status: 'green' | 'yellow' | 'red'
+  employees: BlockEmployee[]
+}
+
+export interface DayGridClassification {
+  classification_id: string
+  abbreviation: string
+  blocks: ClassificationBlock[]
+}
+
+export interface CoverageBlock {
+  block_index: number
+  total_target: number
+  total_actual: number
+  status: 'green' | 'yellow' | 'red'
+}
+
+export interface DayGridResponse {
+  date: string
+  classifications: DayGridClassification[]
+  blocks: CoverageBlock[]
+}
+
 export interface SmsAlertResult {
   sent: number
   failed: number
@@ -114,4 +157,7 @@ export const coveragePlansApi = {
 
   sendSmsAlert: (date: string, body?: { classification_id?: string }) =>
     api.post<SmsAlertResult>(`/api/coverage-plans/gaps/${date}/sms-alert`, body ?? {}).then((r) => r.data),
+
+  dayGrid: (date: string) =>
+    api.get<DayGridResponse>(`/api/coverage-plans/day-grid/${date}`).then((r) => r.data),
 }
