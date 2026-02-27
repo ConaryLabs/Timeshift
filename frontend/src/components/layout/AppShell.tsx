@@ -37,6 +37,8 @@ import {
   ChevronDown,
   Megaphone,
   UserPlus,
+  ListChecks,
+  ShieldAlert,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -64,7 +66,7 @@ interface NavItem {
   to: string
   label: string
   icon: React.ReactNode
-  badgeKey?: 'pending_leave' | 'pending_trades' | 'open_callouts'
+  badgeKey?: 'pending_leave' | 'pending_trades' | 'open_callouts' | 'pending_approvals'
 }
 
 interface NavGroup {
@@ -72,24 +74,46 @@ interface NavGroup {
   items: NavItem[]
 }
 
-function useNavItems(): { groups: NavGroup[]; profile: NavItem; adminGroups: NavGroup[] } {
+function useNavItems(): { groups: NavGroup[]; profile: NavItem } {
   const { isManager, isAdmin } = usePermissions()
 
-  const groups: NavGroup[] = [
+  const groups: NavGroup[] = []
+
+  // 1. Operations (managers only) — at the TOP
+  if (isManager) {
+    groups.push({
+      label: 'Operations',
+      items: [
+        { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+        { to: '/staffing/resolve', label: 'Daily Staffing', icon: <ShieldAlert className="h-4 w-4" /> },
+        { to: '/approvals', label: 'Approvals', icon: <ListChecks className="h-4 w-4" />, badgeKey: 'pending_approvals' },
+        { to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" />, badgeKey: 'open_callouts' },
+        { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
+      ],
+    })
+  }
+
+  // 2. Personal items (everyone)
+  groups.push(
     {
       label: '',
       items: [
-        { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+        { to: '/dashboard', label: isManager ? 'My Dashboard' : 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
         { to: '/my-schedule', label: 'My Schedule', icon: <CalendarCheck className="h-4 w-4" /> },
-        { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
-        { to: '/duty-board', label: 'Duty Board', icon: <ClipboardCheck className="h-4 w-4" /> },
-        { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
       ],
     },
     {
-      label: 'Leave',
+      label: 'Schedule',
+      items: [
+        { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
+        { to: '/duty-board', label: 'Duty Board', icon: <ClipboardCheck className="h-4 w-4" /> },
+      ],
+    },
+    {
+      label: 'Requests',
       items: [
         { to: '/leave', label: 'Leave', icon: <ClipboardList className="h-4 w-4" />, badgeKey: 'pending_leave' },
+        { to: '/trades', label: 'Trades', icon: <ArrowLeftRight className="h-4 w-4" />, badgeKey: 'pending_trades' },
         { to: '/leave/sellback', label: 'Sellback', icon: <Banknote className="h-4 w-4" /> },
         { to: '/leave/donations', label: 'Donations', icon: <HeartHandshake className="h-4 w-4" /> },
       ],
@@ -99,50 +123,46 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem; adminGroups: Nav
       items: [
         { to: '/available-ot', label: 'Available OT', icon: <Timer className="h-4 w-4" /> },
         { to: '/volunteered-ot', label: 'Volunteered OT', icon: <Hand className="h-4 w-4" /> },
-        ...(isManager
-          ? [{ to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" />, badgeKey: 'open_callouts' as const }]
-          : []),
       ],
     },
-  ]
+  )
 
-  const profile: NavItem = { to: '/profile', label: 'Profile', icon: <UserCircle className="h-4 w-4" /> }
+  // 3. Team (supervisor + admin)
+  if (isManager) {
+    groups.push({
+      label: 'Team',
+      items: [
+        { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
+        { to: '/admin/special-assignments', label: 'Assignments', icon: <BadgeCheck className="h-4 w-4" /> },
+        { to: '/admin/duty-positions', label: 'Duty Positions', icon: <ClipboardCheck className="h-4 w-4" /> },
+        { to: '/admin/shift-patterns', label: 'Shift Patterns', icon: <RotateCw className="h-4 w-4" /> },
+      ],
+    })
+  }
 
-  const adminGroups: NavGroup[] = []
-
+  // 4. Config (admin only)
   if (isAdmin) {
-    adminGroups.push(
+    groups.push(
       {
-        label: 'Operations',
-        items: [
-          { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-          { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
-        ],
-      },
-      {
-        label: 'Scheduling',
+        label: 'Configuration',
         items: [
           { to: '/admin/shift-templates', label: 'Shift Templates', icon: <Clock className="h-4 w-4" /> },
-          { to: '/admin/duty-positions', label: 'Duty Positions', icon: <ClipboardCheck className="h-4 w-4" /> },
+          { to: '/admin/classifications', label: 'Classifications', icon: <Shield className="h-4 w-4" /> },
           { to: '/admin/coverage-plans', label: 'Coverage Plans', icon: <Target className="h-4 w-4" /> },
-          { to: '/admin/shift-patterns', label: 'Shift Patterns', icon: <RotateCw className="h-4 w-4" /> },
-          { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
-          { to: '/admin/schedule-periods', label: 'Bid Periods', icon: <CalendarDays className="h-4 w-4" /> },
         ],
       },
       {
         label: 'People',
         items: [
-          { to: '/admin/classifications', label: 'Classifications', icon: <Shield className="h-4 w-4" /> },
           { to: '/admin/users', label: 'Users', icon: <Users className="h-4 w-4" /> },
-          { to: '/admin/special-assignments', label: 'Assignments', icon: <BadgeCheck className="h-4 w-4" /> },
           { to: '/admin/ot-queue', label: 'OT Queue', icon: <ListOrdered className="h-4 w-4" /> },
+          { to: '/admin/leave-balances', label: 'Leave Balances', icon: <Wallet className="h-4 w-4" /> },
         ],
       },
       {
-        label: 'Leave Mgmt',
+        label: 'Scheduling',
         items: [
-          { to: '/admin/leave-balances', label: 'Leave Balances', icon: <Wallet className="h-4 w-4" /> },
+          { to: '/admin/schedule-periods', label: 'Bid Periods', icon: <CalendarDays className="h-4 w-4" /> },
           { to: '/admin/vacation-bids', label: 'Vacation Bids', icon: <TreePalm className="h-4 w-4" /> },
           { to: '/admin/holidays', label: 'Holidays', icon: <PartyPopper className="h-4 w-4" /> },
         ],
@@ -154,33 +174,11 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem; adminGroups: Nav
         ],
       },
     )
-  } else if (isManager) {
-    adminGroups.push(
-      {
-        label: 'Operations',
-        items: [
-          { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-          { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
-        ],
-      },
-      {
-        label: 'Scheduling',
-        items: [
-          { to: '/admin/duty-positions', label: 'Duty Positions', icon: <ClipboardCheck className="h-4 w-4" /> },
-          { to: '/admin/shift-patterns', label: 'Shift Patterns', icon: <RotateCw className="h-4 w-4" /> },
-          { to: '/admin/teams', label: 'Teams', icon: <Layers className="h-4 w-4" /> },
-        ],
-      },
-      {
-        label: 'People',
-        items: [
-          { to: '/admin/special-assignments', label: 'Assignments', icon: <BadgeCheck className="h-4 w-4" /> },
-        ],
-      },
-    )
   }
 
-  return { groups, profile, adminGroups }
+  const profile: NavItem = { to: '/profile', label: 'Profile', icon: <UserCircle className="h-4 w-4" /> }
+
+  return { groups, profile }
 }
 
 function NavBadge({ count }: { count: number }) {
@@ -315,70 +313,25 @@ function NavGroupSection({
   )
 }
 
-function SidebarNav({ groups, adminGroups, collapsed, onLinkClick, badges }: {
+function SidebarNav({ groups, collapsed, onLinkClick, badges }: {
   groups: NavGroup[]
-  adminGroups: NavGroup[]
   collapsed: boolean
   onLinkClick?: () => void
   badges?: Record<string, number>
 }) {
-  const toggleSection = useUIStore((s) => s.toggleSection)
-  const adminCollapsed = useUIStore((s) => s.collapsedSections['admin'] ?? false)
-
   return (
     <nav className="flex-1 sidebar-scroll overflow-y-auto py-1 px-2">
-      {groups.map((group) => (
+      {groups.map((group, i) => (
         <NavGroupSection
-          key={group.label}
+          key={group.label || `group-${i}`}
           group={group}
           collapsed={collapsed}
           onLinkClick={onLinkClick}
           badges={badges}
-          sectionKey={`nav-${group.label}`}
+          sectionKey={`nav-${group.label || `unlabeled-${i}`}`}
           collapsible
         />
       ))}
-
-      {adminGroups.length > 0 && (
-        <>
-          <div className="my-1.5 mx-1 h-px bg-sidebar-border" />
-          {!collapsed ? (
-            <button
-              onClick={() => toggleSection('admin')}
-              className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest hover:text-sidebar-foreground/60 transition-colors"
-            >
-              <span>Admin</span>
-              <ChevronDown className={cn(
-                "h-3 w-3 transition-transform duration-200",
-                adminCollapsed && "-rotate-90",
-              )} />
-            </button>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="my-1 mx-2 h-px bg-sidebar-primary/40" />
-              </TooltipTrigger>
-              <TooltipContent side="right">Admin</TooltipContent>
-            </Tooltip>
-          )}
-          <div className={cn(
-            "transition-all duration-200 overflow-hidden",
-            adminCollapsed && !collapsed && "max-h-0",
-            (!adminCollapsed || collapsed) && "max-h-[2000px]",
-          )}>
-            {adminGroups.map((group) => (
-              <NavGroupSection
-                key={group.label || 'settings'}
-                group={group}
-                collapsed={collapsed}
-                onLinkClick={onLinkClick}
-                sectionKey={`admin-${group.label || 'settings'}`}
-                collapsible
-              />
-            ))}
-          </div>
-        </>
-      )}
     </nav>
   )
 }
@@ -405,7 +358,7 @@ export default function AppShell() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const navigate = useNavigate()
-  const { groups, profile, adminGroups } = useNavItems()
+  const { groups, profile } = useNavItems()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [coverageOpen, setCoverageOpen] = useState(false)
   const [otDialogGap, setOtDialogGap] = useState<ClassificationGap | null>(null)
@@ -427,6 +380,7 @@ export default function AppShell() {
       pending_leave: navBadges.pending_leave,
       pending_trades: navBadges.pending_trades,
       open_callouts: navBadges.open_callouts,
+      pending_approvals: navBadges.pending_leave + navBadges.pending_trades,
     }
   }, [navBadges])
 
@@ -506,7 +460,7 @@ export default function AppShell() {
       >
         <SidebarLogo collapsed={collapsed} />
 
-        <SidebarNav groups={groups} adminGroups={adminGroups} collapsed={collapsed} badges={badges} />
+        <SidebarNav groups={groups} collapsed={collapsed} badges={badges} />
 
         {/* Footer: profile + collapse toggle */}
         <div className="border-t border-sidebar-border shrink-0 px-2 py-1.5 space-y-0.5">
@@ -534,7 +488,7 @@ export default function AppShell() {
             </div>
             <SheetTitle className="font-brand text-[19px] text-white tracking-tight">Timeshift</SheetTitle>
           </SheetHeader>
-          <SidebarNav groups={groups} adminGroups={adminGroups} collapsed={false} onLinkClick={() => setMobileOpen(false)} badges={badges} />
+          <SidebarNav groups={groups} collapsed={false} onLinkClick={() => setMobileOpen(false)} badges={badges} />
           <div className="border-t border-sidebar-border shrink-0 px-2 py-1.5">
             <SidebarLink item={profile} collapsed={false} onClick={() => setMobileOpen(false)} />
           </div>

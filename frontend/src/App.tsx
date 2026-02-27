@@ -46,6 +46,7 @@ const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const DutyBoardPage = lazy(() => import('@/pages/DutyBoardPage'))
 const DutyPositionsPage = lazy(() => import('@/pages/admin/DutyPositionsPage'))
 const StaffingResolvePage = lazy(() => import('@/pages/StaffingResolvePage'))
+const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -89,6 +90,14 @@ export default function App() {
             element={
               <RequireRole roles={['admin', 'supervisor']}>
                 <PageSuspense><CalloutPage /></PageSuspense>
+              </RequireRole>
+            }
+          />
+          <Route
+            path="approvals"
+            element={
+              <RequireRole roles={['admin', 'supervisor']}>
+                <PageSuspense><ApprovalsPage /></PageSuspense>
               </RequireRole>
             }
           />

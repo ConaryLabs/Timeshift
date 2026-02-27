@@ -7,6 +7,7 @@ import {
   Sun,
   ChevronRight,
   Siren,
+  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useMyDashboard, useOtRequests } from '@/hooks/queries'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import type { MyScheduleEntry } from '@/api/employee'
 
@@ -221,14 +223,27 @@ export default function MyDashboardPage() {
             Leave Balances
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {dashboard.leave_balances.map((bal) => (
-              <Card key={bal.leave_type_code}>
-                <CardContent className="py-3">
-                  <p className="text-xs text-muted-foreground truncate">{bal.leave_type_name}</p>
-                  <p className="text-lg font-semibold mt-0.5">{bal.balance_hours.toFixed(1)} hrs</p>
-                </CardContent>
-              </Card>
-            ))}
+            {dashboard.leave_balances.map((bal) => {
+              const isZero = bal.balance_hours <= 0
+              const isLow = !isZero && bal.balance_hours < 8
+              return (
+                <Card key={bal.leave_type_code}>
+                  <CardContent className="py-3">
+                    <p className="text-xs text-muted-foreground truncate">{bal.leave_type_name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className={cn(
+                        'text-lg font-semibold',
+                        isZero && 'text-destructive',
+                        isLow && 'text-amber-600',
+                      )}>
+                        {bal.balance_hours.toFixed(1)} hrs
+                      </p>
+                      {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       )}
