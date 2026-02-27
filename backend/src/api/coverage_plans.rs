@@ -9,9 +9,10 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::schedule::{
-        BulkUpsertSlotsRequest, ClassificationGap, CoveragePlan, CoveragePlanAssignment,
-        CoveragePlanSlot, CoveragePlanView, CreateCoveragePlanAssignmentRequest,
-        CreateCoveragePlanRequest, SlotCoverage, UpdateCoveragePlanRequest,
+        BlockEmployee, BulkUpsertSlotsRequest, ClassificationBlock, ClassificationGap,
+        CoverageBlock, CoveragePlan, CoveragePlanAssignment, CoveragePlanSlot, CoveragePlanView,
+        CreateCoveragePlanAssignmentRequest, CreateCoveragePlanRequest, DayGridClassification,
+        DayGridResponse, SlotCoverage, UpdateCoveragePlanRequest,
     },
     org_guard,
     AppState,
@@ -955,6 +956,360 @@ pub async fn send_sms_alert(
     }
 
     Ok(Json(SmsAlertResponse { sent, failed }))
+}
+
+// ── Day Grid (block-based coverage with employees) ─────────────────────────────
+
+/// GET /api/coverage-plans/day-grid/:date
+///
+/// Returns per-classification 2-hour coverage blocks with employee-level detail.
+pub async fn day_grid(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(date_str): Path<String>,
+) -> Result<Json<DayGridResponse>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let date = time::Date::parse(
+        &date_str,
+        &time::format_description::parse("[year]-[month]-[day]")
+            .map_err(|_| AppError::BadRequest("invalid date format".into()))?,
+    )
+    .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
+
+    let plan_id = match resolve_plan_id(&pool, auth.org_id, date).await? {
+        Some(id) => id,
+        None => {
+            return Ok(Json(DayGridResponse {
+                date: date_str,
+                classifications: vec![],
+                blocks: vec![],
+            }));
+        }
+    };
+
+    let dow = date.weekday().number_days_from_sunday() as i16;
+
+    // 1. Fetch coverage plan slots (targets)
+    let slots = sqlx::query!(
+        r#"
+        SELECT
+            cps.slot_index,
+            cps.classification_id,
+            cl.abbreviation AS classification_abbreviation,
+            cps.min_headcount,
+            cps.target_headcount
+        FROM coverage_plan_slots cps
+        JOIN classifications cl ON cl.id = cps.classification_id
+        WHERE cps.plan_id = $1 AND cps.day_of_week = $2
+        ORDER BY cps.classification_id, cps.slot_index
+        "#,
+        plan_id,
+        dow,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    // 2. Fetch all active assignments with employee details for this date
+    let assignments = sqlx::query!(
+        r#"
+        SELECT
+            a.id AS assignment_id,
+            a.user_id,
+            a.is_overtime,
+            u.first_name,
+            u.last_name,
+            u.classification_id AS "classification_id?",
+            st.name AS shift_name,
+            st.start_time,
+            st.end_time,
+            st.crosses_midnight
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates  st ON st.id = ss.shift_template_id
+        JOIN users            u  ON u.id  = a.user_id
+        WHERE ss.org_id = $1 AND ss.date = $2
+          AND a.cancelled_at IS NULL
+        "#,
+        auth.org_id,
+        date,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    // 3. Fetch overnight assignments from previous day
+    let prev_date = date.previous_day().unwrap_or(date);
+    let overnight = sqlx::query!(
+        r#"
+        SELECT
+            a.id AS assignment_id,
+            a.user_id,
+            a.is_overtime,
+            u.first_name,
+            u.last_name,
+            u.classification_id AS "classification_id?",
+            st.name AS shift_name,
+            st.start_time,
+            st.end_time,
+            st.crosses_midnight
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates  st ON st.id = ss.shift_template_id
+        JOIN users            u  ON u.id  = a.user_id
+        WHERE ss.org_id = $1 AND ss.date = $2
+          AND st.crosses_midnight = true
+          AND a.cancelled_at IS NULL
+        "#,
+        auth.org_id,
+        prev_date,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    // 4. Build per-slot headcount and employee mapping
+    use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+    // (classification_id, slot_index) -> count
+    let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
+    // (classification_id, slot_index) -> Vec<BlockEmployee>
+    let mut emp_map: HashMap<(Uuid, i16), Vec<BlockEmployee>> = HashMap::new();
+
+    fn time_str(t: time::Time) -> String {
+        format!("{:02}:{:02}", t.hour(), t.minute())
+    }
+
+    for a in &assignments {
+        let Some(class_id) = a.classification_id else {
+            continue;
+        };
+        let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
+        let end_min = if a.crosses_midnight {
+            24 * 60
+        } else {
+            a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
+        };
+        let start_slot = (start_min / 30) as i16;
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+
+        let emp = BlockEmployee {
+            user_id: a.user_id,
+            first_name: a.first_name.clone(),
+            last_name: a.last_name.clone(),
+            shift_name: a.shift_name.clone(),
+            shift_start: time_str(a.start_time),
+            shift_end: time_str(a.end_time),
+            is_overtime: a.is_overtime,
+            assignment_id: a.assignment_id,
+        };
+
+        for slot in start_slot..=end_slot {
+            *actual.entry((class_id, slot)).or_insert(0) += 1;
+            emp_map
+                .entry((class_id, slot))
+                .or_default()
+                .push(emp.clone());
+        }
+    }
+
+    // Overnight: these contribute from slot 0 to end_time
+    for a in &overnight {
+        let Some(class_id) = a.classification_id else {
+            continue;
+        };
+        let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
+        if end_min == 0 {
+            continue;
+        }
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        let end_slot = end_slot.clamp(0, 47);
+
+        let emp = BlockEmployee {
+            user_id: a.user_id,
+            first_name: a.first_name.clone(),
+            last_name: a.last_name.clone(),
+            shift_name: a.shift_name.clone(),
+            shift_start: time_str(a.start_time),
+            shift_end: time_str(a.end_time),
+            is_overtime: a.is_overtime,
+            assignment_id: a.assignment_id,
+        };
+
+        for slot in 0..=end_slot {
+            *actual.entry((class_id, slot)).or_insert(0) += 1;
+            emp_map
+                .entry((class_id, slot))
+                .or_default()
+                .push(emp.clone());
+        }
+    }
+
+    // 5. Collect classifications and their slot targets
+    let mut class_info: BTreeMap<Uuid, String> = BTreeMap::new();
+    let mut slot_targets: HashMap<(Uuid, i16), (i16, i16)> = HashMap::new(); // (min, target)
+
+    for s in &slots {
+        class_info
+            .entry(s.classification_id)
+            .or_insert_with(|| s.classification_abbreviation.clone());
+        slot_targets.insert(
+            (s.classification_id, s.slot_index),
+            (s.min_headcount, s.target_headcount),
+        );
+    }
+
+    // Also include classifications that have employees but no coverage slots
+    let mut all_class_ids: BTreeSet<Uuid> = class_info.keys().copied().collect();
+    for ((cid, _), _) in &actual {
+        all_class_ids.insert(*cid);
+    }
+
+    // Fetch abbreviations for any missing classifications
+    if all_class_ids.len() > class_info.len() {
+        let missing: Vec<Uuid> = all_class_ids
+            .iter()
+            .filter(|id| !class_info.contains_key(id))
+            .copied()
+            .collect();
+        if !missing.is_empty() {
+            let abbrs = sqlx::query!(
+                "SELECT id, abbreviation FROM classifications WHERE id = ANY($1)",
+                &missing,
+            )
+            .fetch_all(&pool)
+            .await?;
+            for r in abbrs {
+                class_info.insert(r.id, r.abbreviation);
+            }
+        }
+    }
+
+    // 6. Build 2-hour blocks (12 blocks: 0-11, each = 4 half-hour slots)
+    let mut classifications: Vec<DayGridClassification> = Vec::new();
+
+    for &class_id in &all_class_ids {
+        let abbr = class_info.get(&class_id).cloned().unwrap_or_default();
+        let mut blocks: Vec<ClassificationBlock> = Vec::new();
+
+        for block_idx in 0u8..12 {
+            let base_slot = block_idx as i16 * 4;
+            let block_start_hour = block_idx * 2;
+            let block_end_hour = block_start_hour + 2;
+
+            // Within this 2-hour block (4 half-hour slots), find:
+            // - peak target (max target across the 4 slots)
+            // - peak min (max min across the 4 slots)
+            // - min actual (worst-case staffing within the block)
+            let mut peak_target: i16 = 0;
+            let mut peak_min: i16 = 0;
+            let mut min_actual: i32 = i32::MAX;
+            let mut has_target = false;
+
+            for offset in 0..4i16 {
+                let si = base_slot + offset;
+                if let Some(&(mn, tgt)) = slot_targets.get(&(class_id, si)) {
+                    has_target = true;
+                    peak_target = peak_target.max(tgt);
+                    peak_min = peak_min.max(mn);
+                }
+                let a = actual.get(&(class_id, si)).copied().unwrap_or(0);
+                min_actual = min_actual.min(a);
+            }
+
+            if !has_target && min_actual == i32::MAX {
+                min_actual = 0;
+            } else if min_actual == i32::MAX {
+                min_actual = 0;
+            }
+
+            let status = if !has_target && min_actual == 0 {
+                "green" // no requirement, no employees — fine
+            } else if peak_target == 0 || min_actual >= peak_target as i32 {
+                "green"
+            } else if min_actual >= peak_min as i32 {
+                "yellow"
+            } else {
+                "red"
+            };
+
+            // Deduplicate employees across the 4 slots (same person appears once per block)
+            let mut seen_users: BTreeSet<Uuid> = BTreeSet::new();
+            let mut block_employees: Vec<BlockEmployee> = Vec::new();
+            for offset in 0..4i16 {
+                let si = base_slot + offset;
+                if let Some(emps) = emp_map.get(&(class_id, si)) {
+                    for e in emps {
+                        if seen_users.insert(e.user_id) {
+                            block_employees.push(e.clone());
+                        }
+                    }
+                }
+            }
+
+            blocks.push(ClassificationBlock {
+                block_index: block_idx,
+                start_time: format!("{:02}:00", block_start_hour),
+                end_time: format!("{:02}:00", block_end_hour),
+                min: peak_min,
+                target: peak_target,
+                actual: min_actual,
+                status: status.to_string(),
+                employees: block_employees,
+            });
+        }
+
+        classifications.push(DayGridClassification {
+            classification_id: class_id,
+            abbreviation: abbr,
+            blocks,
+        });
+    }
+
+    // 7. Build aggregate coverage blocks
+    let coverage_blocks: Vec<CoverageBlock> = (0u8..12)
+        .map(|block_idx| {
+            let total_target: i32 = classifications
+                .iter()
+                .map(|c| c.blocks[block_idx as usize].target as i32)
+                .sum();
+            let total_actual: i32 = classifications
+                .iter()
+                .map(|c| c.blocks[block_idx as usize].actual)
+                .sum();
+            let status = if total_target == 0 || total_actual >= total_target {
+                "green"
+            } else if classifications
+                .iter()
+                .any(|c| c.blocks[block_idx as usize].status == "red")
+            {
+                "red"
+            } else {
+                "yellow"
+            };
+            CoverageBlock {
+                block_index: block_idx,
+                total_target,
+                total_actual,
+                status: status.to_string(),
+            }
+        })
+        .collect();
+
+    Ok(Json(DayGridResponse {
+        date: date_str,
+        classifications,
+        blocks: coverage_blocks,
+    }))
 }
 
 // ── Shared helpers for schedule.rs integration ─────────────────────────────────

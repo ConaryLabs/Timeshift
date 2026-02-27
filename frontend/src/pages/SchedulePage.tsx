@@ -503,7 +503,7 @@ function MonthView({
                             type="button"
                             title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required} — Click to resolve`}
                             className={cn('rounded-full flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary/50', status, 'w-auto h-4 px-1')}
-                            onClick={(e) => { e.stopPropagation(); navigate(`/staffing/resolve?date=${dateStr}&shift_template_id=${cell.shift_template_id}`) }}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/staffing/resolve?date=${dateStr}`) }}
                           >
                             <span className="text-[8px] font-bold text-white leading-none">{cell.coverage_actual}/{cell.coverage_required}</span>
                           </button>

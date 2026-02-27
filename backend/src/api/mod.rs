@@ -204,6 +204,10 @@ pub fn router(state: AppState) -> Router {
             delete(coverage_plans::delete_assignment),
         )
         .route(
+            "/api/coverage-plans/day-grid/:date",
+            get(coverage_plans::day_grid),
+        )
+        .route(
             "/api/coverage-plans/gaps/:date",
             get(coverage_plans::classification_gaps),
         )
@@ -437,6 +441,7 @@ pub fn router(state: AppState) -> Router {
         )
         // Staffing
         .route("/api/staffing/available", get(staffing::available_employees))
+        .route("/api/staffing/block-available", get(staffing::block_available))
         // OT Queue & Hours
         .route("/api/ot/queue", get(ot::get_queue))
         .route("/api/ot/queue/set-position", patch(ot::set_queue_position))

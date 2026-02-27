@@ -80,6 +80,7 @@ export const queryKeys = {
     assignments: ['coverage-plans', 'assignments'] as const,
     resolved: (date: string) => ['coverage-plans', 'resolved', date] as const,
     gaps: (date: string) => ['coverage-plans', 'gaps', date] as const,
+    dayGrid: (date: string) => ['coverage-plans', 'day-grid', date] as const,
   },
   periods: {
     all: ['schedule-periods'] as const,
@@ -202,6 +203,8 @@ export const queryKeys = {
   staffing: {
     available: (date: string, shiftTemplateId: string, classificationId?: string) =>
       ['staffing', 'available', date, shiftTemplateId, classificationId] as const,
+    blockAvailable: (date: string, classificationId: string, blockStart: string, blockEnd: string) =>
+      ['staffing', 'block-available', date, classificationId, blockStart, blockEnd] as const,
   },
 } as const
 
@@ -1749,5 +1752,23 @@ export function useStaffingAvailable(date: string, shiftTemplateId: string, clas
     queryFn: () => staffingApi.getAvailable({ date, shift_template_id: shiftTemplateId, classification_id: classificationId }),
     enabled: !!date && !!shiftTemplateId,
     staleTime: 15_000,
+  })
+}
+
+export function useBlockAvailable(date: string, classificationId: string, blockStart: string, blockEnd: string) {
+  return useQuery({
+    queryKey: queryKeys.staffing.blockAvailable(date, classificationId, blockStart, blockEnd),
+    queryFn: () => staffingApi.blockAvailable({ date, classification_id: classificationId, block_start: blockStart, block_end: blockEnd }),
+    enabled: !!date && !!classificationId && !!blockStart && !!blockEnd,
+    staleTime: 15_000,
+  })
+}
+
+export function useDayGrid(date: string) {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.dayGrid(date),
+    queryFn: () => coveragePlansApi.dayGrid(date),
+    enabled: !!date,
+    staleTime: 30_000,
   })
 }

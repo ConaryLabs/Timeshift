@@ -266,6 +266,54 @@ pub struct DayViewEntry {
     pub coverage_status: String,
 }
 
+// -- Day Grid Types (coverage day view with employee-level detail) --
+
+#[derive(Debug, Serialize)]
+pub struct DayGridResponse {
+    pub date: String,
+    pub classifications: Vec<DayGridClassification>,
+    pub blocks: Vec<CoverageBlock>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DayGridClassification {
+    pub classification_id: Uuid,
+    pub abbreviation: String,
+    pub blocks: Vec<ClassificationBlock>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ClassificationBlock {
+    pub block_index: u8,
+    pub start_time: String,
+    pub end_time: String,
+    pub min: i16,
+    pub target: i16,
+    pub actual: i32,
+    pub status: String,
+    pub employees: Vec<BlockEmployee>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BlockEmployee {
+    pub user_id: Uuid,
+    pub first_name: String,
+    pub last_name: String,
+    pub shift_name: String,
+    pub shift_start: String,
+    pub shift_end: String,
+    pub is_overtime: bool,
+    pub assignment_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CoverageBlock {
+    pub block_index: u8,
+    pub total_target: i32,
+    pub total_actual: i32,
+    pub status: String,
+}
+
 // -- Dashboard Types --
 
 #[derive(Debug, Serialize)]

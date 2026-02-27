@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
-import { format } from 'date-fns'
-import { ArrowLeft, Phone as PhoneIcon, Megaphone, Plus, ChevronRight, AlertTriangle } from 'lucide-react'
+import { format, addDays, parseISO } from 'date-fns'
+import { ArrowLeft, ChevronLeft, ChevronRight, Phone as PhoneIcon, Megaphone, Plus, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField } from '@/components/ui/form-field'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -31,7 +39,8 @@ import MandatoryOTDialog from '@/components/coverage/MandatoryOTDialog'
 import DayOffMandatoryDialog from '@/components/coverage/DayOffMandatoryDialog'
 import SmsAlertDialog from '@/components/coverage/SmsAlertDialog'
 import {
-  useStaffingAvailable,
+  useDayGrid,
+  useBlockAvailable,
   useCoverageGaps,
   useCreateCalloutEvent,
   useCalloutList,
@@ -46,7 +55,18 @@ import { cn } from '@/lib/utils'
 import { extractApiError } from '@/lib/format'
 import type { CalloutListEntry } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
-import type { ClassificationGap } from '@/api/coveragePlans'
+import type { ClassificationGap, ClassificationBlock } from '@/api/coveragePlans'
+
+type BlockSize = '30min' | '1h' | '2h'
+
+type SelectedBlock = {
+  classificationId: string
+  classificationAbbr: string
+  blockStart: string
+  blockEnd: string
+  target: number
+  actual: number
+}
 
 type AcceptTarget = { user_id: string; name: string }
 
@@ -55,12 +75,13 @@ export default function StaffingResolvePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { isManager } = usePermissions()
 
-  // URL params
-  const date = searchParams.get('date') ?? ''
-  const shiftTemplateId = searchParams.get('shift_template_id') ?? ''
-  const classificationId = searchParams.get('classification_id') ?? undefined
+  // URL params — date-centric
+  const dateParam = searchParams.get('date') ?? format(new Date(), 'yyyy-MM-dd')
+  const date = dateParam
 
   // UI state
+  const [blockSize, setBlockSize] = useState<BlockSize>('2h')
+  const [selectedBlock, setSelectedBlock] = useState<SelectedBlock | null>(null)
   const [acceptTarget, setAcceptTarget] = useState<AcceptTarget | null>(null)
   const [acceptNotes, setAcceptNotes] = useState('')
   const [search, setSearch] = useState('')
@@ -72,11 +93,19 @@ export default function StaffingResolvePage() {
   const [otNotes, setOtNotes] = useState('')
 
   // Data fetching
-  const { data: staffing, isLoading, isError } = useStaffingAvailable(date, shiftTemplateId, classificationId)
+  const { data: dayGrid, isLoading, isError } = useDayGrid(date)
   const { data: allGaps } = useCoverageGaps(date, { enabled: !!date })
   const { data: classifications } = useClassifications()
 
-  const activeCallout = staffing?.existing_callout
+  // Block available data for the selected block
+  const { data: blockStaffing } = useBlockAvailable(
+    date,
+    selectedBlock?.classificationId ?? '',
+    selectedBlock?.blockStart ?? '',
+    selectedBlock?.blockEnd ?? '',
+  )
+
+  const activeCallout = blockStaffing?.existing_callout ?? null
   const activeCalloutId = activeCallout?.id ?? ''
   const { data: calloutList } = useCalloutList(activeCalloutId)
   const { data: volunteers } = useCalloutVolunteers(activeCalloutId)
@@ -101,31 +130,7 @@ export default function StaffingResolvePage() {
     )
   }, [calloutList, debouncedSearch])
 
-  // Available employees from staffing response
-  const employees = staffing?.employees ?? []
-
-  // Other gaps on same date, excluding current shift+classification
-  const otherGaps = useMemo(() => {
-    if (!allGaps) return []
-    return allGaps.filter((g) => {
-      if (g.shift_template_id === shiftTemplateId && g.classification_id === classificationId) return false
-      return g.shortage > 0
-    })
-  }, [allGaps, shiftTemplateId, classificationId])
-
-  // Current gap info
-  const currentGap = useMemo(() => {
-    if (!allGaps || !classificationId) return null
-    return allGaps.find(
-      (g) => g.shift_template_id === shiftTemplateId && g.classification_id === classificationId
-    ) ?? null
-  }, [allGaps, shiftTemplateId, classificationId])
-
-  // Gaps for current shift (for classification picker)
-  const shiftGaps = useMemo(() => {
-    if (!allGaps) return []
-    return allGaps.filter((g) => g.shift_template_id === shiftTemplateId && g.shortage > 0)
-  }, [allGaps, shiftTemplateId])
+  const employees = blockStaffing?.employees ?? []
 
   // Classification lookup
   const classificationMap = useMemo(
@@ -133,7 +138,7 @@ export default function StaffingResolvePage() {
     [classifications],
   )
 
-  // Callout columns via shared hook
+  // Callout columns
   const calloutColumns = useCalloutColumns({
     isManager,
     eventIsOpen: calloutIsOpen,
@@ -144,6 +149,101 @@ export default function StaffingResolvePage() {
     onNoAnswer: (userId: string) => handleRecordResponse(userId, 'no_answer'),
   })
 
+  // Block columns based on block size
+  const blockColumns = useMemo(() => {
+    const count = blockSize === '30min' ? 48 : blockSize === '1h' ? 24 : 12
+    const minutesPerBlock = blockSize === '30min' ? 30 : blockSize === '1h' ? 60 : 120
+    return Array.from({ length: count }, (_, i) => {
+      const startMin = i * minutesPerBlock
+      const endMin = startMin + minutesPerBlock
+      const startH = Math.floor(startMin / 60)
+      const startM = startMin % 60
+      const endH = Math.floor(endMin / 60) % 24
+      const endM = endMin % 60
+      return {
+        index: i,
+        startTime: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
+        endTime: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`,
+        label: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
+      }
+    })
+  }, [blockSize])
+
+  // Re-aggregate dayGrid data according to selected block size
+  const aggregatedClassifications = useMemo(() => {
+    if (!dayGrid) return []
+    if (blockSize === '2h') {
+      // Native 2h blocks from the API
+      return dayGrid.classifications
+    }
+    // Re-aggregate: each API block is 2h (4 half-hour slots).
+    // For 1h: split each 2h block into two 1h blocks
+    // For 30min: split into four 30min blocks
+    // We can derive from the native block data approximately
+    return dayGrid.classifications.map((cls) => {
+      if (blockSize === '1h') {
+        // Split each 2h block into 2 1h blocks (approximate: same values)
+        const newBlocks: ClassificationBlock[] = []
+        for (const b of cls.blocks) {
+          const startH = parseInt(b.start_time)
+          for (let sub = 0; sub < 2; sub++) {
+            const h = startH + sub
+            newBlocks.push({
+              ...b,
+              block_index: newBlocks.length,
+              start_time: `${String(h).padStart(2, '0')}:00`,
+              end_time: `${String(h + 1).padStart(2, '0')}:00`,
+            })
+          }
+        }
+        return { ...cls, blocks: newBlocks }
+      }
+      // 30min: split each 2h block into 4
+      const newBlocks: ClassificationBlock[] = []
+      for (const b of cls.blocks) {
+        const startH = parseInt(b.start_time)
+        for (let sub = 0; sub < 4; sub++) {
+          const totalMin = startH * 60 + sub * 30
+          const h = Math.floor(totalMin / 60)
+          const m = totalMin % 60
+          const endMin = totalMin + 30
+          const eh = Math.floor(endMin / 60)
+          const em = endMin % 60
+          newBlocks.push({
+            ...b,
+            block_index: newBlocks.length,
+            start_time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+            end_time: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`,
+          })
+        }
+      }
+      return { ...cls, blocks: newBlocks }
+    })
+  }, [dayGrid, blockSize])
+
+  // --- Handlers ---
+
+  function navigateDate(offset: number) {
+    const newDate = addDays(parseISO(date), offset)
+    setSearchParams({ date: format(newDate, 'yyyy-MM-dd') })
+  }
+
+  function goToday() {
+    setSearchParams({ date: format(new Date(), 'yyyy-MM-dd') })
+  }
+
+  function handleBlockClick(classificationId: string, classificationAbbr: string, block: ClassificationBlock) {
+    if (block.status === 'green' && block.actual >= block.target) return
+    setSelectedBlock({
+      classificationId,
+      classificationAbbr,
+      blockStart: block.start_time,
+      blockEnd: block.end_time,
+      target: block.target,
+      actual: block.actual,
+    })
+  }
+
   function getNextStep(): CalloutStep | null {
     if (!currentStep) return 'volunteers'
     const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
@@ -152,11 +252,11 @@ export default function StaffingResolvePage() {
   }
 
   function handleStartCallout() {
-    if (!staffing?.scheduled_shift_id || !classificationId) return
+    if (!blockStaffing?.scheduled_shift_id || !selectedBlock) return
     createCalloutMut.mutate(
       {
-        scheduled_shift_id: staffing.scheduled_shift_id,
-        classification_id: classificationId,
+        scheduled_shift_id: blockStaffing.scheduled_shift_id,
+        classification_id: selectedBlock.classificationId,
       },
       {
         onSuccess: () => toast.success('Callout started'),
@@ -209,13 +309,13 @@ export default function StaffingResolvePage() {
   }
 
   function handleCreateOtRequest() {
-    if (!classificationId || !staffing) return
+    if (!selectedBlock || !blockStaffing) return
     createOtMut.mutate(
       {
         date,
-        start_time: staffing.shift_start_time,
-        end_time: staffing.shift_end_time,
-        classification_id: classificationId,
+        start_time: selectedBlock.blockStart,
+        end_time: selectedBlock.blockEnd,
+        classification_id: selectedBlock.classificationId,
         is_fixed_coverage: false,
         notes: otNotes || undefined,
       },
@@ -230,393 +330,278 @@ export default function StaffingResolvePage() {
     )
   }
 
-  function navigateToGap(gap: ClassificationGap) {
-    setSearchParams({
-      date,
-      shift_template_id: gap.shift_template_id,
-      classification_id: gap.classification_id,
-    })
-  }
+  const formattedDate = date ? format(parseISO(date), 'EEE, MMM d, yyyy') : ''
+  const classInfo = selectedBlock ? classificationMap[selectedBlock.classificationId] : null
+  const shortage = selectedBlock ? Math.max(0, selectedBlock.target - selectedBlock.actual) : 0
 
-  // If no date or shift_template_id, show an error
-  if (!date || !shiftTemplateId) {
+  // Build a fake ClassificationGap for MandatoryOTDialog
+  const mandatoryGapForBlock: ClassificationGap | null = selectedBlock ? {
+    classification_id: selectedBlock.classificationId,
+    classification_abbreviation: selectedBlock.classificationAbbr,
+    shift_template_id: '', // not used by MandatoryOTDialog for the block flow
+    shift_name: `${selectedBlock.blockStart}-${selectedBlock.blockEnd}`,
+    shift_color: '#dc2626',
+    target: selectedBlock.target,
+    actual: selectedBlock.actual as unknown as number,
+    shortage,
+  } : null
+
+  if (!date) {
     return (
       <div>
-        <PageHeader title="Resolve Staffing Gap" />
+        <PageHeader title="Coverage Day View" />
         <EmptyState
-          title="Missing parameters"
-          description="This page requires a date and shift template. Navigate here from the schedule or coverage gaps view."
+          title="Missing date"
+          description="Navigate here from the schedule view."
         />
       </div>
     )
   }
-
-  // If no classification selected, show a picker
-  if (!classificationId && !isLoading) {
-    return (
-      <div>
-        <PageHeader
-          title="Resolve Staffing Gap"
-          description={`${format(new Date(date + 'T12:00:00'), 'EEEE, MMM d, yyyy')}`}
-        />
-        <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back
-        </Button>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Select Classification</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {shiftGaps.length > 0 ? (
-              <div className="space-y-2">
-                {shiftGaps.map((g) => (
-                  <button
-                    key={g.classification_id}
-                    type="button"
-                    className="w-full flex items-center justify-between border rounded-lg p-3 hover:bg-accent/50 transition-colors text-left"
-                    onClick={() => navigateToGap(g)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: g.shift_color }}
-                      />
-                      <div>
-                        <span className="font-medium text-sm">{g.shift_name}</span>
-                        <span className="ml-2 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                          {g.classification_abbreviation}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-destructive font-medium text-sm tabular-nums">
-                        {g.actual}/{g.target}
-                      </span>
-                      <span className="text-muted-foreground text-xs">(need {g.shortage})</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No gaps found"
-                description="No staffing gaps detected for this shift on this date."
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  const classInfo = classificationId ? classificationMap[classificationId] : null
-  const formattedDate = date ? format(new Date(date + 'T12:00:00'), 'EEE, MMM d, yyyy') : ''
 
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate(-1)}>
+      <PageHeader
+        title="Coverage Day View"
+        description={formattedDate}
+        actions={
+          <div className="flex items-center gap-2">
+            <Select value={blockSize} onValueChange={(v) => setBlockSize(v as BlockSize)}>
+              <SelectTrigger className="w-[100px] h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30min">30 min</SelectItem>
+                <SelectItem value="1h">1 hour</SelectItem>
+                <SelectItem value="2h">2 hours</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => navigateDate(-1)} aria-label="Previous day">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={goToday}>Today</Button>
+            <Button variant="outline" size="sm" onClick={() => navigateDate(1)} aria-label="Next day">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="mb-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        <div className="flex items-center gap-3 flex-wrap">
-          {staffing && (
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {staffing.shift_template_name}
-            </h1>
-          )}
-          <span className="text-muted-foreground">{formattedDate}</span>
-          {staffing && (
-            <span className="text-sm text-muted-foreground">
-              {staffing.shift_start_time} &ndash; {staffing.shift_end_time}
-            </span>
-          )}
-        </div>
-        {currentGap && (
-          <div className="flex items-center gap-2 mt-1">
-            <span className="font-mono text-sm bg-muted px-1.5 py-0.5 rounded">
-              {currentGap.classification_abbreviation}
-            </span>
-            <span className="text-destructive font-medium text-sm tabular-nums">
-              {currentGap.actual}/{currentGap.target} staffed
-            </span>
-            <span className="text-muted-foreground text-sm">(need {currentGap.shortage} more)</span>
-          </div>
-        )}
-        {!currentGap && classInfo && (
-          <p className="text-sm text-muted-foreground mt-1">
-            {classInfo.name} ({classInfo.abbreviation})
-          </p>
-        )}
       </div>
 
       {isLoading && <LoadingState />}
       {isError && (
         <EmptyState
-          title="Failed to load staffing data"
+          title="Failed to load coverage data"
           description="Try refreshing the page or go back to the schedule."
         />
       )}
 
-      {staffing && (
-        <div className="space-y-6">
-          {/* Action buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {!activeCallout && (
-              <Button
-                onClick={handleStartCallout}
-                disabled={createCalloutMut.isPending}
-              >
-                <PhoneIcon className="h-4 w-4 mr-1" />
-                {createCalloutMut.isPending ? 'Starting...' : 'Start Callout'}
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setShowSmsDialog(true)}>
-              <Megaphone className="h-4 w-4 mr-1" />
-              Send SMS Alert
-            </Button>
-            <Button variant="outline" onClick={() => setShowCreateOt(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Create OT Request
-            </Button>
-            {currentGap && (
-              <Button variant="outline" onClick={() => setMandatoryGap(currentGap)}>
-                <AlertTriangle className="h-4 w-4 mr-1" />
-                Mandate On-Shift
-              </Button>
-            )}
-            {classificationId && staffing && (
-              <Button variant="outline" onClick={() => setShowDayOffDialog(true)}>
-                <AlertTriangle className="h-4 w-4 mr-1" />
-                Mandate Day Off
-              </Button>
-            )}
-          </div>
+      {dayGrid && (
+        <div className="space-y-1">
+          {aggregatedClassifications.map((cls) => (
+            <ClassificationRow
+              key={cls.classification_id}
+              classificationId={cls.classification_id}
+              abbreviation={cls.abbreviation}
+              blocks={cls.blocks}
+              blockColumns={blockColumns}
+              blockSize={blockSize}
+              onBlockClick={(block) => handleBlockClick(cls.classification_id, cls.abbreviation, block)}
+            />
+          ))}
 
-          {/* Active Callout Panel */}
-          {activeCallout && (
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    Active Callout
-                    <StatusBadge status={activeCallout.status} />
-                  </CardTitle>
-                  <Link
-                    to="/callout"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    View Full Callout
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {calloutIsOpen && (
-                  <>
-                    <StepIndicator currentStep={currentStep} />
-                    <div className="flex items-center gap-2 mb-4">
-                      {isManager && getNextStep() && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleAdvanceStep}
-                          disabled={advanceStepMut.isPending}
-                        >
-                          Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Volunteers */}
-                    {(volunteers ?? []).length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-xs font-medium text-muted-foreground mb-2">
-                          Volunteers ({(volunteers ?? []).length})
-                        </h4>
-                        <div className="flex flex-wrap gap-1">
-                          {(volunteers ?? []).map((v) => (
-                            <Badge key={v.id} variant="secondary" className="text-xs">
-                              {v.last_name}, {v.first_name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Callout list */}
-                    <SearchInput
-                      value={search}
-                      onChange={setSearch}
-                      placeholder="Search callout list..."
-                      className="w-56 mb-3"
-                    />
-                    <DataTable
-                      columns={calloutColumns}
-                      data={filteredCalloutList}
-                      rowKey={(r) => r.user_id}
-                      emptyMessage="No entries in callout list"
-                    />
-                  </>
-                )}
-                {!calloutIsOpen && (
-                  <p className="text-sm text-muted-foreground">
-                    Callout is {activeCallout.status}.
-                    {activeCallout.status === 'filled' && ' A position has been filled.'}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+          {aggregatedClassifications.length === 0 && (
+            <EmptyState
+              title="No coverage plan configured"
+              description="Set up coverage plans in the admin panel to see coverage data."
+            />
           )}
+        </div>
+      )}
 
-          {/* Existing OT Requests */}
-          {staffing.existing_ot_requests.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Open OT Requests</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {staffing.existing_ot_requests.map((req) => (
+      {/* Slide-out panel for resolving a shortage block */}
+      <Sheet open={!!selectedBlock} onOpenChange={(open) => !open && setSelectedBlock(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>
+              {selectedBlock?.classificationAbbr} &mdash; {selectedBlock?.blockStart}&ndash;{selectedBlock?.blockEnd}
+            </SheetTitle>
+            <SheetDescription>
+              {shortage > 0
+                ? `Need ${shortage} more (${selectedBlock?.actual}/${selectedBlock?.target} staffed)`
+                : `Below target (${selectedBlock?.actual}/${selectedBlock?.target} staffed)`}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="p-4 space-y-4">
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2">
+              {!activeCallout && blockStaffing && (
+                <Button size="sm" onClick={handleStartCallout} disabled={createCalloutMut.isPending}>
+                  <PhoneIcon className="h-4 w-4 mr-1" />
+                  {createCalloutMut.isPending ? 'Starting...' : 'Start Callout'}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => setShowCreateOt(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                Create OT Request
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowSmsDialog(true)}>
+                <Megaphone className="h-4 w-4 mr-1" />
+                Send SMS
+              </Button>
+              {mandatoryGapForBlock && shortage > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setMandatoryGap(mandatoryGapForBlock)}>
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Mandate On-Shift
+                </Button>
+              )}
+              {selectedBlock && (
+                <Button size="sm" variant="outline" onClick={() => setShowDayOffDialog(true)}>
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Mandate Day Off
+                </Button>
+              )}
+            </div>
+
+            {/* Active Callout */}
+            {activeCallout && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      Active Callout
+                      <StatusBadge status={activeCallout.status} />
+                    </CardTitle>
+                    <Link to="/callout" className="text-xs text-primary hover:underline">
+                      View Full
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {calloutIsOpen && (
+                    <>
+                      <StepIndicator currentStep={currentStep} />
+                      <div className="flex items-center gap-2 mb-3">
+                        {isManager && getNextStep() && (
+                          <Button size="sm" variant="outline" onClick={handleAdvanceStep} disabled={advanceStepMut.isPending}>
+                            Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
+                          </Button>
+                        )}
+                      </div>
+                      {(volunteers ?? []).length > 0 && (
+                        <div className="mb-3">
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">
+                            Volunteers ({(volunteers ?? []).length})
+                          </h4>
+                          <div className="flex flex-wrap gap-1">
+                            {(volunteers ?? []).map((v) => (
+                              <Badge key={v.id} variant="secondary" className="text-xs">
+                                {v.last_name}, {v.first_name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <SearchInput value={search} onChange={setSearch} placeholder="Search..." className="w-full mb-2" />
+                      <DataTable
+                        columns={calloutColumns}
+                        data={filteredCalloutList}
+                        rowKey={(r) => r.user_id}
+                        emptyMessage="No entries in callout list"
+                      />
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* OT Requests */}
+            {(blockStaffing?.existing_ot_requests ?? []).length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground mb-1">Open OT Requests</h4>
+                <div className="space-y-1">
+                  {blockStaffing!.existing_ot_requests.map((req) => (
                     <Link
                       key={req.id}
                       to={`/ot-requests/${req.id}`}
-                      className="flex items-center justify-between border rounded-lg p-3 hover:bg-accent/50 transition-colors"
+                      className="flex items-center justify-between border rounded-md p-2 hover:bg-accent/50 transition-colors text-sm"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <StatusBadge status={req.status} />
-                        <span className="text-sm">
-                          {req.start_time} &ndash; {req.end_time}
-                        </span>
+                        <span>{req.start_time}&ndash;{req.end_time}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>{req.volunteer_count} volunteers</span>
-                        <span>{req.assignment_count} assigned</span>
-                        <ChevronRight className="h-4 w-4" />
-                      </div>
+                      <span className="text-muted-foreground text-xs">
+                        {req.volunteer_count} vol, {req.assignment_count} asgn
+                      </span>
                     </Link>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
-          {/* Available Employees */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
+            {/* Available Employees */}
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground mb-1">
                 Available Employees ({employees.filter((e) => e.is_available).length}/{employees.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </h4>
               {employees.length === 0 ? (
-                <EmptyState
-                  title="No employees found"
-                  description="No employees in the OT queue for this classification."
-                />
+                <p className="text-sm text-muted-foreground py-2">No employees in OT queue.</p>
               ) : (
                 <DataTable
                   columns={[
-                    { header: '#', cell: (r) => <span className="font-semibold tabular-nums">{r.position}</span> },
+                    { header: '#', cell: (r) => <span className="font-semibold tabular-nums text-xs">{r.position}</span> },
                     {
                       header: 'Name',
                       cell: (r) => (
-                        <div>
-                          <span className={cn(!r.is_available && 'text-muted-foreground')}>
-                            {r.last_name}, {r.first_name}
-                          </span>
+                        <span className={cn('text-sm', !r.is_available && 'text-muted-foreground')}>
+                          {r.last_name}, {r.first_name}
                           {r.is_cross_class && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-amber-700 border-amber-300">
-                                  cross-class
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">
-                                From a different classification, eligible for cross-class OT.
-                              </TooltipContent>
-                            </Tooltip>
+                            <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-amber-700 border-amber-300">xc</Badge>
                           )}
-                        </div>
+                        </span>
                       ),
                     },
-                    {
-                      header: 'Class',
-                      cell: (r) => (
-                        <span className="font-mono text-xs">{r.classification_abbreviation}</span>
-                      ),
-                    },
-                    { header: 'OT Hrs', cell: (r) => <span className="tabular-nums">{r.ot_hours.toFixed(1)}</span> },
+                    { header: 'OT', cell: (r) => <span className="tabular-nums text-xs">{r.ot_hours.toFixed(1)}</span> },
                     {
                       header: 'Phone',
                       cell: (r) =>
                         r.phone ? (
-                          <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm">
-                            <PhoneIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                          <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-primary hover:underline text-xs">
+                            <PhoneIcon className="h-3 w-3" />
                             {r.phone}
                           </a>
-                        ) : (
-                          <span className="text-muted-foreground">&mdash;</span>
-                        ),
+                        ) : <span className="text-muted-foreground">&mdash;</span>,
                     },
                     {
-                      header: 'Status',
+                      header: '',
                       cell: (r) =>
                         r.is_available ? (
-                          <span className="text-green-600 font-medium text-sm">Available</span>
+                          <span className="text-green-600 text-xs">Avail</span>
                         ) : (
-                          <span className="text-muted-foreground text-xs">{r.unavailable_reason}</span>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <span className="text-muted-foreground text-xs">Busy</span>
+                            </TooltipTrigger>
+                            <TooltipContent>{r.unavailable_reason}</TooltipContent>
+                          </Tooltip>
                         ),
                     },
                   ]}
                   data={employees}
                   rowKey={(r) => r.user_id}
-                  emptyMessage="No employees in queue"
+                  emptyMessage="No employees"
                 />
               )}
-            </CardContent>
-          </Card>
-
-          {/* Other Gaps Today */}
-          {otherGaps.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Other Gaps Today</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {otherGaps.map((g) => (
-                    <button
-                      key={`${g.shift_template_id}-${g.classification_id}`}
-                      type="button"
-                      className="w-full flex items-center justify-between border rounded-lg p-3 hover:bg-accent/50 transition-colors text-left"
-                      onClick={() => navigateToGap(g)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: g.shift_color }}
-                        />
-                        <span className="text-sm font-medium">{g.shift_name}</span>
-                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                          {g.classification_abbreviation}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-destructive font-medium text-sm tabular-nums">
-                          &minus;{g.shortage}
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Accept confirmation dialog */}
       <Dialog open={!!acceptTarget} onOpenChange={(open) => !open && setAcceptTarget(null)}>
@@ -625,7 +610,6 @@ export default function StaffingResolvePage() {
             <DialogTitle>Confirm Acceptance</DialogTitle>
             <DialogDescription>
               <strong>{acceptTarget?.name}</strong> has accepted the OT shift.
-              This will mark the callout event as filled and create an OT assignment.
             </DialogDescription>
           </DialogHeader>
           <FormField label="Notes" htmlFor="accept-notes">
@@ -651,9 +635,7 @@ export default function StaffingResolvePage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create OT Request</DialogTitle>
-            <DialogDescription>
-              Post an OT request for employees to volunteer.
-            </DialogDescription>
+            <DialogDescription>Post an OT request for employees to volunteer.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -663,13 +645,11 @@ export default function StaffingResolvePage() {
               </div>
               <div>
                 <span className="text-muted-foreground">Time:</span>{' '}
-                <span className="font-medium">
-                  {staffing?.shift_start_time} &ndash; {staffing?.shift_end_time}
-                </span>
+                <span className="font-medium">{selectedBlock?.blockStart}&ndash;{selectedBlock?.blockEnd}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Classification:</span>{' '}
-                <span className="font-medium">{classInfo?.abbreviation ?? classificationId}</span>
+                <span className="font-medium">{classInfo?.abbreviation ?? selectedBlock?.classificationAbbr}</span>
               </div>
             </div>
             <FormField label="Notes" htmlFor="ot-notes">
@@ -699,7 +679,7 @@ export default function StaffingResolvePage() {
         onOpenChange={setShowSmsDialog}
       />
 
-      {/* Mandatory OT dialog (on-shift: holdover / early callout) */}
+      {/* Mandatory OT dialog */}
       {mandatoryGap && (
         <MandatoryOTDialog
           gap={mandatoryGap}
@@ -710,16 +690,172 @@ export default function StaffingResolvePage() {
       )}
 
       {/* Day-off mandatory OT dialog */}
-      {staffing && classificationId && (
+      {blockStaffing && selectedBlock && (
         <DayOffMandatoryDialog
           date={date}
-          defaultStartTime={staffing.shift_start_time}
-          classificationId={classificationId}
-          classificationAbbreviation={classInfo?.abbreviation ?? classificationId}
+          defaultStartTime={selectedBlock.blockStart}
+          classificationId={selectedBlock.classificationId}
+          classificationAbbreviation={selectedBlock.classificationAbbr}
           employees={employees.filter((e) => e.is_available)}
           open={showDayOffDialog}
           onOpenChange={setShowDayOffDialog}
         />
+      )}
+    </div>
+  )
+}
+
+// ── Classification Row with Gantt bars ─────────────────────────────────────
+
+function ClassificationRow({
+  abbreviation,
+  blocks,
+  blockColumns,
+  onBlockClick,
+}: {
+  classificationId: string
+  abbreviation: string
+  blocks: ClassificationBlock[]
+  blockColumns: { index: number; startTime: string; endTime: string; label: string }[]
+  blockSize: BlockSize
+  onBlockClick: (block: ClassificationBlock) => void
+}) {
+  // Find a matching block for each column
+  function getBlock(colIndex: number): ClassificationBlock | undefined {
+    return blocks[colIndex]
+  }
+
+  // Collect unique employees across all blocks (for Gantt bars)
+  const uniqueEmployees = useMemo(() => {
+    const seen = new Map<string, { userId: string; firstName: string; lastName: string; shiftName: string; shiftStart: string; shiftEnd: string; isOvertime: boolean }>()
+    for (const b of blocks) {
+      for (const e of b.employees) {
+        if (!seen.has(e.user_id)) {
+          seen.set(e.user_id, {
+            userId: e.user_id,
+            firstName: e.first_name,
+            lastName: e.last_name,
+            shiftName: e.shift_name,
+            shiftStart: e.shift_start,
+            shiftEnd: e.shift_end,
+            isOvertime: e.is_overtime,
+          })
+        }
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.shiftStart.localeCompare(b.shiftStart) || a.lastName.localeCompare(b.lastName))
+  }, [blocks])
+
+  // Total columns
+  const totalCols = blockColumns.length
+
+  // Calculate bar position (left% and width%)
+  function barPosition(shiftStart: string, shiftEnd: string) {
+    const [sh, sm] = shiftStart.split(':').map(Number)
+    const [eh, em] = shiftEnd.split(':').map(Number)
+    const startMin = sh * 60 + sm
+    let endMin = eh * 60 + em
+    if (endMin <= startMin) endMin = 24 * 60 // crosses midnight
+    const totalMin = 24 * 60
+    const left = (startMin / totalMin) * 100
+    const width = ((endMin - startMin) / totalMin) * 100
+    return { left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }
+  }
+
+  // Determine if any block has a shortage
+  const hasShortage = blocks.some((b) => b.status === 'red' || b.status === 'yellow')
+
+  return (
+    <div className={cn('border rounded-lg overflow-hidden', hasShortage && 'border-amber-300/50')}>
+      {/* Classification header + coverage blocks */}
+      <div className="flex">
+        {/* Label column */}
+        <div className="w-16 shrink-0 bg-muted/50 flex flex-col items-center justify-center border-r p-1">
+          <span className="font-mono text-xs font-semibold">{abbreviation}</span>
+        </div>
+
+        {/* Coverage block grid */}
+        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
+          {/* Time headers */}
+          {blockColumns.map((col) => (
+            <div key={col.index} className="text-[10px] text-muted-foreground text-center border-r last:border-r-0 border-b px-0.5 py-0.5 leading-tight">
+              {col.label}
+            </div>
+          ))}
+
+          {/* Target/actual cells */}
+          {blockColumns.map((col) => {
+            const block = getBlock(col.index)
+            if (!block) {
+              return <div key={`cell-${col.index}`} className="border-r last:border-r-0 h-8" />
+            }
+            const isClickable = block.status !== 'green' || block.actual < block.target
+            return (
+              <button
+                key={`cell-${col.index}`}
+                type="button"
+                disabled={!isClickable}
+                onClick={() => isClickable && onBlockClick(block)}
+                className={cn(
+                  'border-r last:border-r-0 h-8 flex flex-col items-center justify-center text-[10px] tabular-nums transition-colors',
+                  block.status === 'green' && 'bg-green-50 dark:bg-green-950/20',
+                  block.status === 'yellow' && 'bg-amber-50 dark:bg-amber-950/20',
+                  block.status === 'red' && 'bg-red-50 dark:bg-red-950/20',
+                  isClickable && 'cursor-pointer hover:ring-1 hover:ring-inset hover:ring-primary/50',
+                  !isClickable && 'cursor-default',
+                )}
+                title={`${abbreviation} ${block.start_time}-${block.end_time}: ${block.actual}/${block.target} (min: ${block.min})`}
+              >
+                <span className={cn(
+                  'font-medium leading-none',
+                  block.status === 'red' && 'text-red-700 dark:text-red-400',
+                  block.status === 'yellow' && 'text-amber-700 dark:text-amber-400',
+                  block.status === 'green' && 'text-green-700 dark:text-green-400',
+                )}>
+                  {block.actual}/{block.target}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Gantt bars for employees */}
+      {uniqueEmployees.length > 0 && (
+        <div className="relative border-t bg-muted/10">
+          <div className="flex">
+            <div className="w-16 shrink-0" />
+            <div className="flex-1 relative">
+              {uniqueEmployees.map((emp) => {
+                const pos = barPosition(emp.shiftStart, emp.shiftEnd)
+                return (
+                  <div key={emp.userId} className="h-5 relative">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            'absolute top-0.5 h-4 rounded-sm text-[9px] font-medium flex items-center px-1 truncate',
+                            emp.isOvertime
+                              ? 'bg-amber-200 text-amber-900 dark:bg-amber-800/60 dark:text-amber-100'
+                              : 'bg-indigo-200 text-indigo-900 dark:bg-indigo-800/60 dark:text-indigo-100',
+                          )}
+                          style={{ left: pos.left, width: pos.width }}
+                        >
+                          {emp.lastName}, {emp.firstName[0]}
+                          {emp.isOvertime && <span className="ml-0.5 font-bold">OT</span>}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {emp.firstName} {emp.lastName} &mdash; {emp.shiftName} ({emp.shiftStart}&ndash;{emp.shiftEnd})
+                        {emp.isOvertime && ' [OT]'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
