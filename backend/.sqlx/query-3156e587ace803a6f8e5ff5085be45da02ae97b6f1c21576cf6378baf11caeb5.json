@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, start_time, end_time, duration_minutes FROM shift_templates WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 2,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "duration_minutes",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3156e587ace803a6f8e5ff5085be45da02ae97b6f1c21576cf6378baf11caeb5"
+}

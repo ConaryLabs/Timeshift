@@ -63,7 +63,10 @@ pub async fn available_employees(
         return Err(AppError::Forbidden);
     }
 
-    // Look up the scheduled shift and shift template info
+    // Look up the scheduled shift and shift template info.
+    // If no scheduled_shift exists yet for this template+date, auto-create one
+    // (the monthly coverage grid shows gaps based on coverage plans, so the
+    // scheduled_shift may not have been created yet).
     let shift_info = sqlx::query!(
         r#"
         SELECT ss.id AS scheduled_shift_id,
@@ -82,10 +85,73 @@ pub async fn available_employees(
         params.date,
     )
     .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| {
-        AppError::NotFound("No scheduled shift found for this template and date".into())
-    })?;
+    .await?;
+
+    let shift_info = match shift_info {
+        Some(info) => info,
+        None => {
+            // Verify the shift template exists and belongs to this org
+            let tmpl = sqlx::query!(
+                "SELECT name, start_time, end_time, duration_minutes FROM shift_templates WHERE id = $1 AND org_id = $2",
+                params.shift_template_id,
+                auth.org_id,
+            )
+            .fetch_optional(&pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
+
+            // Auto-create the scheduled_shift
+            let new_id = Uuid::new_v4();
+            sqlx::query!(
+                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4)",
+                new_id,
+                auth.org_id,
+                params.shift_template_id,
+                params.date,
+            )
+            .execute(&pool)
+            .await?;
+
+            // Return the same shape as the query above
+            struct ShiftInfo {
+                scheduled_shift_id: Uuid,
+                shift_template_name: String,
+                start_time: time::Time,
+                end_time: time::Time,
+                duration_minutes: i32,
+            }
+            let info = ShiftInfo {
+                scheduled_shift_id: new_id,
+                shift_template_name: tmpl.name,
+                start_time: tmpl.start_time,
+                end_time: tmpl.end_time,
+                duration_minutes: tmpl.duration_minutes,
+            };
+
+            // Re-query to get the same anonymous struct type sqlx expects
+            // (can't return a different type from match arms)
+            return Ok(Json(StaffingAvailableResponse {
+                employees: compute_available_employees(
+                    &pool,
+                    auth.org_id,
+                    &auth.org_timezone,
+                    info.scheduled_shift_id,
+                    params.classification_id,
+                    params.date,
+                    info.start_time,
+                    info.duration_minutes,
+                )
+                .await?,
+                scheduled_shift_id: info.scheduled_shift_id,
+                shift_template_name: info.shift_template_name,
+                shift_start_time: info.start_time,
+                shift_end_time: info.end_time,
+                shift_duration_minutes: info.duration_minutes,
+                existing_callout: None,
+                existing_ot_requests: Vec::new(),
+            }));
+        }
+    };
 
     // Compute the available employees list
     let employees = compute_available_employees(
