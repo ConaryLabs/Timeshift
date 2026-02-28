@@ -53,20 +53,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ConflictDialog } from '@/components/ConflictDialog'
-import { formatTime, formatDate, extractApiError } from '@/lib/format'
+import { formatTime, formatDate, extractApiError, formatDateTimeWithYear } from '@/lib/format'
 import { isConflictError, isSoftLimitError } from '@/lib/utils'
 import type { OtRequestVolunteer, OtRequestAssignment, OtType } from '@/api/otRequests'
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function otTypeLabel(ot: OtType): string {
   switch (ot) {
@@ -328,7 +317,7 @@ export default function OtRequestDetailPage() {
             </div>
             <div>
               <dt className="text-muted-foreground">Created</dt>
-              <dd className="font-medium">{formatDateTime(request.created_at)}</dd>
+              <dd className="font-medium">{formatDateTimeWithYear(request.created_at)}</dd>
             </div>
           </dl>
           {request.notes && (
@@ -374,7 +363,7 @@ export default function OtRequestDetailPage() {
                       <TableCell className="font-medium">{a.user_name}</TableCell>
                       <TableCell>{otTypeLabel(a.ot_type)}</TableCell>
                       <TableCell>{a.assigned_by_name}</TableCell>
-                      <TableCell>{formatDateTime(a.assigned_at)}</TableCell>
+                      <TableCell>{formatDateTimeWithYear(a.assigned_at)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 text-xs">
                           Active
@@ -401,7 +390,7 @@ export default function OtRequestDetailPage() {
                       <TableCell className="font-medium">{a.user_name}</TableCell>
                       <TableCell>{otTypeLabel(a.ot_type)}</TableCell>
                       <TableCell>{a.assigned_by_name}</TableCell>
-                      <TableCell>{formatDateTime(a.assigned_at)}</TableCell>
+                      <TableCell>{formatDateTimeWithYear(a.assigned_at)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-xs">
                           Cancelled
@@ -449,7 +438,7 @@ export default function OtRequestDetailPage() {
                     <TableRow key={v.id}>
                       <TableCell className="font-medium">{v.user_name}</TableCell>
                       <TableCell>{v.classification_name}</TableCell>
-                      <TableCell>{formatDateTime(v.volunteered_at)}</TableCell>
+                      <TableCell>{formatDateTimeWithYear(v.volunteered_at)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 text-xs">
                           Active
@@ -478,7 +467,7 @@ export default function OtRequestDetailPage() {
                     <TableRow key={v.id} className="opacity-50">
                       <TableCell className="font-medium">{v.user_name}</TableCell>
                       <TableCell>{v.classification_name}</TableCell>
-                      <TableCell>{formatDateTime(v.volunteered_at)}</TableCell>
+                      <TableCell>{formatDateTimeWithYear(v.volunteered_at)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-xs">
                           Withdrawn

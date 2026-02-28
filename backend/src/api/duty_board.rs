@@ -11,7 +11,7 @@ use crate::{
     error::{AppError, Result},
     models::duty_position::{
         AvailableEmployee, AvailableStaffQuery, BoardAssignment, BoardPosition, CellAction,
-        ConsoleHoursEntry, ConsoleHoursQuery, DutyBoardResponse,
+        CellActionKind, ConsoleHoursEntry, ConsoleHoursQuery, DutyBoardResponse,
     },
 };
 
@@ -110,8 +110,8 @@ pub async fn get_board(
 
     let position_ids: Vec<Uuid> = position_rows.iter().map(|p| p.id).collect();
 
-    // 2. Fetch position hours for this day-of-week
-    let hours_rows = sqlx::query_as!(
+    // 2-3-5. Fetch hours, qualifications, and assignments concurrently (all independent)
+    let hours_fut = sqlx::query_as!(
         PositionHoursRow,
         r#"
         SELECT duty_position_id, open_time, close_time, crosses_midnight
@@ -121,14 +121,9 @@ pub async fn get_board(
         &position_ids,
         dow,
     )
-    .fetch_all(&pool)
-    .await?;
+    .fetch_all(&pool);
 
-    let hours_map: HashMap<Uuid, &PositionHoursRow> =
-        hours_rows.iter().map(|h| (h.duty_position_id, h)).collect();
-
-    // 3. Fetch position qualification requirements
-    let qual_rows = sqlx::query_as!(
+    let qual_fut = sqlx::query_as!(
         PositionQualRow,
         r#"
         SELECT dpq.duty_position_id, q.name AS qualification_name
@@ -139,8 +134,31 @@ pub async fn get_board(
         "#,
         &position_ids,
     )
-    .fetch_all(&pool)
-    .await?;
+    .fetch_all(&pool);
+
+    let assign_fut = sqlx::query_as!(
+        BoardAssignment,
+        r#"
+        SELECT da.id, da.duty_position_id,
+               da.block_index AS "block_index!",
+               da.user_id AS "user_id?",
+               u.first_name AS "user_first_name?",
+               u.last_name AS "user_last_name?",
+               da.status
+        FROM duty_assignments da
+        LEFT JOIN users u ON u.id = da.user_id
+        WHERE da.org_id = $1 AND da.date = $2
+        ORDER BY da.duty_position_id, da.block_index
+        "#,
+        auth.org_id,
+        date,
+    )
+    .fetch_all(&pool);
+
+    let (hours_rows, qual_rows, assignments) = tokio::try_join!(hours_fut, qual_fut, assign_fut)?;
+
+    let hours_map: HashMap<Uuid, &PositionHoursRow> =
+        hours_rows.iter().map(|h| (h.duty_position_id, h)).collect();
 
     let mut qual_map: HashMap<Uuid, Vec<String>> = HashMap::new();
     for qr in &qual_rows {
@@ -173,27 +191,6 @@ pub async fn get_board(
         })
         .collect();
 
-    // 5. Fetch all assignments for this date
-    let assignments = sqlx::query_as!(
-        BoardAssignment,
-        r#"
-        SELECT da.id, da.duty_position_id,
-               da.block_index AS "block_index!",
-               da.user_id AS "user_id?",
-               u.first_name AS "user_first_name?",
-               u.last_name AS "user_last_name?",
-               da.status
-        FROM duty_assignments da
-        LEFT JOIN users u ON u.id = da.user_id
-        WHERE da.org_id = $1 AND da.date = $2
-        ORDER BY da.duty_position_id, da.block_index
-        "#,
-        auth.org_id,
-        date,
-    )
-    .fetch_all(&pool)
-    .await?;
-
     Ok(Json(DutyBoardResponse {
         date: date.to_string(),
         positions,
@@ -220,20 +217,10 @@ pub async fn cell_action(
     }
 
     // Verify position belongs to org
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2 AND is_active = true)",
-        req.duty_position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
+    crate::org_guard::verify_duty_position(&pool, req.duty_position_id, auth.org_id).await?;
 
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
-
-    match req.action.as_str() {
-        "assign" => {
+    match req.action {
+        CellActionKind::Assign => {
             let user_id = req
                 .user_id
                 .ok_or_else(|| AppError::BadRequest("user_id required for assign".into()))?;
@@ -258,7 +245,7 @@ pub async fn cell_action(
             .execute(&pool)
             .await?;
         }
-        "mark_ot" => {
+        CellActionKind::MarkOt => {
             sqlx::query!(
                 r#"
                 INSERT INTO duty_assignments (id, org_id, duty_position_id, user_id, date, block_index, status, assigned_by)
@@ -276,7 +263,7 @@ pub async fn cell_action(
             .execute(&pool)
             .await?;
         }
-        "clear" => {
+        CellActionKind::Clear => {
             sqlx::query!(
                 r#"
                 DELETE FROM duty_assignments
@@ -289,11 +276,6 @@ pub async fn cell_action(
             )
             .execute(&pool)
             .await?;
-        }
-        _ => {
-            return Err(AppError::BadRequest(
-                "action must be 'assign', 'mark_ot', or 'clear'".into(),
-            ));
         }
     }
 
@@ -329,8 +311,8 @@ pub async fn available_staff(
     let block_start_mins = params.block_index as i32 * 120;
     let block_end_mins = block_start_mins + 120;
 
-    // 1. Get position info (classification_id + required qualifications)
-    let position = sqlx::query!(
+    // 1. Get position info (classification_id + required qualifications) concurrently
+    let pos_fut = sqlx::query!(
         r#"
         SELECT classification_id
         FROM duty_positions
@@ -339,16 +321,18 @@ pub async fn available_staff(
         params.duty_position_id,
         auth.org_id,
     )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Duty position not found".into()))?;
+    .fetch_optional(&pool);
 
-    let required_qual_ids: Vec<Uuid> = sqlx::query_scalar!(
+    let qual_fut = sqlx::query_scalar!(
         "SELECT qualification_id FROM duty_position_qualifications WHERE duty_position_id = $1",
         params.duty_position_id,
     )
-    .fetch_all(&pool)
-    .await?;
+    .fetch_all(&pool);
+
+    let (position_opt, required_qual_ids) = tokio::try_join!(pos_fut, qual_fut)?;
+
+    let position = position_opt
+        .ok_or_else(|| AppError::NotFound("Duty position not found".into()))?;
 
     // 2. Find employees on shift during this block
     // We need people whose shift covers the block time range.

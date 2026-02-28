@@ -95,7 +95,7 @@ pub async fn create_team(
     }
 
     if let Some(parent_id) = req.parent_team_id {
-        verify_team_in_org(&pool, parent_id, auth.org_id).await?;
+        org_guard::verify_team(&pool,parent_id, auth.org_id).await?;
     }
 
     let team = sqlx::query_as!(
@@ -158,7 +158,7 @@ pub async fn update_team(
                 "A team cannot be its own parent".into(),
             ));
         }
-        verify_team_in_org(&pool, parent_id, auth.org_id).await?;
+        org_guard::verify_team(&pool,parent_id, auth.org_id).await?;
         check_team_cycle(&pool, id, parent_id).await?;
     }
 
@@ -201,17 +201,7 @@ pub async fn list_slots(
     Path(team_id): Path<Uuid>,
 ) -> Result<Json<Vec<ShiftSlotView>>> {
     // Verify team belongs to org
-    let exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
-        team_id,
-        auth.org_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Team not found".into()));
-    }
+    org_guard::verify_team(&pool, team_id, auth.org_id).await?;
 
     let slots = fetch_slot_views(&pool, team_id).await?;
     Ok(Json(slots))
@@ -228,17 +218,7 @@ pub async fn create_slot(
     }
 
     // Verify team belongs to org
-    let exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
-        team_id,
-        auth.org_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Team not found".into()));
-    }
+    org_guard::verify_team(&pool, team_id, auth.org_id).await?;
 
     // Verify shift_template and classification belong to caller's org
     org_guard::verify_shift_template(&pool, req.shift_template_id, auth.org_id).await?;
@@ -382,20 +362,6 @@ pub async fn update_slot(
     }))
 }
 
-async fn verify_team_in_org(pool: &PgPool, team_id: Uuid, org_id: Uuid) -> Result<()> {
-    let exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
-        team_id,
-        org_id
-    )
-    .fetch_one(pool)
-    .await?;
-
-    if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Parent team not found".into()));
-    }
-    Ok(())
-}
 
 async fn check_team_cycle(pool: &PgPool, team_id: Uuid, new_parent_id: Uuid) -> Result<()> {
     let mut current = Some(new_parent_id);

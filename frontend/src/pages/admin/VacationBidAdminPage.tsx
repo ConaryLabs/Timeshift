@@ -40,7 +40,7 @@ import {
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { VacationBidPeriod, VacationBidWindow } from '@/api/vacationBids'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateTime } from '@/lib/format'
 
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + i - 1)
@@ -149,14 +149,6 @@ export default function VacationBidAdminPage() {
         toast.error(msg)
         setProcessConfirm(null)
       },
-    })
-  }
-
-  function formatDateTime(d: string | null) {
-    if (!d) return '-'
-    return new Date(d).toLocaleString(undefined, {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
     })
   }
 

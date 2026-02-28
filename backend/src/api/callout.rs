@@ -14,7 +14,7 @@ use crate::{
             CalloutStatus, CreateBumpRequest, CreateCalloutEventRequest, RecordAttemptRequest,
             ReviewBumpRequest,
         },
-        common::PaginationParams,
+        common::{OtType, PaginationParams},
         ot::CalloutStep,
     },
     org_guard,
@@ -275,12 +275,7 @@ pub async fn record_attempt(
         return Err(AppError::NotFound("User not found".into()));
     }
 
-    // Use shift date's fiscal year (org-configurable start month).
-    let fy_start =
-        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
-            .await as u32;
-    let fiscal_year: i32 =
-        crate::services::timezone::fiscal_year_for_date(ctx.shift_date, fy_start);
+    let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, ctx.shift_date).await;
 
     // 3. Snapshot current OT hours_worked at contact time (0 if no row yet).
     let ot_snapshot: f64 = sqlx::query_scalar!(
@@ -333,23 +328,10 @@ pub async fn record_attempt(
 
     match req.response.as_str() {
         "accepted" => {
-            // Update OT queue position: stamp last_ot_event_at = NOW() so this user
-            // moves toward the back of the queue for next callout.
-            sqlx::query!(
-                r#"
-                INSERT INTO ot_queue_positions
-                    (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
-                VALUES (gen_random_uuid(), $1, $2, $3, NOW(), $4, NOW())
-                ON CONFLICT (org_id, classification_id, user_id, fiscal_year)
-                DO UPDATE SET last_ot_event_at = NOW(), updated_at = NOW()
-                "#,
-                auth.org_id,
-                ctx.classification_id,
-                req.user_id,
-                fiscal_year,
-            )
-            .execute(&mut *tx)
-            .await?;
+            // Stamp queue position so this user moves toward the back for next callout.
+            crate::services::ot::stamp_ot_queue(
+                &mut tx, auth.org_id, ctx.classification_id, req.user_id, fiscal_year,
+            ).await?;
 
             // Mark the event filled.
             sqlx::query!(
@@ -361,10 +343,11 @@ pub async fn record_attempt(
 
             // Determine ot_type from the callout step.
             let ot_type = match ctx.current_step {
-                Some(CalloutStep::Volunteers) => "voluntary",
-                Some(CalloutStep::Mandatory) => "mandatory",
-                _ => "elective",
+                Some(CalloutStep::Volunteers) => OtType::Voluntary,
+                Some(CalloutStep::Mandatory) => OtType::Mandatory,
+                _ => OtType::Elective,
             };
+            let ot_type_str = ot_type.to_string();
 
             // Create an OT assignment. Skip if the user is already on this shift.
             sqlx::query!(
@@ -377,31 +360,15 @@ pub async fn record_attempt(
                 ctx.scheduled_shift_id,
                 req.user_id,
                 auth.id,
-                ot_type,
+                ot_type_str,
             )
             .execute(&mut *tx)
             .await?;
 
             // Upsert OT hours_worked for this user/year/classification.
-            sqlx::query!(
-                r#"
-                INSERT INTO ot_hours
-                    (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-                VALUES (gen_random_uuid(), $1, $2, $4, $3::FLOAT8::NUMERIC, 0)
-                ON CONFLICT (user_id, fiscal_year,
-                    COALESCE(classification_id,
-                             '00000000-0000-0000-0000-000000000000'::uuid))
-                DO UPDATE SET
-                    hours_worked = ot_hours.hours_worked + $3::FLOAT8::NUMERIC,
-                    updated_at   = NOW()
-                "#,
-                req.user_id,
-                fiscal_year,
-                shift_hours,
-                ctx.classification_id,
-            )
-            .execute(&mut *tx)
-            .await?;
+            crate::services::ot::upsert_ot_hours_worked(
+                &mut tx, req.user_id, fiscal_year, ctx.classification_id, shift_hours,
+            ).await?;
 
             // If this callout is linked to an OT request, mark it as filled.
             if let Some(ot_req_id) = ctx.ot_request_id {
@@ -418,43 +385,15 @@ pub async fn record_attempt(
             }
         }
         "declined" => {
-            // Update OT queue position for declined too.
-            sqlx::query!(
-                r#"
-                INSERT INTO ot_queue_positions
-                    (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
-                VALUES (gen_random_uuid(), $1, $2, $3, NOW(), $4, NOW())
-                ON CONFLICT (org_id, classification_id, user_id, fiscal_year)
-                DO UPDATE SET last_ot_event_at = NOW(), updated_at = NOW()
-                "#,
-                auth.org_id,
-                ctx.classification_id,
-                req.user_id,
-                fiscal_year,
-            )
-            .execute(&mut *tx)
-            .await?;
+            // Stamp queue position for declined too.
+            crate::services::ot::stamp_ot_queue(
+                &mut tx, auth.org_id, ctx.classification_id, req.user_id, fiscal_year,
+            ).await?;
 
             // Upsert OT hours_declined for this user/year/classification.
-            sqlx::query!(
-                r#"
-                INSERT INTO ot_hours
-                    (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-                VALUES (gen_random_uuid(), $1, $2, $4, 0, $3::FLOAT8::NUMERIC)
-                ON CONFLICT (user_id, fiscal_year,
-                    COALESCE(classification_id,
-                             '00000000-0000-0000-0000-000000000000'::uuid))
-                DO UPDATE SET
-                    hours_declined = ot_hours.hours_declined + $3::FLOAT8::NUMERIC,
-                    updated_at     = NOW()
-                "#,
-                req.user_id,
-                fiscal_year,
-                shift_hours,
-                ctx.classification_id,
-            )
-            .execute(&mut *tx)
-            .await?;
+            crate::services::ot::upsert_ot_hours_declined(
+                &mut tx, req.user_id, fiscal_year, ctx.classification_id, shift_hours,
+            ).await?;
         }
         _ => {} // no_answer: no OT accounting change, no queue stamp
     }
@@ -554,7 +493,7 @@ pub async fn cancel_ot_assignment(
         )
         .await;
         match assignment.ot_type.as_deref() {
-            Some("voluntary") | Some("elective") => {
+            Some("voluntary" | "elective") => {
                 let hours_until = (shift_start - now).whole_hours();
                 if hours_until < cancel_window {
                     return Err(AppError::Conflict(format!(
@@ -584,28 +523,11 @@ pub async fn cancel_ot_assignment(
 
     // 6b. Reverse OT hours_worked for the cancelled assignment.
     let shift_hours = event.duration_minutes as f64 / 60.0;
-    let fy_start =
-        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
-            .await as u32;
-    let fiscal_year: i32 =
-        crate::services::timezone::fiscal_year_for_date(event.shift_date, fy_start);
+    let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, event.shift_date).await;
 
-    sqlx::query!(
-        r#"
-        UPDATE ot_hours
-        SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),
-            updated_at = NOW()
-        WHERE user_id = $1 AND fiscal_year = $2
-          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
-            = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)
-        "#,
-        assignment.user_id,
-        fiscal_year,
-        shift_hours,
-        Some(event.classification_id) as Option<Uuid>,
-    )
-    .execute(&mut *tx)
-    .await?;
+    crate::services::ot::revert_ot_hours_worked(
+        &mut tx, assignment.user_id, fiscal_year, Some(event.classification_id), shift_hours,
+    ).await?;
 
     // 7. Auto-reopen event so it re-enters the callout queue — in 911 dispatch,
     // lost OT coverage must be immediately re-callable without manual supervisor
@@ -782,11 +704,7 @@ pub async fn create_bump_request(
     }
 
     // 5. Priority check - requester must outrank displaced on the OT list
-    let fy_start =
-        crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
-            .await as u32;
-    let fiscal_year: i32 =
-        crate::services::timezone::fiscal_year_for_date(event.shift_date, fy_start);
+    let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, event.shift_date).await;
 
     let priority = sqlx::query!(
         r#"

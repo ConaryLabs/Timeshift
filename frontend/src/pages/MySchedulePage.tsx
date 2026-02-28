@@ -20,25 +20,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useMySchedule, useMyPreferences } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { formatDateShort, formatDateFull } from '@/lib/format'
+import { formatDateShort, formatDateFull, formatTime, toLocalDateStr } from '@/lib/format'
 import type { MyScheduleEntry } from '@/api/employee'
 
 type ViewMode = 'week' | 'month'
-
-function formatTime(time: string) {
-  const [h, m] = time.split(':')
-  const hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-  return `${display}:${m} ${ampm}`
-}
-
-function toDateStr(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 function getWeekStart(d: Date) {
   const day = d.getDay()
@@ -71,7 +56,7 @@ export default function MySchedulePage() {
       const end = addDays(start, 6)
       const days: Date[] = []
       for (let i = 0; i < 7; i++) days.push(addDays(start, i))
-      return { startDate: toDateStr(start), endDate: toDateStr(end), displayDays: days }
+      return { startDate: toLocalDateStr(start), endDate: toLocalDateStr(end), displayDays: days }
     } else {
       const monthStart = getMonthStart(anchor)
       const calStart = getWeekStart(monthStart)
@@ -83,7 +68,7 @@ export default function MySchedulePage() {
         days.push(d)
         d = addDays(d, 1)
       }
-      return { startDate: toDateStr(calStart), endDate: toDateStr(calEnd), displayDays: days }
+      return { startDate: toLocalDateStr(calStart), endDate: toLocalDateStr(calEnd), displayDays: days }
     }
   }, [anchor, activeView])
 
@@ -115,7 +100,7 @@ export default function MySchedulePage() {
     setAnchor(new Date())
   }
 
-  const todayStr = toDateStr(new Date())
+  const todayStr = toLocalDateStr(new Date())
 
   const headerLabel = activeView === 'week'
     ? `${formatDateShort(startDate)} - ${formatDateFull(endDate)}`
@@ -227,7 +212,7 @@ function WeekView({
     <div className="overflow-x-auto">
     <div className="grid grid-cols-7 gap-3 min-w-[640px]">
       {days.map((day) => {
-        const dateStr = toDateStr(day)
+        const dateStr = toLocalDateStr(day)
         const shifts = entryMap.get(dateStr) ?? []
         const isToday = dateStr === todayStr
 
@@ -325,7 +310,7 @@ function MonthView({
       {weeks.map((week, wi) => (
         <div key={wi} className="grid grid-cols-7 border-b last:border-b-0">
           {week.map((day) => {
-            const dateStr = toDateStr(day)
+            const dateStr = toLocalDateStr(day)
             const shifts = entryMap.get(dateStr) ?? []
             const isToday = dateStr === todayStr
             const isCurrentMonth = day.getMonth() === currentMonth

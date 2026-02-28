@@ -16,16 +16,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useDashboard } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/lib/format'
+import { formatTime, contrastText } from '@/lib/format'
 import type { ClassificationCoverageDetail } from '@/api/schedule'
-
-function contrastText(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? '#111' : '#fff'
-}
 
 export default function DashboardPage() {
   const navigate = useNavigate()

@@ -30,22 +30,12 @@ import {
   useProcessBids,
   useApproveBidWindow,
 } from '@/hooks/queries'
-import { formatTime, NO_VALUE, extractApiError, formatDateFull } from '@/lib/format'
+import { formatTime, NO_VALUE, extractApiError, formatDateFull, formatDateTime } from '@/lib/format'
 import type { SlotAssignmentView } from '@/api/schedulePeriods'
 import type { BidWindow } from '@/api/bidding'
 import type { BidPeriodStatus } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function StatusBadge({ status }: { status: BidPeriodStatus }) {
   const config: Record<BidPeriodStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {

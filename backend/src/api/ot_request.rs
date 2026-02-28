@@ -9,6 +9,7 @@ use crate::{
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::OtType,
     models::ot_request::{
         CreateOtRequest, CreateOtRequestAssignment, OtRequestAssignmentRow, OtRequestDetail,
         OtRequestQuery, OtRequestRow, OtRequestStatus, OtRequestVolunteerRow, UpdateOtRequest,
@@ -834,13 +835,10 @@ pub async fn assign(
         ));
     }
 
-    let ot_type = req.ot_type.unwrap_or_else(|| "voluntary".to_string());
+    let ot_type = req.ot_type.unwrap_or(OtType::Voluntary);
 
-    // Validate ot_type
-    if !matches!(
-        ot_type.as_str(),
-        "voluntary" | "mandatory" | "mandatory_day_off" | "fixed_coverage"
-    ) {
+    // Elective is only used internally by the callout flow — disallow it from direct assignment.
+    if ot_type == OtType::Elective {
         return Err(AppError::BadRequest(
             "ot_type must be one of: voluntary, mandatory, mandatory_day_off, fixed_coverage"
                 .into(),
@@ -862,7 +860,7 @@ pub async fn assign(
         .await?;
 
     // Rule 1a: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
-    if ot_type == "mandatory" && request.hours > 2.0 {
+    if ot_type == OtType::Mandatory && request.hours > 2.0 {
         return Err(AppError::BadRequest(
             "Mandatory OT cannot exceed 2 hours before or after the employee's scheduled shift \
              (VCCEA § 4.4.3). For day-off assignments, use the day-off mandatory OT path."
@@ -871,7 +869,7 @@ pub async fn assign(
     }
 
     // Rule 1b: Day-off mandatory OT must be 4–6 hours (VCCEA § 4.4.3).
-    if ot_type == "mandatory_day_off" && !(4.0..=6.0).contains(&request.hours) {
+    if ot_type == OtType::MandatoryDayOff && !(4.0..=6.0).contains(&request.hours) {
         return Err(AppError::BadRequest(
             "Day-off mandatory OT must be between 4 and 6 hours (VCCEA § 4.4.3).".into(),
         ));
@@ -917,7 +915,7 @@ pub async fn assign(
 
     // Rule 2a: Voluntary OT soft warning — flag when the assignment would bring the employee
     // to 12+ hours. The supervisor can bypass with `force: true`.
-    if ot_type == "voluntary" && total_hours >= 12.0 && !req.force.unwrap_or(false) {
+    if ot_type == OtType::Voluntary && total_hours >= 12.0 && !req.force.unwrap_or(false) {
         return Err(AppError::SoftLimit(format!(
             "Assigning this OT would bring the employee to {:.1} hours on {} — approaching \
              the 14-hour daily maximum. Confirm to proceed.",
@@ -936,7 +934,7 @@ pub async fn assign(
 
     // Rule 3: Mandatory OT (on-shift or day-off) must leave ≥ 10 hours before the employee's
     // next regular shift (VCCEA § 4.4.3). Midnight-crossing OT ends on the following day.
-    if ot_type == "mandatory" || ot_type == "mandatory_day_off" {
+    if ot_type == OtType::Mandatory || ot_type == OtType::MandatoryDayOff {
         let ot_crosses_midnight = request.end_time < request.start_time;
         let search_date = if ot_crosses_midnight {
             request.date.next_day().unwrap_or(request.date)
@@ -990,6 +988,7 @@ pub async fn assign(
     // ────────────────────────────────────────────────────────────────────────
 
     let assignment_id = Uuid::new_v4();
+    let ot_type_str = ot_type.to_string();
     sqlx::query!(
         r#"
         INSERT INTO ot_request_assignments
@@ -999,7 +998,7 @@ pub async fn assign(
         assignment_id,
         id,
         req.user_id,
-        ot_type,
+        ot_type_str,
         auth.id,
     )
     .execute(&mut *tx)
@@ -1030,35 +1029,10 @@ pub async fn assign(
     // Update OT hours tracking: increment user's OT hours for the fiscal year.
     // Fixed coverage assignments do not count toward the OT queue hours.
     if !request.is_fixed_coverage {
-        let fy_start = crate::services::org_settings::get_i64(
-            &pool,
-            auth.org_id,
-            "fiscal_year_start_month",
-            1,
-        )
-        .await as u32;
-        let fiscal_year: i32 =
-            crate::services::timezone::fiscal_year_for_date(request.date, fy_start);
-
-        sqlx::query!(
-            r#"
-            INSERT INTO ot_hours
-                (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)
-            VALUES (gen_random_uuid(), $1, $2, $4, $3::FLOAT8::NUMERIC, 0)
-            ON CONFLICT (user_id, fiscal_year,
-                COALESCE(classification_id,
-                         '00000000-0000-0000-0000-000000000000'::uuid))
-            DO UPDATE SET
-                hours_worked = ot_hours.hours_worked + $3::FLOAT8::NUMERIC,
-                updated_at   = NOW()
-            "#,
-            req.user_id,
-            fiscal_year,
-            request.hours,
-            request.classification_id,
-        )
-        .execute(&mut *tx)
-        .await?;
+        let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, request.date).await;
+        crate::services::ot::upsert_ot_hours_worked(
+            &mut tx, req.user_id, fiscal_year, request.classification_id, request.hours,
+        ).await?;
     }
 
     tx.commit().await?;
@@ -1186,32 +1160,10 @@ pub async fn cancel_assignment(
 
     // Revert OT hours tracking (only for non-fixed-coverage, matching the assign logic)
     if !request.is_fixed_coverage {
-        let fy_start = crate::services::org_settings::get_i64(
-            &pool,
-            auth.org_id,
-            "fiscal_year_start_month",
-            1,
-        )
-        .await as u32;
-        let fiscal_year: i32 =
-            crate::services::timezone::fiscal_year_for_date(request.date, fy_start);
-
-        sqlx::query!(
-            r#"
-            UPDATE ot_hours
-            SET hours_worked = GREATEST(ot_hours.hours_worked - $3::FLOAT8::NUMERIC, 0::NUMERIC),
-                updated_at = NOW()
-            WHERE user_id = $1 AND fiscal_year = $2
-              AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
-                = COALESCE($4, '00000000-0000-0000-0000-000000000000'::uuid)
-            "#,
-            user_id,
-            fiscal_year,
-            request.hours,
-            Some(request.classification_id) as Option<Uuid>,
-        )
-        .execute(&mut *tx)
-        .await?;
+        let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, request.date).await;
+        crate::services::ot::revert_ot_hours_worked(
+            &mut tx, user_id, fiscal_year, Some(request.classification_id), request.hours,
+        ).await?;
     }
 
     // Determine new status: check remaining active assignments

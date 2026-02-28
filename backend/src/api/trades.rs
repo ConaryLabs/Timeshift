@@ -9,6 +9,7 @@ use crate::{
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::ReviewAction,
     models::trade::{
         BulkReviewTradeRequest, CreateTradeRequest, RespondTradeRequest, ReviewTradeRequest,
         TradeListQuery, TradeRequest, TradeStatus,
@@ -466,7 +467,7 @@ pub async fn review(
         return Err(AppError::Forbidden);
     }
 
-    if body.status != "approved" && body.status != "denied" {
+    if body.status == ReviewAction::Cancelled {
         return Err(AppError::BadRequest(
             "status must be 'approved' or 'denied'".into(),
         ));
@@ -519,7 +520,7 @@ pub async fn review(
     }
 
     // VCCEA Article 14.3: reject approval if trade deadline has passed
-    if body.status == "approved" {
+    if body.status == ReviewAction::Approved {
         if let Some(deadline) = r.deadline_at {
             if time::OffsetDateTime::now_utc() > deadline {
                 return Err(AppError::Conflict(
@@ -550,7 +551,7 @@ pub async fn review(
         &mut tx,
         &trade,
         auth.id,
-        &body.status,
+        body.status,
         body.reviewer_notes.as_deref(),
     )
     .await?;
@@ -645,7 +646,7 @@ pub async fn bulk_review(
         return Err(AppError::Forbidden);
     }
 
-    if body.status != "approved" && body.status != "denied" {
+    if body.status == ReviewAction::Cancelled {
         return Err(AppError::BadRequest(
             "status must be 'approved' or 'denied'".into(),
         ));
@@ -708,7 +709,7 @@ pub async fn bulk_review(
             &mut tx,
             &trade,
             auth.id,
-            &body.status,
+            body.status,
             body.reviewer_notes.as_deref(),
         )
         .await?;

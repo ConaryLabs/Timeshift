@@ -3,7 +3,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::models::common::deserialize_optional_field;
+use crate::models::common::{deserialize_optional_field, OtType};
 
 // ---------------------------------------------------------------------------
 // OT Request Status Enum
@@ -203,7 +203,7 @@ pub struct OtRequestAssignmentRow {
 #[derive(Debug, Deserialize)]
 pub struct CreateOtRequestAssignment {
     pub user_id: Uuid,
-    pub ot_type: Option<String>,
+    pub ot_type: Option<OtType>,
     /// When `true`, bypasses the voluntary OT soft-limit warning (12–14 h).
     pub force: Option<bool>,
 }

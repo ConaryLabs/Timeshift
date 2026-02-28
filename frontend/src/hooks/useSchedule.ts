@@ -6,11 +6,11 @@ import { queryKeys } from './queryKeys'
 
 // -- Schedule --
 
-export function useStaffing(startDate: string, endDate: string, teamId?: string) {
+export function useStaffing(startDate: string, endDate: string, teamId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.schedule.staffing(startDate, endDate, teamId),
     queryFn: () => scheduleApi.getStaffing(startDate, endDate, teamId),
-    enabled: !!startDate && !!endDate,
+    enabled: (options?.enabled ?? true) && !!startDate && !!endDate,
   })
 }
 
