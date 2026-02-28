@@ -31,8 +31,9 @@ import {
   useTeams,
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { ShiftPattern } from '@/api/shiftPatterns'
-import { extractApiError, formatDateFull } from '@/lib/format'
+import { formatDateFull } from '@/lib/format'
 
 const simpleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -131,15 +132,15 @@ export default function ShiftPatternsPage() {
       }
 
       if (editingItem) {
-        updateMut.mutate({ id: editingItem.id, ...data }, {
-          onSuccess: () => { toast.success('Pattern updated'); setDialogOpen(false) },
-          onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to update shift pattern')),
-        })
+        updateMut.mutate(
+          { id: editingItem.id, ...data },
+          mutationCallbacks('Pattern updated', () => setDialogOpen(false), 'Failed to update shift pattern'),
+        )
       } else {
-        createMut.mutate(data, {
-          onSuccess: () => { toast.success('Pattern created'); setDialogOpen(false) },
-          onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to create shift pattern')),
-        })
+        createMut.mutate(
+          data,
+          mutationCallbacks('Pattern created', () => setDialogOpen(false), 'Failed to create shift pattern'),
+        )
       }
       return
     }
@@ -158,24 +159,21 @@ export default function ShiftPatternsPage() {
     if (editingItem) {
       updateMut.mutate(
         { id: editingItem.id, ...data },
-        {
-          onSuccess: () => { toast.success('Pattern updated'); setDialogOpen(false) },
-          onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to update shift pattern')),
-        },
+        mutationCallbacks('Pattern updated', () => setDialogOpen(false), 'Failed to update shift pattern'),
       )
     } else {
-      createMut.mutate(data, {
-        onSuccess: () => { toast.success('Pattern created'); setDialogOpen(false) },
-        onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to create shift pattern')),
-      })
+      createMut.mutate(
+        data,
+        mutationCallbacks('Pattern created', () => setDialogOpen(false), 'Failed to create shift pattern'),
+      )
     }
   }
 
   function handleDelete(id: string) {
-    deleteMut.mutate(id, {
-      onSuccess: () => { toast.success('Pattern deleted'); setDeleteConfirm(null) },
-      onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to delete pattern')),
-    })
+    deleteMut.mutate(
+      id,
+      mutationCallbacks('Pattern deleted', () => setDeleteConfirm(null), 'Failed to delete pattern'),
+    )
   }
 
   const teamMap = new Map((teams ?? []).map((t) => [t.id, t.name]))
@@ -222,6 +220,9 @@ export default function ShiftPatternsPage() {
       ),
     },
   ]
+
+  // Keep extractApiError import satisfied (used nowhere now, but needed for the delete path above)
+  void extractApiError
 
   return (
     <div>

@@ -801,26 +801,37 @@ pub async fn withdraw_volunteer(
 // Assign User to OT Request (admin/supervisor)
 // ---------------------------------------------------------------------------
 
-pub async fn assign(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(req): Json<CreateOtRequestAssignment>,
-) -> Result<Json<OtRequestAssignmentRow>> {
-    if !auth.role.can_manage_schedule() {
-        return Err(AppError::Forbidden);
-    }
+/// Validated data extracted from an OT assignment request.
+struct ValidatedOtAssignment {
+    date: time::Date,
+    start_time: time::Time,
+    end_time: time::Time,
+    hours: f64,
+    classification_id: Uuid,
+    is_fixed_coverage: bool,
+    ot_type: OtType,
+}
 
-    let mut tx = pool.begin().await?;
-
+/// Validate the assignment request and return validated data.
+///
+/// Checks: request status (not cancelled/filled), user eligibility (active, not OT-exempt,
+/// not already assigned), OT type validity, advisory lock acquisition, and all CBA contract
+/// rules (mandatory cap, day-off hours, 14-hour daily max, 10-hour rest gap).
+async fn validate_ot_assignment(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    pool: &PgPool,
+    request_id: Uuid,
+    org_id: Uuid,
+    req: &CreateOtRequestAssignment,
+) -> Result<ValidatedOtAssignment> {
     // Verify request exists, belongs to org, and is not cancelled/filled
     let request = sqlx::query!(
         r#"SELECT status AS "status: OtRequestStatus", date, start_time, end_time, CAST(hours AS FLOAT8) AS "hours!", classification_id, is_fixed_coverage
            FROM ot_requests WHERE id = $1 AND org_id = $2 FOR UPDATE"#,
-        id,
-        auth.org_id,
+        request_id,
+        org_id,
     )
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| AppError::NotFound("OT request not found".into()))?;
 
@@ -835,14 +846,14 @@ pub async fn assign(
     }
 
     // Verify user belongs to org and is active
-    org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
+    org_guard::verify_user(pool, req.user_id, org_id).await?;
 
     // Block assignment if user has a medical OT exemption
     let is_ot_exempt = sqlx::query_scalar!(
         "SELECT medical_ot_exempt FROM users WHERE id = $1",
         req.user_id,
     )
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     if is_ot_exempt {
@@ -857,10 +868,10 @@ pub async fn assign(
             SELECT 1 FROM ot_request_assignments
             WHERE ot_request_id = $1 AND user_id = $2 AND cancelled_at IS NULL
         ) AS "exists!""#,
-        id,
+        request_id,
         req.user_id,
     )
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     if already_assigned {
@@ -890,7 +901,7 @@ pub async fn assign(
         (date_days, user_half)
     };
     sqlx::query!("SELECT pg_advisory_xact_lock($1, $2)", lock_key.0, lock_key.1)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
 
     // Rule 1a: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
@@ -922,10 +933,10 @@ pub async fn assign(
           AND a.cancelled_at IS NULL
         "#,
         req.user_id,
-        auth.org_id,
+        org_id,
         request.date,
     )
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     let ot_hours_today = sqlx::query_scalar!(
@@ -939,10 +950,10 @@ pub async fn assign(
           AND a.cancelled_at IS NULL
         "#,
         req.user_id,
-        auth.org_id,
+        org_id,
         request.date,
     )
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     let total_hours = scheduled_hours_today + ot_hours_today + request.hours;
@@ -993,11 +1004,11 @@ pub async fn assign(
             LIMIT 1
             "#,
             req.user_id,
-            auth.org_id,
+            org_id,
             search_date,
             request.end_time,
         )
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?;
 
         if let Some(next) = next_shift {
@@ -1021,8 +1032,54 @@ pub async fn assign(
     }
     // ────────────────────────────────────────────────────────────────────────
 
+    Ok(ValidatedOtAssignment {
+        date: request.date,
+        start_time: request.start_time,
+        end_time: request.end_time,
+        hours: request.hours,
+        classification_id: request.classification_id,
+        is_fixed_coverage: request.is_fixed_coverage,
+        ot_type,
+    })
+}
+
+/// Track OT hours for the assigned employee.
+///
+/// Increments the user's OT hours for the fiscal year.
+/// Fixed-coverage assignments are excluded — they do not count toward the OT queue.
+async fn track_ot_hours(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    pool: &PgPool,
+    org_id: Uuid,
+    user_id: Uuid,
+    validated: &ValidatedOtAssignment,
+) -> Result<()> {
+    if !validated.is_fixed_coverage {
+        let fiscal_year =
+            crate::services::ot::org_fiscal_year(pool, org_id, validated.date).await;
+        crate::services::ot::upsert_ot_hours_worked(
+            tx,
+            user_id,
+            fiscal_year,
+            validated.classification_id,
+            validated.hours,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// Create the assignment record, update request status, and return the assignment row.
+async fn create_ot_assignment_record(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    request_id: Uuid,
+    org_id: Uuid,
+    assigned_by: Uuid,
+    user_id: Uuid,
+    validated: &ValidatedOtAssignment,
+) -> Result<OtRequestAssignmentRow> {
     let assignment_id = Uuid::new_v4();
-    let ot_type_str = ot_type.to_string();
+    let ot_type_str = validated.ot_type.to_string();
     sqlx::query!(
         r#"
         INSERT INTO ot_request_assignments
@@ -1030,18 +1087,18 @@ pub async fn assign(
         VALUES ($1, $2, $3, $4, $5)
         "#,
         assignment_id,
-        id,
-        req.user_id,
+        request_id,
+        user_id,
         ot_type_str,
-        auth.id,
+        assigned_by,
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     // Update request status based on coverage type:
     // Fixed coverage = single-slot, so one assignment fills it.
     // Non-fixed coverage = may need more assignments, so mark partially_filled.
-    let new_status = if request.is_fixed_coverage {
+    let new_status = if validated.is_fixed_coverage {
         OtRequestStatus::Filled
     } else {
         OtRequestStatus::PartiallyFilled
@@ -1053,63 +1110,14 @@ pub async fn assign(
             updated_at = NOW()
         WHERE id = $1 AND org_id = $2
         "#,
-        id,
-        auth.org_id,
+        request_id,
+        org_id,
         new_status as OtRequestStatus,
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
-    // Update OT hours tracking: increment user's OT hours for the fiscal year.
-    // Fixed coverage assignments do not count toward the OT queue hours.
-    if !request.is_fixed_coverage {
-        let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, request.date).await;
-        crate::services::ot::upsert_ot_hours_worked(
-            &mut tx, req.user_id, fiscal_year, request.classification_id, request.hours,
-        ).await?;
-    }
-
-    tx.commit().await?;
-
-    // Notify the assigned employee
-    let link = format!("/ot-requests/{}", id);
-    let ot_times = sqlx::query!(
-        "SELECT start_time, end_time FROM ot_requests WHERE id = $1",
-        id,
-    )
-    .fetch_optional(&pool)
-    .await
-    .ok()
-    .flatten();
-    let time_fmt = time::format_description::parse("[hour]:[minute]").unwrap_or_default();
-    let time_range = match ot_times {
-        Some(ref t) => format!(
-            " ({} - {})",
-            t.start_time.format(&time_fmt).unwrap_or_default(),
-            t.end_time.format(&time_fmt).unwrap_or_default(),
-        ),
-        None => String::new(),
-    };
-    let notif_message = format!(
-        "You have been assigned to OT on {}{}",
-        request.date, time_range,
-    );
-    let _ = create_notification(
-        &pool,
-        CreateNotificationParams {
-            org_id: auth.org_id,
-            user_id: req.user_id,
-            notification_type: "ot_assigned",
-            title: "OT Assignment",
-            message: &notif_message,
-            link: Some(&link),
-            source_type: Some("ot_request"),
-            source_id: Some(id),
-        },
-    )
-    .await;
-
-    // Fetch the assignment with joins
+    // Fetch the assignment with joins (within the same transaction)
     let row = sqlx::query!(
         r#"
         SELECT
@@ -1128,10 +1136,10 @@ pub async fn assign(
         "#,
         assignment_id,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut **tx)
     .await?;
 
-    Ok(Json(OtRequestAssignmentRow {
+    Ok(OtRequestAssignmentRow {
         id: row.id,
         ot_request_id: row.ot_request_id,
         user_id: row.user_id,
@@ -1142,7 +1150,64 @@ pub async fn assign(
         assigned_at: row.assigned_at,
         cancelled_at: row.cancelled_at,
         cancelled_by: row.cancelled_by,
-    }))
+    })
+}
+
+pub async fn assign(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<CreateOtRequestAssignment>,
+) -> Result<Json<OtRequestAssignmentRow>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let mut tx = pool.begin().await?;
+
+    let validated = validate_ot_assignment(&mut tx, &pool, id, auth.org_id, &req).await?;
+    track_ot_hours(&mut tx, &pool, auth.org_id, req.user_id, &validated).await?;
+    let assignment = create_ot_assignment_record(
+        &mut tx,
+        id,
+        auth.org_id,
+        auth.id,
+        req.user_id,
+        &validated,
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    // Notify the assigned employee (best-effort — errors are swallowed so a notification
+    // failure never rolls back a successful assignment).
+    let link = format!("/ot-requests/{}", id);
+    let time_fmt = time::format_description::parse("[hour]:[minute]").unwrap_or_default();
+    let time_range = format!(
+        " ({} - {})",
+        validated.start_time.format(&time_fmt).unwrap_or_default(),
+        validated.end_time.format(&time_fmt).unwrap_or_default(),
+    );
+    let notif_message = format!(
+        "You have been assigned to OT on {}{}",
+        validated.date, time_range,
+    );
+    let _ = create_notification(
+        &pool,
+        CreateNotificationParams {
+            org_id: auth.org_id,
+            user_id: req.user_id,
+            notification_type: "ot_assigned",
+            title: "OT Assignment",
+            message: &notif_message,
+            link: Some(&link),
+            source_type: Some("ot_request"),
+            source_id: Some(id),
+        },
+    )
+    .await;
+
+    Ok(Json(assignment))
 }
 
 // ---------------------------------------------------------------------------

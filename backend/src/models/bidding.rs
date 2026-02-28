@@ -59,6 +59,27 @@ pub struct BidWindowRow {
     pub auto_advanced_at: Option<OffsetDateTime>,
 }
 
+impl From<BidWindowRow> for BidWindow {
+    fn from(r: BidWindowRow) -> Self {
+        BidWindow {
+            id: r.id,
+            period_id: r.period_id,
+            user_id: r.user_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            seniority_rank: r.seniority_rank,
+            opens_at: r.opens_at,
+            closes_at: r.closes_at,
+            submitted_at: r.submitted_at,
+            unlocked_at: r.unlocked_at,
+            approved_at: r.approved_at,
+            approved_by: r.approved_by,
+            is_job_share: r.is_job_share,
+            auto_advanced_at: r.auto_advanced_at,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BidSubmission {
     pub id: Uuid,

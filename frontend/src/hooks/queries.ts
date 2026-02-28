@@ -3,6 +3,8 @@
 
 export { queryKeys } from './queryKeys'
 export { useInvalidatingMutation } from './useInvalidatingMutation'
+export { useCrudDialogs } from './useCrudDialogs'
+export { mutationCallbacks } from './mutationCallbacks'
 
 export { useMe } from './useAuth'
 

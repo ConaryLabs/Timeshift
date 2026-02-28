@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useShiftTemplates, useCreateTemplate, useUpdateTemplate, queryKeys } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { formatTime, formatDuration, extractApiError } from '@/lib/format'
 import { isConflictError } from '@/lib/utils'
@@ -78,16 +79,10 @@ export default function ShiftTemplatesPage() {
       start_time: values.start_time.length === 5 ? `${values.start_time}:00` : values.start_time,
       end_time: values.end_time.length === 5 ? `${values.end_time}:00` : values.end_time,
     }
-    createMut.mutate(body, {
-      onSuccess: () => {
-        toast.success('Shift template created')
-        setDialogOpen(false)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Failed to create shift template')
-        toast.error(msg)
-      },
-    })
+    createMut.mutate(
+      body,
+      mutationCallbacks('Shift template created', () => setDialogOpen(false), 'Failed to create shift template'),
+    )
   }
 
   function onEditSubmit(values: EditValues) {
@@ -119,16 +114,10 @@ export default function ShiftTemplatesPage() {
   function handleConflictForceSave() {
     setConflictOpen(false)
     if (!pendingEditVars.current) return
-    updateMut.mutate({ ...pendingEditVars.current, expected_updated_at: undefined }, {
-      onSuccess: () => {
-        toast.success('Shift template updated')
-        setDialogOpen(false)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Failed to update shift template')
-        toast.error(msg)
-      },
-    })
+    updateMut.mutate(
+      { ...pendingEditVars.current, expected_updated_at: undefined },
+      mutationCallbacks('Shift template updated', () => setDialogOpen(false), 'Failed to update shift template'),
+    )
   }
 
   const editIsActive = editForm.watch('is_active')
@@ -166,13 +155,11 @@ export default function ShiftTemplatesPage() {
             } else {
               updateMut.mutate(
                 { id: r.id, is_active: true },
-                {
-                  onSuccess: () => toast.success('Shift template activated'),
-                  onError: (err: unknown) => {
-                    const msg = extractApiError(err, 'Failed to activate shift template')
-                    toast.error(msg)
-                  },
-                },
+                mutationCallbacks(
+                  'Shift template activated',
+                  undefined,
+                  'Failed to activate shift template',
+                ),
               )
             }
           }}
@@ -314,16 +301,11 @@ export default function ShiftTemplatesPage() {
               onClick={() => {
                 updateMut.mutate(
                   { id: deactivateTarget!.id, is_active: false },
-                  {
-                    onSuccess: () => {
-                      toast.success('Shift template deactivated')
-                      setDeactivateTarget(null)
-                    },
-                    onError: (err: unknown) => {
-                      const msg = extractApiError(err, 'Failed to deactivate shift template')
-                      toast.error(msg)
-                    },
-                  },
+                  mutationCallbacks(
+                    'Shift template deactivated',
+                    () => setDeactivateTarget(null),
+                    'Failed to deactivate shift template',
+                  ),
                 )
               }}
               disabled={updateMut.isPending}

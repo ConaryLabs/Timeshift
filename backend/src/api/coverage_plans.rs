@@ -1542,40 +1542,77 @@ pub async fn send_sms_alert(
 
 // ── Day Grid (block-based coverage with employees) ─────────────────────────────
 
-/// GET /api/coverage-plans/day-grid/:date
-///
-/// Returns per-classification 2-hour coverage blocks with employee-level detail.
-pub async fn day_grid(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-    Path(date_str): Path<String>,
-) -> Result<Json<DayGridResponse>> {
-    if !auth.role.can_manage_schedule() {
-        return Err(AppError::Forbidden);
-    }
+// Raw data fetched from DB for a single day's grid computation.
+struct DayGridData {
+    slots: Vec<DayGridSlotRow>,
+    assignments: Vec<DayGridAssignmentRow>,
+    overnight: Vec<DayGridAssignmentRow>,
+    ot_assignments: Vec<DayGridOtRow>,
+    ot_overnight: Vec<DayGridOtOvernightRow>,
+}
 
-    let date = time::Date::parse(
-        &date_str,
-        &time::format_description::parse("[year]-[month]-[day]")
-            .map_err(|_| AppError::BadRequest("invalid date format".into()))?,
-    )
-    .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
+// Newtype row structs used only within this module to carry sqlx anonymous
+// record types across function boundaries.
 
-    let plan_id = match resolve_plan_id(&pool, auth.org_id, date).await? {
-        Some(id) => id,
-        None => {
-            return Ok(Json(DayGridResponse {
-                date: date_str,
-                classifications: vec![],
-                blocks: vec![],
-            }));
-        }
-    };
+struct DayGridSlotRow {
+    slot_index: i16,
+    classification_id: Uuid,
+    classification_abbreviation: String,
+    min_headcount: i16,
+    target_headcount: i16,
+}
 
+struct DayGridAssignmentRow {
+    assignment_id: Uuid,
+    user_id: Uuid,
+    is_overtime: bool,
+    first_name: String,
+    last_name: String,
+    classification_id: Option<Uuid>,
+    shift_name: String,
+    start_time: time::Time,
+    end_time: time::Time,
+    crosses_midnight: bool,
+}
+
+struct DayGridOtRow {
+    ora_id: Uuid,
+    user_id: Uuid,
+    first_name: String,
+    last_name: String,
+    classification_id: Uuid,
+    start_time: time::Time,
+    end_time: time::Time,
+}
+
+struct DayGridOtOvernightRow {
+    ora_id: Uuid,
+    user_id: Uuid,
+    first_name: String,
+    last_name: String,
+    classification_id: Uuid,
+    end_time: time::Time,
+}
+
+// Computed maps: per-slot headcount and employee lists.
+struct DayGridMaps {
+    // (classification_id, slot_index) -> headcount
+    actual: std::collections::HashMap<(Uuid, i16), i32>,
+    // (classification_id, slot_index) -> employees present in that slot
+    emp_map: std::collections::HashMap<(Uuid, i16), Vec<BlockEmployee>>,
+}
+
+/// Phase 1 — run all SQL queries needed for the day grid.
+async fn fetch_day_grid_data(
+    pool: &PgPool,
+    org_id: Uuid,
+    plan_id: Uuid,
+    date: time::Date,
+) -> Result<DayGridData> {
     let dow = date.weekday().number_days_from_sunday() as i16;
+    let prev_date = date.previous_day().unwrap_or(date);
 
-    // 1. Fetch coverage plan slots (targets)
-    let slots = sqlx::query!(
+    let slot_rows = sqlx::query!(
         r#"
         SELECT
             cps.slot_index,
@@ -1591,11 +1628,21 @@ pub async fn day_grid(
         plan_id,
         dow,
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
-    // 2. Fetch all active assignments with employee details for this date
-    let assignments = sqlx::query!(
+    let slots = slot_rows
+        .into_iter()
+        .map(|r| DayGridSlotRow {
+            slot_index: r.slot_index,
+            classification_id: r.classification_id,
+            classification_abbreviation: r.classification_abbreviation,
+            min_headcount: r.min_headcount,
+            target_headcount: r.target_headcount,
+        })
+        .collect();
+
+    let assignment_rows = sqlx::query!(
         r#"
         SELECT
             a.id AS assignment_id,
@@ -1615,15 +1662,29 @@ pub async fn day_grid(
         WHERE ss.org_id = $1 AND ss.date = $2
           AND a.cancelled_at IS NULL
         "#,
-        auth.org_id,
+        org_id,
         date,
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
-    // 3. Fetch overnight assignments from previous day
-    let prev_date = date.previous_day().unwrap_or(date);
-    let overnight = sqlx::query!(
+    let assignments = assignment_rows
+        .into_iter()
+        .map(|r| DayGridAssignmentRow {
+            assignment_id: r.assignment_id,
+            user_id: r.user_id,
+            is_overtime: r.is_overtime,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            classification_id: r.classification_id,
+            shift_name: r.shift_name,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            crosses_midnight: r.crosses_midnight,
+        })
+        .collect();
+
+    let overnight_rows = sqlx::query!(
         r#"
         SELECT
             a.id AS assignment_id,
@@ -1644,14 +1705,29 @@ pub async fn day_grid(
           AND st.crosses_midnight = true
           AND a.cancelled_at IS NULL
         "#,
-        auth.org_id,
+        org_id,
         prev_date,
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
-    // 3b. Fetch active OT request assignments for this date
-    let ot_assignments = sqlx::query!(
+    let overnight = overnight_rows
+        .into_iter()
+        .map(|r| DayGridAssignmentRow {
+            assignment_id: r.assignment_id,
+            user_id: r.user_id,
+            is_overtime: r.is_overtime,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            classification_id: r.classification_id,
+            shift_name: r.shift_name,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            crosses_midnight: r.crosses_midnight,
+        })
+        .collect();
+
+    let ot_rows = sqlx::query!(
         r#"
         SELECT
             ora.id AS ora_id,
@@ -1668,14 +1744,26 @@ pub async fn day_grid(
           AND ora.cancelled_at IS NULL
           AND otr.status != 'cancelled'
         "#,
-        auth.org_id,
+        org_id,
         date,
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
-    // 3c. Fetch overnight OT request assignments from previous day (crossing midnight)
-    let ot_overnight = sqlx::query!(
+    let ot_assignments = ot_rows
+        .into_iter()
+        .map(|r| DayGridOtRow {
+            ora_id: r.ora_id,
+            user_id: r.user_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            classification_id: r.classification_id,
+            start_time: r.start_time,
+            end_time: r.end_time,
+        })
+        .collect();
+
+    let ot_overnight_rows = sqlx::query!(
         r#"
         SELECT
             ora.id AS ora_id,
@@ -1692,25 +1780,60 @@ pub async fn day_grid(
           AND ora.cancelled_at IS NULL
           AND otr.status != 'cancelled'
         "#,
-        auth.org_id,
+        org_id,
         prev_date,
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
-    // 4. Build per-slot headcount and employee mapping
-    use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+    let ot_overnight = ot_overnight_rows
+        .into_iter()
+        .map(|r| DayGridOtOvernightRow {
+            ora_id: r.ora_id,
+            user_id: r.user_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            classification_id: r.classification_id,
+            end_time: r.end_time,
+        })
+        .collect();
 
-    // (classification_id, slot_index) -> count
-    let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
-    // (classification_id, slot_index) -> Vec<BlockEmployee>
-    let mut emp_map: HashMap<(Uuid, i16), Vec<BlockEmployee>> = HashMap::new();
+    Ok(DayGridData {
+        slots,
+        assignments,
+        overnight,
+        ot_assignments,
+        ot_overnight,
+    })
+}
+
+/// Phase 2 — build per-slot headcount and employee maps from raw data.
+///
+/// Processes regular assignments, overnight spillover, OT request assignments,
+/// and overnight OT. OT entries are deduplicated against regular assignments so
+/// the same person is never double-counted within the same slot.
+fn build_slot_maps(data: &DayGridData) -> DayGridMaps {
+    use std::collections::{HashMap, HashSet};
 
     fn time_str(t: time::Time) -> String {
         format!("{:02}:{:02}", t.hour(), t.minute())
     }
 
-    for a in &assignments {
+    fn slot_range(start_min: i32, end_min: i32) -> (i16, i16) {
+        let start_slot = (start_min / 30) as i16;
+        let end_slot = if end_min % 30 == 0 {
+            (end_min / 30 - 1) as i16
+        } else {
+            (end_min / 30) as i16
+        };
+        (start_slot, end_slot.clamp(0, 47))
+    }
+
+    let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
+    let mut emp_map: HashMap<(Uuid, i16), Vec<BlockEmployee>> = HashMap::new();
+
+    // Regular assignments for the date
+    for a in &data.assignments {
         let Some(class_id) = a.classification_id else {
             continue;
         };
@@ -1720,13 +1843,7 @@ pub async fn day_grid(
         } else {
             a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
         };
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
-        };
-        let end_slot = end_slot.clamp(0, 47);
+        let (start_slot, end_slot) = slot_range(start_min, end_min);
 
         let emp = BlockEmployee {
             user_id: a.user_id,
@@ -1741,15 +1858,12 @@ pub async fn day_grid(
 
         for slot in start_slot..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
-            emp_map
-                .entry((class_id, slot))
-                .or_default()
-                .push(emp.clone());
+            emp_map.entry((class_id, slot)).or_default().push(emp.clone());
         }
     }
 
-    // Overnight: these contribute from slot 0 to end_time
-    for a in &overnight {
+    // Overnight assignments from previous day — contribute from slot 0 to end_time
+    for a in &data.overnight {
         let Some(class_id) = a.classification_id else {
             continue;
         };
@@ -1777,15 +1891,12 @@ pub async fn day_grid(
 
         for slot in 0..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
-            emp_map
-                .entry((class_id, slot))
-                .or_default()
-                .push(emp.clone());
+            emp_map.entry((class_id, slot)).or_default().push(emp.clone());
         }
     }
 
-    // Track which (user_id, classification_id, slot) are already covered by regular
-    // assignments so OT doesn't double-count the same person in the same slot.
+    // Build the deduplication set: slots already covered by regular assignments,
+    // so OT for the same user isn't double-counted.
     let mut user_slot_covered: HashSet<(Uuid, Uuid, i16)> = HashSet::new();
     for ((class_id, slot), emps) in &emp_map {
         for e in emps {
@@ -1793,22 +1904,13 @@ pub async fn day_grid(
         }
     }
 
-    // OT request assignments: contribute to slots based on ot_requests start/end time.
-    // Only count toward headcount for slots not already covered by the same user's
-    // regular assignment (avoids double-counting).
-    for ot in &ot_assignments {
+    // OT request assignments — contribute based on ot_requests start/end time
+    for ot in &data.ot_assignments {
         let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
         let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
         let crosses_midnight = end_min < start_min;
-
         let effective_end = if crosses_midnight { 24 * 60 } else { end_min };
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if effective_end % 30 == 0 {
-            (effective_end / 30 - 1) as i16
-        } else {
-            (effective_end / 30) as i16
-        };
-        let end_slot = end_slot.clamp(0, 47);
+        let (start_slot, end_slot) = slot_range(start_min, effective_end);
 
         let emp = BlockEmployee {
             user_id: ot.user_id,
@@ -1836,8 +1938,8 @@ pub async fn day_grid(
         }
     }
 
-    // Overnight OT: these contribute from slot 0 to end_time on this date
-    for ot in &ot_overnight {
+    // Overnight OT from previous day — contribute from slot 0 to end_time on this date
+    for ot in &data.ot_overnight {
         let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
         if end_min == 0 {
             continue;
@@ -1871,11 +1973,27 @@ pub async fn day_grid(
         }
     }
 
-    // 5. Collect classifications and their slot targets
-    let mut class_info: BTreeMap<Uuid, String> = BTreeMap::new();
-    let mut slot_targets: HashMap<(Uuid, i16), (i16, i16)> = HashMap::new(); // (min, target)
+    DayGridMaps { actual, emp_map }
+}
 
-    for s in &slots {
+/// Phase 3 — build the 2-hour classification blocks from slot maps and slot targets.
+///
+/// Returns one `DayGridClassification` per classification found in either the
+/// coverage plan slots or the actual assignment data. A supplemental DB query
+/// fetches abbreviations for any classification that has assignments but no
+/// coverage-plan slot definition.
+async fn build_classification_blocks(
+    pool: &PgPool,
+    data: &DayGridData,
+    maps: &DayGridMaps,
+) -> Result<Vec<DayGridClassification>> {
+    use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+    // Build lookup: (classification_id, slot_index) -> (min, target)
+    let mut slot_targets: HashMap<(Uuid, i16), (i16, i16)> = HashMap::new();
+    let mut class_info: BTreeMap<Uuid, String> = BTreeMap::new();
+
+    for s in &data.slots {
         class_info
             .entry(s.classification_id)
             .or_insert_with(|| s.classification_abbreviation.clone());
@@ -1885,13 +2003,13 @@ pub async fn day_grid(
         );
     }
 
-    // Also include classifications that have employees but no coverage slots
+    // Include classifications that have employees but no coverage plan slots
     let mut all_class_ids: BTreeSet<Uuid> = class_info.keys().copied().collect();
-    for ((cid, _), _) in &actual {
+    for ((cid, _), _) in &maps.actual {
         all_class_ids.insert(*cid);
     }
 
-    // Fetch abbreviations for any missing classifications
+    // Fetch abbreviations for any classification not covered by the plan slots
     if all_class_ids.len() > class_info.len() {
         let missing: Vec<Uuid> = all_class_ids
             .iter()
@@ -1903,7 +2021,7 @@ pub async fn day_grid(
                 "SELECT id, abbreviation FROM classifications WHERE id = ANY($1)",
                 &missing,
             )
-            .fetch_all(&pool)
+            .fetch_all(pool)
             .await?;
             for r in abbrs {
                 class_info.insert(r.id, r.abbreviation);
@@ -1911,7 +2029,7 @@ pub async fn day_grid(
         }
     }
 
-    // 6. Build 2-hour blocks (12 blocks: 0-11, each = 4 half-hour slots)
+    // Build 2-hour blocks (12 blocks × 4 half-hour slots each = 48 slots/day)
     let mut classifications: Vec<DayGridClassification> = Vec::new();
 
     for &class_id in &all_class_ids {
@@ -1939,13 +2057,11 @@ pub async fn day_grid(
                     peak_target = peak_target.max(tgt);
                     peak_min = peak_min.max(mn);
                 }
-                let a = actual.get(&(class_id, si)).copied().unwrap_or(0);
+                let a = maps.actual.get(&(class_id, si)).copied().unwrap_or(0);
                 min_actual = min_actual.min(a);
             }
 
-            if !has_target && min_actual == i32::MAX {
-                min_actual = 0;
-            } else if min_actual == i32::MAX {
+            if min_actual == i32::MAX {
                 min_actual = 0;
             }
 
@@ -1962,7 +2078,7 @@ pub async fn day_grid(
             let mut block_employees: Vec<BlockEmployee> = Vec::new();
             for offset in 0..4i16 {
                 let si = base_slot + offset;
-                if let Some(emps) = emp_map.get(&(class_id, si)) {
+                if let Some(emps) = maps.emp_map.get(&(class_id, si)) {
                     for e in emps {
                         if seen_users.insert(e.user_id) {
                             block_employees.push(e.clone());
@@ -1990,8 +2106,12 @@ pub async fn day_grid(
         });
     }
 
-    // 7. Build aggregate coverage blocks
-    let coverage_blocks: Vec<CoverageBlock> = (0u8..12)
+    Ok(classifications)
+}
+
+/// Phase 4 — build aggregate per-block coverage totals from the classification grid.
+fn build_coverage_blocks(classifications: &[DayGridClassification]) -> Vec<CoverageBlock> {
+    (0u8..12)
         .map(|block_idx| {
             let total_min: i32 = classifications
                 .iter()
@@ -2004,20 +2124,55 @@ pub async fn day_grid(
             let any_red = classifications
                 .iter()
                 .any(|c| c.blocks[block_idx as usize].status == "red");
-            let status = if any_red { "red" } else { "green" };
             CoverageBlock {
                 block_index: block_idx,
                 total_target: total_min, // field name kept for API compat, value is min
                 total_actual,
-                status: status.to_string(),
+                status: if any_red { "red" } else { "green" }.to_string(),
             }
         })
-        .collect();
+        .collect()
+}
+
+/// GET /api/coverage-plans/day-grid/:date
+///
+/// Returns per-classification 2-hour coverage blocks with employee-level detail.
+pub async fn day_grid(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(date_str): Path<String>,
+) -> Result<Json<DayGridResponse>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let date = time::Date::parse(
+        &date_str,
+        &time::format_description::parse("[year]-[month]-[day]")
+            .map_err(|_| AppError::BadRequest("invalid date format".into()))?,
+    )
+    .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
+
+    let plan_id = match resolve_plan_id(&pool, auth.org_id, date).await? {
+        Some(id) => id,
+        None => {
+            return Ok(Json(DayGridResponse {
+                date: date_str,
+                classifications: vec![],
+                blocks: vec![],
+            }));
+        }
+    };
+
+    let data = fetch_day_grid_data(&pool, auth.org_id, plan_id, date).await?;
+    let maps = build_slot_maps(&data);
+    let classifications = build_classification_blocks(&pool, &data, &maps).await?;
+    let blocks = build_coverage_blocks(&classifications);
 
     Ok(Json(DayGridResponse {
         date: date_str,
         classifications,
-        blocks: coverage_blocks,
+        blocks,
     }))
 }
 

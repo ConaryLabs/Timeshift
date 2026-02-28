@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -30,8 +29,8 @@ import {
 } from '@/hooks/queries'
 import { useQualifications, usePositionQualifications, useAddPositionQualification, useRemovePositionQualification } from '@/hooks/useDutyBoard'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { DutyPosition } from '@/api/dutyPositions'
-import { extractApiError } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -136,30 +135,12 @@ export default function DutyPositionsPage() {
     if (editingItem) {
       updateMut.mutate(
         { id: editingItem.id, name: values.name, classification_id: classId ?? null, sort_order: values.sort_order, is_active: values.is_active },
-        {
-          onSuccess: () => {
-            toast.success('Duty position updated')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to update duty position')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Duty position updated', () => setDialogOpen(false), 'Failed to update duty position'),
       )
     } else {
       createMut.mutate(
         { name: values.name, classification_id: classId, sort_order: values.sort_order },
-        {
-          onSuccess: () => {
-            toast.success('Duty position created')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to create duty position')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Duty position created', () => setDialogOpen(false), 'Failed to create duty position'),
       )
     }
   }
@@ -284,16 +265,10 @@ export default function DutyPositionsPage() {
               variant="destructive"
               onClick={() => {
                 if (!deleteTarget) return
-                deleteMut.mutate(deleteTarget.id, {
-                  onSuccess: () => {
-                    toast.success('Duty position deleted')
-                    setDeleteTarget(null)
-                  },
-                  onError: (err: unknown) => {
-                    const msg = extractApiError(err, 'Failed to delete duty position')
-                    toast.error(msg)
-                  },
-                })
+                deleteMut.mutate(
+                  deleteTarget.id,
+                  mutationCallbacks('Duty position deleted', () => setDeleteTarget(null), 'Failed to delete duty position'),
+                )
               }}
               disabled={deleteMut.isPending}
             >

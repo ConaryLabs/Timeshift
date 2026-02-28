@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,7 +17,8 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useTeams, useCreateTeam, useUpdateTeam, useUsers } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { NO_VALUE, extractApiError } from '@/lib/format'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
+import { NO_VALUE } from '@/lib/format'
 import type { TeamSummary } from '@/api/teams'
 
 const schema = z.object({
@@ -80,30 +80,12 @@ export default function TeamsPage() {
           parent_team_id: values.parent_team_id || null,
           is_active: values.is_active,
         },
-        {
-          onSuccess: () => {
-            toast.success('Team updated')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to update team')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Team updated', () => setDialogOpen(false), 'Failed to update team'),
       )
     } else {
       createMut.mutate(
         { name: values.name, supervisor_id: values.supervisor_id || undefined, parent_team_id: values.parent_team_id || undefined },
-        {
-          onSuccess: () => {
-            toast.success('Team created')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to create team')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Team created', () => setDialogOpen(false), 'Failed to create team'),
       )
     }
   }

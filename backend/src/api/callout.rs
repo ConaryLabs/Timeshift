@@ -244,6 +244,188 @@ pub async fn callout_list(
     Ok(Json(entries))
 }
 
+/// Context fetched from the callout event row (locked FOR UPDATE) plus joined shift info.
+struct CalloutEventCtx {
+    #[allow(dead_code)] // Status is validated before ctx creation; kept for debugging
+    status: CalloutStatus,
+    scheduled_shift_id: Uuid,
+    classification_id: Uuid,
+    current_step: Option<CalloutStep>,
+    ot_request_id: Option<Uuid>,
+    shift_date: time::Date,
+    duration_minutes: i32,
+    shift_start_time: time::Time,
+    shift_end_time: time::Time,
+}
+
+/// Handle an accepted callout attempt:
+/// - Check CBA 10-hour rest protection for mandatory OT
+/// - Stamp OT queue (user moves toward back)
+/// - Mark event as filled
+/// - Create OT assignment
+/// - Upsert hours_worked
+/// - Mark linked OT request as filled (if any)
+async fn handle_attempt_accepted(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_id: Uuid,
+    user_id: Uuid,
+    supervisor_id: Uuid,
+    org_id: Uuid,
+    fiscal_year: i32,
+    ctx: &CalloutEventCtx,
+) -> Result<()> {
+    let shift_hours = ctx.duration_minutes as f64 / 60.0;
+
+    // CBA: Mandatory OT 10-hour protection (VCCEA § 4.4.3) — verify at least
+    // 10 hours between the end of this OT shift and the employee's next regular shift.
+    if ctx.current_step == Some(CalloutStep::Mandatory) {
+        let ot_end_time = ctx.shift_end_time;
+        let ot_crosses_midnight = ot_end_time < ctx.shift_start_time;
+        let search_date = if ot_crosses_midnight {
+            ctx.shift_date.next_day().unwrap_or(ctx.shift_date)
+        } else {
+            ctx.shift_date
+        };
+
+        let next_shift = sqlx::query!(
+            r#"
+                    SELECT ss.date AS "shift_date!", st.start_time
+                    FROM assignments a
+                    JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+                    JOIN shift_templates st ON st.id = ss.shift_template_id
+                    WHERE a.user_id = $1
+                      AND ss.org_id = $2
+                      AND a.cancelled_at IS NULL
+                      AND a.is_overtime = false
+                      AND (
+                        ss.date > $3
+                        OR (ss.date = $3 AND st.start_time > $4)
+                      )
+                    ORDER BY ss.date ASC, st.start_time ASC
+                    LIMIT 1
+                    "#,
+            user_id,
+            org_id,
+            search_date,
+            ot_end_time,
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some(next) = next_shift {
+            let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
+            let days_between = (next.shift_date - ctx.shift_date).whole_days();
+            let ot_end_mins =
+                ot_end_time.hour() as i64 * 60 + ot_end_time.minute() as i64;
+            let next_start_mins =
+                next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
+            let gap_minutes =
+                (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
+
+            if gap_minutes < 10 * 60 {
+                return Err(AppError::BadRequest(format!(
+                    "Mandatory OT would leave less than 10 hours before the employee's \
+                     next scheduled shift on {} (VCCEA § 4.4.3).",
+                    next.shift_date,
+                )));
+            }
+        }
+    }
+
+    // Stamp queue position so this user moves toward the back for next callout.
+    crate::services::ot::stamp_ot_queue(
+        tx, org_id, ctx.classification_id, user_id, fiscal_year,
+    ).await?;
+
+    // Mark the event filled.
+    sqlx::query!(
+        "UPDATE callout_events SET status = 'filled', updated_at = NOW() WHERE id = $1",
+        event_id
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    // CBA: OT type is determined by which callout step the employee accepted from.
+    // Voluntary = accepted during volunteer step; Mandatory = assigned during mandatory step.
+    let ot_type = match ctx.current_step {
+        Some(CalloutStep::Volunteers) => OtType::Voluntary,
+        Some(CalloutStep::Mandatory) => OtType::Mandatory,
+        _ => OtType::Elective,
+    };
+    let ot_type_str = ot_type.to_string();
+
+    // Create an OT assignment. Skip if the user is already on this shift.
+    sqlx::query!(
+        r#"
+                INSERT INTO assignments
+                    (id, scheduled_shift_id, user_id, is_overtime, created_by, ot_type)
+                VALUES (gen_random_uuid(), $1, $2, true, $3, $4)
+                ON CONFLICT (scheduled_shift_id, user_id) DO NOTHING
+                "#,
+        ctx.scheduled_shift_id,
+        user_id,
+        supervisor_id,
+        ot_type_str,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    // Upsert OT hours_worked for this user/year/classification.
+    crate::services::ot::upsert_ot_hours_worked(
+        tx, user_id, fiscal_year, ctx.classification_id, shift_hours,
+    ).await?;
+
+    // If this callout is linked to an OT request, mark it as filled.
+    if let Some(ot_req_id) = ctx.ot_request_id {
+        sqlx::query!(
+            r#"
+                    UPDATE ot_requests
+                    SET status = 'filled', updated_at = NOW()
+                    WHERE id = $1 AND status != 'cancelled'
+                    "#,
+            ot_req_id,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
+}
+
+/// Handle a declined callout attempt:
+/// - Stamp OT queue (CBA: employee was contacted and moves to back regardless of response)
+/// - Upsert hours_declined
+async fn handle_attempt_declined(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    org_id: Uuid,
+    fiscal_year: i32,
+    ctx: &CalloutEventCtx,
+) -> Result<()> {
+    let shift_hours = ctx.duration_minutes as f64 / 60.0;
+
+    // CBA: Declining OT still stamps the queue position — the employee was contacted
+    // and moves to the back of the queue regardless of their response.
+    crate::services::ot::stamp_ot_queue(
+        tx, org_id, ctx.classification_id, user_id, fiscal_year,
+    ).await?;
+
+    // Upsert OT hours_declined for this user/year/classification.
+    crate::services::ot::upsert_ot_hours_declined(
+        tx, user_id, fiscal_year, ctx.classification_id, shift_hours,
+    ).await?;
+
+    Ok(())
+}
+
+/// Handle a no-answer callout attempt.
+/// CBA: No-answer does not stamp queue — employee was unreachable, not contacted.
+async fn handle_attempt_no_answer(
+    _tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+) -> Result<()> {
+    Ok(())
+}
+
 pub async fn record_attempt(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -266,7 +448,7 @@ pub async fn record_attempt(
     let mut tx = pool.begin().await?;
 
     // 1. Lock the callout event row (FOR UPDATE) and fetch shift context.
-    let ctx = sqlx::query!(
+    let raw = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus", ce.scheduled_shift_id,
                ce.classification_id,
@@ -286,9 +468,22 @@ pub async fn record_attempt(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-    if ctx.status != CalloutStatus::Open {
+
+    if raw.status != CalloutStatus::Open {
         return Err(AppError::Conflict("Callout event is not open".into()));
     }
+
+    let ctx = CalloutEventCtx {
+        status: raw.status,
+        scheduled_shift_id: raw.scheduled_shift_id,
+        classification_id: raw.classification_id,
+        current_step: raw.current_step,
+        ot_request_id: raw.ot_request_id,
+        shift_date: raw.shift_date,
+        duration_minutes: raw.duration_minutes,
+        shift_start_time: raw.shift_start_time,
+        shift_end_time: raw.shift_end_time,
+    };
 
     // 2. Validate the target user belongs to this org and is active.
     let user_ok = sqlx::query_scalar!(
@@ -352,138 +547,22 @@ pub async fn record_attempt(
     .execute(&mut *tx)
     .await?;
 
-    // Shift duration in hours for OT accounting.
-    let shift_hours = ctx.duration_minutes as f64 / 60.0;
-
+    // 6. Dispatch to the appropriate outcome handler.
     match req.response.as_str() {
         "accepted" => {
-            // CBA: Mandatory OT 10-hour protection (VCCEA § 4.4.3) — verify at least
-            // 10 hours between the end of this OT shift and the employee's next regular shift.
-            if ctx.current_step == Some(CalloutStep::Mandatory) {
-                let ot_end_time = ctx.shift_end_time;
-                let ot_crosses_midnight = ot_end_time < ctx.shift_start_time;
-                let search_date = if ot_crosses_midnight {
-                    ctx.shift_date.next_day().unwrap_or(ctx.shift_date)
-                } else {
-                    ctx.shift_date
-                };
-
-                let next_shift = sqlx::query!(
-                    r#"
-                    SELECT ss.date AS "shift_date!", st.start_time
-                    FROM assignments a
-                    JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
-                    JOIN shift_templates st ON st.id = ss.shift_template_id
-                    WHERE a.user_id = $1
-                      AND ss.org_id = $2
-                      AND a.cancelled_at IS NULL
-                      AND a.is_overtime = false
-                      AND (
-                        ss.date > $3
-                        OR (ss.date = $3 AND st.start_time > $4)
-                      )
-                    ORDER BY ss.date ASC, st.start_time ASC
-                    LIMIT 1
-                    "#,
-                    req.user_id,
-                    auth.org_id,
-                    search_date,
-                    ot_end_time,
-                )
-                .fetch_optional(&mut *tx)
-                .await?;
-
-                if let Some(next) = next_shift {
-                    let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
-                    let days_between = (next.shift_date - ctx.shift_date).whole_days();
-                    let ot_end_mins =
-                        ot_end_time.hour() as i64 * 60 + ot_end_time.minute() as i64;
-                    let next_start_mins =
-                        next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
-                    let gap_minutes =
-                        (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
-
-                    if gap_minutes < 10 * 60 {
-                        return Err(AppError::BadRequest(format!(
-                            "Mandatory OT would leave less than 10 hours before the employee's \
-                             next scheduled shift on {} (VCCEA § 4.4.3).",
-                            next.shift_date,
-                        )));
-                    }
-                }
-            }
-
-            // Stamp queue position so this user moves toward the back for next callout.
-            crate::services::ot::stamp_ot_queue(
-                &mut tx, auth.org_id, ctx.classification_id, req.user_id, fiscal_year,
+            handle_attempt_accepted(
+                &mut tx, event_id, req.user_id, auth.id, auth.org_id, fiscal_year, &ctx,
             ).await?;
-
-            // Mark the event filled.
-            sqlx::query!(
-                "UPDATE callout_events SET status = 'filled', updated_at = NOW() WHERE id = $1",
-                event_id
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            // CBA: OT type is determined by which callout step the employee accepted from.
-            // Voluntary = accepted during volunteer step; Mandatory = assigned during mandatory step.
-            let ot_type = match ctx.current_step {
-                Some(CalloutStep::Volunteers) => OtType::Voluntary,
-                Some(CalloutStep::Mandatory) => OtType::Mandatory,
-                _ => OtType::Elective,
-            };
-            let ot_type_str = ot_type.to_string();
-
-            // Create an OT assignment. Skip if the user is already on this shift.
-            sqlx::query!(
-                r#"
-                INSERT INTO assignments
-                    (id, scheduled_shift_id, user_id, is_overtime, created_by, ot_type)
-                VALUES (gen_random_uuid(), $1, $2, true, $3, $4)
-                ON CONFLICT (scheduled_shift_id, user_id) DO NOTHING
-                "#,
-                ctx.scheduled_shift_id,
-                req.user_id,
-                auth.id,
-                ot_type_str,
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            // Upsert OT hours_worked for this user/year/classification.
-            crate::services::ot::upsert_ot_hours_worked(
-                &mut tx, req.user_id, fiscal_year, ctx.classification_id, shift_hours,
-            ).await?;
-
-            // If this callout is linked to an OT request, mark it as filled.
-            if let Some(ot_req_id) = ctx.ot_request_id {
-                sqlx::query!(
-                    r#"
-                    UPDATE ot_requests
-                    SET status = 'filled', updated_at = NOW()
-                    WHERE id = $1 AND status != 'cancelled'
-                    "#,
-                    ot_req_id,
-                )
-                .execute(&mut *tx)
-                .await?;
-            }
         }
         "declined" => {
-            // CBA: Declining OT still stamps the queue position — the employee was contacted
-            // and moves to the back of the queue regardless of their response.
-            crate::services::ot::stamp_ot_queue(
-                &mut tx, auth.org_id, ctx.classification_id, req.user_id, fiscal_year,
-            ).await?;
-
-            // Upsert OT hours_declined for this user/year/classification.
-            crate::services::ot::upsert_ot_hours_declined(
-                &mut tx, req.user_id, fiscal_year, ctx.classification_id, shift_hours,
+            handle_attempt_declined(
+                &mut tx, req.user_id, auth.org_id, fiscal_year, &ctx,
             ).await?;
         }
-        // CBA: No-answer does not stamp queue — employee was unreachable, not contacted.
-        _ => {}
+        // "no_answer" — CBA: no queue stamp; nothing to do beyond the attempt row itself.
+        _ => {
+            handle_attempt_no_answer(&mut tx).await?;
+        }
     }
 
     tx.commit().await?;
