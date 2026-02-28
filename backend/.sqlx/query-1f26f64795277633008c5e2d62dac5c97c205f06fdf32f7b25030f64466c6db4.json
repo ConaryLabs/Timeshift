@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_request_volunteers orv SET withdrawn_at = NOW()\n        FROM ot_requests otr\n        WHERE orv.ot_request_id = otr.id AND orv.user_id = $1 AND otr.org_id = $2 AND orv.withdrawn_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1f26f64795277633008c5e2d62dac5c97c205f06fdf32f7b25030f64466c6db4"
+}

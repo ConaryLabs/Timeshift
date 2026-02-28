@@ -430,6 +430,10 @@ pub fn router(state: AppState) -> Router {
             delete(vacation_bids::delete_period),
         )
         .route(
+            "/api/vacation-bids/periods/:id/cancel",
+            post(vacation_bids::cancel_period),
+        )
+        .route(
             "/api/vacation-bids/periods/:id/open-bidding",
             post(vacation_bids::open_bidding),
         )

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_request_assignments ora SET cancelled_at = NOW(), cancelled_by = $2\n        FROM ot_requests otr\n        WHERE ora.ot_request_id = otr.id AND ora.user_id = $1 AND otr.org_id = $3 AND ora.cancelled_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9de4a3a42a0cb0172f168176e6e9b685959f45ceb6de2c4a5991f46824e570ea"
+}
