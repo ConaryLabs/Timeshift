@@ -69,7 +69,7 @@ export const biddingApi = {
     apiClient.post(`/api/bid-windows/${windowId}/submit`, body),
 
   processBids: (periodId: string) =>
-    apiClient.post(`/api/schedule/periods/${periodId}/process-bids`),
+    apiClient.post<{ awards_count: number; total_bidders: number }>(`/api/schedule/periods/${periodId}/process-bids`),
 
   approveBidWindow: (windowId: string) =>
     apiClient.post(`/api/bid-windows/${windowId}/approve`),
