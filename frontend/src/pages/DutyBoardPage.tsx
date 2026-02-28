@@ -226,7 +226,7 @@ export default function DutyBoardPage() {
   const { isManager } = usePermissions()
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd')
-  const { data: board, isLoading } = useDutyBoard(dateStr)
+  const { data: board, isLoading, isError, refetch } = useDutyBoard(dateStr)
   const cellAction = useCellAction(dateStr)
   const createDatePosition = useCreateDatePosition(dateStr)
   const deleteDatePosition = useDeleteDatePosition(dateStr)
@@ -373,6 +373,13 @@ export default function DutyBoardPage() {
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : isError ? (
+        <div className="text-center py-12">
+          <p className="text-destructive font-medium mb-2">Failed to load duty board.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
         </div>
       ) : !board?.positions.length ? (
         <div className="text-center py-12 text-muted-foreground">

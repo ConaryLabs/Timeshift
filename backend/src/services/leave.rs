@@ -22,6 +22,12 @@ pub async fn adjust_leave_balance(
     actor_id: Uuid,
     org_timezone: &str,
 ) -> Result<()> {
+    // Validate reason against the DB CHECK constraint on accrual_transactions.reason
+    const VALID_REASONS: &[&str] = &["accrual", "usage", "adjustment", "carryover"];
+    if !VALID_REASONS.contains(&reason) {
+        return Err(AppError::BadRequest(format!("Invalid transaction reason: {reason}")));
+    }
+
     sqlx::query!(
         r#"
         INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, reference_id, note, created_by)

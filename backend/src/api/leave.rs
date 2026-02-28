@@ -404,6 +404,7 @@ async fn check_leave_overlaps(
                           AND lrl.date = $3
                           AND (
                             lrl.start_time IS NULL
+                            OR lrl.end_time IS NULL
                             OR $4::TIME IS NULL
                             OR $5::TIME IS NULL
                             OR (lrl.start_time < $5::TIME AND lrl.end_time > $4::TIME)
@@ -518,6 +519,13 @@ async fn insert_leave_segments(
 
 /// Insert leave_request_lines rows: uses client-provided lines when supplied,
 /// otherwise auto-generates one line per calendar day with evenly distributed hours.
+///
+/// **Known limitation**: auto-generated lines cover ALL calendar days in the date range,
+/// including weekends and holidays. This is because determining an employee's actual
+/// working days requires knowledge of their shift pattern, which varies per employee
+/// and is not available at this layer. Callers should provide explicit `lines` for
+/// partial-week leave requests to get accurate per-day breakdown and correct hours
+/// allocation on actual working days only.
 async fn insert_leave_lines(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     leave_request_id: Uuid,
@@ -890,6 +898,18 @@ pub async fn review(
 
     // On approve: deduct hours from leave balance(s)
     if status == LeaveStatus::Approved {
+        // Fetch leave type category to determine if balance check should be skipped
+        // (LWOP and FMLA don't draw from a balance pool)
+        let leave_category: Option<String> = sqlx::query_scalar!(
+            r#"SELECT category AS "category?" FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true"#,
+            r.leave_type_id,
+            auth.org_id,
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+        let is_balance_exempt = matches!(leave_category.as_deref(), Some("lwop") | Some("fmla"));
+
         // Check for segments (FMLA / split absences)
         let segments = sqlx::query!(
             r#"
@@ -923,10 +943,12 @@ pub async fn review(
                     .await?;
 
                     let balance = current_balance.unwrap_or(0.0);
-                    if balance < hours {
-                        return Err(AppError::Conflict(
-                            "Insufficient leave balance to approve this request".into(),
-                        ));
+                    // Skip balance check for LWOP and FMLA — these don't draw from a balance pool
+                    if !is_balance_exempt && balance < hours {
+                        return Err(AppError::BadRequest(format!(
+                            "Insufficient leave balance: {:.1} hours available, {:.1} hours requested",
+                            balance, hours,
+                        )));
                     }
 
                     deduct_leave_balance(
@@ -945,6 +967,7 @@ pub async fn review(
         } else {
             // Deduct from each segment's leave type (skip LWOP — no balance)
             for seg in &segments {
+                let seg_exempt = matches!(seg.leave_type_category.as_deref(), Some("lwop") | Some("fmla"));
                 if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
                     // H4: Lock balance row and verify sufficient balance before deduction
                     let current_balance = sqlx::query_scalar!(
@@ -959,10 +982,11 @@ pub async fn review(
                     .await?;
 
                     let balance = current_balance.unwrap_or(0.0);
-                    if balance < seg.hours {
-                        return Err(AppError::Conflict(
-                            "Insufficient leave balance to approve this request".into(),
-                        ));
+                    if !seg_exempt && balance < seg.hours {
+                        return Err(AppError::BadRequest(format!(
+                            "Insufficient leave balance: {:.1} hours available, {:.1} hours requested",
+                            balance, seg.hours,
+                        )));
                     }
 
                     deduct_leave_balance(
@@ -1049,6 +1073,147 @@ pub async fn review(
     }))
 }
 
+/// Process a single leave request within a bulk review operation.
+/// Returns (user_id, start_date, end_date) on success for notification purposes.
+async fn bulk_review_one_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: Uuid,
+    body: &BulkReviewLeaveRequest,
+    auth: &AuthUser,
+) -> Result<(Uuid, time::Date, time::Date)> {
+    let rows_affected = sqlx::query!(
+        r#"
+        UPDATE leave_requests
+        SET status         = $2,
+            reviewed_by    = $3,
+            reviewer_notes = $4,
+            updated_at     = NOW()
+        WHERE id = $1
+          AND status = 'pending'
+          AND org_id = $5
+        "#,
+        id,
+        body.status as LeaveStatus,
+        auth.id,
+        body.reviewer_notes,
+        auth.org_id,
+    )
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+
+    if rows_affected == 0 {
+        return Err(AppError::NotFound("not found or already reviewed".into()));
+    }
+
+    let leave_info = sqlx::query!(
+        r#"
+        SELECT user_id, leave_type_id, hours::FLOAT8 AS hours,
+               start_date, end_date
+        FROM leave_requests
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id,
+        auth.org_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if body.status == LeaveStatus::Approved {
+        // Check for segments
+        let segments = sqlx::query!(
+            r#"
+            SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
+                   lt.code AS leave_type_code,
+                   lt.category AS "leave_type_category?"
+            FROM leave_request_segments lrs
+            JOIN leave_types lt ON lt.id = lrs.leave_type_id
+            WHERE lrs.leave_request_id = $1
+            ORDER BY lrs.sort_order
+            "#,
+            id,
+        )
+        .fetch_all(&mut **tx)
+        .await?;
+
+        if segments.is_empty() {
+            if let Some(hours) = leave_info.hours {
+                if hours > 0.0 {
+                    // Lock balance row and verify sufficient balance before deduction
+                    let current_balance = sqlx::query_scalar!(
+                        r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
+                         FROM leave_balances
+                         WHERE user_id = $1 AND leave_type_id = $2
+                         FOR UPDATE"#,
+                        leave_info.user_id,
+                        leave_info.leave_type_id,
+                    )
+                    .fetch_optional(&mut **tx)
+                    .await?;
+
+                    let balance = current_balance.unwrap_or(0.0);
+                    if balance < hours {
+                        return Err(AppError::BadRequest(format!(
+                            "Insufficient leave balance: {:.1} hours available, {:.1} hours requested",
+                            balance, hours,
+                        )));
+                    }
+
+                    deduct_leave_balance(
+                        tx,
+                        auth.org_id,
+                        leave_info.user_id,
+                        leave_info.leave_type_id,
+                        hours,
+                        id,
+                        auth.id,
+                        &auth.org_timezone,
+                    )
+                    .await?;
+                }
+            }
+        } else {
+            for seg in segments {
+                if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
+                    // Lock balance row and verify sufficient balance before deduction
+                    let current_balance = sqlx::query_scalar!(
+                        r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
+                         FROM leave_balances
+                         WHERE user_id = $1 AND leave_type_id = $2
+                         FOR UPDATE"#,
+                        leave_info.user_id,
+                        seg.leave_type_id,
+                    )
+                    .fetch_optional(&mut **tx)
+                    .await?;
+
+                    let balance = current_balance.unwrap_or(0.0);
+                    if balance < seg.hours {
+                        return Err(AppError::BadRequest(format!(
+                            "Insufficient leave balance: {:.1} hours available, {:.1} hours requested",
+                            balance, seg.hours,
+                        )));
+                    }
+
+                    deduct_leave_balance(
+                        tx,
+                        auth.org_id,
+                        leave_info.user_id,
+                        seg.leave_type_id,
+                        seg.hours,
+                        id,
+                        auth.id,
+                        &auth.org_timezone,
+                    )
+                    .await?;
+                }
+            }
+        }
+    }
+
+    Ok((leave_info.user_id, leave_info.start_date, leave_info.end_date))
+}
+
 pub async fn bulk_review(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -1079,144 +1244,42 @@ pub async fn bulk_review(
 
     let mut tx = pool.begin().await?;
     let mut reviewed = 0u64;
+    let mut failures: Vec<serde_json::Value> = Vec::new();
     let mut notif_targets: Vec<(Uuid, Uuid, time::Date, time::Date)> = Vec::new();
 
     for id in &body.ids {
-        let rows_affected = sqlx::query!(
-            r#"
-            UPDATE leave_requests
-            SET status         = $2,
-                reviewed_by    = $3,
-                reviewer_notes = $4,
-                updated_at     = NOW()
-            WHERE id = $1
-              AND status = 'pending'
-              AND org_id = $5
-            "#,
-            id,
-            body.status as LeaveStatus,
-            auth.id,
-            body.reviewer_notes,
-            auth.org_id,
-        )
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-        if rows_affected == 0 {
-            continue;
-        }
-
-        reviewed += rows_affected;
-
-        // Collect info for notification after commit
-        let leave_info = sqlx::query!(
-            r#"
-            SELECT user_id, leave_type_id, hours::FLOAT8 AS hours,
-                   start_date, end_date
-            FROM leave_requests
-            WHERE id = $1 AND org_id = $2
-            "#,
-            id,
-            auth.org_id,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        notif_targets.push((
-            leave_info.user_id,
-            *id,
-            leave_info.start_date,
-            leave_info.end_date,
-        ));
-
-        if body.status == LeaveStatus::Approved {
-            // Check for segments
-            let segments = sqlx::query!(
-                r#"
-                SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS "hours!",
-                       lt.code AS leave_type_code,
-                       lt.category AS "leave_type_category?"
-                FROM leave_request_segments lrs
-                JOIN leave_types lt ON lt.id = lrs.leave_type_id
-                WHERE lrs.leave_request_id = $1
-                ORDER BY lrs.sort_order
-                "#,
-                id,
-            )
-            .fetch_all(&mut *tx)
+        // Wrap each leave request in a SAVEPOINT to prevent deadlocks:
+        // if one item fails (e.g. insufficient balance), we roll back only
+        // that item and continue with the rest.
+        sqlx::query("SAVEPOINT leave_review")
+            .execute(&mut *tx)
             .await?;
 
-            if segments.is_empty() {
-                if let Some(hours) = leave_info.hours {
-                    if hours > 0.0 {
-                        // Lock balance row and verify sufficient balance before deduction
-                        let current_balance = sqlx::query_scalar!(
-                            r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
-                             FROM leave_balances
-                             WHERE user_id = $1 AND leave_type_id = $2
-                             FOR UPDATE"#,
-                            leave_info.user_id,
-                            leave_info.leave_type_id,
-                        )
-                        .fetch_optional(&mut *tx)
-                        .await?;
+        let item_result = bulk_review_one_item(
+            &mut tx,
+            *id,
+            &body,
+            &auth,
+        )
+        .await;
 
-                        let balance = current_balance.unwrap_or(0.0);
-                        if balance < hours {
-                            return Err(AppError::Conflict(
-                                "Insufficient leave balance to approve this request".into(),
-                            ));
-                        }
-
-                        deduct_leave_balance(
-                            &mut tx,
-                            auth.org_id,
-                            leave_info.user_id,
-                            leave_info.leave_type_id,
-                            hours,
-                            *id,
-                            auth.id,
-                            &auth.org_timezone,
-                        )
-                        .await?;
-                    }
-                }
-            } else {
-                for seg in segments {
-                    if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
-                        // Lock balance row and verify sufficient balance before deduction
-                        let current_balance = sqlx::query_scalar!(
-                            r#"SELECT CAST(balance_hours AS FLOAT8) AS "balance!"
-                             FROM leave_balances
-                             WHERE user_id = $1 AND leave_type_id = $2
-                             FOR UPDATE"#,
-                            leave_info.user_id,
-                            seg.leave_type_id,
-                        )
-                        .fetch_optional(&mut *tx)
-                        .await?;
-
-                        let balance = current_balance.unwrap_or(0.0);
-                        if balance < seg.hours {
-                            return Err(AppError::Conflict(
-                                "Insufficient leave balance to approve this request".into(),
-                            ));
-                        }
-
-                        deduct_leave_balance(
-                            &mut tx,
-                            auth.org_id,
-                            leave_info.user_id,
-                            seg.leave_type_id,
-                            seg.hours,
-                            *id,
-                            auth.id,
-                            &auth.org_timezone,
-                        )
-                        .await?;
-                    }
-                }
+        match item_result {
+            Ok((user_id, start_date, end_date)) => {
+                sqlx::query("RELEASE SAVEPOINT leave_review")
+                    .execute(&mut *tx)
+                    .await?;
+                reviewed += 1;
+                notif_targets.push((user_id, *id, start_date, end_date));
+            }
+            Err(err) => {
+                // Roll back only this item's changes and continue with the next
+                sqlx::query("ROLLBACK TO SAVEPOINT leave_review")
+                    .execute(&mut *tx)
+                    .await?;
+                failures.push(serde_json::json!({
+                    "id": id,
+                    "error": err.to_string(),
+                }));
             }
         }
     }
@@ -1262,7 +1325,7 @@ pub async fn bulk_review(
     }
 
     Ok(Json(
-        serde_json::json!({ "ok": true, "reviewed": reviewed }),
+        serde_json::json!({ "ok": true, "reviewed": reviewed, "failures": failures }),
     ))
 }
 

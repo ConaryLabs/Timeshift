@@ -418,9 +418,9 @@ pub struct MandatoryOtOrderEntry {
 
 /// GET /api/staffing/mandatory-ot-order
 ///
-/// CBA (VCCEA Article 15): Mandatory OT is assigned in inverse seniority order,
-/// with the employee least recently mandated going first. NULL = never mandated = top
-/// priority, then ordered by oldest mandatory assignment date.
+/// CBA (VCCEA Article 15): Mandatory OT distributed in inverse seniority order
+/// (least senior first). Least senior = most recent bargaining_unit_seniority_date
+/// = called first. NULL seniority date = no date = least senior = called first.
 /// Used by MandatoryOTDialog to order the employee dropdown.
 pub async fn mandatory_ot_order(
     State(pool): State<PgPool>,
@@ -437,6 +437,7 @@ pub async fn mandatory_ot_order(
             u.id AS user_id,
             MAX(ora.assigned_at)::TEXT AS "last_mandatory_at?"
         FROM users u
+        LEFT JOIN seniority_records sr ON sr.user_id = u.id
         LEFT JOIN ot_request_assignments ora ON ora.user_id = u.id
             AND ora.ot_type = 'mandatory'
             AND ora.cancelled_at IS NULL
@@ -445,8 +446,9 @@ pub async fn mandatory_ot_order(
         WHERE u.org_id = $1
           AND u.is_active = true
           AND u.classification_id = $2
-        GROUP BY u.id
-        ORDER BY MAX(ora.assigned_at) ASC NULLS FIRST
+        GROUP BY u.id, sr.bargaining_unit_seniority_date
+        -- CBA: Mandatory OT distributed in inverse seniority order (least senior first)
+        ORDER BY sr.bargaining_unit_seniority_date DESC NULLS FIRST
         "#,
         auth.org_id,
         params.classification_id,

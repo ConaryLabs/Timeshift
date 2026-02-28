@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO org_settings (id, org_id, key, value, updated_at) VALUES ($1, $2, $3, $4, NOW()) ON CONFLICT (org_id, key) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cb573387bac967561f14b7ef12e07093f71dd1e1dd21615d934696dcd517ff97"
+}

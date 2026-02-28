@@ -409,7 +409,9 @@ pub async fn advance_step(
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
     if event.status != CalloutStatus::Open {
-        return Err(AppError::BadRequest("Callout event is not open".into()));
+        return Err(AppError::BadRequest(
+            "Cannot advance step on a non-open event".into(),
+        ));
     }
 
     // CBA (VCCEA Article 15): Callout steps must follow strict ordering:

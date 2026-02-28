@@ -140,7 +140,7 @@ fn extract_token_from_parts(headers: &HeaderMap) -> Option<String> {
 }
 
 pub fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    let cookie_header = headers.get("Cookie")?.to_str().ok()?;
+    let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
     let prefix = format!("{}=", name);
     for part in cookie_header.split(';') {
         let part = part.trim();

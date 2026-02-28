@@ -32,7 +32,7 @@ export default function DutyBoardDisplayPage() {
   }, [])
 
   // Fetch board with 30s auto-refresh
-  const { data: board, isLoading: boardLoading } = useDutyBoard(dateStr, { refetchInterval: 30_000 })
+  const { data: board, isLoading: boardLoading, isError: boardError, refetch } = useDutyBoard(dateStr, { refetchInterval: 30_000 })
 
   const assignmentMap = useMemo(() => buildAssignmentMap(board?.assignments), [board?.assignments])
 
@@ -275,6 +275,46 @@ export default function DutyBoardDisplayPage() {
               </tr>
             </tfoot>
           </table>
+        </div>
+      ) : boardError ? (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+          }}
+        >
+          <div
+            style={{
+              color: '#C00000',
+              fontSize: '24px',
+              fontWeight: 700,
+            }}
+          >
+            Failed to load duty board
+          </div>
+          <div style={{ color: '#666666', fontSize: '16px' }}>
+            Auto-retry in 30 seconds
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            style={{
+              padding: '8px 24px',
+              fontSize: '16px',
+              fontWeight: 600,
+              background: '#2F75B5',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry Now
+          </button>
         </div>
       ) : (
         <div

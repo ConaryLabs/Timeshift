@@ -819,7 +819,7 @@ struct ValidatedOtAssignment {
 /// rules (mandatory cap, day-off hours, 14-hour daily max, 10-hour rest gap).
 async fn validate_ot_assignment(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    pool: &PgPool,
+    _pool: &PgPool,
     request_id: Uuid,
     org_id: Uuid,
     req: &CreateOtRequestAssignment,
@@ -845,16 +845,22 @@ async fn validate_ot_assignment(
         return Err(AppError::Conflict("OT request is already filled".into()));
     }
 
-    // Verify user belongs to org and is active
-    org_guard::verify_user(pool, req.user_id, org_id).await?;
-
-    // Block assignment if user has a medical OT exemption
-    let is_ot_exempt = sqlx::query_scalar!(
-        "SELECT medical_ot_exempt FROM users WHERE id = $1",
+    // Verify user belongs to org, is active, and check OT exemption — all inside the
+    // transaction to avoid a TOCTOU window between the check and the advisory lock.
+    let user_check = sqlx::query!(
+        "SELECT is_active, medical_ot_exempt FROM users WHERE id = $1 AND org_id = $2",
         req.user_id,
+        org_id,
     )
-    .fetch_one(&mut **tx)
-    .await?;
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    if !user_check.is_active {
+        return Err(AppError::NotFound("User not found".into()));
+    }
+
+    let is_ot_exempt = user_check.medical_ot_exempt;
 
     if is_ot_exempt {
         return Err(AppError::BadRequest(
@@ -1098,6 +1104,9 @@ async fn create_ot_assignment_record(
     // Update request status based on coverage type:
     // Fixed coverage = single-slot, so one assignment fills it.
     // Non-fixed coverage = may need more assignments, so mark partially_filled.
+    // NOTE: The ot_requests table has no `slots_needed` column, so non-fixed OT requests
+    // cannot auto-transition to Filled. Supervisors must manually mark them filled via the
+    // update endpoint (PartiallyFilled -> Filled) once enough people are assigned.
     let new_status = if validated.is_fixed_coverage {
         OtRequestStatus::Filled
     } else {

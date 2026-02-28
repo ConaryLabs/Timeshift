@@ -80,6 +80,14 @@ pub async fn create(
         ));
     }
 
+    // Both assignments must have a classification (None = unclassified, cannot trade)
+    if req_assignment.classification_id.is_none() || partner_assignment.classification_id.is_none()
+    {
+        return Err(AppError::BadRequest(
+            "Both assignments must have a classification for trading".into(),
+        ));
+    }
+
     // Verify same classification
     if req_assignment.classification_id != partner_assignment.classification_id {
         return Err(AppError::BadRequest(
@@ -609,22 +617,45 @@ pub async fn cancel(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
-    let rows = sqlx::query!(
-        r#"
-        UPDATE trade_requests
-        SET status = 'cancelled', updated_at = NOW()
-        WHERE id = $1
-          AND org_id = $2
-          AND requester_id = $3
-          AND status IN ('pending_partner', 'pending_approval')
-        "#,
-        id,
-        auth.org_id,
-        auth.id,
-    )
-    .execute(&pool)
-    .await?
-    .rows_affected();
+    let is_manager = auth.role.can_manage_schedule();
+
+    // Requester can cancel their own trade; supervisors/admins can cancel any trade in their org
+    let rows = if is_manager {
+        sqlx::query!(
+            r#"
+            UPDATE trade_requests
+            SET status = 'cancelled',
+                reviewer_notes = CASE WHEN requester_id != $3 THEN 'Cancelled by supervisor' ELSE reviewer_notes END,
+                updated_at = NOW()
+            WHERE id = $1
+              AND org_id = $2
+              AND status IN ('pending_partner', 'pending_approval')
+            "#,
+            id,
+            auth.org_id,
+            auth.id,
+        )
+        .execute(&pool)
+        .await?
+        .rows_affected()
+    } else {
+        sqlx::query!(
+            r#"
+            UPDATE trade_requests
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE id = $1
+              AND org_id = $2
+              AND requester_id = $3
+              AND status IN ('pending_partner', 'pending_approval')
+            "#,
+            id,
+            auth.org_id,
+            auth.id,
+        )
+        .execute(&pool)
+        .await?
+        .rows_affected()
+    };
 
     if rows == 0 {
         return Err(AppError::NotFound(

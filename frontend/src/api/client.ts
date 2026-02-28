@@ -93,17 +93,23 @@ api.interceptors.response.use(
       config._retry = true
       refreshing = true
       broadcast({ type: 'refresh-start' })
+      let refreshSucceeded = false
       try {
         await api.post('/api/auth/refresh')
+        refreshSucceeded = true
         broadcast({ type: 'refresh-success' })
         drainQueue(true)
         return await api(config)
-      } catch {
-        toast.error('Session expired — please log in again')
-        broadcast({ type: 'refresh-failure' })
-        performLogout()
-        drainQueue(false)
-        return Promise.reject(SESSION_EXPIRED)
+      } catch (error) {
+        if (!refreshSucceeded) {
+          toast.error('Session expired — please log in again')
+          broadcast({ type: 'refresh-failure' })
+          performLogout()
+          drainQueue(false)
+          return Promise.reject(SESSION_EXPIRED)
+        }
+        // Refresh succeeded but the retried request failed — let the caller handle it
+        throw error
       } finally {
         refreshing = false
       }

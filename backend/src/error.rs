@@ -105,6 +105,27 @@ impl IntoResponse for AppError {
                                 )
                                     .into_response();
                             }
+                            "23514" => {
+                                // check_violation
+                                let constraint_name = db_err
+                                    .constraint()
+                                    .unwrap_or("unknown");
+                                tracing::warn!("Check constraint violation: {}", db_err.message());
+                                return (
+                                    StatusCode::BAD_REQUEST,
+                                    Json(json!({ "error": format!("Value violates a constraint: {}", constraint_name) })),
+                                )
+                                    .into_response();
+                            }
+                            "23502" => {
+                                // not_null_violation
+                                tracing::warn!("NOT NULL violation: {}", db_err.message());
+                                return (
+                                    StatusCode::BAD_REQUEST,
+                                    Json(json!({ "error": "Required field is missing" })),
+                                )
+                                    .into_response();
+                            }
                             _ => {}
                         }
                     }

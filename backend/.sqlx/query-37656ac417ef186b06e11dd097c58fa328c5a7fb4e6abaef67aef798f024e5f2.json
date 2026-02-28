@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE trade_requests\n            SET status = 'cancelled',\n                reviewer_notes = CASE WHEN requester_id != $3 THEN 'Cancelled by supervisor' ELSE reviewer_notes END,\n                updated_at = NOW()\n            WHERE id = $1\n              AND org_id = $2\n              AND status IN ('pending_partner', 'pending_approval')\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "37656ac417ef186b06e11dd097c58fa328c5a7fb4e6abaef67aef798f024e5f2"
+}

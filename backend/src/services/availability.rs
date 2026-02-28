@@ -17,7 +17,7 @@ use crate::models::callout::CalloutListEntry;
 /// 2. Available employees before unavailable
 /// 3. OT queue position (last_ot_event_at ASC NULLS FIRST = never-called = top priority)
 /// 4. Accumulated OT hours ASC (equalize OT distribution across the bargaining unit)
-/// 5. Overall seniority date ASC (tie-breaker: most senior employee has priority)
+/// 5. Overall seniority date DESC NULLS FIRST (tie-breaker: inverse seniority — least senior first)
 pub async fn compute_available_employees(
     pool: &PgPool,
     org_id: Uuid,
@@ -146,7 +146,7 @@ pub async fn compute_available_employees(
                 AND oq.user_id = u.id
                 AND oq.fiscal_year = $3
                 AND oq.classification_id = u.classification_id
-            WHERE u.is_active = true AND u.org_id = $2
+            WHERE u.is_active = true AND u.employee_status = 'active' AND u.org_id = $2
               AND ($5 OR u.classification_id = $4)
               AND u.classification_id IS NOT NULL
         )
@@ -176,7 +176,9 @@ pub async fn compute_available_employees(
                 AND NOT e.is_assigned_ot AND NOT e.is_on_leave) DESC,
             e.last_ot_event_at ASC NULLS FIRST,
             e.ot_hours ASC,
-            e.overall_seniority_date ASC NULLS LAST
+            -- Tie-breaker: inverse seniority (least senior = most recent hire date first;
+            -- NULL seniority = no date = least senior = highest OT priority)
+            e.overall_seniority_date DESC NULLS FIRST
         "#,
         scheduled_shift_id,   // $1
         org_id,               // $2

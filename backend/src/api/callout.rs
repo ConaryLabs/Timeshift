@@ -22,6 +22,50 @@ use crate::{
     services::availability::compute_available_employees,
 };
 
+/// Fetch a single callout event by ID with org isolation.
+///
+/// Centralises the 25-line SELECT/JOIN used by `get_event` and the post-INSERT
+/// fetch in `create_event`, so the query definition lives in one place.
+async fn fetch_event_by_id(pool: &PgPool, event_id: Uuid, org_id: Uuid) -> Result<CalloutEvent> {
+    sqlx::query_as!(
+        CalloutEvent,
+        r#"
+        SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,
+               ce.ot_reason_id, ce.reason_text, ce.classification_id,
+               cl.name AS classification_name,
+               ce.ot_request_id AS "ot_request_id?",
+               ce.status AS "status: CalloutStatus",
+               ce.current_step AS "current_step?: CalloutStep",
+               ce.step_started_at AS "step_started_at?",
+               st.name AS "shift_template_name?",
+               ss.date AS "shift_date?",
+               t.name AS "team_name?",
+               (SELECT a.user_id FROM assignments a
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_id?",
+               (SELECT (u.first_name || ' ' || u.last_name) FROM assignments a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_name?",
+               ce.created_at, ce.updated_at
+        FROM callout_events ce
+        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        JOIN classifications cl ON cl.id = ce.classification_id
+        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
+        LEFT JOIN teams t ON t.id = sl.team_id
+        WHERE ce.id = $1 AND ss.org_id = $2
+        "#,
+        event_id,
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))
+}
+
 pub async fn list_events(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -83,44 +127,7 @@ pub async fn get_event(
         return Err(AppError::Forbidden);
     }
 
-    let event = sqlx::query_as!(
-        CalloutEvent,
-        r#"
-        SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,
-               ce.ot_reason_id, ce.reason_text, ce.classification_id,
-               cl.name AS classification_name,
-               ce.ot_request_id AS "ot_request_id?",
-               ce.status AS "status: CalloutStatus",
-               ce.current_step AS "current_step?: CalloutStep",
-               ce.step_started_at AS "step_started_at?",
-               st.name AS "shift_template_name?",
-               ss.date AS "shift_date?",
-               t.name AS "team_name?",
-               (SELECT a.user_id FROM assignments a
-                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
-                  AND a.is_overtime = true AND a.cancelled_at IS NULL
-                LIMIT 1) AS "assigned_user_id?",
-               (SELECT (u.first_name || ' ' || u.last_name) FROM assignments a
-                JOIN users u ON u.id = a.user_id
-                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
-                  AND a.is_overtime = true AND a.cancelled_at IS NULL
-                LIMIT 1) AS "assigned_user_name?",
-               ce.created_at, ce.updated_at
-        FROM callout_events ce
-        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        JOIN classifications cl ON cl.id = ce.classification_id
-        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
-        LEFT JOIN teams t ON t.id = sl.team_id
-        WHERE ce.id = $1 AND ss.org_id = $2
-        "#,
-        id,
-        auth.org_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
-
+    let event = fetch_event_by_id(&pool, id, auth.org_id).await?;
     Ok(Json(event))
 }
 
@@ -146,6 +153,25 @@ pub async fn create_event(
         org_guard::verify_ot_request(&pool, ot_req_id, auth.org_id).await?;
     }
 
+    // Fix 2: Check for existing open callout event on the same shift before inserting.
+    // The DB partial unique index (idx_callout_events_shift_open) also guards this,
+    // but an explicit check gives a clearer error message.
+    let existing_open: bool = sqlx::query_scalar!(
+        r#"SELECT EXISTS(
+            SELECT 1 FROM callout_events
+            WHERE scheduled_shift_id = $1 AND status = 'open'
+        ) AS "exists!""#,
+        req.scheduled_shift_id,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    if existing_open {
+        return Err(AppError::Conflict(
+            "An open callout event already exists for this shift".into(),
+        ));
+    }
+
     let new_id = Uuid::new_v4();
     sqlx::query!(
         r#"
@@ -163,41 +189,7 @@ pub async fn create_event(
     .execute(&pool)
     .await?;
 
-    let event = sqlx::query_as!(
-        CalloutEvent,
-        r#"
-        SELECT ce.id, ce.scheduled_shift_id, ce.initiated_by,
-               ce.ot_reason_id, ce.reason_text, ce.classification_id,
-               cl.name AS classification_name,
-               ce.ot_request_id AS "ot_request_id?",
-               ce.status AS "status: CalloutStatus",
-               ce.current_step AS "current_step?: CalloutStep",
-               ce.step_started_at AS "step_started_at?",
-               st.name AS "shift_template_name?",
-               ss.date AS "shift_date?",
-               t.name AS "team_name?",
-               (SELECT a.user_id FROM assignments a
-                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
-                  AND a.is_overtime = true AND a.cancelled_at IS NULL
-                LIMIT 1) AS "assigned_user_id?",
-               (SELECT (u.first_name || ' ' || u.last_name) FROM assignments a
-                JOIN users u ON u.id = a.user_id
-                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
-                  AND a.is_overtime = true AND a.cancelled_at IS NULL
-                LIMIT 1) AS "assigned_user_name?",
-               ce.created_at, ce.updated_at
-        FROM callout_events ce
-        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        JOIN classifications cl ON cl.id = ce.classification_id
-        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
-        LEFT JOIN teams t ON t.id = sl.team_id
-        WHERE ce.id = $1
-        "#,
-        new_id
-    )
-    .fetch_one(&pool)
-    .await?;
+    let event = fetch_event_by_id(&pool, new_id, auth.org_id).await?;
 
     Ok(Json(event))
 }
@@ -276,9 +268,10 @@ async fn handle_attempt_accepted(
 ) -> Result<()> {
     let shift_hours = ctx.duration_minutes as f64 / 60.0;
 
-    // CBA: Mandatory OT 10-hour protection (VCCEA § 4.4.3) — verify at least
-    // 10 hours between the end of this OT shift and the employee's next regular shift.
-    if ctx.current_step == Some(CalloutStep::Mandatory) {
+    // CBA: 10-hour rest protection (VCCEA § 4.4.3) — verify at least 10 hours
+    // between the end of this OT shift and the employee's next regular shift.
+    // Applies to ALL OT types (voluntary, elective, mandatory), not just mandatory.
+    {
         let ot_end_time = ctx.shift_end_time;
         let ot_crosses_midnight = ot_end_time < ctx.shift_start_time;
         let search_date = if ot_crosses_midnight {
@@ -324,7 +317,7 @@ async fn handle_attempt_accepted(
 
             if gap_minutes < 10 * 60 {
                 return Err(AppError::BadRequest(format!(
-                    "Mandatory OT would leave less than 10 hours before the employee's \
+                    "OT would leave less than 10 hours before the employee's \
                      next scheduled shift on {} (VCCEA § 4.4.3).",
                     next.shift_date,
                 )));
@@ -735,29 +728,83 @@ pub async fn cancel_event(
         return Err(AppError::Forbidden);
     }
 
-    let rows = sqlx::query!(
+    let mut tx = pool.begin().await?;
+
+    // Fetch the event's current status before updating so we can handle
+    // filled-event cancellation (cancel OT assignment + revert hours).
+    let event = sqlx::query!(
         r#"
-        UPDATE callout_events
-        SET status = 'cancelled', updated_at = NOW()
-        WHERE id = $1
-          AND status = 'open'
-          AND EXISTS (
-              SELECT 1 FROM scheduled_shifts ss
-              WHERE ss.id = callout_events.scheduled_shift_id AND ss.org_id = $2
-          )
+        SELECT ce.status AS "status: CalloutStatus",
+               ce.classification_id,
+               ce.scheduled_shift_id,
+               ss.date AS shift_date,
+               st.duration_minutes
+        FROM callout_events ce
+        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE ce.id = $1
+          AND ss.org_id = $2
+          AND ce.status IN ('open', 'filled')
+        FOR UPDATE OF ce
         "#,
         event_id,
         auth.org_id
     )
-    .execute(&pool)
+    .fetch_optional(&mut *tx)
     .await?
-    .rows_affected();
+    .ok_or_else(|| AppError::NotFound("Event not found or already cancelled".into()))?;
 
-    if rows == 0 {
-        return Err(AppError::NotFound(
-            "Event not found, already cancelled, or already filled".into(),
-        ));
+    // Fix 3: When cancelling a filled event, also cancel the active OT assignment
+    // and revert the OT hours for the assigned employee.
+    if event.status == CalloutStatus::Filled {
+        // Find and cancel the active OT assignment linked to this event.
+        let assignment = sqlx::query!(
+            r#"
+            SELECT a.id, a.user_id
+            FROM assignments a
+            JOIN callout_attempts ca ON ca.event_id = $1
+                AND ca.user_id = a.user_id AND ca.response = 'accepted'
+            WHERE a.scheduled_shift_id = $2
+              AND a.is_overtime = true AND a.cancelled_at IS NULL
+            LIMIT 1
+            "#,
+            event_id,
+            event.scheduled_shift_id,
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(asgn) = assignment {
+            // Soft-cancel the assignment.
+            sqlx::query!(
+                "UPDATE assignments SET cancelled_at = NOW() WHERE id = $1",
+                asgn.id
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            // Revert OT hours_worked for the cancelled assignment.
+            let shift_hours = event.duration_minutes as f64 / 60.0;
+            let fiscal_year = crate::services::ot::org_fiscal_year(
+                &pool, auth.org_id, event.shift_date,
+            ).await;
+
+            crate::services::ot::revert_ot_hours_worked(
+                &mut tx, asgn.user_id, fiscal_year,
+                Some(event.classification_id), shift_hours,
+            ).await?;
+        }
     }
+
+    // Set the event to cancelled.
+    sqlx::query!(
+        "UPDATE callout_events SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
+        event_id
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
 
     Ok(json_ok())
 }
