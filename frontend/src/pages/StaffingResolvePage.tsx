@@ -90,7 +90,7 @@ export default function StaffingResolvePage() {
   const [otNotes, setOtNotes] = useState('')
 
   // Data fetching
-  const { data: dayGrid, isLoading, isError } = useDayGrid(date)
+  const { data: dayGrid, isLoading, isError, refetch } = useDayGrid(date)
   const { data: allGaps } = useCoverageGaps(date, { enabled: !!date })
   const { data: classifications } = useClassifications()
 
@@ -334,7 +334,7 @@ export default function StaffingResolvePage() {
 
       {isLoading && <LoadingState />}
       {isError && (
-        <ErrorState message="Failed to load coverage data." />
+        <ErrorState message="Failed to load coverage data." onRetry={refetch} />
       )}
 
       {dayGrid && (

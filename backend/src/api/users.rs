@@ -867,10 +867,12 @@ pub async fn deactivate(
     // Fix 2: Withdraw active OT request volunteers for this user
     sqlx::query!(
         r#"
-        UPDATE ot_request_volunteers SET withdrawn_at = NOW()
-        WHERE user_id = $1 AND withdrawn_at IS NULL
+        UPDATE ot_request_volunteers orv SET withdrawn_at = NOW()
+        FROM ot_requests otr
+        WHERE orv.ot_request_id = otr.id AND orv.user_id = $1 AND otr.org_id = $2 AND orv.withdrawn_at IS NULL
         "#,
         id,
+        auth.org_id,
     )
     .execute(&mut *tx)
     .await?;
@@ -878,11 +880,13 @@ pub async fn deactivate(
     // Cancel active OT request assignments for this user
     sqlx::query!(
         r#"
-        UPDATE ot_request_assignments SET cancelled_at = NOW(), cancelled_by = $2
-        WHERE user_id = $1 AND cancelled_at IS NULL
+        UPDATE ot_request_assignments ora SET cancelled_at = NOW(), cancelled_by = $2
+        FROM ot_requests otr
+        WHERE ora.ot_request_id = otr.id AND ora.user_id = $1 AND otr.org_id = $3 AND ora.cancelled_at IS NULL
         "#,
         id,
         auth.id,
+        auth.org_id,
     )
     .execute(&mut *tx)
     .await?;
@@ -892,9 +896,10 @@ pub async fn deactivate(
         r#"
         UPDATE trade_approvals SET status = 'denied', reviewed_at = NOW(),
                reviewer_notes = 'Auto-denied: approver deactivated'
-        WHERE supervisor_id = $1 AND status = 'pending'
+        WHERE supervisor_id = $1 AND org_id = $2 AND status = 'pending'
         "#,
         id,
+        auth.org_id,
     )
     .execute(&mut *tx)
     .await?;

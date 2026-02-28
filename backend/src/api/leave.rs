@@ -1120,6 +1120,18 @@ async fn bulk_review_one_item(
     .await?;
 
     if body.status == LeaveStatus::Approved {
+        // Fetch leave type category to determine if balance check should be skipped
+        // (LWOP and FMLA don't draw from a balance pool)
+        let leave_category: Option<String> = sqlx::query_scalar!(
+            r#"SELECT category AS "category?" FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true"#,
+            leave_info.leave_type_id,
+            auth.org_id,
+        )
+        .fetch_optional(&mut **tx)
+        .await?
+        .flatten();
+        let is_balance_exempt = matches!(leave_category.as_deref(), Some("lwop") | Some("fmla"));
+
         // Check for segments
         let segments = sqlx::query!(
             r#"
@@ -1152,7 +1164,8 @@ async fn bulk_review_one_item(
                     .await?;
 
                     let balance = current_balance.unwrap_or(0.0);
-                    if balance < hours {
+                    // Skip balance check for LWOP and FMLA — these don't draw from a balance pool
+                    if !is_balance_exempt && balance < hours {
                         return Err(AppError::BadRequest(format!(
                             "Insufficient leave balance: {:.1} hours available, {:.1} hours requested",
                             balance, hours,
@@ -1173,7 +1186,9 @@ async fn bulk_review_one_item(
                 }
             }
         } else {
+            // Deduct from each segment's leave type (skip LWOP — no balance)
             for seg in segments {
+                let seg_exempt = matches!(seg.leave_type_category.as_deref(), Some("lwop") | Some("fmla"));
                 if seg.leave_type_category.as_deref() != Some("lwop") && seg.hours > 0.0 {
                     // Lock balance row and verify sufficient balance before deduction
                     let current_balance = sqlx::query_scalar!(
@@ -1188,7 +1203,7 @@ async fn bulk_review_one_item(
                     .await?;
 
                     let balance = current_balance.unwrap_or(0.0);
-                    if balance < seg.hours {
+                    if !seg_exempt && balance < seg.hours {
                         return Err(AppError::BadRequest(format!(
                             "Insufficient leave balance: {:.1} hours available, {:.1} hours requested",
                             balance, seg.hours,

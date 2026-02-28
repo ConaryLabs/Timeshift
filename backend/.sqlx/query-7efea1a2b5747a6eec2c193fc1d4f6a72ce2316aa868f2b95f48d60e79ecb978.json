@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE trade_approvals SET status = 'denied', reviewed_at = NOW(),\n               reviewer_notes = 'Auto-denied: approver deactivated'\n        WHERE supervisor_id = $1 AND org_id = $2 AND status = 'pending'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7efea1a2b5747a6eec2c193fc1d4f6a72ce2316aa868f2b95f48d60e79ecb978"
+}

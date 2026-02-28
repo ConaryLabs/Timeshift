@@ -128,7 +128,7 @@ pub async fn create(
             ))
         })?;
 
-        let today = time::OffsetDateTime::now_utc().date();
+        let today = crate::services::timezone::org_today(&auth.org_timezone);
         if today < open_date || today > close_date {
             return Err(AppError::BadRequest(format!(
                 "The {} sellback window is {} through {}",
@@ -336,7 +336,7 @@ pub async fn review(
                 req.user_id,
                 ht.leave_type_id,
                 -deduct,
-                "sellback",
+                "usage",
                 Some(&format!(
                     "Holiday sellback FY{} ({})",
                     req.fiscal_year, req.period
