@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { useVacationBidWindow, useSubmitVacationBid } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
@@ -163,7 +164,7 @@ export default function VacationBidPage() {
   }
 
   if (isLoading) return <LoadingState message="Loading vacation bid window..." />
-  if (isError || !data) return <p className="text-sm text-destructive p-6">Failed to load vacation bid window.</p>
+  if (isError || !data) return <ErrorState message="Failed to load vacation bid window." />
 
   return (
     <div>

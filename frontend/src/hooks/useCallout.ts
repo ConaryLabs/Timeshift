@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { calloutApi } from '@/api/callout'
+import { calloutApi, type CalloutEvent, type CalloutListEntry } from '@/api/callout'
 import { otApi } from '@/api/ot'
 import type { CalloutStep } from '@/api/ot'
 import { queryKeys } from './queryKeys'
@@ -40,7 +40,69 @@ export function useRecordAttempt() {
       ...body
     }: { eventId: string; user_id: string; response: string; notes?: string }) =>
       calloutApi.recordAttempt(eventId, body),
-    onSuccess: (_data, vars) => {
+    onMutate: async (variables) => {
+      await qc.cancelQueries({ queryKey: queryKeys.callout.events })
+      await qc.cancelQueries({ queryKey: queryKeys.callout.list(variables.eventId) })
+
+      // Snapshot callout events and the specific callout queue
+      const previousEvents = qc.getQueriesData<CalloutEvent[]>({
+        queryKey: queryKeys.callout.events,
+      })
+      const previousQueue = qc.getQueryData<CalloutListEntry[]>(
+        queryKeys.callout.list(variables.eventId),
+      )
+
+      // If the response is 'accepted', optimistically mark the event as filled
+      if (variables.response === 'accepted') {
+        qc.setQueriesData<CalloutEvent[]>(
+          { queryKey: queryKeys.callout.events },
+          (old) => {
+            if (!old || !Array.isArray(old)) return old
+            return old.map((event: CalloutEvent) =>
+              event.id === variables.eventId
+                ? {
+                    ...event,
+                    status: 'filled' as const,
+                    assigned_user_id: variables.user_id,
+                    updated_at: new Date().toISOString(),
+                  }
+                : event,
+            )
+          },
+        )
+      }
+
+      // Optimistically mark the user as unavailable in the queue
+      if (previousQueue) {
+        qc.setQueryData<CalloutListEntry[]>(
+          queryKeys.callout.list(variables.eventId),
+          previousQueue.map((entry: CalloutListEntry) =>
+            entry.user_id === variables.user_id
+              ? {
+                  ...entry,
+                  is_available: false,
+                  unavailable_reason: variables.response === 'accepted'
+                    ? 'Accepted'
+                    : variables.response,
+                }
+              : entry,
+          ),
+        )
+      }
+
+      return { previousEvents, previousQueue }
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousEvents) {
+        for (const [key, data] of context.previousEvents) {
+          qc.setQueryData(key, data)
+        }
+      }
+      if (context?.previousQueue) {
+        qc.setQueryData(queryKeys.callout.list(vars.eventId), context.previousQueue)
+      }
+    },
+    onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: queryKeys.callout.list(vars.eventId) })
       qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })

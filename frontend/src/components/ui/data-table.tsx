@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { EmptyState } from "@/components/ui/empty-state"
-import { LoadingState } from "@/components/ui/loading-state"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { ArrowUp, ArrowDown, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -153,7 +153,30 @@ export function DataTable<T>({
   }, [sortedData, pageSize, clampedPage])
 
   if (isLoading) {
-    return <LoadingState />
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((col, i) => (
+                <TableHead key={i} className={col.className}>{col.header}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 6 }).map((_, rowIdx) => (
+              <TableRow key={rowIdx}>
+                {columns.map((col, colIdx) => (
+                  <TableCell key={colIdx} className={col.className}>
+                    <Skeleton className="h-4 w-[60%]" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    )
   }
 
   if (data.length === 0) {
@@ -183,26 +206,42 @@ export function DataTable<T>({
                   />
                 </TableHead>
               )}
-              {columns.map((col, i) => (
-                <TableHead key={i} className={col.className}>
-                  {col.sortable ? (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors -ml-1 px-1 py-0.5 rounded"
-                      onClick={() => handleSort(i)}
-                    >
-                      {col.header}
-                      {sortColIndex === i ? (
-                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
-                      )}
-                    </button>
-                  ) : (
-                    col.header
-                  )}
-                </TableHead>
-              ))}
+              {columns.map((col, i) => {
+                const isSorted = sortColIndex === i
+                const ariaSortValue = col.sortable
+                  ? isSorted
+                    ? sortDir === 'asc' ? 'ascending' as const : 'descending' as const
+                    : 'none' as const
+                  : undefined
+                const sortLabel = col.sortable
+                  ? isSorted
+                    ? sortDir === 'asc'
+                      ? `Sort ${col.header} descending`
+                      : `Clear ${col.header} sort`
+                    : `Sort ${col.header} ascending`
+                  : undefined
+                return (
+                  <TableHead key={i} className={col.className} aria-sort={ariaSortValue}>
+                    {col.sortable ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors -ml-1 px-1 py-0.5 rounded"
+                        onClick={() => handleSort(i)}
+                        aria-label={sortLabel}
+                      >
+                        {col.header}
+                        {isSorted ? (
+                          sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                        )}
+                      </button>
+                    ) : (
+                      col.header
+                    )}
+                  </TableHead>
+                )
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>

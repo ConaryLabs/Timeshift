@@ -324,7 +324,7 @@ function SidebarNav({ groups, collapsed, onLinkClick, badges }: {
   badges?: Record<string, number>
 }) {
   return (
-    <nav className="flex-1 sidebar-scroll overflow-y-auto py-1 px-2">
+    <nav aria-label="Main navigation" className="flex-1 sidebar-scroll overflow-y-auto py-1 px-2">
       {groups.map((group, i) => (
         <NavGroupSection
           key={group.label || `group-${i}`}
@@ -440,6 +440,7 @@ export default function AppShell() {
       </a>
       {/* Desktop sidebar (lg and above) */}
       <aside
+        aria-label="Sidebar"
         className={cn(
           "hidden lg:flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200",
           collapsed ? "w-14" : "w-56",
@@ -541,7 +542,12 @@ export default function AppShell() {
                     <div className="space-y-3">
                       {gapBlocks!.map((cls) => (
                         <div key={cls.classification_id}>
-                          <div className="text-sm font-semibold mb-1">{cls.classification_abbreviation} OT</div>
+                          <button
+                            className="text-sm font-semibold mb-1 hover:underline text-left"
+                            onClick={() => { setCoverageOpen(false); navigate(`/staffing/resolve?date=${today}&classification=${cls.classification_abbreviation}`) }}
+                          >
+                            {cls.classification_abbreviation} OT
+                          </button>
                           <div className="flex flex-wrap gap-1.5">
                             {cls.blocks.map((block, i) => (
                               <span
@@ -585,7 +591,11 @@ export default function AppShell() {
                       <span className="text-xs text-muted-foreground">|</span>
                       <button
                         className="text-xs text-primary hover:underline"
-                        onClick={() => { setCoverageOpen(false); navigate(`/staffing/resolve?date=${today}`) }}
+                        onClick={() => {
+                          setCoverageOpen(false)
+                          const classParam = gapBlocks?.length === 1 ? `&classification=${gapBlocks[0].classification_abbreviation}` : ''
+                          navigate(`/staffing/resolve?date=${today}${classParam}`)
+                        }}
                       >
                         Resolve Staffing
                       </button>

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
@@ -197,7 +198,7 @@ export default function ShiftTemplatesPage() {
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load shift templates.</p>
+        <ErrorState message="Failed to load shift templates." />
       ) : (
         <DataTable
           columns={columns}

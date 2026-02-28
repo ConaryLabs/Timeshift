@@ -16,7 +16,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
-import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   DropdownMenu,
@@ -259,11 +260,20 @@ export default function NotificationsPage() {
 
       <div className="mt-4 rounded-lg border bg-card shadow-sm overflow-hidden">
         {isLoading ? (
-          <LoadingState />
-        ) : isError ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            Failed to load notifications.
+          <div className="divide-y">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 px-4 py-3">
+                <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-[70%]" />
+                  <Skeleton className="h-3.5 w-[90%]" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
           </div>
+        ) : isError ? (
+          <ErrorState message="Failed to load notifications." />
         ) : notifications.length === 0 ? (
           <EmptyState
             icon={<Bell className="h-10 w-10" />}

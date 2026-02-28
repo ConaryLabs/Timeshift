@@ -184,29 +184,25 @@ export default function ApprovalsPage() {
       <PageHeader title="Approvals" description="Pending items requiring your review" />
 
       {/* Tab buttons */}
-      <div className="flex gap-2 mb-5">
-        <button
+      <div className="flex gap-1 mb-5" role="tablist" aria-label="Approval categories">
+        <Button
+          size="sm"
+          variant={tab === 'leave' ? 'default' : 'outline'}
           onClick={() => setTab('leave')}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            tab === 'leave'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:text-foreground',
-          )}
+          role="tab"
+          aria-selected={tab === 'leave'}
         >
           Leave{leaveCount > 0 ? ` (${leaveCount})` : ''}
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant={tab === 'trades' ? 'default' : 'outline'}
           onClick={() => setTab('trades')}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            tab === 'trades'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:text-foreground',
-          )}
+          role="tab"
+          aria-selected={tab === 'trades'}
         >
           Trades{tradeCount > 0 ? ` (${tradeCount})` : ''}
-        </button>
+        </Button>
       </div>
 
       {isLoading && <LoadingState message="Loading..." />}
@@ -301,7 +297,7 @@ export default function ApprovalsPage() {
               onClick={handleDenyConfirm}
               disabled={reviewLeave.isPending || reviewTrade.isPending}
             >
-              Deny
+              {reviewLeave.isPending || reviewTrade.isPending ? 'Denying...' : 'Deny'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -339,6 +335,7 @@ function LeaveApprovalCard({
             checked={selected}
             onCheckedChange={onToggleSelect}
             className="mt-1"
+            aria-label={`Select leave request from ${request.first_name} ${request.last_name} on ${formatDateRange(request.start_date, request.end_date)}`}
           />
           <button
             onClick={onToggleExpand}
@@ -457,6 +454,7 @@ function TradeApprovalCard({
             checked={selected}
             onCheckedChange={onToggleSelect}
             className="mt-1"
+            aria-label={`Select trade between ${trade.requester_name} and ${trade.partner_name} on ${formatDateShort(trade.requester_date)}`}
           />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm">

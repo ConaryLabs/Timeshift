@@ -30,6 +30,7 @@ import { FormField } from '@/components/ui/form-field'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DataTable } from '@/components/ui/data-table'
 import { StepIndicator } from '@/components/callout/StepIndicator'
@@ -347,7 +348,7 @@ export default function StaffingResolvePage() {
     classification_abbreviation: selectedBlock.classificationAbbr,
     shift_template_id: '', // not used by MandatoryOTDialog for the block flow
     shift_name: `${selectedBlock.blockStart}-${selectedBlock.blockEnd}`,
-    shift_color: '#dc2626',
+    shift_color: 'var(--destructive)',
     target: selectedBlock.min,
     actual: selectedBlock.actual as unknown as number,
     shortage,
@@ -402,10 +403,7 @@ export default function StaffingResolvePage() {
 
       {isLoading && <LoadingState />}
       {isError && (
-        <EmptyState
-          title="Failed to load coverage data"
-          description="Try refreshing the page or go back to the schedule."
-        />
+        <ErrorState message="Failed to load coverage data." />
       )}
 
       {dayGrid && (

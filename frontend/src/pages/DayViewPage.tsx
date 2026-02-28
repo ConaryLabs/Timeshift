@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -129,10 +130,10 @@ export default function DayViewPage() {
       )}
 
       {isLoading && <LoadingState />}
-      {error && <p className="text-sm text-destructive">Failed to load day view</p>}
+      {error && <ErrorState message="Failed to load day view." />}
 
       {!isLoading && !error && entries && entries.length === 0 && (
-        <EmptyState title="No shifts" description="No shift templates configured." />
+        <EmptyState title="No shifts on this date" description="There are no scheduled shifts for this day." />
       )}
 
       {!isLoading && !error && entries && entries.length > 0 && (

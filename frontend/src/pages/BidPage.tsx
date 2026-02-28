@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBidWindow, useSubmitBid } from '@/hooks/queries'
 import { formatTime, extractApiError, formatDateTime } from '@/lib/format'
@@ -72,14 +73,7 @@ export default function BidPage() {
   if (!windowId) return <Navigate to="/schedule" replace />
   if (isLoading) return <LoadingState message="Loading bid window..." />
   if (isError || !detail) {
-    return (
-      <div className="p-6 text-center space-y-4">
-        <p className="text-sm text-destructive">Failed to load bid window.</p>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          Try again
-        </Button>
-      </div>
-    )
+    return <ErrorState message="Failed to load bid window." onRetry={() => refetch()} />
   }
 
   const { window: bidWindow, available_slots, submissions } = detail

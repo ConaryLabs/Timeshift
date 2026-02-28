@@ -9,6 +9,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SavedFilterBar } from '@/components/SavedFilterBar'
 import { useStaffing, useTeams, useScheduleGrid } from '@/hooks/queries'
@@ -51,7 +52,7 @@ export default function SchedulePage() {
   const { selectedTeamId, setSelectedTeamId } = useUIStore()
   const { data: teams } = useTeams()
 
-  const { data, isLoading, error, refetch } = useStaffing(
+  const { data, isLoading, isFetching, error, refetch } = useStaffing(
     viewMode === 'month' ? monthStartStr : startStr,
     viewMode === 'month' ? monthEndStr : endStr,
     selectedTeamId ?? undefined,
@@ -59,7 +60,7 @@ export default function SchedulePage() {
   )
 
   // Grid data for month view coverage indicators
-  const { data: gridData, isLoading: isMonthLoading, error: gridError } = useScheduleGrid(
+  const { data: gridData, isLoading: isMonthLoading, isFetching: isMonthFetching, error: gridError } = useScheduleGrid(
     monthStartStr,
     monthEndStr,
     selectedTeamId ?? undefined,
@@ -215,29 +216,30 @@ export default function SchedulePage() {
       />
 
       {isLoading && <LoadingState />}
-      {error && (
-        <div className="flex items-center gap-3 text-sm text-destructive">
-          <p>Failed to load schedule.</p>
-          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
-        </div>
-      )}
+      {error && <ErrorState message="Failed to load schedule." onRetry={() => refetch()} />}
 
       {!isLoading && !error && !hasAssignments && (
-        <EmptyState title="No shifts scheduled for this period" description="Shift templates and team assignments create the schedule." />
+        <EmptyState title="No shifts scheduled for this period" description="Check shift templates and team assignments to build the schedule." />
       )}
 
       {!isLoading && !error && hasAssignments && viewMode === 'week' && (
-        <WeekView data={data ?? []} days={days} currentUserId={currentUserId} />
+        <div className={cn(isFetching && !isLoading && "opacity-50 transition-opacity duration-200")}>
+          <WeekView data={data ?? []} days={days} currentUserId={currentUserId} />
+        </div>
       )}
 
       {!isLoading && !error && hasAssignments && viewMode === 'board' && (
-        <BoardView data={data ?? []} days={days} currentUserId={currentUserId} />
+        <div className={cn(isFetching && !isLoading && "opacity-50 transition-opacity duration-200")}>
+          <BoardView data={data ?? []} days={days} currentUserId={currentUserId} />
+        </div>
       )}
 
       {viewMode === 'month' && isMonthLoading && <LoadingState />}
 
       {!isMonthLoading && !gridError && viewMode === 'month' && (
-        <MonthView anchor={anchor} gridData={gridData ?? []} navigate={navigate} />
+        <div className={cn(isMonthFetching && !isMonthLoading && "opacity-50 transition-opacity duration-200")}>
+          <MonthView anchor={anchor} gridData={gridData ?? []} navigate={navigate} />
+        </div>
       )}
     </div>
   )
@@ -345,12 +347,13 @@ function BoardView({
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr>
-            <th className="text-left p-2 text-muted-foreground font-medium border-b w-[120px]">Shift</th>
+            <th scope="col" className="text-left p-2 text-muted-foreground font-medium border-b w-[120px]">Shift</th>
             {days.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd')
               const isToday = dateStr === todayStr
               return (
                 <th
+                  scope="col"
                   key={dateStr}
                   className={cn(
                     'p-2 text-center border-b font-medium min-w-[100px]',
@@ -591,7 +594,9 @@ function AssignmentChip({
       {a.notes && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <StickyNote className="h-3 w-3 shrink-0 opacity-70" />
+            <span tabIndex={0} className="inline-flex shrink-0 cursor-default" aria-label="View notes">
+              <StickyNote className="h-3 w-3 opacity-70" />
+            </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs">
             {a.notes}

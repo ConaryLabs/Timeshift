@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { LoadingState } from '@/components/ui/loading-state'
-import { EmptyState } from '@/components/ui/empty-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { FormField } from '@/components/ui/form-field'
 import {
   Table,
@@ -108,15 +108,7 @@ export default function OtRequestDetailPage() {
             Back to Available OT
           </Link>
         </Button>
-        <EmptyState
-          title="OT request not found"
-          description="The overtime request could not be loaded."
-          action={
-            <Button size="sm" variant="outline" onClick={() => refetch()}>
-              Retry
-            </Button>
-          }
-        />
+        <ErrorState message="The overtime request could not be loaded." onRetry={() => refetch()} />
       </div>
     )
   }

@@ -8,9 +8,10 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
@@ -161,7 +162,7 @@ export default function SchedulePeriodsPage() {
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load schedule periods.</p>
+        <ErrorState message="Failed to load schedule periods." />
       ) : !isLoading && (periods ?? []).length === 0 ? (
         <div className="rounded-md border border-dashed px-4 py-4 text-sm text-muted-foreground text-center">
           <p className="font-medium text-foreground mb-1">No schedule periods yet</p>
@@ -181,6 +182,7 @@ export default function SchedulePeriodsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Schedule Period</DialogTitle>
+            <DialogDescription>Configure schedule period settings.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <FormField label="Name" htmlFor="sp-name" required error={errors.name?.message}>
@@ -222,6 +224,7 @@ export default function SchedulePeriodsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Schedule Period</DialogTitle>
+            <DialogDescription>Configure schedule period settings.</DialogDescription>
           </DialogHeader>
           <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
             <FormField label="Name" htmlFor="sp-edit-name" required error={editForm.formState.errors.name?.message}>

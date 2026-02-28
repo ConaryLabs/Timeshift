@@ -5,6 +5,7 @@ import { ChevronLeft, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import {
   Select,
   SelectContent,
@@ -175,13 +176,13 @@ export default function CoveragePlanDetailPage() {
     return (
       <div>
         <PageHeader title="Coverage Plan" />
-        <p className="text-sm text-destructive">
-          Failed to load coverage plan. It may have been deleted or you may not have access.
-        </p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate('/admin/coverage-plans')}>
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back to Plans
-        </Button>
+        <ErrorState message="Failed to load coverage plan. It may have been deleted or you may not have access." />
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => navigate('/admin/coverage-plans')}>
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back to Plans
+          </Button>
+        </div>
       </div>
     )
   }

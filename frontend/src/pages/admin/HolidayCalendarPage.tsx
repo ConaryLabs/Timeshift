@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
@@ -181,7 +182,7 @@ export default function HolidayCalendarPage() {
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load holidays.</p>
+        <ErrorState message="Failed to load holidays." />
       ) : (
         <DataTable
           columns={columns}

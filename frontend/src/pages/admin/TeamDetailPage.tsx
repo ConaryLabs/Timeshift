@@ -9,7 +9,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -17,6 +17,7 @@ import { FormField } from '@/components/ui/form-field'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import {
   useTeam,
   useTeams,
@@ -257,7 +258,7 @@ export default function TeamDetailPage() {
       })()}
 
       {teamError || slotsError ? (
-        <p className="text-sm text-destructive">Failed to load team data.</p>
+        <ErrorState message="Failed to load team data." />
       ) : (
         <DataTable
           columns={columns}
@@ -272,6 +273,7 @@ export default function TeamDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Slot' : 'New Slot'}</DialogTitle>
+            <DialogDescription>Configure the shift slot for this team.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <FormField label="Shift Template" htmlFor="slot-tmpl" required error={errors.shift_template_id?.message}>

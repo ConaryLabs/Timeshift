@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { Badge } from '@/components/ui/badge'
@@ -131,13 +132,13 @@ export default function CoveragePlanAssignmentsPage() {
               <ChevronLeft className="h-4 w-4 mr-1" />
               Back to Plans
             </Button>
-            <Button onClick={() => { setForm(INITIAL_FORM); setDialogOpen(true) }}>+ New Assignment</Button>
+            <Button onClick={() => { setForm(INITIAL_FORM); setDialogOpen(true) }}>+ Add Assignment</Button>
           </div>
         }
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load assignments.</p>
+        <ErrorState message="Failed to load assignments." />
       ) : (
         <DataTable
           columns={columns}

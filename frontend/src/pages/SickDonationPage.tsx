@@ -13,11 +13,13 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { useDonations, useCreateDonation, useReviewDonation, useCancelDonation, useUserDirectory, useLeaveTypes } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SickLeaveDonation } from '@/api/sickDonation'
 import { extractApiError } from '@/lib/format'
 
@@ -39,6 +41,10 @@ export default function SickDonationPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reviewerNotes, setReviewerNotes] = useState('')
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const isDonationFormDirty = form.recipient_id !== '' || form.leave_type_id !== '' || form.hours !== ''
 
   const { data: donations, isLoading, isError } = useDonations()
   const { data: users } = useUserDirectory()
@@ -173,7 +179,16 @@ export default function SickDonationPage() {
         title="Sick Leave Donations"
         actions={
           !isManager ? (
-            <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? 'outline' : 'default'}>
+            <Button
+              onClick={() => {
+                if (showForm) {
+                  confirmClose(isDonationFormDirty, () => { setShowForm(false); setForm(INITIAL_FORM) })
+                } else {
+                  setShowForm(true)
+                }
+              }}
+              variant={showForm ? 'outline' : 'default'}
+            >
               {showForm ? 'Cancel' : '+ Donate Hours'}
             </Button>
           ) : undefined
@@ -229,7 +244,7 @@ export default function SickDonationPage() {
             />
           </FormField>
           <Button type="submit" disabled={createMut.isPending || !form.recipient_id || !form.leave_type_id}>
-            Submit
+            {createMut.isPending ? 'Submitting...' : 'Submit'}
           </Button>
         </form>
       )}
@@ -250,7 +265,7 @@ export default function SickDonationPage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load donations.</p>
+        <ErrorState message="Failed to load donations." />
       ) : (
         <DataTable
           columns={columns}
@@ -291,6 +306,8 @@ export default function SickDonationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

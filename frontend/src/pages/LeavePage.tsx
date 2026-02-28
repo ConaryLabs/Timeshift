@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { format, parse } from 'date-fns'
+import { Calendar as CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,20 +16,23 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { SearchInput } from '@/components/ui/search-input'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { MessageSquare } from 'lucide-react'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useBulkReviewLeave, useLeaveBalances } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { LeaveRequest, CreateLeaveSegment } from '@/api/leave'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, toLocalDateStr } from '@/lib/format'
 
 const STATUS_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
@@ -104,6 +109,11 @@ export default function LeavePage() {
   const createMut = useCreateLeave()
   const reviewMut = useReviewLeave()
   const bulkReviewMut = useBulkReviewLeave()
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const isFormDirty = form.start_date !== '' || form.end_date !== '' || form.leave_type_id !== '' ||
+    form.hours !== '' || form.reason !== '' || form.start_time !== '' || form.use_split
 
   const selectedType = leaveTypes?.find((t) => t.id === form.leave_type_id)
   const selectedBalance = balances?.find((b) => b.leave_type_id === form.leave_type_id)
@@ -325,15 +335,12 @@ export default function LeavePage() {
           ))}
         </div>
         {isManager && (
-          <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-56" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-64" />
         )}
       </div>
 
       {isError ? (
-        <div className="flex items-center gap-3 text-sm text-destructive">
-          <p>Failed to load leave requests.</p>
-          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
-        </div>
+        <ErrorState message="Failed to load leave requests." onRetry={() => refetch()} />
       ) : (
         <DataTable
           columns={columns}
@@ -392,7 +399,7 @@ export default function LeavePage() {
       )}
 
       {/* Multi-step Leave Request Dialog */}
-      <Dialog open={showForm} onOpenChange={(open) => !open && closeForm()}>
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) confirmClose(isFormDirty, closeForm) }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
@@ -409,23 +416,60 @@ export default function LeavePage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Start Date" htmlFor="lr-start" required>
-                  <Input
-                    id="lr-start"
-                    type="date"
-                    value={form.start_date}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value, end_date: form.end_date || e.target.value })}
-                    required
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="lr-start"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {form.start_date
+                          ? format(parse(form.start_date, 'yyyy-MM-dd', new Date()), 'EEE, MMM d, yyyy')
+                          : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={form.start_date ? parse(form.start_date, 'yyyy-MM-dd', new Date()) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            const ds = toLocalDateStr(date)
+                            setForm({ ...form, start_date: ds, end_date: form.end_date || ds })
+                          }
+                        }}
+                        defaultMonth={form.start_date ? parse(form.start_date, 'yyyy-MM-dd', new Date()) : undefined}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </FormField>
                 <FormField label="End Date" htmlFor="lr-end" required>
-                  <Input
-                    id="lr-end"
-                    type="date"
-                    value={form.end_date}
-                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                    min={form.start_date}
-                    required
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="lr-end"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {form.end_date
+                          ? format(parse(form.end_date, 'yyyy-MM-dd', new Date()), 'EEE, MMM d, yyyy')
+                          : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={form.end_date ? parse(form.end_date, 'yyyy-MM-dd', new Date()) : undefined}
+                        onSelect={(date) => {
+                          if (date) setForm({ ...form, end_date: toLocalDateStr(date) })
+                        }}
+                        defaultMonth={form.end_date ? parse(form.end_date, 'yyyy-MM-dd', new Date()) : undefined}
+                        disabled={form.start_date ? { before: parse(form.start_date, 'yyyy-MM-dd', new Date()) } : undefined}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </FormField>
               </div>
               <div className="flex items-center gap-2">
@@ -658,6 +702,8 @@ export default function LeavePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

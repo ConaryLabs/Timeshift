@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
-import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useMyDashboard, useOtRequests } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
 import { formatDate, formatTime } from '@/lib/format'
@@ -93,17 +94,39 @@ export default function MyDashboardPage() {
   ) ?? []
   const assignedCount = activeVolunteers.filter((r) => r.user_assigned).length
 
-  if (isLoading) return <LoadingState message="Loading dashboard..." />
-  if (isError) {
-    return (
-      <div className="p-6 text-center space-y-4">
-        <p className="text-sm text-destructive">Failed to load dashboard data.</p>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          Try again
-        </Button>
+  if (isLoading) return (
+    <div className="max-w-5xl">
+      <Skeleton className="h-8 w-56 mb-2" />
+      <Skeleton className="h-4 w-40 mb-6" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-24" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-6 w-32 mb-1" />
+              <Skeleton className="h-4 w-48" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
-    )
-  }
+      <div className="mb-6">
+        <Skeleton className="h-4 w-28 mb-3" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="py-3">
+                <Skeleton className="h-3 w-20 mb-1" />
+                <Skeleton className="h-5 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+  if (isError) return <ErrorState message="Failed to load dashboard data." onRetry={() => refetch()} />
 
   const greeting = getGreeting()
 

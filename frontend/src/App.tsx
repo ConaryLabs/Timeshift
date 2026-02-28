@@ -48,6 +48,7 @@ const DutyBoardDisplayPage = lazy(() => import('@/pages/DutyBoardDisplayPage'))
 const DutyPositionsPage = lazy(() => import('@/pages/admin/DutyPositionsPage'))
 const StaffingResolvePage = lazy(() => import('@/pages/StaffingResolvePage'))
 const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -279,7 +280,7 @@ export default function App() {
         </Route>
         {/* Public display route for hallway monitors (no auth required) */}
         <Route path="duty-board/display" element={<PageSuspense><DutyBoardDisplayPage /></PageSuspense>} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<PageSuspense><NotFoundPage /></PageSuspense>} />
       </Routes>
     </ErrorBoundary>
   )

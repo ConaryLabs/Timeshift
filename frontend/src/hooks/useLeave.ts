@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { leaveApi } from '@/api/leave'
+import { leaveApi, type LeaveRequest } from '@/api/leave'
 import { leaveBalancesApi } from '@/api/leaveBalances'
 import { leaveSellbackApi } from '@/api/leaveSellback'
 import { sickDonationApi } from '@/api/sickDonation'
@@ -38,7 +38,42 @@ export function useReviewLeave() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
       leaveApi.review(id, body),
-    onSuccess: () => {
+    onMutate: async (variables) => {
+      await qc.cancelQueries({ queryKey: queryKeys.leave.all })
+
+      // Snapshot all leave list queries
+      const previousLists = qc.getQueriesData<LeaveRequest[]>({
+        queryKey: queryKeys.leave.all,
+      })
+
+      // Optimistically update the leave request status in all cached lists
+      qc.setQueriesData<LeaveRequest[]>(
+        { queryKey: queryKeys.leave.all },
+        (old) => {
+          if (!old || !Array.isArray(old)) return old
+          return old.map((req: LeaveRequest) =>
+            req.id === variables.id
+              ? {
+                  ...req,
+                  status: variables.status,
+                  reviewer_notes: variables.reviewer_notes ?? req.reviewer_notes,
+                  updated_at: new Date().toISOString(),
+                }
+              : req,
+          )
+        },
+      )
+
+      return { previousLists }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousLists) {
+        for (const [key, data] of context.previousLists) {
+          qc.setQueryData(key, data)
+        }
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
       qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
       qc.invalidateQueries({ queryKey: queryKeys.nav.badges })

@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,14 +155,21 @@ export default function MySchedulePage() {
 
       {isLoading && <LoadingState />}
       {!isLoading && isError && (
-        <p className="text-sm text-destructive p-6">Failed to load schedule data.</p>
+        <ErrorState message="Failed to load schedule data." />
       )}
 
-      {!isLoading && !isError && activeView === 'week' && (
+      {!isLoading && !isError && entries && entries.length === 0 && (
+        <EmptyState
+          title="No shifts scheduled"
+          description="You don't have any shifts scheduled for this period."
+        />
+      )}
+
+      {!isLoading && !isError && activeView === 'week' && (entries?.length ?? 0) > 0 && (
         <WeekView days={displayDays} entryMap={entryMap} todayStr={todayStr} onNavigate={nav} />
       )}
 
-      {!isLoading && !isError && activeView === 'month' && (
+      {!isLoading && !isError && activeView === 'month' && (entries?.length ?? 0) > 0 && (
         <MonthView
           days={displayDays}
           entryMap={entryMap}
