@@ -1,8 +1,9 @@
 //! Leave balance operations: adjustments, deductions, refunds, FMLA segmentation.
 
+use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 
 /// Core balance adjustment: positive delta adds hours, negative deducts.
 /// Atomically records an accrual_transaction and upserts the leave_balances row.
@@ -114,9 +115,16 @@ pub async fn refund_leave_balance(
     .await
 }
 
+/// Default FMLA exhaustion order — used when org has no custom setting.
+const DEFAULT_FMLA_EXHAUSTION_ORDER: &[&str] = &["sick", "comp", "holiday", "vacation"];
+
 /// Auto-create FMLA priority segments inside an open transaction.
-/// Priority order: sick → comp → holiday → vacation → lwop.
-/// Draws on the user's existing balances; LWOP covers any remainder.
+///
+/// CBA compliance: FMLA hours are drawn from leave pools in contractual priority order.
+/// Default order: sick → comp → holiday → vacation → LWOP.
+/// The order is configurable per org via the `fmla_exhaustion_order` org_setting
+/// (comma-separated category names, e.g. "vacation,sick,comp,holiday").
+/// LWOP always covers any remainder regardless of ordering.
 pub async fn create_fmla_segments(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     leave_request_id: Uuid,
@@ -124,7 +132,21 @@ pub async fn create_fmla_segments(
     user_id: Uuid,
     total_hours: f64,
 ) -> Result<()> {
-    let fmla_pools = ["sick", "comp", "holiday", "vacation"];
+    // Read configurable exhaustion order from org_settings.
+    // Query within the transaction so it's consistent with balance reads.
+    let custom_order_row = sqlx::query!(
+        "SELECT value::TEXT AS \"val?\" FROM org_settings WHERE org_id = $1 AND key = 'fmla_exhaustion_order'",
+        org_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    let custom_order: Option<String> = custom_order_row.and_then(|r| r.val);
+
+    let fmla_pools: Vec<&str> = match custom_order {
+        Some(ref csv) => csv.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect(),
+        None => DEFAULT_FMLA_EXHAUSTION_ORDER.to_vec(),
+    };
+
     let mut remaining = total_hours;
     let mut sort_order = 0i32;
 
@@ -147,7 +169,7 @@ pub async fn create_fmla_segments(
             org_id,
             user_id,
             org_id,
-            pool_name,
+            *pool_name,
         )
         .fetch_all(&mut **tx)
         .await?;
@@ -197,6 +219,65 @@ pub async fn create_fmla_segments(
             .execute(&mut **tx)
             .await?;
         }
+    }
+
+    Ok(())
+}
+
+/// CBA compliance: validate combined carryover cap across leave types.
+///
+/// When processing end-of-year carryover, the CBA may cap the total hours carried
+/// over across all eligible leave categories. This function checks whether the
+/// proposed carryover for a user would exceed the org's combined cap.
+///
+/// Reads `leave_carryover_cap_hours` from org_settings. Returns Ok(()) if no cap
+/// is configured or if the total is within the cap. Returns Err if exceeded.
+///
+/// `carryover_categories`: which leave categories are subject to the combined cap
+/// (e.g., ["vacation", "comp", "holiday"]).
+pub async fn validate_carryover_cap(
+    pool: &PgPool,
+    org_id: Uuid,
+    user_id: Uuid,
+    carryover_categories: &[&str],
+) -> Result<()> {
+    let cap_str = crate::services::org_settings::get_str(
+        pool,
+        org_id,
+        "leave_carryover_cap_hours",
+        "0",
+    )
+    .await;
+    let cap: f64 = cap_str.parse().unwrap_or(0.0);
+    if cap <= 0.0 {
+        return Ok(()); // No cap configured
+    }
+
+    // Sum current balances across all leave types in the specified categories
+    let cats: Vec<String> = carryover_categories.iter().map(|s| s.to_string()).collect();
+    let total: f64 = sqlx::query_scalar!(
+        r#"
+        SELECT COALESCE(SUM(CAST(lb.balance_hours AS FLOAT8)), 0.0) AS "total!"
+        FROM leave_balances lb
+        JOIN leave_types lt ON lt.id = lb.leave_type_id AND lt.org_id = lb.org_id
+        WHERE lb.org_id = $1
+          AND lb.user_id = $2
+          AND lt.is_active = true
+          AND lt.category = ANY($3)
+        "#,
+        org_id,
+        user_id,
+        &cats,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if total > cap {
+        return Err(AppError::BadRequest(format!(
+            "Combined leave carryover ({:.1} hours) exceeds the maximum of {:.0} hours. \
+             Excess hours must be used or forfeited before carryover.",
+            total, cap,
+        )));
     }
 
     Ok(())

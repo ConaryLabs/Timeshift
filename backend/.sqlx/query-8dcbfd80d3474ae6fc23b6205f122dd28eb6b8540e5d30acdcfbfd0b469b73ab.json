@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT value::TEXT AS \"val?\" FROM org_settings WHERE org_id = $1 AND key = 'fmla_exhaustion_order'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "val?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8dcbfd80d3474ae6fc23b6205f122dd28eb6b8540e5d30acdcfbfd0b469b73ab"
+}

@@ -97,6 +97,9 @@ pub async fn revert_ot_hours_worked(
 }
 
 /// Stamp an employee's OT queue position with the current time.
+/// CBA: After any OT contact (accepted or declined), the employee moves to the back
+/// of the queue. NULL last_ot_event_at = never contacted = highest priority.
+/// (VCCEA Article 15 — OT distribution by lowest-hours-first, then queue position.)
 pub async fn stamp_ot_queue(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,

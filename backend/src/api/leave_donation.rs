@@ -105,10 +105,10 @@ pub async fn create(
     let bu_config = sqlx::query!(
         r#"
         SELECT bu.donation_annual_cap AS "cap?",
-               bu.donation_retention_floor AS "floor!"
+               bu.donation_retention_floor AS "floor?"
         FROM users u
-        JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
-        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true AND bu.is_active = true
+        LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true
+        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true
         "#,
         auth.id,
         auth.org_id,
@@ -120,7 +120,9 @@ pub async fn create(
     let annual_cap: f64 = bu_config.cap.ok_or_else(|| {
         AppError::BadRequest("Sick leave donation is not available for your bargaining unit".into())
     })?;
-    let retention_floor: f64 = bu_config.floor;
+    let retention_floor: f64 = bu_config.floor.ok_or_else(|| {
+        AppError::BadRequest("Sick leave donation is not configured for your bargaining unit".into())
+    })?;
 
     // Wrap cap check, balance check, and INSERT in a transaction to prevent
     // concurrent requests from both passing the cap/floor checks (TOCTOU).
@@ -263,9 +265,9 @@ pub async fn review(
         // Fetch donor's retention floor from their BU config
         let donor_floor: f64 = sqlx::query_scalar!(
             r#"
-            SELECT bu.donation_retention_floor AS "floor!"
+            SELECT bu.donation_retention_floor AS "floor?"
             FROM users u
-            JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
+            LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true
             WHERE u.id = $1 AND u.org_id = $2
             "#,
             donation.donor_id,
@@ -273,6 +275,7 @@ pub async fn review(
         )
         .fetch_optional(&mut *tx)
         .await?
+        .flatten()
         .unwrap_or(100.0);
 
         // Re-check donor sick balance at approval time. Subquery locks balance rows

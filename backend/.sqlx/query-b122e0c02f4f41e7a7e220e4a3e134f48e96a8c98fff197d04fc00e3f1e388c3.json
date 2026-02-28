@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT u.id, u.bargaining_unit,\n               bu.carryover_cap_hours AS \"cap?\",\n               bu.carryover_categories AS \"categories!\"\n        FROM users u\n        JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit\n        WHERE u.org_id = $1 AND u.is_active = true\n          AND bu.carryover_cap_hours IS NOT NULL\n          AND bu.is_active = true\n        ",
+  "query": "\n        SELECT u.id, u.bargaining_unit,\n               bu.carryover_cap_hours AS \"cap?\",\n               bu.carryover_categories AS \"categories?\"\n        FROM users u\n        LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true\n        WHERE u.org_id = $1 AND u.is_active = true\n          AND bu.carryover_cap_hours IS NOT NULL\n        ",
   "describe": {
     "columns": [
       {
@@ -20,7 +20,7 @@
       },
       {
         "ordinal": 3,
-        "name": "categories!",
+        "name": "categories?",
         "type_info": "TextArray"
       }
     ],
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "714370d7e00fcecd1c1f741924ae7a4b18525d6b8dff9f6eb7084ad40b98a857"
+  "hash": "b122e0c02f4f41e7a7e220e4a3e134f48e96a8c98fff197d04fc00e3f1e388c3"
 }

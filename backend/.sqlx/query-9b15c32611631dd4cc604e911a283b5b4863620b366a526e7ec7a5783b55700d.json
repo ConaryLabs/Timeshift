@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            q.user_id,\n            u.first_name,\n            u.last_name,\n            u.employee_id,\n            q.last_ot_event_at,\n            COALESCE(CAST(ot.hours_worked AS FLOAT8), 0.0) AS \"ot_hours_worked!\",\n            COALESCE(CAST(ot.hours_declined AS FLOAT8), 0.0) AS \"ot_hours_declined!\"\n        FROM ot_queue_positions q\n        JOIN users u ON u.id = q.user_id\n        LEFT JOIN ot_hours ot ON ot.user_id = q.user_id\n            AND ot.fiscal_year = q.fiscal_year\n            AND ot.classification_id = q.classification_id\n        WHERE q.org_id = $1\n          AND q.classification_id = $2\n          AND q.fiscal_year = $3\n          AND u.is_active = true\n        ORDER BY q.last_ot_event_at ASC NULLS FIRST\n        ",
+  "query": "\n        SELECT\n            q.user_id,\n            u.first_name,\n            u.last_name,\n            u.employee_id,\n            q.last_ot_event_at,\n            COALESCE(CAST(ot.hours_worked AS FLOAT8), 0.0) AS \"ot_hours_worked!\",\n            COALESCE(CAST(ot.hours_declined AS FLOAT8), 0.0) AS \"ot_hours_declined!\"\n        FROM ot_queue_positions q\n        JOIN users u ON u.id = q.user_id\n        LEFT JOIN ot_hours ot ON ot.user_id = q.user_id\n            AND ot.fiscal_year = q.fiscal_year\n            AND ot.classification_id = q.classification_id\n        WHERE q.org_id = $1\n          AND q.classification_id = $2\n          AND q.fiscal_year = $3\n          AND u.is_active = true\n        -- CBA: Ordered by last OT event (NULL = never called = highest priority)\n        ORDER BY q.last_ot_event_at ASC NULLS FIRST\n        ",
   "describe": {
     "columns": [
       {
@@ -56,5 +56,5 @@
       null
     ]
   },
-  "hash": "613a1dd0f489c02c600f15d8cdb954755e1fe5a3dbaa909e5fa6a2c8137bc932"
+  "hash": "9b15c32611631dd4cc604e911a283b5b4863620b366a526e7ec7a5783b55700d"
 }

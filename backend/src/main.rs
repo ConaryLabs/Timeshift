@@ -187,61 +187,33 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Rate-limited routes: use route_layer + with_state to scope governor per-router
-    let login_router = Router::new()
-        .route("/api/auth/login", post(api::auth::login))
-        .route_layer(GovernorLayer {
-            config: governor_conf,
-        })
-        .with_state(state.clone());
+    // Build rate-limited routers. Route registrations use api:: handlers so the
+    // handler↔URL mapping is discoverable from api/mod.rs::all_routes.
+    let rate_limited = vec![
+        Router::new()
+            .route("/api/auth/login", post(api::auth::login))
+            .route_layer(GovernorLayer { config: governor_conf })
+            .with_state(state.clone()),
+        Router::new()
+            .route("/api/auth/refresh", post(api::auth::refresh))
+            .route_layer(GovernorLayer { config: refresh_governor_conf })
+            .with_state(state.clone()),
+        Router::new()
+            .route("/api/callout/events/:id/bump", post(api::callout::create_bump_request))
+            .route("/api/callout/events/:id/volunteer", post(api::ot::volunteer))
+            .route_layer(GovernorLayer { config: callout_action_governor_conf })
+            .with_state(state.clone()),
+        Router::new()
+            .route("/api/users/me/password", axum::routing::patch(api::users::change_password))
+            .route_layer(GovernorLayer { config: password_governor_conf })
+            .with_state(state.clone()),
+        Router::new()
+            .route("/api/coverage-plans/gaps/:date/sms-alert", post(api::coverage_plans::send_sms_alert))
+            .route_layer(GovernorLayer { config: sms_governor_conf })
+            .with_state(state.clone()),
+    ];
 
-    let refresh_router = Router::new()
-        .route("/api/auth/refresh", post(api::auth::refresh))
-        .route_layer(GovernorLayer {
-            config: refresh_governor_conf,
-        })
-        .with_state(state.clone());
-
-    let callout_action_router = Router::new()
-        .route(
-            "/api/callout/events/:id/bump",
-            post(api::callout::create_bump_request),
-        )
-        .route(
-            "/api/callout/events/:id/volunteer",
-            post(api::ot::volunteer),
-        )
-        .route_layer(GovernorLayer {
-            config: callout_action_governor_conf,
-        })
-        .with_state(state.clone());
-
-    let password_router = Router::new()
-        .route(
-            "/api/users/me/password",
-            axum::routing::patch(api::users::change_password),
-        )
-        .route_layer(GovernorLayer {
-            config: password_governor_conf,
-        })
-        .with_state(state.clone());
-
-    let sms_router = Router::new()
-        .route(
-            "/api/coverage-plans/gaps/:date/sms-alert",
-            post(api::coverage_plans::send_sms_alert),
-        )
-        .route_layer(GovernorLayer {
-            config: sms_governor_conf,
-        })
-        .with_state(state.clone());
-
-    let app = api::router(state)
-        .merge(login_router)
-        .merge(refresh_router)
-        .merge(callout_action_router)
-        .merge(password_router)
-        .merge(sms_router)
+    let app = api::all_routes(state, rate_limited)
         .layer(middleware::from_fn(security_headers))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

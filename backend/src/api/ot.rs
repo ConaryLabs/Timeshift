@@ -60,6 +60,7 @@ pub async fn get_queue(
           AND q.classification_id = $2
           AND q.fiscal_year = $3
           AND u.is_active = true
+        -- CBA: Ordered by last OT event (NULL = never called = highest priority)
         ORDER BY q.last_ot_event_at ASC NULLS FIRST
         "#,
         auth.org_id,
@@ -410,7 +411,9 @@ pub async fn advance_step(
         return Err(AppError::BadRequest("Callout event is not open".into()));
     }
 
-    // Enforce strict 5-step ordering
+    // CBA (VCCEA Article 15): Callout steps must follow strict ordering:
+    // 1. Volunteers → 2. Low OT Hours → 3. Inverse Seniority → 4. Equal OT Hours → 5. Mandatory
+    // Mandatory OT (step 5) is the last resort after exhausting all voluntary options.
     let expected = match event.current_step {
         None => CalloutStep::Volunteers,
         Some(CalloutStep::Volunteers) => CalloutStep::LowOtHours,

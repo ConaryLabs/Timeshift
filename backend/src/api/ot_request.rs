@@ -470,6 +470,22 @@ pub async fn update(
         ));
     }
 
+    // Validate status transitions: only allow PartiallyFilled -> Filled via update.
+    // All other status changes must go through dedicated endpoints (assign, cancel_assignment, cancel).
+    if let Some(new_status) = req.status {
+        let allowed = matches!(
+            (existing.status, new_status),
+            (OtRequestStatus::PartiallyFilled, OtRequestStatus::Filled)
+        );
+        if !allowed {
+            return Err(AppError::BadRequest(format!(
+                "Cannot change status from {:?} to {:?}. \
+                 Use the assign, cancel-assignment, or cancel endpoints for status transitions.",
+                existing.status, new_status,
+            )));
+        }
+    }
+
     // Validate ot_reason_id if provided
     if let Some(Some(reason_id)) = &req.ot_reason_id {
         org_guard::verify_ot_reason(&pool, *reason_id, auth.org_id).await?;

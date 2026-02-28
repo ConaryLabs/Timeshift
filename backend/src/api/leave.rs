@@ -1243,12 +1243,11 @@ pub async fn carryover_enforcement(
         r#"
         SELECT u.id, u.bargaining_unit,
                bu.carryover_cap_hours AS "cap?",
-               bu.carryover_categories AS "categories!"
+               bu.carryover_categories AS "categories?"
         FROM users u
-        JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
+        LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true
         WHERE u.org_id = $1 AND u.is_active = true
           AND bu.carryover_cap_hours IS NOT NULL
-          AND bu.is_active = true
         "#,
         auth.org_id,
     )
@@ -1266,7 +1265,11 @@ pub async fn carryover_enforcement(
             Some(c) => c,
             None => continue,
         };
-        let pool_categories: Vec<&str> = user.categories.iter().map(|s| s.as_str()).collect();
+        let categories = match &user.categories {
+            Some(c) => c,
+            None => continue,
+        };
+        let pool_categories: Vec<&str> = categories.iter().map(|s| s.as_str()).collect();
 
         // Sum current balances across all leave types in the applicable pools
         let balance_rows = sqlx::query!(
@@ -1389,12 +1392,12 @@ pub async fn longevity_credit(
         SELECT users.id, users.bargaining_unit,
                hire_date,
                overall_seniority_date AS "overall_seniority_date?",
-               bu.longevity_eligible AS "longevity_eligible!",
-               bu.longevity_vacation_credit AS "longevity_vacation_credit!",
+               COALESCE(bu.longevity_eligible, false) AS "longevity_eligible!",
+               COALESCE(bu.longevity_vacation_credit, 0.0)::FLOAT8 AS "longevity_vacation_credit!",
                bu.longevity_tiers AS "longevity_tiers?"
         FROM users
         LEFT JOIN seniority_records sr ON sr.user_id = users.id
-        JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit
+        LEFT JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit AND bu.is_active = true
         WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true
         "#,
         body.user_id,

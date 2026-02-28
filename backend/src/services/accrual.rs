@@ -9,7 +9,6 @@ use time::Date;
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::services::org_settings;
 
 /// Summary of a single accrual run for one org.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -41,7 +40,7 @@ struct AccrualUser {
     id: Uuid,
     full_name: String,
     employee_type: String,
-    bargaining_unit: String,
+    bargaining_unit: Option<String>,
     /// Years of service (from overall_seniority_date or hire_date).
     years_of_service: f64,
     leave_accrual_paused: bool,
@@ -61,7 +60,10 @@ struct Schedule {
 }
 
 /// Run accruals for a single org. If `dry_run` is true, calculates but does not write.
-/// Returns None if the org has already been run today.
+/// Returns a result with `credits_applied == 0` if the org has already been run today.
+///
+/// Atomicity: For non-dry-run, acquires an advisory lock per org to prevent concurrent
+/// runs, then checks and updates the last-run date inside the same transaction.
 pub async fn run_org_accrual(
     pool: &PgPool,
     org_id: Uuid,
@@ -70,6 +72,7 @@ pub async fn run_org_accrual(
     dry_run: bool,
 ) -> Result<AccrualRunResult> {
     let today = crate::services::timezone::org_today(org_timezone);
+    let today_str = format!("{}", today);
 
     // Enforce carryover caps at fiscal year start before crediting new accruals.
     // This ensures the cap is applied before any new hours land for the new year.
@@ -92,7 +95,7 @@ pub async fn run_org_accrual(
         r#"
         SELECT u.id, u.first_name, u.last_name,
                u.employee_type::TEXT AS "employee_type!",
-               u.bargaining_unit AS "bargaining_unit!",
+               u.bargaining_unit AS "bargaining_unit?",
                sr.overall_seniority_date AS "overall_seniority_date?",
                u.hire_date AS "hire_date?",
                u.leave_accrual_paused_at AS "leave_accrual_paused_at?"
@@ -201,12 +204,40 @@ pub async fn run_org_accrual(
         None => return Ok(result), // No admin in org, skip
     };
 
-    // Begin transaction if not dry run
+    // Begin transaction if not dry run.
+    // Acquire an advisory lock keyed on org_id to prevent concurrent accrual runs.
+    // Then atomically check the last-run date inside the transaction.
     let mut tx = if !dry_run {
-        Some(pool.begin().await?)
+        let t = pool.begin().await?;
+        Some(t)
     } else {
         None
     };
+
+    if let Some(ref mut tx) = tx {
+        // Advisory lock prevents concurrent accrual runs for the same org.
+        // Key: (0x61637275, lower 32 bits of org_id) — "acru" prefix + org discriminator.
+        let lock_key = org_id.as_u128() as i32;
+        sqlx::query!("SELECT pg_advisory_xact_lock(1633906037, $1)", lock_key)
+            .execute(&mut **tx)
+            .await?;
+
+        // Atomic last-run check: read inside the locked transaction.
+        let last_run: Option<String> = sqlx::query_scalar!(
+            "SELECT value::TEXT FROM org_settings WHERE org_id = $1 AND key = 'accrual_last_run_date'",
+            org_id,
+        )
+        .fetch_optional(&mut **tx)
+        .await?
+        .flatten();
+
+        let last_run_trimmed = last_run.as_deref().unwrap_or("").trim_matches('"');
+        if last_run_trimmed == today_str {
+            tracing::debug!(org_id = %org_id, "Skipping accrual run — already ran today (atomic check)");
+            // Transaction (and advisory lock) released on drop
+            return Ok(result);
+        }
+    }
 
     for user in &users {
         if user.leave_accrual_paused {
@@ -227,7 +258,8 @@ pub async fn run_org_accrual(
             let mut hours_to_credit = sched.hours_per_pay_period;
             let mut capped = false;
 
-            // Enforce max balance cap
+            // CBA: Maximum balance cap — employees cannot accrue beyond the BU-negotiated
+            // ceiling. Hours that would exceed the cap are reduced (partial credit) or skipped.
             if let Some(max) = sched.max_balance_hours {
                 if current_balance >= max {
                     result.credits_skipped_capped += 1;
@@ -304,15 +336,32 @@ pub async fn run_org_accrual(
         }
     }
 
-    if let Some(tx) = tx {
+    // Update last-run date inside the transaction (atomic with the accrual writes).
+    if let Some(mut tx) = tx {
+        if result.credits_applied > 0 {
+            let today_json = serde_json::Value::String(today_str);
+            sqlx::query!(
+                r#"
+                INSERT INTO org_settings (id, org_id, key, value, updated_at)
+                VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())
+                ON CONFLICT (org_id, key) DO UPDATE
+                SET value = $3, updated_at = NOW()
+                "#,
+                Uuid::new_v4(),
+                org_id,
+                today_json,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
         tx.commit().await?;
     }
 
     Ok(result)
 }
 
-/// Run accruals for ALL orgs. Checks last-run date per org to avoid double-credit.
-/// Returns results for each org that was processed (skips already-run orgs).
+/// Run accruals for ALL orgs.
+/// Last-run-date checking and updating is handled atomically inside `run_org_accrual`.
 pub async fn run_all_orgs(pool: &PgPool, dry_run: bool) -> Result<Vec<AccrualRunResult>> {
     let orgs = sqlx::query!(
         "SELECT id, name, timezone FROM organizations"
@@ -324,36 +373,10 @@ pub async fn run_all_orgs(pool: &PgPool, dry_run: bool) -> Result<Vec<AccrualRun
 
     for org in orgs {
         let tz = &org.timezone;
-        let today = crate::services::timezone::org_today(tz);
-        let today_str = format!("{}", today);
-
-        // Check last run date (JSONB ::TEXT includes quotes around strings, so trim them)
-        let last_run = org_settings::get_str(pool, org.id, "accrual_last_run_date", "").await;
-        let last_run_trimmed = last_run.trim_matches('"');
-        if last_run_trimmed == today_str && !dry_run {
-            tracing::debug!(org_id = %org.id, "Skipping accrual run — already ran today");
-            continue;
-        }
 
         match run_org_accrual(pool, org.id, &org.name, tz, dry_run).await {
             Ok(result) => {
-                // Update last-run date (unless dry run)
-                if !dry_run && result.credits_applied > 0 {
-                    let today_json = serde_json::Value::String(today_str.clone());
-                    sqlx::query!(
-                        r#"
-                        INSERT INTO org_settings (id, org_id, key, value, updated_at)
-                        VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())
-                        ON CONFLICT (org_id, key) DO UPDATE
-                        SET value = $3, updated_at = NOW()
-                        "#,
-                        Uuid::new_v4(),
-                        org.id,
-                        today_json,
-                    )
-                    .execute(pool)
-                    .await?;
-
+                if result.credits_applied > 0 {
                     tracing::info!(
                         org = %org.name,
                         users = result.users_processed,
@@ -374,9 +397,9 @@ pub async fn run_all_orgs(pool: &PgPool, dry_run: bool) -> Result<Vec<AccrualRun
 
 /// Enforce carryover caps for an org at fiscal year rollover.
 ///
-/// Called on the first day of each new fiscal year. For each active user, if their
-/// balance for a "carryover category" leave type exceeds their bargaining unit's
-/// `carryover_cap_hours`, the excess is forfeited and recorded as a transaction.
+/// CBA: At fiscal year start, balances exceeding the BU-negotiated carryover cap
+/// are forfeited ("use it or lose it"). Each BU defines which leave categories
+/// are subject to the cap and the maximum hours that carry over.
 ///
 /// Returns the number of forfeitures applied.
 pub async fn enforce_carryover_caps(
@@ -597,11 +620,13 @@ pub async fn enforce_carryover_caps(
 
 /// Find all accrual schedules that match a given user.
 ///
+/// CBA: Accrual rates are determined by the collective bargaining agreement per bargaining
+/// unit. Each BU defines different rates based on employee type and years of service.
+///
 /// Matching rules:
 /// 1. employee_type must match exactly
 /// 2. years_of_service must be in [min, max) range (max=NULL means no upper bound)
-/// 3. bargaining_unit: if a BU-specific schedule exists for this leave_type+employee_type,
-///    it takes precedence over a NULL-BU (wildcard) schedule
+/// 3. bargaining_unit: BU-specific schedule takes precedence over wildcard (NULL BU)
 fn find_matching_schedules<'a>(schedules: &'a [Schedule], user: &AccrualUser) -> Vec<&'a Schedule> {
     let yos = user.years_of_service as i32;
 
@@ -627,11 +652,10 @@ fn find_matching_schedules<'a>(schedules: &'a [Schedule], user: &AccrualUser) ->
 
     let mut result = Vec::new();
     for (_lt_id, group) in by_leave_type {
-        // Check if there's a BU-specific match
-        if let Some(specific) = group
-            .iter()
-            .find(|s| s.bargaining_unit.as_deref() == Some(&user.bargaining_unit))
-        {
+        // Check if there's a BU-specific match (only if user has a bargaining unit)
+        if let Some(specific) = user.bargaining_unit.as_deref().and_then(|bu| {
+            group.iter().find(|s| s.bargaining_unit.as_deref() == Some(bu))
+        }) {
             result.push(*specific);
         } else if let Some(wildcard) = group.iter().find(|s| s.bargaining_unit.is_none()) {
             // Fall back to wildcard (NULL BU) schedule

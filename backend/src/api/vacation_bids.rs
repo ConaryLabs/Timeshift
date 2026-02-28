@@ -143,7 +143,8 @@ pub async fn open_bidding(
         ));
     }
 
-    // Get all active users ordered by seniority, optionally filtered by BU
+    // CBA: Bidding windows are assigned in strict seniority order — most senior employee
+    // bids first. Each window is sequential so senior employees' picks take precedence.
     let users = sqlx::query!(
         r#"
         SELECT u.id, u.first_name, u.last_name
@@ -492,7 +493,8 @@ pub async fn submit_bid(
             ));
         }
 
-        // Round 1: enforce full weeks (Monday-Sunday, 7 days)
+        // CBA: Round 1 vacation bids must be full weeks (Monday-Sunday).
+        // Round 2 allows single-day or partial-week picks.
         if w.round == 1 {
             let start_weekday = pick.start_date.weekday();
             let end_weekday = pick.end_date.weekday();
@@ -676,8 +678,8 @@ pub async fn process_bids(
     .fetch_optional(&mut *tx)
     .await?;
 
-    // Pre-seed with dates already awarded in earlier rounds of the same year so that
-    // round 2 cannot double-book dates already granted in round 1.
+    // CBA: Pre-seed with dates already awarded in earlier rounds of the same year so that
+    // round 2 cannot double-book dates already granted in round 1 (seniority-based protection).
     let prior_dates: Vec<time::Date> = sqlx::query_scalar!(
         r#"
         SELECT DISTINCT d::DATE AS "date!"
@@ -699,7 +701,9 @@ pub async fn process_bids(
 
     let mut awarded_dates: HashSet<time::Date> = prior_dates.into_iter().collect();
 
-    // Process each window in seniority order
+    // CBA: Process bids in seniority order — most senior employee's picks are awarded
+    // first. If dates conflict with a more senior employee's awarded dates, the bid is
+    // skipped (not awarded). Leave balance is checked before awarding to prevent overdraft.
     for window in &windows {
         // Get bids ordered by preference
         let bids = sqlx::query!(
@@ -846,14 +850,57 @@ pub async fn process_bids(
 /// Calculate hours charged for a vacation bid.
 /// For Sep-Feb months, uses a non-linear lookup table from org_settings if available.
 /// Falls back to flat 8 hours/day.
+///
+/// CBA compliance: when a bid straddles month boundaries (e.g., Jan 28 - Feb 3),
+/// each month segment is calculated independently so that the correct rate table
+/// applies to each portion. This prevents under/over-charging when months have
+/// different Sep-Feb vs Mar-Aug rates.
 fn calculate_hours(
+    start_date: time::Date,
+    end_date: time::Date,
+    lookup: &Option<serde_json::Value>,
+) -> f64 {
+    // If the bid is within a single month, use the simple path
+    if start_date.month() == end_date.month() && start_date.year() == end_date.year() {
+        return calculate_hours_single_month(start_date, end_date, lookup);
+    }
+
+    // Split across month boundaries and sum each segment
+    let mut total = 0.0;
+    let mut seg_start = start_date;
+    while seg_start <= end_date {
+        // End of current month
+        let days_in_month = seg_start.month().length(seg_start.year());
+        let month_end = time::Date::from_calendar_date(
+            seg_start.year(),
+            seg_start.month(),
+            days_in_month,
+        )
+        .unwrap_or(seg_start);
+        let seg_end = if month_end < end_date {
+            month_end
+        } else {
+            end_date
+        };
+
+        total += calculate_hours_single_month(seg_start, seg_end, lookup);
+
+        // Advance to first day of next month
+        seg_start = seg_end
+            .next_day()
+            .unwrap_or(end_date.next_day().unwrap_or(end_date));
+    }
+    total
+}
+
+/// Calculate hours for a date range within a single month.
+fn calculate_hours_single_month(
     start_date: time::Date,
     end_date: time::Date,
     lookup: &Option<serde_json::Value>,
 ) -> f64 {
     let days = (end_date - start_date).whole_days() + 1;
 
-    // Check if start_date falls in Sep-Feb (months 9,10,11,12,1,2)
     let month = start_date.month() as u8;
     let is_sep_feb = month >= 9 || month <= 2;
 
@@ -865,11 +912,9 @@ fn calculate_hours(
                     let max_days = entry.get("max_days").and_then(|v| v.as_i64()).unwrap_or(0);
 
                     if days >= min_days && days <= max_days {
-                        // Flat hours for the entry
                         if let Some(flat_hours) = entry.get("hours").and_then(|v| v.as_f64()) {
                             return flat_hours;
                         }
-                        // Per-day rate
                         if let Some(hpd) = entry.get("hours_per_day").and_then(|v| v.as_f64()) {
                             return days as f64 * hpd;
                         }

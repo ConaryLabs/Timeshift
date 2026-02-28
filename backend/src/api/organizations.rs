@@ -94,6 +94,17 @@ pub async fn list_settings(
     Ok(Json(rows))
 }
 
+/// Allowed org_settings keys. Prevents typos from silently creating garbage entries.
+const ALLOWED_SETTING_KEYS: &[&str] = &[
+    "fiscal_year_start_month",
+    "ot_cross_class_window_days",
+    "voluntary_ot_cancel_hours",
+    "bump_deadline_hours",
+    "trade_require_same_period",
+    "trade_approval_cutoff_minutes",
+    "vacation_hours_charged_sep_feb",
+];
+
 /// Set/update an org setting (admin only). Upserts by key.
 pub async fn set_setting(
     State(pool): State<PgPool>,
@@ -109,6 +120,14 @@ pub async fn set_setting(
 
     if req.key.is_empty() {
         return Err(AppError::BadRequest("key must not be empty".into()));
+    }
+
+    if !ALLOWED_SETTING_KEYS.contains(&req.key.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Unknown setting key '{}'. Allowed keys: {}",
+            req.key,
+            ALLOWED_SETTING_KEYS.join(", ")
+        )));
     }
 
     // Cap value payload at 64KB

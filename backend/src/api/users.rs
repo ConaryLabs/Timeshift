@@ -372,6 +372,27 @@ pub async fn create(
         .await?;
     }
 
+    // CBA compliance: new hires enter the OT queue at the TOP (NULL last_ot_event_at = highest
+    // priority, per NULLS FIRST ordering). This ensures they get called first to equalize hours.
+    if let Some(cid) = r.classification_id {
+        let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id,
+            crate::services::timezone::org_today(&auth.org_timezone)).await;
+        sqlx::query!(
+            r#"
+            INSERT INTO ot_queue_positions
+                (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)
+            VALUES (gen_random_uuid(), $1, $2, $3, NULL, $4, NOW())
+            ON CONFLICT (org_id, classification_id, user_id, fiscal_year) DO NOTHING
+            "#,
+            auth.org_id,
+            cid,
+            r.id,
+            fiscal_year,
+        )
+        .execute(&pool)
+        .await?;
+    }
+
     // Fetch seniority record for response
     let sr = sqlx::query!(
         "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
