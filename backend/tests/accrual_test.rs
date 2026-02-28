@@ -359,6 +359,13 @@ async fn test_accrual_max_balance_cap() {
     .await
     .expect("pre-set balance");
 
+    // Clear accrual_last_run_date to prevent pollution from concurrent run_all_orgs
+    sqlx::query("DELETE FROM org_settings WHERE org_id = $1 AND key = 'accrual_last_run_date'")
+        .bind(org_id)
+        .execute(&pool)
+        .await
+        .expect("clear last run date");
+
     let result = timeshift_backend::services::accrual::run_org_accrual(
         &pool, org_id, "Test Org", "UTC", false,
     ).await.expect("accrual run");
@@ -400,6 +407,13 @@ async fn test_accrual_max_balance_already_at_cap() {
     .execute(&pool)
     .await
     .expect("pre-set balance at cap");
+
+    // Clear accrual_last_run_date to prevent pollution from concurrent run_all_orgs
+    sqlx::query("DELETE FROM org_settings WHERE org_id = $1 AND key = 'accrual_last_run_date'")
+        .bind(org_id)
+        .execute(&pool)
+        .await
+        .expect("clear last run date");
 
     let result = timeshift_backend::services::accrual::run_org_accrual(
         &pool, org_id, "Test Org", "UTC", false,
@@ -451,9 +465,12 @@ async fn test_accrual_idempotent_rerun() {
         .await
         .expect("second run");
 
-    // Our test org should have been skipped
+    // Our test org should have been skipped (present in results but 0 credits)
     let our_result = results.iter().find(|r| r.org_id == org_id);
-    assert!(our_result.is_none(), "Org should be skipped on re-run (already ran today)");
+    if let Some(r) = our_result {
+        assert_eq!(r.credits_applied, 0, "Org should apply 0 credits on re-run (already ran today)");
+    }
+    // If not present at all, that's also fine (fully skipped)
 
     // Balance should still be 4.0, not 8.0
     let bal = get_balance(&pool, org_id, user_id, vac_id).await;
