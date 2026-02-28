@@ -18,10 +18,12 @@ All commands run from the project root via `Makefile`:
 make db-reset          # Drop and recreate database (native PostgreSQL)
 make migrate           # Run SQLx migrations
 make seed              # Load Valleycom seed data
+make reseed            # Wipe and reload seed data (works on dev and production)
 make backend           # Run Axum server on :8080
 make frontend          # Run Vite dev server on :5173
 make test              # Run backend integration tests
 make sqlx-prepare      # Regenerate offline query cache (run after any SQL changes)
+make dbhub             # Launch dbhub MCP server
 ```
 
 After changing any SQL query in Rust code, always run `make sqlx-prepare` and commit the updated `backend/.sqlx/` directory.
@@ -48,7 +50,7 @@ cd frontend && npm run build
 
 ### Seed credentials
 
-All accounts use password `admin123`:
+All accounts use password `admin123`. Seed contains ~99 users total; key accounts for testing:
 
 | Role | Email | Classification | Bargaining Unit |
 |------|-------|---------------|-----------------|
@@ -69,7 +71,7 @@ All accounts use password `admin123`:
 - `auth/mod.rs` — `AuthUser` extractor (FromRequestParts), JWT Claims, Role enum with permission methods, `RefreshTokenCookie` extractor
 - `org_guard.rs` — Helpers that verify a resource belongs to the user's org before operations
 - `models/` — Request/response DTOs, DB row types, PG enum mappings
-- `api/` — Route handlers organized by domain: auth, users, teams, shifts, schedule, leave, leave_balances, callout, classifications, organizations, coverage, trades, ot, ot_request, bidding, vacation_bids, holidays, employee, leave_sellback, leave_donation, nav, reports
+- `api/` — Route handlers organized by domain: auth, users, teams, shifts, schedule, leave, leave_balances, callout, classifications, organizations, coverage_plans, trades, ot, ot_request, bidding, vacation_bids, holidays, employee, leave_sellback, leave_donation, nav, reports, staffing, bargaining_units, duty_positions, duty_board, shift_patterns, special_assignments, saved_filters, notifications
 
 ### Key patterns
 
@@ -104,14 +106,16 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 ### Source layout (`frontend/src/`)
 
 - `api/client.ts` — Axios instance with 401 auto-logout (credentials included for HttpOnly cookies)
-- `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coverage, trades, ot, otRequests, bidding, vacationBids, employee, holidays, leaveSellback, sickDonation, nav, reports
+- `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coveragePlans, trades, ot, otRequests, bidding, vacationBids, employee, holidays, leaveSellback, sickDonation, nav, reports, staffing, bargainingUnits, dutyPositions, dutyBoard, shiftPatterns, specialAssignments, savedFilters, notifications
 - `store/auth.ts` — Zustand store: user profile only (no token — auth uses HttpOnly cookies), persisted to localStorage as `timeshift-auth`
 - `store/ui.ts` — Zustand store: sidebar state + selected team/period, persisted as `timeshift-ui`
-- `hooks/queries.ts` — React Query hooks + key factories for all API endpoints (~110 hooks)
+- `hooks/queryKeys.ts` — React Query key factories for all API endpoints
+- `hooks/queries.ts` — Barrel re-export of domain-specific hook files
+- `hooks/use*.ts` — Domain-specific React Query hooks (useAuth, useTeams, useLeave, useCallout, useOt, useTrades, useVacationBids, useBidding, useEmployee, useHolidays, useReports, useNotifications, useNav, useDutyPositions, useSpecialAssignments, useSavedFilters, useShiftPatterns, useStaffing, useCoverage, useDutyBoard, useSchedule, useUsers, useOrganization)
 - `hooks/usePermissions.ts` — Role-based access helpers
-- `lib/utils.ts` — `cn()` utility (clsx + tw-merge); `lib/format.ts` — date/time formatting
-- `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage, AvailableOTPage, VolunteeredOTPage
-- `pages/admin/` — ClassificationsPage, ShiftTemplatesPage, CoverageRequirementsPage, TeamsPage, TeamDetailPage, UsersPage, OTQueuePage, LeaveBalancesPage, SchedulePeriodsPage, SchedulePeriodDetailPage, VacationBidAdminPage, HolidayCalendarPage, ReportsPage, OrgSettingsPage
+- `lib/utils.ts` — `cn()` utility (clsx + tw-merge); `lib/format.ts` — date/time formatting; `lib/dutyBoard.ts` — duty board utilities
+- `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage, AvailableOTPage, VolunteeredOTPage, SickDonationPage, LeaveSellbackPage, NotificationsPage, ApprovalsPage, StaffingResolvePage, DutyBoardPage, DutyBoardDisplayPage, OtRequestDetailPage
+- `pages/admin/` — ClassificationsPage, ShiftTemplatesPage, CoveragePlansPage, CoveragePlanDetailPage, CoveragePlanAssignmentsPage, TeamsPage, TeamDetailPage, UsersPage, OTQueuePage, LeaveBalancesPage, SchedulePeriodsPage, SchedulePeriodDetailPage, VacationBidAdminPage, HolidayCalendarPage, ReportsPage, OrgSettingsPage, SpecialAssignmentsPage, DutyPositionsPage, ShiftPatternsPage
 - `components/ui/` — shadcn/radix-ui component wrappers (Button, Input, Card, Table, Dialog, etc.)
 - `components/layout/AppShell.tsx` — Main layout: collapsible sidebar + top bar + content area
 - `components/RequireRole.tsx` — Role-based route guard; `components/ErrorBoundary.tsx` — top-level error boundary
@@ -126,18 +130,20 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 **API environment**: `VITE_API_URL` defaults to `http://localhost:8080`. Production builds use `VITE_API_URL=""` for same-origin relative URLs (Caddy proxies `/api` to backend).
 
-**Testing**: Vitest + Testing Library configured but no test files yet.
+**Testing**: Vitest + Testing Library. Test files exist (e.g., `CalloutPage.test.tsx`, `callout.test.ts`).
 
 ## Database Schema
 
-20 migrations in `backend/migrations/` (0001–0020). Key tables:
+50 migrations in `backend/migrations/` (0001–0050). Key tables:
 
 - `organizations` — Multi-tenant root
-- `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (type: `bargaining_unit_enum`), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
+- `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (TEXT, references `bargaining_units` table), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
+- `bargaining_units` — Org-specific bargaining unit definitions (replaced the old `bargaining_unit_enum`)
 - `classifications` — Org-specific job classifications (e.g., dispatcher, call-taker)
 - `shift_templates` — Reusable shift definitions (name, start/end time, hours, color)
 - `teams` — Org divisions with optional `supervisor_id`
 - `shift_slots` — Recurring slots linking team + template + classification + days_of_week
+- `shift_patterns` + `shift_pattern_assignments` — Rotating shift pattern definitions and user assignments
 - `scheduled_shifts` — Concrete shift instances on specific dates
 - `schedule_periods` — Bid periods for slot assignments
 - `slot_assignments` — Who holds a slot for a period (bid results)
@@ -151,14 +157,14 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `callout_events` + `callout_attempts` — Callout process tracking
 - `ot_hours` — OT tracking per user/fiscal_year/classification
 - `ot_reasons` — Reasons for overtime (29 Valleycom-specific reasons)
-- `ot_requests` — Standalone OT request slots (date, times, classification, status workflow)
+- `ot_requests` — Standalone OT request slots (date, times, classification, status workflow via `ot_request_status` enum)
 - `ot_request_volunteers` — Employee volunteers for OT requests
 - `ot_request_assignments` — Supervisor assignments to OT requests
 - `ot_queue_positions` — OT queue ordering per user/classification/year; ordered by `last_ot_event_at` timestamp (NULL = never called = highest priority)
 - `ot_volunteers` — Callout event volunteers
 - `bump_requests` — OT bump requests (requesting_user displaces displaced_user, supervisor review)
 - `trade_requests` — Shift trade requests with approval workflow
-- `coverage_requirements` — Min/target/max headcount per shift+classification+day
+- `coverage_plans` + `coverage_plan_slots` + `coverage_plan_assignments` — Coverage plans with per-slot min/target/max headcount (replaced old `coverage_requirements`)
 - `schedule_annotations` — Notes/alerts on schedule dates
 - `bid_windows` + `bid_submissions` — Shift bidding windows and submissions
 - `vacation_bid_periods` + `vacation_bid_windows` + `vacation_bids` — Vacation bid system
@@ -167,8 +173,13 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `org_settings` — Key-value org configuration
 - `refresh_tokens` — JWT refresh token storage
 - `seniority_records` — Three-counter seniority per user: `overall_seniority_date`, `bargaining_unit_seniority_date`, `classification_seniority_date`; also tracks accrual pause: `accrual_pause_started_at` (null = running), `accrual_paused_days_total` (cumulative paused days)
+- `duty_positions` + `duty_assignments` — Duty board position definitions and daily assignments
+- `special_assignments` — Special assignment tracking
+- `saved_filters` — User-saved filter configurations
+- `notifications` + `sms_log` — In-app notifications and SMS delivery log
+- `login_audit_log` — Authentication attempt tracking for brute-force protection
 
-PG enums: `app_role`, `employee_type_enum`, `bargaining_unit_enum`, `employee_status_enum`, `leave_status`, `callout_status`, `trade_status`, `callout_step`, `bid_period_status`
+PG enums: `app_role`, `employee_type_enum`, `employee_status_enum`, `leave_status`, `callout_status`, `trade_status`, `callout_step`, `bid_period_status`, `ot_request_status`
 
 ## Conventions
 

@@ -35,6 +35,7 @@ pub struct CreateDutyPositionRequest {
 pub struct UpdateDutyPositionRequest {
     #[validate(length(min = 1, max = 100))]
     pub name: Option<String>,
+    #[serde(default, deserialize_with = "crate::models::common::deserialize_optional_field")]
     pub classification_id: Option<Option<Uuid>>,
     pub sort_order: Option<i32>,
     pub is_active: Option<bool>,

@@ -6,16 +6,17 @@ interface Props {
 
 interface State {
   hasError: boolean
+  error: Error | null
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = { hasError: false }
+    this.state = { hasError: false, error: null }
   }
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true }
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -30,12 +31,17 @@ export default class ErrorBoundary extends Component<Props, State> {
             <h1 className="mb-2 text-xl font-semibold text-foreground">
               Something went wrong
             </h1>
-            <p className="mb-6 text-sm text-muted-foreground">
+            <p className="mb-4 text-sm text-muted-foreground">
               An unexpected error occurred. You can try again or reload the page.
             </p>
+            {this.state.error?.message && (
+              <p className="mb-6 text-xs text-destructive bg-destructive/10 rounded px-3 py-2 break-words">
+                {this.state.error.message}
+              </p>
+            )}
             <div className="flex items-center justify-center gap-3">
               <button
-                onClick={() => this.setState({ hasError: false })}
+                onClick={() => this.setState({ hasError: false, error: null })}
                 className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Try Again
@@ -47,7 +53,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 Reload Page
               </button>
               <button
-                onClick={() => { this.setState({ hasError: false }); window.location.href = '/dashboard' }}
+                onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = '/dashboard' }}
                 className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
               >
                 Go to Dashboard

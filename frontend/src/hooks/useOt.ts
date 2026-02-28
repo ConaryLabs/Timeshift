@@ -73,7 +73,7 @@ export function useCreateOtRequest() {
       qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
       qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: ['staffing'] })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
     },
   })
 }
@@ -103,7 +103,7 @@ export function useAssignOtRequest() {
       qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
       qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: ['staffing'] })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
     },
   })
 }

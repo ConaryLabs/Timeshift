@@ -2,7 +2,7 @@ import { useAuthStore, type Role } from '@/store/auth'
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user)
-  const role = user?.role ?? 'employee'
+  const role = user?.role ?? null
 
   return {
     role,
@@ -13,6 +13,7 @@ export function usePermissions() {
     canApproveLeave: role === 'admin' || role === 'supervisor',
     canManageUsers: role === 'admin',
     hasRole: (required: Role | Role[]) => {
+      if (!role) return false
       const roles = Array.isArray(required) ? required : [required]
       return roles.includes(role)
     },

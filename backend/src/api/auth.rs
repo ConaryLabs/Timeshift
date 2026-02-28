@@ -221,9 +221,13 @@ pub async fn login(
 
     // Fetch classification name if set
     let classification_name = if let Some(cid) = user.classification_id {
-        sqlx::query_scalar!("SELECT name FROM classifications WHERE id = $1", cid)
-            .fetch_optional(&state.pool)
-            .await?
+        sqlx::query_scalar!(
+            "SELECT name FROM classifications WHERE id = $1 AND org_id = $2",
+            cid,
+            user.org_id,
+        )
+        .fetch_optional(&state.pool)
+        .await?
     } else {
         None
     };

@@ -90,6 +90,7 @@ export function formatDateTimeWithYear(iso: string | null): string {
 
 /** Returns a readable text color (dark or light) for a given hex background color */
 export function contrastText(hex: string): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#111'
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)

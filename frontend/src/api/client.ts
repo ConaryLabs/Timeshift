@@ -33,7 +33,7 @@ api.interceptors.response.use(
         await api.post('/api/auth/refresh')
         refreshQueue.forEach((cb) => cb(true))
         refreshQueue.length = 0
-        return api(config)
+        return await api(config)
       } catch {
         toast.error('Session expired — please log in again')
         useAuthStore.getState().logout()

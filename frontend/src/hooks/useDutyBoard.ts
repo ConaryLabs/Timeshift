@@ -162,7 +162,7 @@ export function useSetPositionHours() {
       crosses_midnight?: boolean
     }) => dutyBoardApi.setPositionHours(positionId, body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['duty-board'] })
+      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
       qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
     },
   })
@@ -173,7 +173,7 @@ export function useDeletePositionHours() {
   return useMutation({
     mutationFn: dutyBoardApi.deletePositionHours,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['duty-board'] })
+      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
       qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
     },
   })

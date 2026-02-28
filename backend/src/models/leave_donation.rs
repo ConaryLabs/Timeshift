@@ -14,6 +14,7 @@ pub struct SickLeaveDonation {
     pub leave_type_id: Uuid,
     pub hours: f64,
     pub fiscal_year: i32,
+    // TODO: convert to typed enum
     pub status: String,
     pub reviewed_by: Option<Uuid>,
     pub reviewer_notes: Option<String>,

@@ -13,6 +13,7 @@ pub struct HolidaySellbackRequest {
     pub fiscal_year: i32,
     pub period: String,
     pub hours_requested: f64,
+    // TODO: convert to typed enum
     pub status: String,
     pub reviewed_by: Option<Uuid>,
     pub reviewer_notes: Option<String>,

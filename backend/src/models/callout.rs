@@ -110,6 +110,7 @@ pub struct BumpRequest {
     pub event_id: Uuid,
     pub requesting_user_id: Uuid,
     pub displaced_user_id: Uuid,
+    // TODO: convert to typed enum
     pub status: String,
     pub reason: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
@@ -133,6 +134,7 @@ pub struct BumpRequestWithNames {
     pub displaced_user_id: Uuid,
     pub displaced_user_first_name: String,
     pub displaced_user_last_name: String,
+    // TODO: convert to typed enum
     pub status: String,
     pub reason: Option<String>,
     #[serde(with = "time::serde::rfc3339")]

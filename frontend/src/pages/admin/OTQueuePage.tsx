@@ -88,7 +88,7 @@ export default function OTQueuePage() {
     if (!adjustTarget) return
     const workedDelta = adjustWorked ? parseFloat(adjustWorked) : undefined
     const declinedDelta = adjustDeclined ? parseFloat(adjustDeclined) : undefined
-    if (!workedDelta && !declinedDelta) {
+    if (workedDelta === undefined && declinedDelta === undefined) {
       toast.error('Enter at least one adjustment value')
       return
     }

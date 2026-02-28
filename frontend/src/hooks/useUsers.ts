@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi } from '@/api/users'
+import { useAuthStore } from '@/store/auth'
 import { queryKeys } from './queryKeys'
 
 export function useUsers(params?: { include_inactive?: boolean; limit?: number; offset?: number }) {
@@ -40,7 +41,10 @@ export function useUpdateUser() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.users.all })
       qc.invalidateQueries({ queryKey: queryKeys.users.detail(vars.id) })
-      qc.invalidateQueries({ queryKey: queryKeys.auth.me })
+      const currentUserId = useAuthStore.getState().user?.id
+      if (vars.id === currentUserId) {
+        qc.invalidateQueries({ queryKey: queryKeys.auth.me })
+      }
     },
   })
 }

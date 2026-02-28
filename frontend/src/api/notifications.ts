@@ -36,7 +36,7 @@ export interface NotificationListParams {
   offset?: number
 }
 
-const notificationsApi = {
+export const notificationsApi = {
   list: (params?: NotificationListParams) =>
     api.get<NotificationListResponse>('/api/notifications', { params }).then((r) => r.data),
 
@@ -53,4 +53,3 @@ const notificationsApi = {
     api.delete(`/api/notifications/${id}`).then((r) => r.data),
 }
 
-export default notificationsApi

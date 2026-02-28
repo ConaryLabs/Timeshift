@@ -14,6 +14,7 @@ import { SavedFilterBar } from '@/components/SavedFilterBar'
 import { useStaffing, useTeams, useScheduleGrid } from '@/hooks/queries'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
+import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
 import { formatTime, contrastText as contrastTextHex, NO_VALUE } from '@/lib/format'
 import type { AssignmentView, GridCell } from '@/api/schedule'
@@ -553,6 +554,7 @@ function AssignmentChip({
   assignment: AssignmentView
   isOwn: boolean
 }) {
+  const { isAdmin } = usePermissions()
   const textClass = contrastText(a.shift_color)
   const tooltipParts = [
     `${a.first_name} ${a.last_name}`,
@@ -564,18 +566,15 @@ function AssignmentChip({
     a.notes,
   ].filter(Boolean)
 
-  return (
-    <Link
-      to={`/admin/users/${a.user_id}`}
-      title={tooltipParts.join(' · ')}
-      className={cn(
-        'rounded px-1.5 py-0.5 text-xs mb-0.5 flex items-center gap-1 hover:ring-1 hover:ring-white/50 transition-shadow',
-        textClass,
-        isOwn && 'ring-2 ring-offset-1 ring-white/80 font-semibold',
-      )}
-      style={{ backgroundColor: a.shift_color }}
-      onClick={(e) => e.stopPropagation()}
-    >
+  const chipClassName = cn(
+    'rounded px-1.5 py-0.5 text-xs mb-0.5 flex items-center gap-1 transition-shadow',
+    textClass,
+    isOwn && 'ring-2 ring-offset-1 ring-white/80 font-semibold',
+    isAdmin && 'hover:ring-1 hover:ring-white/50',
+  )
+
+  const chipContent = (
+    <>
       <span className="truncate">
         {a.last_name}, {a.first_name?.[0] ?? ''}
         {a.classification_abbreviation && (
@@ -594,6 +593,30 @@ function AssignmentChip({
           </TooltipContent>
         </Tooltip>
       )}
-    </Link>
+    </>
+  )
+
+  if (isAdmin) {
+    return (
+      <Link
+        to={`/admin/users/${a.user_id}`}
+        title={tooltipParts.join(' · ')}
+        className={chipClassName}
+        style={{ backgroundColor: a.shift_color }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {chipContent}
+      </Link>
+    )
+  }
+
+  return (
+    <span
+      title={tooltipParts.join(' · ')}
+      className={chipClassName}
+      style={{ backgroundColor: a.shift_color }}
+    >
+      {chipContent}
+    </span>
   )
 }

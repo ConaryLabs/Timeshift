@@ -134,7 +134,7 @@ pub fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     for part in cookie_header.split(';') {
         let part = part.trim();
         if let Some(val) = part.strip_prefix(&prefix) {
-            return Some(val.to_string());
+            return Some(val.trim_matches('"').to_string());
         }
     }
     None

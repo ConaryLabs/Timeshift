@@ -293,12 +293,13 @@ pub async fn review(
                 UPDATE leave_balances
                 SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
                     as_of_date = $4, updated_at = NOW()
-                WHERE user_id = $1 AND leave_type_id = $2
+                WHERE user_id = $1 AND leave_type_id = $2 AND org_id = $5
                 "#,
                 req.user_id,
                 ht.leave_type_id,
                 deduct,
                 today,
+                auth.org_id,
             )
             .execute(&mut *tx)
             .await?;

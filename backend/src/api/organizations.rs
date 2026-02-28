@@ -1,6 +1,7 @@
 use axum::{extract::State, Json};
 use sqlx::PgPool;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
     auth::AuthUser,
@@ -103,8 +104,11 @@ pub async fn set_setting(
         return Err(AppError::Forbidden);
     }
 
-    if req.key.is_empty() || req.key.len() > 100 {
-        return Err(AppError::BadRequest("key must be 1-100 characters".into()));
+    req.validate()
+        .map_err(AppError::Validation)?;
+
+    if req.key.is_empty() {
+        return Err(AppError::BadRequest("key must not be empty".into()));
     }
 
     // Cap value payload at 64KB

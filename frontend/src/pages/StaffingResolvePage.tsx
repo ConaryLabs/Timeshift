@@ -185,14 +185,20 @@ export default function StaffingResolvePage() {
         // Split each 2h block into 2 1h blocks (approximate: same values)
         const newBlocks: ClassificationBlock[] = []
         for (const b of cls.blocks) {
-          const startH = parseInt(b.start_time)
+          const [bStartH, bStartM] = b.start_time.split(':').map(Number)
+          const baseMin = bStartH * 60 + bStartM
           for (let sub = 0; sub < 2; sub++) {
-            const h = startH + sub
+            const subStartMin = baseMin + sub * 60
+            const subEndMin = subStartMin + 60
+            const h = Math.floor(subStartMin / 60) % 24
+            const m = subStartMin % 60
+            const eh = Math.floor(subEndMin / 60) % 24
+            const em = subEndMin % 60
             newBlocks.push({
               ...b,
               block_index: newBlocks.length,
-              start_time: `${String(h).padStart(2, '0')}:00`,
-              end_time: `${String(h + 1).padStart(2, '0')}:00`,
+              start_time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+              end_time: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`,
             })
           }
         }
@@ -201,9 +207,10 @@ export default function StaffingResolvePage() {
       // 30min: split each 2h block into 4
       const newBlocks: ClassificationBlock[] = []
       for (const b of cls.blocks) {
-        const startH = parseInt(b.start_time)
+        const [bStartH30, bStartM30] = b.start_time.split(':').map(Number)
+        const baseMin30 = bStartH30 * 60 + bStartM30
         for (let sub = 0; sub < 4; sub++) {
-          const totalMin = startH * 60 + sub * 30
+          const totalMin = baseMin30 + sub * 30
           const h = Math.floor(totalMin / 60)
           const m = totalMin % 60
           const endMin = totalMin + 30
