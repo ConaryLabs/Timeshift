@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface SavedFilter {
   id: string
@@ -13,14 +13,14 @@ export interface SavedFilter {
 
 export const savedFiltersApi = {
   list: (page: string) =>
-    api.get<SavedFilter[]>('/api/saved-filters', { params: { page } }).then((r) => r.data),
+    apiClient.get<SavedFilter[]>('/api/saved-filters', { params: { page } }),
 
   create: (data: { name: string; page: string; filters: Record<string, unknown>; is_default?: boolean }) =>
-    api.post<SavedFilter>('/api/saved-filters', data).then((r) => r.data),
+    apiClient.post<SavedFilter>('/api/saved-filters', data),
 
   delete: (id: string) =>
-    api.delete(`/api/saved-filters/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/saved-filters/${id}`),
 
   setDefault: (id: string, is_default: boolean) =>
-    api.patch(`/api/saved-filters/${id}/default`, { is_default }).then((r) => r.data),
+    apiClient.patch(`/api/saved-filters/${id}/default`, { is_default }),
 }

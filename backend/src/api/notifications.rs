@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::notification::{
@@ -164,11 +165,8 @@ pub async fn delete(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Notification not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Notification")?;
+    Ok(json_ok())
 }
 
 pub struct CreateNotificationParams<'a> {

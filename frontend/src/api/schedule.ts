@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface ShiftTemplate {
   id: string
@@ -100,24 +100,22 @@ export interface DashboardData {
 
 export const scheduleApi = {
   getTemplates: () =>
-    api.get<ShiftTemplate[]>('/api/shifts/templates').then((r) => r.data),
+    apiClient.get<ShiftTemplate[]>('/api/shifts/templates'),
 
   createTemplate: (body: {
     name: string
     start_time: string
     end_time: string
     color?: string
-  }) => api.post<ShiftTemplate>('/api/shifts/templates', body).then((r) => r.data),
+  }) => apiClient.post<ShiftTemplate>('/api/shifts/templates', body),
 
   updateTemplate: (id: string, body: { name?: string; color?: string; is_active?: boolean; expected_updated_at?: string }) =>
-    api.patch<ShiftTemplate>(`/api/shifts/templates/${id}`, body).then((r) => r.data),
+    apiClient.patch<ShiftTemplate>(`/api/shifts/templates/${id}`, body),
 
   getStaffing: (start_date: string, end_date: string, team_id?: string) =>
-    api
-      .get<AssignmentView[]>('/api/schedule', {
-        params: { start_date, end_date, ...(team_id ? { team_id } : {}) },
-      })
-      .then((r) => r.data),
+    apiClient.get<AssignmentView[]>('/api/schedule', {
+      params: { start_date, end_date, ...(team_id ? { team_id } : {}) },
+    }),
 
   createAssignment: (body: {
     scheduled_shift_id: string
@@ -126,42 +124,38 @@ export const scheduleApi = {
     is_overtime?: boolean
     is_trade?: boolean
     notes?: string
-  }) => api.post('/api/schedule/assignments', body).then((r) => r.data),
+  }) => apiClient.post('/api/schedule/assignments', body),
 
   deleteAssignment: (id: string) =>
-    api.delete(`/api/schedule/assignments/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/schedule/assignments/${id}`),
 
   // Grid view
   getGrid: (start_date: string, end_date: string, team_id?: string) =>
-    api
-      .get<GridCell[]>('/api/schedule/grid', {
-        params: { start_date, end_date, ...(team_id ? { team_id } : {}) },
-      })
-      .then((r) => r.data),
+    apiClient.get<GridCell[]>('/api/schedule/grid', {
+      params: { start_date, end_date, ...(team_id ? { team_id } : {}) },
+    }),
 
   // Day view
   getDayView: (date: string) =>
-    api.get<DayViewEntry[]>(`/api/schedule/day/${date}`).then((r) => r.data),
+    apiClient.get<DayViewEntry[]>(`/api/schedule/day/${date}`),
 
   // Dashboard
   getDashboard: () =>
-    api.get<DashboardData>('/api/schedule/dashboard').then((r) => r.data),
+    apiClient.get<DashboardData>('/api/schedule/dashboard'),
 
   // Annotations
   listAnnotations: (start_date: string, end_date: string) =>
-    api
-      .get<ScheduleAnnotation[]>('/api/schedule/annotations', {
-        params: { start_date, end_date },
-      })
-      .then((r) => r.data),
+    apiClient.get<ScheduleAnnotation[]>('/api/schedule/annotations', {
+      params: { start_date, end_date },
+    }),
 
   createAnnotation: (body: {
     date: string
     shift_template_id?: string
     content: string
     annotation_type: string
-  }) => api.post<ScheduleAnnotation>('/api/schedule/annotations', body).then((r) => r.data),
+  }) => apiClient.post<ScheduleAnnotation>('/api/schedule/annotations', body),
 
   deleteAnnotation: (id: string) =>
-    api.delete(`/api/schedule/annotations/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/schedule/annotations/${id}`),
 }

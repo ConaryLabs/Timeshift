@@ -1,8 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { classificationsApi } from '@/api/classifications'
 import { organizationApi } from '@/api/organization'
 import { bargainingUnitsApi } from '@/api/bargainingUnits'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 // -- Bargaining Units --
 
@@ -17,26 +18,21 @@ export function useBargainingUnits() {
 
 export function useClassifications(params?: { include_inactive?: boolean }) {
   return useQuery({
-    queryKey: [...queryKeys.classifications.all, params],
+    queryKey: queryKeys.classifications.list(params),
     queryFn: () => classificationsApi.list(params),
   })
 }
 
 export function useCreateClassification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: classificationsApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.classifications.all }),
-  })
+  return useInvalidatingMutation(classificationsApi.create, [queryKeys.classifications.all])
 }
 
 export function useUpdateClassification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; abbreviation?: string; display_order?: number; is_active?: boolean }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; name?: string; abbreviation?: string; display_order?: number; is_active?: boolean }) =>
       classificationsApi.update(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.classifications.all }),
-  })
+    [queryKeys.classifications.all],
+  )
 }
 
 // -- Organization --
@@ -49,11 +45,7 @@ export function useOrganization() {
 }
 
 export function useUpdateOrganization() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: organizationApi.update,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.organization.current }),
-  })
+  return useInvalidatingMutation(organizationApi.update, [queryKeys.organization.current])
 }
 
 // -- Org Settings --
@@ -66,9 +58,5 @@ export function useOrgSettings() {
 }
 
 export function useSetOrgSetting() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: organizationApi.setSetting,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.orgSettings.all }),
-  })
+  return useInvalidatingMutation(organizationApi.setSetting, [queryKeys.orgSettings.all])
 }

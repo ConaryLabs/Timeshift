@@ -40,7 +40,7 @@ import {
   useDeleteCoveragePlanAssignment,
 } from '@/hooks/queries'
 import type { CoveragePlanAssignment } from '@/api/coveragePlans'
-import { extractApiError, formatDateFull } from '@/lib/format'
+import { extractApiError, formatDateFull, formatDate } from '@/lib/format'
 
 const INITIAL_FORM = { plan_id: '', start_date: '', end_date: '', notes: '' }
 
@@ -109,7 +109,7 @@ export default function CoveragePlanAssignmentsPage() {
     { header: 'Notes', cell: (r) => r.notes ?? '\u2014' },
     {
       header: 'Created',
-      cell: (r) => new Date(r.created_at).toLocaleDateString(),
+      cell: (r) => formatDate(r.created_at),
     },
     {
       header: 'Actions',

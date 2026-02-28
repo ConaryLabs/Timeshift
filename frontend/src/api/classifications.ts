@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface Classification {
   id: string
@@ -12,11 +12,11 @@ export interface Classification {
 
 export const classificationsApi = {
   list: (params?: { include_inactive?: boolean }) =>
-    api.get<Classification[]>('/api/classifications', { params }).then((r) => r.data),
+    apiClient.get<Classification[]>('/api/classifications', { params }),
 
   create: (body: { name: string; abbreviation: string; display_order?: number }) =>
-    api.post<Classification>('/api/classifications', body).then((r) => r.data),
+    apiClient.post<Classification>('/api/classifications', body),
 
   update: (id: string, body: { name?: string; abbreviation?: string; display_order?: number; is_active?: boolean }) =>
-    api.patch<Classification>(`/api/classifications/${id}`, body).then((r) => r.data),
+    apiClient.patch<Classification>(`/api/classifications/${id}`, body),
 }

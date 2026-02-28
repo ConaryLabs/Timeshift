@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export type OtRequestStatus = 'open' | 'partially_filled' | 'filled' | 'cancelled'
 export type OtType = 'voluntary' | 'mandatory' | 'mandatory_day_off' | 'fixed_coverage'
@@ -84,29 +84,29 @@ export interface OtRequestListParams {
 
 export const otRequestsApi = {
   list: (params?: OtRequestListParams) =>
-    api.get<OtRequest[]>('/api/ot-requests', { params }).then((r) => r.data),
+    apiClient.get<OtRequest[]>('/api/ot-requests', { params }),
 
   get: (id: string) =>
-    api.get<OtRequestDetail>(`/api/ot-requests/${id}`).then((r) => r.data),
+    apiClient.get<OtRequestDetail>(`/api/ot-requests/${id}`),
 
   create: (data: CreateOtRequest) =>
-    api.post<OtRequest>('/api/ot-requests', data).then((r) => r.data),
+    apiClient.post<OtRequest>('/api/ot-requests', data),
 
   update: (id: string, data: Partial<CreateOtRequest & { status: string; expected_updated_at?: string }>) =>
-    api.patch<OtRequest>(`/api/ot-requests/${id}`, data).then((r) => r.data),
+    apiClient.patch<OtRequest>(`/api/ot-requests/${id}`, data),
 
   cancel: (id: string) =>
-    api.patch(`/api/ot-requests/${id}/cancel`).then((r) => r.data),
+    apiClient.patch(`/api/ot-requests/${id}/cancel`),
 
   volunteer: (id: string) =>
-    api.post(`/api/ot-requests/${id}/volunteer`).then((r) => r.data),
+    apiClient.post(`/api/ot-requests/${id}/volunteer`),
 
   withdrawVolunteer: (id: string) =>
-    api.patch(`/api/ot-requests/${id}/volunteer/withdraw`).then((r) => r.data),
+    apiClient.patch(`/api/ot-requests/${id}/volunteer/withdraw`),
 
   assign: (id: string, data: CreateOtRequestAssignment) =>
-    api.post(`/api/ot-requests/${id}/assign`, data).then((r) => r.data),
+    apiClient.post(`/api/ot-requests/${id}/assign`, data),
 
   cancelAssignment: (id: string, userId: string) =>
-    api.delete(`/api/ot-requests/${id}/assign/${userId}`).then((r) => r.data),
+    apiClient.delete(`/api/ot-requests/${id}/assign/${userId}`),
 }

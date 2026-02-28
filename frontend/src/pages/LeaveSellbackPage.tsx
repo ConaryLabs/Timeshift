@@ -21,7 +21,7 @@ import { useSellbackRequests, useCreateSellback, useReviewSellback, useCancelSel
 import { usePermissions } from '@/hooks/usePermissions'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { HolidaySellbackRequest } from '@/api/leaveSellback'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDate } from '@/lib/format'
 
 const INITIAL_FORM = { fiscal_year: new Date().getFullYear().toString(), period: '', hours_requested: '' }
 
@@ -106,7 +106,7 @@ export default function LeaveSellbackPage() {
     { header: 'Period', cell: (r) => r.period.charAt(0).toUpperCase() + r.period.slice(1) },
     { header: 'Hours', cell: (r) => r.hours_requested.toFixed(1) },
     { header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
-    { header: 'Submitted', cell: (r) => new Date(r.created_at).toLocaleDateString() },
+    { header: 'Submitted', cell: (r) => formatDate(r.created_at) },
     ...(!isManager
       ? [{
           header: 'Actions',

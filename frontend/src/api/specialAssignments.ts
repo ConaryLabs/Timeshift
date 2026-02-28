@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface SpecialAssignment {
   id: string
@@ -37,17 +37,17 @@ export interface SpecialAssignmentListParams {
 
 export const specialAssignmentsApi = {
   list: (params?: SpecialAssignmentListParams) =>
-    api.get<SpecialAssignment[]>('/api/special-assignments', { params }).then((r) => r.data),
+    apiClient.get<SpecialAssignment[]>('/api/special-assignments', { params }),
 
   get: (id: string) =>
-    api.get<SpecialAssignment>(`/api/special-assignments/${id}`).then((r) => r.data),
+    apiClient.get<SpecialAssignment>(`/api/special-assignments/${id}`),
 
   create: (body: CreateSpecialAssignment) =>
-    api.post<SpecialAssignment>('/api/special-assignments', body).then((r) => r.data),
+    apiClient.post<SpecialAssignment>('/api/special-assignments', body),
 
   update: (id: string, body: UpdateSpecialAssignment) =>
-    api.patch<SpecialAssignment>(`/api/special-assignments/${id}`, body).then((r) => r.data),
+    apiClient.patch<SpecialAssignment>(`/api/special-assignments/${id}`, body),
 
   delete: (id: string) =>
-    api.delete(`/api/special-assignments/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/special-assignments/${id}`),
 }

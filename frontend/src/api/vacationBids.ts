@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export type VacationBidPeriodStatus = 'draft' | 'open' | 'in_progress' | 'completed'
 
@@ -57,7 +57,7 @@ export interface VacationPick {
 
 export const vacationBidsApi = {
   listPeriods: (year?: number) =>
-    api.get<VacationBidPeriod[]>('/api/vacation-bids/periods', { params: year ? { year } : undefined }).then((r) => r.data),
+    apiClient.get<VacationBidPeriod[]>('/api/vacation-bids/periods', { params: year ? { year } : undefined }),
 
   createPeriod: (body: {
     year: number
@@ -66,23 +66,23 @@ export const vacationBidsApi = {
     min_block_hours?: number | null
     bargaining_unit?: string | null
   }) =>
-    api.post<VacationBidPeriod>('/api/vacation-bids/periods', body).then((r) => r.data),
+    apiClient.post<VacationBidPeriod>('/api/vacation-bids/periods', body),
 
   deletePeriod: (id: string) =>
-    api.delete(`/api/vacation-bids/periods/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/vacation-bids/periods/${id}`),
 
   openBidding: (id: string, body: { window_duration_hours: number; start_at?: string }) =>
-    api.post<VacationBidPeriod>(`/api/vacation-bids/periods/${id}/open-bidding`, body).then((r) => r.data),
+    apiClient.post<VacationBidPeriod>(`/api/vacation-bids/periods/${id}/open-bidding`, body),
 
   listWindows: (periodId: string) =>
-    api.get<VacationBidWindow[]>(`/api/vacation-bids/periods/${periodId}/bid-windows`).then((r) => r.data),
+    apiClient.get<VacationBidWindow[]>(`/api/vacation-bids/periods/${periodId}/bid-windows`),
 
   getWindow: (windowId: string) =>
-    api.get<VacationWindowDetail>(`/api/vacation-bids/bid-windows/${windowId}`).then((r) => r.data),
+    apiClient.get<VacationWindowDetail>(`/api/vacation-bids/bid-windows/${windowId}`),
 
   submitBid: (windowId: string, body: { picks: VacationPick[] }) =>
-    api.post<VacationBid[]>(`/api/vacation-bids/bid-windows/${windowId}/submit`, body).then((r) => r.data),
+    apiClient.post<VacationBid[]>(`/api/vacation-bids/bid-windows/${windowId}/submit`, body),
 
   processBids: (periodId: string) =>
-    api.post<VacationBidPeriod>(`/api/vacation-bids/periods/${periodId}/process-bids`).then((r) => r.data),
+    apiClient.post<VacationBidPeriod>(`/api/vacation-bids/periods/${periodId}/process-bids`),
 }

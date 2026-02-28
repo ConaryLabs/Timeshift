@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 import type { CalloutListEntry } from './callout'
 import type { CalloutStep } from './ot'
 
@@ -35,11 +35,11 @@ export interface MandatoryOtOrderEntry {
 
 export const staffingApi = {
   getAvailable: (params: { date: string; shift_template_id: string; classification_id?: string }) =>
-    api.get<StaffingAvailableResponse>('/api/staffing/available', { params }).then((r) => r.data),
+    apiClient.get<StaffingAvailableResponse>('/api/staffing/available', { params }),
 
   blockAvailable: (params: { date: string; classification_id: string; block_start: string; block_end: string }) =>
-    api.get<StaffingAvailableResponse>('/api/staffing/block-available', { params }).then((r) => r.data),
+    apiClient.get<StaffingAvailableResponse>('/api/staffing/block-available', { params }),
 
   mandatoryOtOrder: (params: { classification_id: string }) =>
-    api.get<MandatoryOtOrderEntry[]>('/api/staffing/mandatory-ot-order', { params }).then((r) => r.data),
+    apiClient.get<MandatoryOtOrderEntry[]>('/api/staffing/mandatory-ot-order', { params }),
 }

@@ -1,7 +1,7 @@
-import { api } from './client'
+import { apiClient } from './client'
 import type { UserProfile } from '../store/auth'
 
 export const authApi = {
-  me: () => api.get<UserProfile>('/api/auth/me').then((r) => r.data),
-  logout: () => api.post('/api/auth/logout'),
+  me: () => apiClient.get<UserProfile>('/api/auth/me'),
+  logout: () => apiClient.post('/api/auth/logout'),
 }

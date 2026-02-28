@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface BoardPosition {
   id: string
@@ -75,7 +75,7 @@ export interface DutyPositionHours {
 export const dutyBoardApi = {
   // Board aggregate endpoint
   getBoard: (date: string) =>
-    api.get<DutyBoardResponse>(`/api/duty-board/${date}`).then((r) => r.data),
+    apiClient.get<DutyBoardResponse>(`/api/duty-board/${date}`),
 
   // Cell actions
   cellAction: (date: string, body: {
@@ -83,60 +83,60 @@ export const dutyBoardApi = {
     block_index: number
     action: 'assign' | 'mark_ot' | 'clear'
     user_id?: string
-  }) => api.post(`/api/duty-board/${date}/cells`, body).then((r) => r.data),
+  }) => apiClient.post(`/api/duty-board/${date}/cells`, body),
 
   // Available staff for a block
   getAvailable: (date: string, params: { block_index: number; duty_position_id: string }) =>
-    api.get<AvailableEmployee[]>(`/api/duty-board/${date}/available`, { params }).then((r) => r.data),
+    apiClient.get<AvailableEmployee[]>(`/api/duty-board/${date}/available`, { params }),
 
   // Console hours report
   getConsoleHours: (params: { start_date: string; end_date: string }) =>
-    api.get<ConsoleHoursEntry[]>('/api/duty-board/console-hours', { params }).then((r) => r.data),
+    apiClient.get<ConsoleHoursEntry[]>('/api/duty-board/console-hours', { params }),
 
   // Qualifications CRUD
   listQualifications: () =>
-    api.get<Qualification[]>('/api/qualifications').then((r) => r.data),
+    apiClient.get<Qualification[]>('/api/qualifications'),
 
   createQualification: (body: { name: string; description?: string }) =>
-    api.post<Qualification>('/api/qualifications', body).then((r) => r.data),
+    apiClient.post<Qualification>('/api/qualifications', body),
 
   updateQualification: (id: string, body: { name?: string; description?: string | null }) =>
-    api.patch<Qualification>(`/api/qualifications/${id}`, body).then((r) => r.data),
+    apiClient.patch<Qualification>(`/api/qualifications/${id}`, body),
 
   deleteQualification: (id: string) =>
-    api.delete(`/api/qualifications/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/qualifications/${id}`),
 
   // Position qualifications
   listPositionQualifications: (positionId: string) =>
-    api.get<Qualification[]>(`/api/duty-positions/${positionId}/qualifications`).then((r) => r.data),
+    apiClient.get<Qualification[]>(`/api/duty-positions/${positionId}/qualifications`),
 
   addPositionQualification: (positionId: string, qualificationId: string) =>
-    api.post(`/api/duty-positions/${positionId}/qualifications`, { qualification_id: qualificationId }).then((r) => r.data),
+    apiClient.post(`/api/duty-positions/${positionId}/qualifications`, { qualification_id: qualificationId }),
 
   removePositionQualification: (positionId: string, qualificationId: string) =>
-    api.delete(`/api/duty-positions/${positionId}/qualifications/${qualificationId}`).then((r) => r.data),
+    apiClient.delete(`/api/duty-positions/${positionId}/qualifications/${qualificationId}`),
 
   // User qualifications
   listUserQualifications: (userId: string) =>
-    api.get<UserQualificationView[]>(`/api/users/${userId}/qualifications`).then((r) => r.data),
+    apiClient.get<UserQualificationView[]>(`/api/users/${userId}/qualifications`),
 
   addUserQualification: (userId: string, qualificationId: string) =>
-    api.post(`/api/users/${userId}/qualifications`, { qualification_id: qualificationId }).then((r) => r.data),
+    apiClient.post(`/api/users/${userId}/qualifications`, { qualification_id: qualificationId }),
 
   removeUserQualification: (userId: string, qualificationId: string) =>
-    api.delete(`/api/users/${userId}/qualifications/${qualificationId}`).then((r) => r.data),
+    apiClient.delete(`/api/users/${userId}/qualifications/${qualificationId}`),
 
   // Position hours
   listPositionHours: (positionId: string) =>
-    api.get<DutyPositionHours[]>(`/api/duty-positions/${positionId}/hours`).then((r) => r.data),
+    apiClient.get<DutyPositionHours[]>(`/api/duty-positions/${positionId}/hours`),
 
   setPositionHours: (positionId: string, body: {
     day_of_week: number
     open_time: string
     close_time: string
     crosses_midnight?: boolean
-  }) => api.post<DutyPositionHours>(`/api/duty-positions/${positionId}/hours`, body).then((r) => r.data),
+  }) => apiClient.post<DutyPositionHours>(`/api/duty-positions/${positionId}/hours`, body),
 
   deletePositionHours: (hoursId: string) =>
-    api.delete(`/api/duty-position-hours/${hoursId}`).then((r) => r.data),
+    apiClient.delete(`/api/duty-position-hours/${hoursId}`),
 }

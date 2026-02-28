@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface EmployeePreferences {
   id: string
@@ -47,18 +47,16 @@ export interface MyDashboardData {
 
 export const employeeApi = {
   getPreferences: () =>
-    api.get<EmployeePreferences>('/api/users/me/preferences').then((r) => r.data),
+    apiClient.get<EmployeePreferences>('/api/users/me/preferences'),
 
   updatePreferences: (body: UpdatePreferencesRequest) =>
-    api.patch<EmployeePreferences>('/api/users/me/preferences', body).then((r) => r.data),
+    apiClient.patch<EmployeePreferences>('/api/users/me/preferences', body),
 
   getSchedule: (startDate: string, endDate: string) =>
-    api
-      .get<MyScheduleEntry[]>('/api/users/me/schedule', {
-        params: { start_date: startDate, end_date: endDate },
-      })
-      .then((r) => r.data),
+    apiClient.get<MyScheduleEntry[]>('/api/users/me/schedule', {
+      params: { start_date: startDate, end_date: endDate },
+    }),
 
   getDashboard: () =>
-    api.get<MyDashboardData>('/api/users/me/dashboard').then((r) => r.data),
+    apiClient.get<MyDashboardData>('/api/users/me/dashboard'),
 }

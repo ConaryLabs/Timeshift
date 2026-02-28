@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { coveragePlansApi } from '@/api/coveragePlans'
 import type { SlotEntry } from '@/api/coveragePlans'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useCoveragePlans() {
   return useQuery({
@@ -19,11 +20,7 @@ export function useCoveragePlan(id: string) {
 }
 
 export function useCreateCoveragePlan() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: coveragePlansApi.createPlan,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.list }),
-  })
+  return useInvalidatingMutation(coveragePlansApi.createPlan, [queryKeys.coveragePlans.list])
 }
 
 export function useUpdateCoveragePlan() {
@@ -39,11 +36,7 @@ export function useUpdateCoveragePlan() {
 }
 
 export function useDeleteCoveragePlan() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: coveragePlansApi.deletePlan,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.list }),
-  })
+  return useInvalidatingMutation(coveragePlansApi.deletePlan, [queryKeys.coveragePlans.list])
 }
 
 export function useCoveragePlanSlots(planId: string) {
@@ -73,27 +66,19 @@ export function useCoveragePlanAssignments() {
 }
 
 export function useCreateCoveragePlanAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: coveragePlansApi.createAssignment,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(coveragePlansApi.createAssignment, [
+    queryKeys.coveragePlans.assignments,
+    queryKeys.coveragePlans.all,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 export function useDeleteCoveragePlanAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: coveragePlansApi.deleteAssignment,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(coveragePlansApi.deleteAssignment, [
+    queryKeys.coveragePlans.assignments,
+    queryKeys.coveragePlans.all,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 export function useResolvedCoverage(date: string) {
@@ -124,14 +109,11 @@ export function useCoverageGapBlocks(date: string, options?: { enabled?: boolean
 }
 
 export function useSendSmsAlert() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ date, classification_id }: { date: string; classification_id?: string }) =>
+  return useInvalidatingMutation(
+    ({ date, classification_id }: { date: string; classification_id?: string }) =>
       coveragePlansApi.sendSmsAlert(date, classification_id ? { classification_id } : undefined),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-    },
-  })
+    [queryKeys.coveragePlans.all],
+  )
 }
 
 export function useDayGrid(date: string) {

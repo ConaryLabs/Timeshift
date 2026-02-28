@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 import type { CalloutStep } from './ot'
 
@@ -77,7 +77,7 @@ export interface ReviewBumpRequestPayload {
 
 export const calloutApi = {
   listEvents: (params?: { limit?: number; offset?: number }) =>
-    api.get<CalloutEvent[]>('/api/callout/events', { params }).then((r) => r.data),
+    apiClient.get<CalloutEvent[]>('/api/callout/events', { params }),
 
   createEvent: (body: {
     scheduled_shift_id: string
@@ -85,39 +85,29 @@ export const calloutApi = {
     reason_text?: string
     classification_id: string
     ot_request_id?: string
-  }) => api.post<CalloutEvent>('/api/callout/events', body).then((r) => r.data),
+  }) => apiClient.post<CalloutEvent>('/api/callout/events', body),
 
   getList: (event_id: string) =>
-    api
-      .get<CalloutListEntry[]>(`/api/callout/events/${event_id}/queue`)
-      .then((r) => r.data),
+    apiClient.get<CalloutListEntry[]>(`/api/callout/events/${event_id}/queue`),
 
   cancelEvent: (event_id: string) =>
-    api.patch(`/api/callout/events/${event_id}/cancel`).then((r) => r.data),
+    apiClient.patch(`/api/callout/events/${event_id}/cancel`),
 
   cancelOtAssignment: (eventId: string) =>
-    api.post(`/api/callout/events/${eventId}/cancel-ot`).then((r) => r.data),
+    apiClient.post(`/api/callout/events/${eventId}/cancel-ot`),
 
   recordAttempt: (
     event_id: string,
     body: { user_id: string; response: string; notes?: string },
   ) =>
-    api
-      .post<CalloutAttempt>(`/api/callout/events/${event_id}/attempt`, body)
-      .then((r) => r.data),
+    apiClient.post<CalloutAttempt>(`/api/callout/events/${event_id}/attempt`, body),
 
   listBumpRequests: (eventId: string) =>
-    api
-      .get<BumpRequest[]>(`/api/callout/events/${eventId}/bump-requests`)
-      .then((r) => r.data),
+    apiClient.get<BumpRequest[]>(`/api/callout/events/${eventId}/bump-requests`),
 
   createBumpRequest: (eventId: string, payload: CreateBumpRequestPayload) =>
-    api
-      .post<BumpRequest>(`/api/callout/events/${eventId}/bump`, payload)
-      .then((r) => r.data),
+    apiClient.post<BumpRequest>(`/api/callout/events/${eventId}/bump`, payload),
 
   reviewBumpRequest: (requestId: string, payload: ReviewBumpRequestPayload) =>
-    api
-      .patch<BumpRequest>(`/api/callout/bump-requests/${requestId}/review`, payload)
-      .then((r) => r.data),
+    apiClient.patch<BumpRequest>(`/api/callout/bump-requests/${requestId}/review`, payload),
 }

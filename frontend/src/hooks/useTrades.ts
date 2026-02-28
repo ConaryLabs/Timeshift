@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { tradesApi, type TradeListParams, type TradeRequest } from '@/api/trades'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useTrades(params?: TradeListParams) {
   return useQuery({
@@ -18,26 +19,18 @@ export function useTrade(id: string) {
 }
 
 export function useCreateTrade() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: tradesApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-    },
-  })
+  return useInvalidatingMutation(tradesApi.create, [
+    queryKeys.trades.all,
+    queryKeys.nav.badges,
+  ])
 }
 
 export function useRespondTrade() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; accept: boolean }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; accept: boolean }) =>
       tradesApi.respond(id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-    },
-  })
+    [queryKeys.trades.all, queryKeys.nav.badges],
+  )
 }
 
 export function useReviewTrade() {
@@ -89,24 +82,16 @@ export function useReviewTrade() {
 }
 
 export function useBulkReviewTrade() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: tradesApi.bulkReview,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-    },
-  })
+  return useInvalidatingMutation(tradesApi.bulkReview, [
+    queryKeys.trades.all,
+    queryKeys.schedule.all,
+    queryKeys.nav.badges,
+  ])
 }
 
 export function useCancelTrade() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: tradesApi.cancel,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-    },
-  })
+  return useInvalidatingMutation(tradesApi.cancel, [
+    queryKeys.trades.all,
+    queryKeys.nav.badges,
+  ])
 }

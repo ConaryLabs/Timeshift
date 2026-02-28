@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 import type { Role, EmployeeType, EmployeeStatus, UserProfile } from '../store/auth'
 
 export interface CreateUserRequest {
@@ -46,26 +46,26 @@ export interface UserDirectoryEntry {
 
 export const usersApi = {
   list: (params?: { include_inactive?: boolean; limit?: number; offset?: number }) =>
-    api.get<UserProfile[]>('/api/users', { params }).then((r) => r.data),
+    apiClient.get<UserProfile[]>('/api/users', { params }),
 
   directory: () =>
-    api.get<UserDirectoryEntry[]>('/api/users/directory').then((r) => r.data),
+    apiClient.get<UserDirectoryEntry[]>('/api/users/directory'),
 
   get: (id: string) =>
-    api.get<UserProfile>(`/api/users/${id}`).then((r) => r.data),
+    apiClient.get<UserProfile>(`/api/users/${id}`),
 
   create: (body: CreateUserRequest) =>
-    api.post<UserProfile>('/api/users', body).then((r) => r.data),
+    apiClient.post<UserProfile>('/api/users', body),
 
   update: (id: string, body: UpdateUserRequest) =>
-    api.patch<UserProfile>(`/api/users/${id}`, body).then((r) => r.data),
+    apiClient.patch<UserProfile>(`/api/users/${id}`, body),
 
   deactivate: (id: string) =>
-    api.delete(`/api/users/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/users/${id}`),
 
   activate: (id: string) =>
-    api.post<{ ok: boolean }>(`/api/users/${id}/activate`).then((r) => r.data),
+    apiClient.post<{ ok: boolean }>(`/api/users/${id}/activate`),
 
   changePassword: (body: { current_password: string; new_password: string }) =>
-    api.patch<{ ok: boolean }>('/api/users/me/password', body).then((r) => r.data),
+    apiClient.patch<{ ok: boolean }>('/api/users/me/password', body),
 }

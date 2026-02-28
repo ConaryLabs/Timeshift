@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::schedule::{
@@ -259,11 +260,8 @@ pub async fn delete_plan(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Coverage plan not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Coverage plan")?;
+    Ok(json_ok())
 }
 
 // ── Slot Configuration ────────────────────────────────────────────────────────
@@ -496,11 +494,8 @@ pub async fn delete_assignment(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Assignment not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Assignment")?;
+    Ok(json_ok())
 }
 
 // ── Coverage Resolution ───────────────────────────────────────────────────────

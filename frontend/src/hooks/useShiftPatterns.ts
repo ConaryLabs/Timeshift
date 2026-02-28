@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { shiftPatternsApi } from '@/api/shiftPatterns'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useShiftPatterns() {
   return useQuery({
@@ -10,28 +11,19 @@ export function useShiftPatterns() {
 }
 
 export function useCreateShiftPattern() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: shiftPatternsApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
-  })
+  return useInvalidatingMutation(shiftPatternsApi.create, [queryKeys.shiftPatterns.all])
 }
 
 export function useUpdateShiftPattern() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; pattern_days?: number; work_days?: number; off_days?: number; anchor_date?: string; team_id?: string | null; is_active?: boolean; work_days_in_cycle?: number[] | null }) =>
+  return useInvalidatingMutation(
+    ({ id, ...data }: { id: string; name?: string; pattern_days?: number; work_days?: number; off_days?: number; anchor_date?: string; team_id?: string | null; is_active?: boolean; work_days_in_cycle?: number[] | null }) =>
       shiftPatternsApi.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
-  })
+    [queryKeys.shiftPatterns.all],
+  )
 }
 
 export function useDeleteShiftPattern() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: shiftPatternsApi.delete,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.all }),
-  })
+  return useInvalidatingMutation(shiftPatternsApi.delete, [queryKeys.shiftPatterns.all])
 }
 
 export function useShiftPatternCycle(id: string, date: string) {
@@ -50,17 +42,9 @@ export function useShiftPatternAssignments() {
 }
 
 export function useCreateShiftPatternAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: shiftPatternsApi.createAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.assignments }),
-  })
+  return useInvalidatingMutation(shiftPatternsApi.createAssignment, [queryKeys.shiftPatterns.assignments])
 }
 
 export function useDeleteShiftPatternAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: shiftPatternsApi.deleteAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shiftPatterns.assignments }),
-  })
+  return useInvalidatingMutation(shiftPatternsApi.deleteAssignment, [queryKeys.shiftPatterns.assignments])
 }

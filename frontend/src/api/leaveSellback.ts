@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface HolidaySellbackRequest {
   id: string
@@ -16,14 +16,14 @@ export interface HolidaySellbackRequest {
 
 export const leaveSellbackApi = {
   list: () =>
-    api.get<HolidaySellbackRequest[]>('/api/leave/sellback').then((r) => r.data),
+    apiClient.get<HolidaySellbackRequest[]>('/api/leave/sellback'),
 
   create: (body: { fiscal_year: number; period: string; hours_requested: number }) =>
-    api.post<HolidaySellbackRequest>('/api/leave/sellback', body).then((r) => r.data),
+    apiClient.post<HolidaySellbackRequest>('/api/leave/sellback', body),
 
   review: (id: string, body: { status: string; reviewer_notes?: string }) =>
-    api.patch<HolidaySellbackRequest>(`/api/leave/sellback/${id}/review`, body).then((r) => r.data),
+    apiClient.patch<HolidaySellbackRequest>(`/api/leave/sellback/${id}/review`, body),
 
   cancel: (id: string) =>
-    api.patch(`/api/leave/sellback/${id}/cancel`).then((r) => r.data),
+    apiClient.patch(`/api/leave/sellback/${id}/cancel`),
 }

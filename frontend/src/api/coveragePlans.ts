@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface CoveragePlan {
   id: string
@@ -134,47 +134,47 @@ export interface SmsAlertResult {
 
 export const coveragePlansApi = {
   listPlans: () =>
-    api.get<CoveragePlanView[]>('/api/coverage-plans').then((r) => r.data),
+    apiClient.get<CoveragePlanView[]>('/api/coverage-plans'),
 
   getPlan: (id: string) =>
-    api.get<CoveragePlan>(`/api/coverage-plans/${id}`).then((r) => r.data),
+    apiClient.get<CoveragePlan>(`/api/coverage-plans/${id}`),
 
   createPlan: (body: { name: string; description?: string; is_default?: boolean }) =>
-    api.post<CoveragePlan>('/api/coverage-plans', body).then((r) => r.data),
+    apiClient.post<CoveragePlan>('/api/coverage-plans', body),
 
   updatePlan: (id: string, body: { name?: string; description?: string; is_default?: boolean; is_active?: boolean }) =>
-    api.patch<CoveragePlan>(`/api/coverage-plans/${id}`, body).then((r) => r.data),
+    apiClient.patch<CoveragePlan>(`/api/coverage-plans/${id}`, body),
 
   deletePlan: (id: string) =>
-    api.delete(`/api/coverage-plans/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/coverage-plans/${id}`),
 
   listSlots: (planId: string, params?: { classification_id?: string; day_of_week?: number }) =>
-    api.get<CoveragePlanSlot[]>(`/api/coverage-plans/${planId}/slots`, { params }).then((r) => r.data),
+    apiClient.get<CoveragePlanSlot[]>(`/api/coverage-plans/${planId}/slots`, { params }),
 
   bulkUpsertSlots: (planId: string, slots: SlotEntry[]) =>
-    api.post<CoveragePlanSlot[]>(`/api/coverage-plans/${planId}/slots/bulk`, { slots }).then((r) => r.data),
+    apiClient.post<CoveragePlanSlot[]>(`/api/coverage-plans/${planId}/slots/bulk`, { slots }),
 
   listAssignments: () =>
-    api.get<CoveragePlanAssignment[]>('/api/coverage-plans/assignments').then((r) => r.data),
+    apiClient.get<CoveragePlanAssignment[]>('/api/coverage-plans/assignments'),
 
   createAssignment: (body: { plan_id: string; start_date: string; end_date?: string | null; notes?: string | null }) =>
-    api.post<CoveragePlanAssignment>('/api/coverage-plans/assignments', body).then((r) => r.data),
+    apiClient.post<CoveragePlanAssignment>('/api/coverage-plans/assignments', body),
 
   deleteAssignment: (id: string) =>
-    api.delete(`/api/coverage-plans/assignments/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/coverage-plans/assignments/${id}`),
 
   getResolved: (date: string) =>
-    api.get<SlotCoverage[]>(`/api/coverage-plans/resolved/${date}`).then((r) => r.data),
+    apiClient.get<SlotCoverage[]>(`/api/coverage-plans/resolved/${date}`),
 
   getGaps: (date: string) =>
-    api.get<ClassificationGap[]>(`/api/coverage-plans/gaps/${date}`).then((r) => r.data),
+    apiClient.get<ClassificationGap[]>(`/api/coverage-plans/gaps/${date}`),
 
   getGapBlocks: (date: string) =>
-    api.get<ClassificationGapBlocks[]>(`/api/coverage-plans/gaps/${date}/blocks`).then((r) => r.data),
+    apiClient.get<ClassificationGapBlocks[]>(`/api/coverage-plans/gaps/${date}/blocks`),
 
   sendSmsAlert: (date: string, body?: { classification_id?: string }) =>
-    api.post<SmsAlertResult>(`/api/coverage-plans/gaps/${date}/sms-alert`, body ?? {}).then((r) => r.data),
+    apiClient.post<SmsAlertResult>(`/api/coverage-plans/gaps/${date}/sms-alert`, body ?? {}),
 
   dayGrid: (date: string) =>
-    api.get<DayGridResponse>(`/api/coverage-plans/day-grid/${date}`).then((r) => r.data),
+    apiClient.get<DayGridResponse>(`/api/coverage-plans/day-grid/${date}`),
 }

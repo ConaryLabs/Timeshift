@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface ShiftPattern {
   id: string
@@ -39,7 +39,7 @@ export interface ShiftPatternAssignment {
 
 export const shiftPatternsApi = {
   list: () =>
-    api.get<ShiftPattern[]>('/api/shift-patterns').then((r) => r.data),
+    apiClient.get<ShiftPattern[]>('/api/shift-patterns'),
 
   create: (data: {
     name: string
@@ -50,7 +50,7 @@ export const shiftPatternsApi = {
     team_id?: string | null
     work_days_in_cycle?: number[] | null
   }) =>
-    api.post<ShiftPattern>('/api/shift-patterns', data).then((r) => r.data),
+    apiClient.post<ShiftPattern>('/api/shift-patterns', data),
 
   update: (id: string, data: {
     name?: string
@@ -62,17 +62,17 @@ export const shiftPatternsApi = {
     is_active?: boolean
     work_days_in_cycle?: number[] | null
   }) =>
-    api.patch<ShiftPattern>(`/api/shift-patterns/${id}`, data).then((r) => r.data),
+    apiClient.patch<ShiftPattern>(`/api/shift-patterns/${id}`, data),
 
   delete: (id: string) =>
-    api.delete(`/api/shift-patterns/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/shift-patterns/${id}`),
 
   cycle: (id: string, date: string) =>
-    api.get<CycleInfo>(`/api/shift-patterns/${id}/cycle`, { params: { date } }).then((r) => r.data),
+    apiClient.get<CycleInfo>(`/api/shift-patterns/${id}/cycle`, { params: { date } }),
 
   // Assignments
   listAssignments: () =>
-    api.get<ShiftPatternAssignment[]>('/api/shift-pattern-assignments').then((r) => r.data),
+    apiClient.get<ShiftPatternAssignment[]>('/api/shift-pattern-assignments'),
 
   createAssignment: (data: {
     user_id: string
@@ -80,8 +80,8 @@ export const shiftPatternsApi = {
     effective_from: string
     effective_to?: string | null
   }) =>
-    api.post<ShiftPatternAssignment>('/api/shift-pattern-assignments', data).then((r) => r.data),
+    apiClient.post<ShiftPatternAssignment>('/api/shift-pattern-assignments', data),
 
   deleteAssignment: (id: string) =>
-    api.delete(`/api/shift-pattern-assignments/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/shift-pattern-assignments/${id}`),
 }

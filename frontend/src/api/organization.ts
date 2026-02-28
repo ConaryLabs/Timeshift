@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface Organization {
   id: string
@@ -19,14 +19,14 @@ export interface OrgSetting {
 
 export const organizationApi = {
   get: () =>
-    api.get<Organization>('/api/organization').then((r) => r.data),
+    apiClient.get<Organization>('/api/organization'),
 
   update: (body: { name?: string; timezone?: string }) =>
-    api.patch<Organization>('/api/organization', body).then((r) => r.data),
+    apiClient.patch<Organization>('/api/organization', body),
 
   listSettings: () =>
-    api.get<OrgSetting[]>('/api/organization/settings').then((r) => r.data),
+    apiClient.get<OrgSetting[]>('/api/organization/settings'),
 
   setSetting: (body: { key: string; value: unknown }) =>
-    api.patch<OrgSetting>('/api/organization/settings', body).then((r) => r.data),
+    apiClient.patch<OrgSetting>('/api/organization/settings', body),
 }

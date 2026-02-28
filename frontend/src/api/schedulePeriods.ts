@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 import type { BidPeriodStatus } from './bidding'
 
@@ -46,20 +46,20 @@ export interface SlotAssignmentView {
 
 export const schedulePeriodsApi = {
   list: () =>
-    api.get<SchedulePeriod[]>('/api/schedule/periods').then((r) => r.data),
+    apiClient.get<SchedulePeriod[]>('/api/schedule/periods'),
 
   create: (body: { name: string; start_date: string; end_date: string; bargaining_unit?: string | null }) =>
-    api.post<SchedulePeriod>('/api/schedule/periods', body).then((r) => r.data),
+    apiClient.post<SchedulePeriod>('/api/schedule/periods', body),
 
   update: (id: string, body: { name?: string; start_date?: string; end_date?: string; bargaining_unit?: string | null }) =>
-    api.patch<SchedulePeriod>(`/api/schedule/periods/${id}`, body).then((r) => r.data),
+    apiClient.patch<SchedulePeriod>(`/api/schedule/periods/${id}`, body),
 
   assignSlot: (periodId: string, body: { slot_id: string; user_id: string }) =>
-    api.post<SlotAssignment>(`/api/schedule/periods/${periodId}/assign`, body).then((r) => r.data),
+    apiClient.post<SlotAssignment>(`/api/schedule/periods/${periodId}/assign`, body),
 
   listAssignments: (periodId: string) =>
-    api.get<SlotAssignmentView[]>(`/api/schedule/periods/${periodId}/assignments`).then((r) => r.data),
+    apiClient.get<SlotAssignmentView[]>(`/api/schedule/periods/${periodId}/assignments`),
 
   removeAssignment: (periodId: string, slotId: string) =>
-    api.delete(`/api/schedule/periods/${periodId}/assignments/${slotId}`).then((r) => r.data),
+    apiClient.delete(`/api/schedule/periods/${periodId}/assignments/${slotId}`),
 }

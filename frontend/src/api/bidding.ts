@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export type BidPeriodStatus = 'draft' | 'open' | 'in_progress' | 'completed' | 'archived'
 
@@ -57,20 +57,20 @@ export interface BidPreference {
 
 export const biddingApi = {
   openBidding: (periodId: string, body: { window_duration_hours: number; start_at?: string }) =>
-    api.post<BidWindow[]>(`/api/schedule/periods/${periodId}/open-bidding`, body).then((r) => r.data),
+    apiClient.post<BidWindow[]>(`/api/schedule/periods/${periodId}/open-bidding`, body),
 
   listBidWindows: (periodId: string) =>
-    api.get<BidWindow[]>(`/api/schedule/periods/${periodId}/bid-windows`).then((r) => r.data),
+    apiClient.get<BidWindow[]>(`/api/schedule/periods/${periodId}/bid-windows`),
 
   getBidWindow: (windowId: string) =>
-    api.get<BidWindowDetail>(`/api/bid-windows/${windowId}`).then((r) => r.data),
+    apiClient.get<BidWindowDetail>(`/api/bid-windows/${windowId}`),
 
   submitBid: (windowId: string, body: { preferences: BidPreference[] }) =>
-    api.post(`/api/bid-windows/${windowId}/submit`, body).then((r) => r.data),
+    apiClient.post(`/api/bid-windows/${windowId}/submit`, body),
 
   processBids: (periodId: string) =>
-    api.post(`/api/schedule/periods/${periodId}/process-bids`).then((r) => r.data),
+    apiClient.post(`/api/schedule/periods/${periodId}/process-bids`),
 
   approveBidWindow: (windowId: string) =>
-    api.post(`/api/bid-windows/${windowId}/approve`).then((r) => r.data),
+    apiClient.post(`/api/bid-windows/${windowId}/approve`),
 }

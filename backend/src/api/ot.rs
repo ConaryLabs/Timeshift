@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     auth::AuthUser,
     error::{AppError, Result},
     models::{
@@ -125,7 +126,7 @@ pub async fn set_queue_position(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +277,7 @@ pub async fn adjust_hours(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +322,7 @@ pub async fn volunteer(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn list_volunteers(
@@ -447,5 +448,5 @@ pub async fn advance_step(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }

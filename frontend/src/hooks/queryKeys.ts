@@ -12,6 +12,7 @@ export const queryKeys = {
   },
   classifications: {
     all: ['classifications'] as const,
+    list: (params?: Record<string, unknown>) => ['classifications', params] as const,
   },
   teams: {
     all: ['teams'] as const,

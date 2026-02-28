@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface SickLeaveDonation {
   id: string
@@ -17,18 +17,18 @@ export interface SickLeaveDonation {
 
 export const sickDonationApi = {
   list: () =>
-    api.get<SickLeaveDonation[]>('/api/leave/donations').then((r) => r.data),
+    apiClient.get<SickLeaveDonation[]>('/api/leave/donations'),
 
   create: (body: {
     recipient_id: string
     leave_type_id: string
     hours: number
     fiscal_year: number
-  }) => api.post<SickLeaveDonation>('/api/leave/donations', body).then((r) => r.data),
+  }) => apiClient.post<SickLeaveDonation>('/api/leave/donations', body),
 
   review: (id: string, body: { status: string; reviewer_notes?: string }) =>
-    api.patch<SickLeaveDonation>(`/api/leave/donations/${id}/review`, body).then((r) => r.data),
+    apiClient.patch<SickLeaveDonation>(`/api/leave/donations/${id}/review`, body),
 
   cancel: (id: string) =>
-    api.patch(`/api/leave/donations/${id}/cancel`).then((r) => r.data),
+    apiClient.patch(`/api/leave/donations/${id}/cancel`),
 }

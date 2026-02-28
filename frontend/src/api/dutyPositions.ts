@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface DutyPosition {
   id: string
@@ -31,19 +31,19 @@ export interface DutyAssignment {
 
 export const dutyPositionsApi = {
   list: () =>
-    api.get<DutyPosition[]>('/api/duty-positions').then((r) => r.data),
+    apiClient.get<DutyPosition[]>('/api/duty-positions'),
 
   create: (body: { name: string; classification_id?: string; sort_order?: number; board_date?: string }) =>
-    api.post<DutyPosition>('/api/duty-positions', body).then((r) => r.data),
+    apiClient.post<DutyPosition>('/api/duty-positions', body),
 
   update: (id: string, body: { name?: string; classification_id?: string | null; sort_order?: number; is_active?: boolean }) =>
-    api.patch<DutyPosition>(`/api/duty-positions/${id}`, body).then((r) => r.data),
+    apiClient.patch<DutyPosition>(`/api/duty-positions/${id}`, body),
 
   delete: (id: string) =>
-    api.delete(`/api/duty-positions/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/duty-positions/${id}`),
 
   listAssignments: (params: { date: string; shift_template_id?: string }) =>
-    api.get<DutyAssignment[]>('/api/duty-assignments', { params }).then((r) => r.data),
+    apiClient.get<DutyAssignment[]>('/api/duty-assignments', { params }),
 
   createAssignment: (body: {
     duty_position_id: string
@@ -51,11 +51,11 @@ export const dutyPositionsApi = {
     date: string
     shift_template_id?: string
     notes?: string
-  }) => api.post<DutyAssignment>('/api/duty-assignments', body).then((r) => r.data),
+  }) => apiClient.post<DutyAssignment>('/api/duty-assignments', body),
 
   updateAssignment: (id: string, body: { user_id?: string; notes?: string | null }) =>
-    api.patch<DutyAssignment>(`/api/duty-assignments/${id}`, body).then((r) => r.data),
+    apiClient.patch<DutyAssignment>(`/api/duty-assignments/${id}`, body),
 
   deleteAssignment: (id: string) =>
-    api.delete(`/api/duty-assignments/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/duty-assignments/${id}`),
 }

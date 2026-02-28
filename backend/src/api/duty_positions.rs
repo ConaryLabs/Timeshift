@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::duty_position::{
@@ -157,11 +158,8 @@ pub async fn delete_position(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Duty position")?;
+    Ok(json_ok())
 }
 
 // ============================================================
@@ -213,18 +211,7 @@ pub async fn create_assignment(
         return Err(AppError::Forbidden);
     }
 
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2 AND is_active = true)",
-        req.duty_position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
-
+    org_guard::verify_duty_position(&pool, req.duty_position_id, auth.org_id).await?;
     org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
 
     let assignment = sqlx::query_as!(
@@ -310,11 +297,8 @@ pub async fn delete_assignment(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Duty assignment not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Duty assignment")?;
+    Ok(json_ok())
 }
 
 // ============================================================
@@ -427,11 +411,8 @@ pub async fn delete_qualification(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Qualification not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Qualification")?;
+    Ok(json_ok())
 }
 
 // ============================================================
@@ -521,7 +502,7 @@ pub async fn add_position_qualification(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn remove_position_qualification(
@@ -554,7 +535,7 @@ pub async fn remove_position_qualification(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // ============================================================
@@ -622,7 +603,7 @@ pub async fn add_user_qualification(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn remove_user_qualification(
@@ -644,7 +625,7 @@ pub async fn remove_user_qualification(
     .execute(&pool)
     .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // ============================================================
@@ -813,9 +794,6 @@ pub async fn delete_position_hours(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Position hours not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Position hours")?;
+    Ok(json_ok())
 }

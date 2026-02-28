@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::{AuthUser, Role},
     error::{AppError, Result},
     models::user::{
@@ -75,6 +76,164 @@ impl From<UserProfileRow> for UserProfile {
             updated_at: r.updated_at,
         }
     }
+}
+
+/// Fetch a complete UserProfile for the given user, including seniority and classification name.
+/// Uses a single query with JOINs to avoid N+1 queries.
+pub(crate) async fn fetch_user_profile(
+    pool: &PgPool,
+    user_id: uuid::Uuid,
+    org_id: uuid::Uuid,
+) -> Result<UserProfile> {
+    let row = sqlx::query!(
+        r#"
+        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,
+               u.role AS "role: Role",
+               u.classification_id,
+               c.name AS "classification_name?",
+               u.employee_type AS "employee_type: EmployeeType",
+               u.bargaining_unit,
+               u.hire_date, u.cto_designation,
+               u.admin_training_supervisor_since,
+               u.employee_status AS "employee_status: EmployeeStatus",
+               u.medical_ot_exempt,
+               u.is_active,
+               u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
+               u.updated_at,
+               sr.overall_seniority_date AS "overall_seniority_date?",
+               sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
+               sr.classification_seniority_date AS "classification_seniority_date?",
+               sr.accrual_pause_started_at AS "accrual_paused_since?"
+        FROM users u
+        LEFT JOIN classifications c ON c.id = u.classification_id
+        LEFT JOIN seniority_records sr ON sr.user_id = u.id
+        WHERE u.id = $1 AND u.org_id = $2
+        "#,
+        user_id,
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    Ok(UserProfile {
+        id: row.id,
+        org_id: row.org_id,
+        employee_id: row.employee_id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        email: row.email,
+        phone: row.phone,
+        role: row.role,
+        classification_id: row.classification_id,
+        classification_name: row.classification_name,
+        employee_type: row.employee_type,
+        bargaining_unit: row.bargaining_unit,
+        hire_date: row.hire_date,
+        overall_seniority_date: row.overall_seniority_date,
+        bargaining_unit_seniority_date: row.bargaining_unit_seniority_date,
+        classification_seniority_date: row.classification_seniority_date,
+        cto_designation: row.cto_designation,
+        admin_training_supervisor_since: row.admin_training_supervisor_since,
+        employee_status: row.employee_status,
+        accrual_paused_since: row.accrual_paused_since,
+        leave_accrual_paused_at: row.leave_accrual_paused_at,
+        medical_ot_exempt: row.medical_ot_exempt,
+        is_active: row.is_active,
+        updated_at: row.updated_at,
+    })
+}
+
+/// Handle side effects of employee status changes:
+/// - Pause seniority accrual on separation/leave-without-pay/layoff
+/// - Resume accrual on return to active, advancing seniority dates by the days paused
+/// - Pause/resume leave accrual in parallel
+async fn handle_employee_status_change(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: uuid::Uuid,
+    org_id: uuid::Uuid,
+    new_status: &EmployeeStatus,
+    is_exception: bool,
+    org_today: time::Date,
+) -> Result<()> {
+    let is_pausing = matches!(
+        new_status,
+        EmployeeStatus::UnpaidLoa | EmployeeStatus::Lwop | EmployeeStatus::Layoff
+    );
+
+    if is_pausing && !is_exception {
+        // Start a new seniority pause (only if not already paused — preserve original start date)
+        sqlx::query!(
+            r#"
+            INSERT INTO seniority_records (user_id, org_id, accrual_pause_started_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE SET
+                accrual_pause_started_at = CASE
+                    WHEN seniority_records.accrual_pause_started_at IS NULL
+                    THEN $3
+                    ELSE seniority_records.accrual_pause_started_at
+                END,
+                updated_at = NOW()
+            "#,
+            user_id,
+            org_id,
+            org_today,
+        )
+        .execute(&mut **tx)
+        .await?;
+        // Pause leave accrual
+        sqlx::query!(
+            "UPDATE users SET leave_accrual_paused_at = $2
+             WHERE id = $1 AND leave_accrual_paused_at IS NULL",
+            user_id,
+            org_today,
+        )
+        .execute(&mut **tx)
+        .await?;
+    } else if matches!(new_status, EmployeeStatus::Active) {
+        // Resume: advance seniority dates by the days paused, then clear the pause marker
+        sqlx::query!(
+            r#"
+            UPDATE seniority_records SET
+                overall_seniority_date = CASE
+                    WHEN accrual_pause_started_at IS NOT NULL AND overall_seniority_date IS NOT NULL
+                    THEN overall_seniority_date + ($2 - accrual_pause_started_at)::INT
+                    ELSE overall_seniority_date
+                END,
+                bargaining_unit_seniority_date = CASE
+                    WHEN accrual_pause_started_at IS NOT NULL AND bargaining_unit_seniority_date IS NOT NULL
+                    THEN bargaining_unit_seniority_date + ($2 - accrual_pause_started_at)::INT
+                    ELSE bargaining_unit_seniority_date
+                END,
+                classification_seniority_date = CASE
+                    WHEN accrual_pause_started_at IS NOT NULL AND classification_seniority_date IS NOT NULL
+                    THEN classification_seniority_date + ($2 - accrual_pause_started_at)::INT
+                    ELSE classification_seniority_date
+                END,
+                accrual_paused_days_total = accrual_paused_days_total + CASE
+                    WHEN accrual_pause_started_at IS NOT NULL
+                    THEN ($2 - accrual_pause_started_at)::INT
+                    ELSE 0
+                END,
+                accrual_pause_started_at = NULL,
+                updated_at = NOW()
+            WHERE user_id = $1
+            "#,
+            user_id,
+            org_today,
+        )
+        .execute(&mut **tx)
+        .await?;
+        // Resume leave accrual
+        sqlx::query!(
+            "UPDATE users SET leave_accrual_paused_at = NULL WHERE id = $1",
+            user_id,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -212,66 +371,8 @@ pub async fn get_one(
         return Err(AppError::Forbidden);
     }
 
-    let r = sqlx::query!(
-        r#"
-        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,
-               u.role AS "role: Role",
-               u.classification_id,
-               c.name AS "classification_name?",
-               u.employee_type AS "employee_type: EmployeeType",
-               u.bargaining_unit,
-               u.hire_date,
-               sr.overall_seniority_date AS "overall_seniority_date?",
-               sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
-               sr.classification_seniority_date AS "classification_seniority_date?",
-               u.cto_designation, u.admin_training_supervisor_since,
-               u.employee_status AS "employee_status: EmployeeStatus",
-               sr.accrual_pause_started_at AS "accrual_paused_since?",
-               u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
-               u.medical_ot_exempt,
-               u.is_active,
-               u.updated_at
-        FROM users u
-        LEFT JOIN classifications c ON c.id = u.classification_id
-        LEFT JOIN seniority_records sr ON sr.user_id = u.id
-        WHERE u.id = $1 AND u.org_id = $2
-        "#,
-        id,
-        auth.org_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-
-    Ok(Json(
-        UserProfileRow {
-            id: r.id,
-            org_id: r.org_id,
-            employee_id: r.employee_id,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            email: r.email,
-            phone: r.phone,
-            role: r.role,
-            classification_id: r.classification_id,
-            classification_name: r.classification_name,
-            employee_type: r.employee_type,
-            bargaining_unit: r.bargaining_unit,
-            hire_date: r.hire_date,
-            overall_seniority_date: r.overall_seniority_date,
-            bargaining_unit_seniority_date: r.bargaining_unit_seniority_date,
-            classification_seniority_date: r.classification_seniority_date,
-            cto_designation: r.cto_designation,
-            admin_training_supervisor_since: r.admin_training_supervisor_since,
-            employee_status: r.employee_status,
-            accrual_paused_since: r.accrual_paused_since,
-            leave_accrual_paused_at: r.leave_accrual_paused_at,
-            medical_ot_exempt: r.medical_ot_exempt,
-            is_active: r.is_active,
-            updated_at: r.updated_at,
-        }
-        .into(),
-    ))
+    let profile = fetch_user_profile(&pool, id, auth.org_id).await?;
+    Ok(Json(profile))
 }
 
 pub async fn create(
@@ -393,58 +494,8 @@ pub async fn create(
         .await?;
     }
 
-    // Fetch seniority record for response
-    let sr = sqlx::query!(
-        "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
-                accrual_pause_started_at
-         FROM seniority_records WHERE user_id = $1",
-        r.id
-    )
-    .fetch_optional(&pool)
-    .await?;
-
-    // Fetch classification name if set
-    let classification_name = if let Some(cid) = r.classification_id {
-        sqlx::query_scalar!("SELECT name FROM classifications WHERE id = $1", cid)
-            .fetch_optional(&pool)
-            .await?
-    } else {
-        None
-    };
-
-    Ok(Json(
-        UserProfileRow {
-            id: r.id,
-            org_id: r.org_id,
-            employee_id: r.employee_id,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            email: r.email,
-            phone: r.phone,
-            role: r.role,
-            classification_id: r.classification_id,
-            classification_name,
-            employee_type: r.employee_type,
-            bargaining_unit: r.bargaining_unit,
-            hire_date: r.hire_date,
-            overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
-            bargaining_unit_seniority_date: sr
-                .as_ref()
-                .and_then(|s| s.bargaining_unit_seniority_date),
-            classification_seniority_date: sr
-                .as_ref()
-                .and_then(|s| s.classification_seniority_date),
-            cto_designation: r.cto_designation,
-            admin_training_supervisor_since: r.admin_training_supervisor_since,
-            employee_status: r.employee_status,
-            accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
-            leave_accrual_paused_at: None,
-            medical_ot_exempt: r.medical_ot_exempt,
-            is_active: r.is_active,
-            updated_at: r.updated_at,
-        }
-        .into(),
-    ))
+    let profile = fetch_user_profile(&pool, r.id, auth.org_id).await?;
+    Ok(Json(profile))
 }
 
 pub async fn update(
@@ -640,84 +691,17 @@ pub async fn update(
 
     // Seniority and leave accrual pause / resume logic
     if let Some(new_status) = &req.employee_status {
-        let is_pausing = matches!(
-            new_status,
-            EmployeeStatus::UnpaidLoa | EmployeeStatus::Lwop | EmployeeStatus::Layoff
-        );
         let is_exception = req.seniority_pause_exception.unwrap_or(false);
-
         let org_today = crate::services::timezone::org_today(&auth.org_timezone);
-        if is_pausing && !is_exception {
-            // Start a new seniority pause (only if not already paused — preserve original start date)
-            sqlx::query!(
-                r#"
-                INSERT INTO seniority_records (user_id, org_id, accrual_pause_started_at)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    accrual_pause_started_at = CASE
-                        WHEN seniority_records.accrual_pause_started_at IS NULL
-                        THEN $3
-                        ELSE seniority_records.accrual_pause_started_at
-                    END,
-                    updated_at = NOW()
-                "#,
-                r.id,
-                auth.org_id,
-                org_today,
-            )
-            .execute(&mut *tx)
-            .await?;
-            // Pause leave accrual
-            sqlx::query!(
-                "UPDATE users SET leave_accrual_paused_at = $2
-                 WHERE id = $1 AND leave_accrual_paused_at IS NULL",
-                r.id,
-                org_today,
-            )
-            .execute(&mut *tx)
-            .await?;
-        } else if matches!(new_status, EmployeeStatus::Active) {
-            // Resume: advance seniority dates by the days paused, then clear the pause marker
-            sqlx::query!(
-                r#"
-                UPDATE seniority_records SET
-                    overall_seniority_date = CASE
-                        WHEN accrual_pause_started_at IS NOT NULL AND overall_seniority_date IS NOT NULL
-                        THEN overall_seniority_date + ($2 - accrual_pause_started_at)::INT
-                        ELSE overall_seniority_date
-                    END,
-                    bargaining_unit_seniority_date = CASE
-                        WHEN accrual_pause_started_at IS NOT NULL AND bargaining_unit_seniority_date IS NOT NULL
-                        THEN bargaining_unit_seniority_date + ($2 - accrual_pause_started_at)::INT
-                        ELSE bargaining_unit_seniority_date
-                    END,
-                    classification_seniority_date = CASE
-                        WHEN accrual_pause_started_at IS NOT NULL AND classification_seniority_date IS NOT NULL
-                        THEN classification_seniority_date + ($2 - accrual_pause_started_at)::INT
-                        ELSE classification_seniority_date
-                    END,
-                    accrual_paused_days_total = accrual_paused_days_total + CASE
-                        WHEN accrual_pause_started_at IS NOT NULL
-                        THEN ($2 - accrual_pause_started_at)::INT
-                        ELSE 0
-                    END,
-                    accrual_pause_started_at = NULL,
-                    updated_at = NOW()
-                WHERE user_id = $1
-                "#,
-                r.id,
-                org_today,
-            )
-            .execute(&mut *tx)
-            .await?;
-            // Resume leave accrual
-            sqlx::query!(
-                "UPDATE users SET leave_accrual_paused_at = NULL WHERE id = $1",
-                r.id,
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
+        handle_employee_status_change(
+            &mut tx,
+            r.id,
+            auth.org_id,
+            new_status,
+            is_exception,
+            org_today,
+        )
+        .await?;
     }
 
     // M324: Separation handling — auto-cancel or flag pending trades
@@ -763,65 +747,8 @@ pub async fn update(
 
     tx.commit().await?;
 
-    // Fetch seniority record for response
-    let sr = sqlx::query!(
-        "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
-                accrual_pause_started_at
-         FROM seniority_records WHERE user_id = $1",
-        r.id
-    )
-    .fetch_optional(&pool)
-    .await?;
-
-    let classification_name = if let Some(cid) = r.classification_id {
-        sqlx::query_scalar!("SELECT name FROM classifications WHERE id = $1", cid)
-            .fetch_optional(&pool)
-            .await?
-    } else {
-        None
-    };
-
-    let leave_accrual_paused_at = sqlx::query_scalar!(
-        "SELECT leave_accrual_paused_at FROM users WHERE id = $1",
-        r.id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .flatten();
-
-    Ok(Json(
-        UserProfileRow {
-            id: r.id,
-            org_id: r.org_id,
-            employee_id: r.employee_id,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            email: r.email,
-            phone: r.phone,
-            role: r.role,
-            classification_id: r.classification_id,
-            classification_name,
-            employee_type: r.employee_type,
-            bargaining_unit: r.bargaining_unit,
-            hire_date: r.hire_date,
-            overall_seniority_date: sr.as_ref().and_then(|s| s.overall_seniority_date),
-            bargaining_unit_seniority_date: sr
-                .as_ref()
-                .and_then(|s| s.bargaining_unit_seniority_date),
-            classification_seniority_date: sr
-                .as_ref()
-                .and_then(|s| s.classification_seniority_date),
-            cto_designation: r.cto_designation,
-            admin_training_supervisor_since: r.admin_training_supervisor_since,
-            employee_status: r.employee_status,
-            accrual_paused_since: sr.as_ref().and_then(|s| s.accrual_pause_started_at),
-            leave_accrual_paused_at,
-            medical_ot_exempt: r.medical_ot_exempt,
-            is_active: r.is_active,
-            updated_at: r.updated_at,
-        }
-        .into(),
-    ))
+    let profile = fetch_user_profile(&pool, r.id, auth.org_id).await?;
+    Ok(Json(profile))
 }
 
 pub async fn deactivate(
@@ -878,9 +805,7 @@ pub async fn deactivate(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("User not found".into()));
-    }
+    ensure_rows_affected(rows, "User")?;
 
     // Cancel pending trade requests involving this user (scoped to org)
     sqlx::query!(
@@ -910,7 +835,7 @@ pub async fn deactivate(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -960,7 +885,7 @@ pub async fn activate(
         return Err(AppError::NotFound("User not found".into()));
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn change_password(
@@ -1015,5 +940,5 @@ pub async fn change_password(
         .execute(&pool)
         .await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }

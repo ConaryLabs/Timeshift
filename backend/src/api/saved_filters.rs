@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::saved_filter::{
@@ -116,11 +117,8 @@ pub async fn delete(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Saved filter not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Saved filter")?;
+    Ok(json_ok())
 }
 
 pub async fn set_default(
@@ -175,5 +173,5 @@ pub async fn set_default(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
