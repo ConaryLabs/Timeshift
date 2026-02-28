@@ -37,6 +37,16 @@ async fn setup_trade_scenario(
     let classification_id = common::create_test_classification(&pool, org_id).await;
     let shift_template_id = common::create_test_shift_template(&pool, org_id).await;
 
+    // Disable same-period requirement — these tests don't create schedule_periods
+    sqlx::query(
+        "INSERT INTO org_settings (id, org_id, key, value) VALUES ($1, $2, 'trade_require_same_period', 'false')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(org_id)
+    .execute(&pool)
+    .await
+    .expect("disable trade_require_same_period");
+
     // Two future dates for the two shifts being traded
     let date1 = time::Date::from_calendar_date(2027, time::Month::August, 10).unwrap();
     let date2 = time::Date::from_calendar_date(2027, time::Month::August, 12).unwrap();

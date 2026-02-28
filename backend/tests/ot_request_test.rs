@@ -1443,7 +1443,7 @@ async fn assign_rejects_invalid_ot_type() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "Invalid ot_type should be rejected");
+    assert_eq!(resp.status(), 422, "Invalid ot_type should be rejected (Axum returns 422 for deserialization failures)");
 
     cleanup_ot_request_data(&pool, org_id).await;
     common::cleanup_test_org(&pool, org_id).await;
