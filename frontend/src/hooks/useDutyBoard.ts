@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dutyBoardApi } from '@/api/dutyBoard'
 import { dutyPositionsApi } from '@/api/dutyPositions'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 // Board state
 export function useDutyBoard(date: string, options?: { refetchInterval?: number }) {
@@ -81,19 +82,11 @@ export function useQualifications() {
 }
 
 export function useCreateQualification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: dutyBoardApi.createQualification,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
-  })
+  return useInvalidatingMutation(dutyBoardApi.createQualification, [queryKeys.qualifications.all])
 }
 
 export function useDeleteQualification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: dutyBoardApi.deleteQualification,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
-  })
+  return useInvalidatingMutation(dutyBoardApi.deleteQualification, [queryKeys.qualifications.all])
 }
 
 // Position qualifications
@@ -164,29 +157,21 @@ export function useRemoveUserQualification() {
 
 // Position hours
 export function useSetPositionHours() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ positionId, ...body }: {
+  return useInvalidatingMutation(
+    ({ positionId, ...body }: {
       positionId: string
       day_of_week: number
       open_time: string
       close_time: string
       crosses_midnight?: boolean
     }) => dutyBoardApi.setPositionHours(positionId, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
-      qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
-    },
-  })
+    [queryKeys.dutyBoard.all, queryKeys.dutyPositions.all],
+  )
 }
 
 export function useDeletePositionHours() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: dutyBoardApi.deletePositionHours,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
-      qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
-    },
-  })
+  return useInvalidatingMutation(dutyBoardApi.deletePositionHours, [
+    queryKeys.dutyBoard.all,
+    queryKeys.dutyPositions.all,
+  ])
 }

@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface BargainingUnit {
   id: string
@@ -9,5 +9,5 @@ export interface BargainingUnit {
 
 export const bargainingUnitsApi = {
   list: () =>
-    api.get<BargainingUnit[]>('/api/bargaining-units').then((r) => r.data),
+    apiClient.get<BargainingUnit[]>('/api/bargaining-units'),
 }

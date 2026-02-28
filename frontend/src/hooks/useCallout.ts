@@ -3,6 +3,7 @@ import { calloutApi, type CalloutEvent, type CalloutListEntry } from '@/api/call
 import { otApi } from '@/api/ot'
 import type { CalloutStep } from '@/api/ot'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useCalloutEvents(params?: { limit?: number; offset?: number }) {
   return useQuery({
@@ -20,16 +21,12 @@ export function useCalloutList(eventId: string) {
 }
 
 export function useCreateCalloutEvent() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: calloutApi.createEvent,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(calloutApi.createEvent, [
+    queryKeys.callout.events,
+    queryKeys.otRequests.all,
+    queryKeys.nav.badges,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 export function useRecordAttempt() {
@@ -116,16 +113,12 @@ export function useRecordAttempt() {
 }
 
 export function useCancelCalloutEvent() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: calloutApi.cancelEvent,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-      qc.invalidateQueries({ queryKey: queryKeys.callout.listAll })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(calloutApi.cancelEvent, [
+    queryKeys.callout.events,
+    queryKeys.callout.listAll,
+    queryKeys.nav.badges,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 export function useCancelCalloutOtAssignment() {
@@ -187,13 +180,9 @@ export function useCreateBumpRequest() {
 }
 
 export function useReviewBumpRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ requestId, ...payload }: { requestId: string; approved: boolean; reason?: string }) =>
+  return useInvalidatingMutation(
+    ({ requestId, ...payload }: { requestId: string; approved: boolean; reason?: string }) =>
       calloutApi.reviewBumpRequest(requestId, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.bumpRequestsAll })
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-    },
-  })
+    [queryKeys.callout.bumpRequestsAll, queryKeys.callout.events],
+  )
 }

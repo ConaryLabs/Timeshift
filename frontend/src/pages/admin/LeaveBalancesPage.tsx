@@ -39,7 +39,7 @@ import {
 import type { LeaveBalanceView } from '@/api/leaveBalances'
 import type { AccrualSchedule, AccrualTransaction } from '@/api/leaveBalances'
 import { Link } from 'react-router-dom'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDate } from '@/lib/format'
 
 const EMPLOYEE_TYPES = [
   { value: 'regular_full_time', label: 'Regular Full Time' },
@@ -238,7 +238,7 @@ export default function LeaveBalancesPage() {
   const historyColumns: Column<AccrualTransaction>[] = [
     {
       header: 'Date',
-      cell: (r) => new Date(r.created_at).toLocaleDateString(),
+      cell: (r) => formatDate(r.created_at),
     },
     {
       header: 'Leave Type',

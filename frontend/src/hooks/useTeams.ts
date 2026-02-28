@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { teamsApi } from '@/api/teams'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useTeams() {
   return useQuery({
@@ -18,11 +19,7 @@ export function useTeam(id: string) {
 }
 
 export function useCreateTeam() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: teamsApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.teams.all }),
-  })
+  return useInvalidatingMutation(teamsApi.create, [queryKeys.teams.all])
 }
 
 export function useUpdateTeam() {

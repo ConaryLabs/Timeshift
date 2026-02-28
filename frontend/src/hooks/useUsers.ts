@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi } from '@/api/users'
 import { useAuthStore } from '@/store/auth'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useUsers(params?: { include_inactive?: boolean; limit?: number; offset?: number }) {
   return useQuery({
@@ -26,11 +27,7 @@ export function useUser(id: string) {
 }
 
 export function useCreateUser() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: usersApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.all }),
-  })
+  return useInvalidatingMutation(usersApi.create, [queryKeys.users.all])
 }
 
 export function useUpdateUser() {
@@ -50,18 +47,9 @@ export function useUpdateUser() {
 }
 
 export function useDeactivateUser() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: usersApi.deactivate,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.all }),
-  })
+  return useInvalidatingMutation(usersApi.deactivate, [queryKeys.users.all])
 }
 
 export function useActivateUser() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: usersApi.activate,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.all }),
-  })
+  return useInvalidatingMutation(usersApi.activate, [queryKeys.users.all])
 }
-

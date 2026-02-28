@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export type CalloutStep =
   | 'volunteers'
@@ -39,24 +39,22 @@ export interface OtVolunteer {
 
 export const otApi = {
   getQueue: (classificationId: string, fiscalYear?: number) =>
-    api
-      .get<OtQueueEntry[]>('/api/ot/queue', {
-        params: { classification_id: classificationId, fiscal_year: fiscalYear },
-      })
-      .then((r) => r.data),
+    apiClient.get<OtQueueEntry[]>('/api/ot/queue', {
+      params: { classification_id: classificationId, fiscal_year: fiscalYear },
+    }),
 
   setQueuePosition: (body: {
     classification_id: string
     fiscal_year?: number
     user_id: string
     last_ot_event_at: string | null
-  }) => api.patch('/api/ot/queue/set-position', body).then((r) => r.data),
+  }) => apiClient.patch('/api/ot/queue/set-position', body),
 
   getHours: (params?: {
     user_id?: string
     fiscal_year?: number
     classification_id?: string
-  }) => api.get<OtHoursEntry[]>('/api/ot/hours', { params }).then((r) => r.data),
+  }) => apiClient.get<OtHoursEntry[]>('/api/ot/hours', { params }),
 
   adjustHours: (body: {
     user_id: string
@@ -64,18 +62,14 @@ export const otApi = {
     classification_id?: string
     hours_worked_delta?: number
     hours_declined_delta?: number
-  }) => api.post('/api/ot/hours/adjust', body).then((r) => r.data),
+  }) => apiClient.post('/api/ot/hours/adjust', body),
 
   volunteer: (eventId: string) =>
-    api.post(`/api/callout/events/${eventId}/volunteer`).then((r) => r.data),
+    apiClient.post(`/api/callout/events/${eventId}/volunteer`),
 
   listVolunteers: (eventId: string) =>
-    api
-      .get<OtVolunteer[]>(`/api/callout/events/${eventId}/volunteers`)
-      .then((r) => r.data),
+    apiClient.get<OtVolunteer[]>(`/api/callout/events/${eventId}/volunteers`),
 
   advanceStep: (eventId: string, step: CalloutStep) =>
-    api
-      .patch(`/api/callout/events/${eventId}/step`, { step })
-      .then((r) => r.data),
+    apiClient.patch(`/api/callout/events/${eventId}/step`, { step }),
 }

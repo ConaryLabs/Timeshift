@@ -9,6 +9,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     auth::AuthUser,
     error::{AppError, Result},
     models::vacation_bid::{
@@ -108,7 +109,7 @@ pub async fn delete_period(
         ));
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn open_bidding(

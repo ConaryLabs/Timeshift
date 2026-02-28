@@ -4,6 +4,7 @@ import { leaveBalancesApi } from '@/api/leaveBalances'
 import { leaveSellbackApi } from '@/api/leaveSellback'
 import { sickDonationApi } from '@/api/sickDonation'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 // -- Leave --
 
@@ -22,15 +23,11 @@ export function useLeaveRequests(params?: { limit?: number; offset?: number; sta
 }
 
 export function useCreateLeave() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(leaveApi.create, [
+    queryKeys.leave.all,
+    queryKeys.nav.badges,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 export function useReviewLeave() {
@@ -83,29 +80,21 @@ export function useReviewLeave() {
 }
 
 export function useBulkReviewLeave() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveApi.bulkReview,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-    },
-  })
+  return useInvalidatingMutation(leaveApi.bulkReview, [
+    queryKeys.leave.all,
+    queryKeys.leave.balancesAll,
+    queryKeys.nav.badges,
+    queryKeys.schedule.all,
+  ])
 }
 
 export function useCancelLeave() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveApi.cancel,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(leaveApi.cancel, [
+    queryKeys.leave.all,
+    queryKeys.leave.balancesAll,
+    queryKeys.nav.badges,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 // -- Leave Balances --
@@ -129,14 +118,10 @@ export function useLeaveBalanceHistory(
 }
 
 export function useAdjustLeaveBalance() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveBalancesApi.adjust,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balanceHistoryAll })
-    },
-  })
+  return useInvalidatingMutation(leaveBalancesApi.adjust, [
+    queryKeys.leave.balancesAll,
+    queryKeys.leave.balanceHistoryAll,
+  ])
 }
 
 export function useAccrualSchedules() {
@@ -147,28 +132,19 @@ export function useAccrualSchedules() {
 }
 
 export function useCreateAccrualSchedule() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveBalancesApi.createAccrualSchedule,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.accrualSchedules.all }),
-  })
+  return useInvalidatingMutation(leaveBalancesApi.createAccrualSchedule, [queryKeys.accrualSchedules.all])
 }
 
 export function useUpdateAccrualSchedule() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; hours_per_pay_period?: number; max_balance_hours?: number | null; years_of_service_min?: number; years_of_service_max?: number | null }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; hours_per_pay_period?: number; max_balance_hours?: number | null; years_of_service_min?: number; years_of_service_max?: number | null }) =>
       leaveBalancesApi.updateAccrualSchedule(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.accrualSchedules.all }),
-  })
+    [queryKeys.accrualSchedules.all],
+  )
 }
 
 export function useDeleteAccrualSchedule() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveBalancesApi.deleteAccrualSchedule,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.accrualSchedules.all }),
-  })
+  return useInvalidatingMutation(leaveBalancesApi.deleteAccrualSchedule, [queryKeys.accrualSchedules.all])
 }
 
 // -- Leave Sellback --
@@ -181,34 +157,22 @@ export function useSellbackRequests() {
 }
 
 export function useCreateSellback() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveSellbackApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.sellback.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-    },
-  })
+  return useInvalidatingMutation(leaveSellbackApi.create, [
+    queryKeys.sellback.all,
+    queryKeys.leave.balancesAll,
+  ])
 }
 
 export function useReviewSellback() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; status: string; reviewer_notes?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; status: string; reviewer_notes?: string }) =>
       leaveSellbackApi.review(id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.sellback.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-    },
-  })
+    [queryKeys.sellback.all, queryKeys.leave.balancesAll],
+  )
 }
 
 export function useCancelSellback() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: leaveSellbackApi.cancel,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.sellback.all }),
-  })
+  return useInvalidatingMutation(leaveSellbackApi.cancel, [queryKeys.sellback.all])
 }
 
 // -- Sick Leave Donations --
@@ -221,32 +185,20 @@ export function useDonations() {
 }
 
 export function useCreateDonation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: sickDonationApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.donation.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-    },
-  })
+  return useInvalidatingMutation(sickDonationApi.create, [
+    queryKeys.donation.all,
+    queryKeys.leave.balancesAll,
+  ])
 }
 
 export function useReviewDonation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; status: string; reviewer_notes?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; status: string; reviewer_notes?: string }) =>
       sickDonationApi.review(id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.donation.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
-    },
-  })
+    [queryKeys.donation.all, queryKeys.leave.balancesAll],
+  )
 }
 
 export function useCancelDonation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: sickDonationApi.cancel,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.donation.all }),
-  })
+  return useInvalidatingMutation(sickDonationApi.cancel, [queryKeys.donation.all])
 }

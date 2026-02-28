@@ -1,7 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { otApi } from '@/api/ot'
 import { otRequestsApi, type OtRequestListParams } from '@/api/otRequests'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 // -- OT Queue & Hours --
 
@@ -14,11 +15,7 @@ export function useOtQueue(classificationId: string, fiscalYear?: number) {
 }
 
 export function useSetOtQueuePosition() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otApi.setQueuePosition,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll }),
-  })
+  return useInvalidatingMutation(otApi.setQueuePosition, [queryKeys.ot.queueAll])
 }
 
 export function useOtHours(params?: { user_id?: string; fiscal_year?: number; classification_id?: string }) {
@@ -29,23 +26,15 @@ export function useOtHours(params?: { user_id?: string; fiscal_year?: number; cl
 }
 
 export function useAdjustOtHours() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otApi.adjustHours,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll }),
-  })
+  return useInvalidatingMutation(otApi.adjustHours, [queryKeys.ot.hoursAll])
 }
 
 export function useVolunteer() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otApi.volunteer,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.volunteersAll })
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
-    },
-  })
+  return useInvalidatingMutation(otApi.volunteer, [
+    queryKeys.callout.volunteersAll,
+    queryKeys.callout.events,
+    queryKeys.otRequests.all,
+  ])
 }
 
 // -- OT Requests --
@@ -66,80 +55,61 @@ export function useOtRequest(id: string) {
 }
 
 export function useCreateOtRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otRequestsApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+  return useInvalidatingMutation(otRequestsApi.create, [
+    queryKeys.otRequests.all,
+    queryKeys.coveragePlans.all,
+    queryKeys.schedule.all,
+    queryKeys.staffing.all,
+  ])
 }
 
 export function useVolunteerOtRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otRequestsApi.volunteer,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
-  })
+  return useInvalidatingMutation(otRequestsApi.volunteer, [queryKeys.otRequests.all])
 }
 
 export function useWithdrawVolunteerOtRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otRequestsApi.withdrawVolunteer,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
-  })
+  return useInvalidatingMutation(otRequestsApi.withdrawVolunteer, [queryKeys.otRequests.all])
 }
 
 export function useAssignOtRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'mandatory_day_off' | 'fixed_coverage'; force?: boolean }) =>
+  return useInvalidatingMutation(
+    ({ id, ...data }: { id: string; user_id: string; ot_type?: 'voluntary' | 'mandatory' | 'mandatory_day_off' | 'fixed_coverage'; force?: boolean }) =>
       otRequestsApi.assign(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+    [
+      queryKeys.otRequests.all,
+      queryKeys.coveragePlans.all,
+      queryKeys.schedule.all,
+      queryKeys.staffing.all,
+    ],
+  )
 }
 
 export function useUpdateOtRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; notes?: string; location?: string; status?: string; expected_updated_at?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...data }: { id: string; notes?: string; location?: string; status?: string; expected_updated_at?: string }) =>
       otRequestsApi.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
-  })
+    [queryKeys.otRequests.all],
+  )
 }
 
 export function useCancelOtRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: otRequestsApi.cancel,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+  return useInvalidatingMutation(otRequestsApi.cancel, [
+    queryKeys.otRequests.all,
+    queryKeys.schedule.all,
+    queryKeys.coveragePlans.all,
+    queryKeys.staffing.all,
+  ])
 }
 
 export function useCancelOtAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+  return useInvalidatingMutation(
+    ({ id, userId }: { id: string; userId: string }) =>
       otRequestsApi.cancelAssignment(id, userId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+    [
+      queryKeys.otRequests.all,
+      queryKeys.schedule.all,
+      queryKeys.coveragePlans.all,
+      queryKeys.staffing.all,
+    ],
+  )
 }

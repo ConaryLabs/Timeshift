@@ -284,23 +284,7 @@ pub async fn update_slot(
     }
 
     // Verify slot belongs to a team in the user's org
-    let exists = sqlx::query_scalar!(
-        r#"
-        SELECT EXISTS(
-            SELECT 1 FROM shift_slots ss
-            JOIN teams t ON t.id = ss.team_id
-            WHERE ss.id = $1 AND t.org_id = $2
-        )
-        "#,
-        slot_id,
-        auth.org_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Shift slot not found".into()));
-    }
+    org_guard::verify_slot(&pool, slot_id, auth.org_id).await?;
 
     // Verify optional FK references belong to caller's org
     if let Some(tmpl_id) = req.shift_template_id {

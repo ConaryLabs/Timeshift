@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
@@ -631,7 +632,7 @@ pub async fn cancel(
         ));
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn bulk_review(

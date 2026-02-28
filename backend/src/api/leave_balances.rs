@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::leave_balance::{
@@ -13,7 +14,7 @@ use crate::{
         CreateAccrualScheduleRequest, LeaveBalanceView, UpdateAccrualScheduleRequest,
     },
     org_guard,
-    services::accrual,
+    services::{accrual, leave::adjust_leave_balance},
 };
 
 // -- Leave Balances --
@@ -161,47 +162,23 @@ pub async fn adjust(
 
     let mut tx = pool.begin().await?;
 
-    // Insert accrual transaction
-    sqlx::query!(
-        r#"
-        INSERT INTO accrual_transactions (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'adjustment', $6, $7)
-        "#,
-        Uuid::new_v4(),
+    adjust_leave_balance(
+        &mut tx,
         auth.org_id,
         body.user_id,
         body.leave_type_id,
         body.hours,
-        body.note,
+        "adjustment",
+        body.note.as_deref(),
+        None,
         auth.id,
+        &auth.org_timezone,
     )
-    .execute(&mut *tx)
-    .await?;
-
-    // Upsert leave balance
-    let today = crate::services::timezone::org_today(&auth.org_timezone);
-    sqlx::query!(
-        r#"
-        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
-        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
-        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-            as_of_date = $6,
-            updated_at = NOW()
-        "#,
-        Uuid::new_v4(),
-        auth.org_id,
-        body.user_id,
-        body.leave_type_id,
-        body.hours,
-        today,
-    )
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // -- Accrual Schedules --
@@ -416,11 +393,9 @@ pub async fn delete_accrual_schedule(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Accrual schedule not found".into()));
-    }
+    ensure_rows_affected(rows, "Accrual schedule")?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // -- Accrual Run (manual trigger) --

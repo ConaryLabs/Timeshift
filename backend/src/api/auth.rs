@@ -22,6 +22,7 @@ static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
 });
 
 use crate::{
+    api::users::fetch_user_profile,
     auth::{create_token, AuthUser, RefreshTokenCookie, Role},
     error::{AppError, Result},
     models::user::{EmployeeStatus, EmployeeType, LoginRequest, LoginResponse, User, UserProfile},
@@ -569,63 +570,8 @@ pub async fn refresh(
 }
 
 pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserProfile>> {
-    let row = sqlx::query!(
-        r#"
-        SELECT u.id, u.org_id, u.employee_id, u.first_name, u.last_name, u.email, u.phone,
-               u.role AS "role: Role",
-               u.classification_id,
-               c.name AS "classification_name?",
-               u.employee_type AS "employee_type: EmployeeType",
-               u.bargaining_unit,
-               u.hire_date, u.cto_designation,
-               u.admin_training_supervisor_since,
-               u.employee_status AS "employee_status: EmployeeStatus",
-               u.medical_ot_exempt,
-               u.is_active,
-               u.leave_accrual_paused_at AS "leave_accrual_paused_at?",
-               u.updated_at,
-               sr.overall_seniority_date AS "overall_seniority_date?",
-               sr.bargaining_unit_seniority_date AS "bargaining_unit_seniority_date?",
-               sr.classification_seniority_date AS "classification_seniority_date?",
-               sr.accrual_pause_started_at AS "accrual_paused_since?"
-        FROM users u
-        LEFT JOIN classifications c ON c.id = u.classification_id
-        LEFT JOIN seniority_records sr ON sr.user_id = u.id
-        WHERE u.id = $1 AND u.org_id = $2
-        "#,
-        auth.id,
-        auth.org_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-
-    Ok(Json(UserProfile {
-        id: row.id,
-        org_id: row.org_id,
-        employee_id: row.employee_id,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        email: row.email,
-        phone: row.phone,
-        role: row.role,
-        classification_id: row.classification_id,
-        classification_name: row.classification_name,
-        employee_type: row.employee_type,
-        bargaining_unit: row.bargaining_unit,
-        hire_date: row.hire_date,
-        overall_seniority_date: row.overall_seniority_date,
-        bargaining_unit_seniority_date: row.bargaining_unit_seniority_date,
-        classification_seniority_date: row.classification_seniority_date,
-        cto_designation: row.cto_designation,
-        admin_training_supervisor_since: row.admin_training_supervisor_since,
-        employee_status: row.employee_status,
-        accrual_paused_since: row.accrual_paused_since,
-        leave_accrual_paused_at: row.leave_accrual_paused_at,
-        medical_ot_exempt: row.medical_ot_exempt,
-        is_active: row.is_active,
-        updated_at: row.updated_at,
-    }))
+    let profile = fetch_user_profile(&pool, auth.id, auth.org_id).await?;
+    Ok(Json(profile))
 }
 
 /// Best-effort audit log insert. Errors are logged but never propagated.

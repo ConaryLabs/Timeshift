@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { vacationBidsApi } from '@/api/vacationBids'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useVacationBidPeriods(year?: number) {
   return useQuery({
@@ -26,28 +27,19 @@ export function useVacationBidWindow(windowId: string) {
 }
 
 export function useCreateVacationBidPeriod() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: vacationBidsApi.createPeriod,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all }),
-  })
+  return useInvalidatingMutation(vacationBidsApi.createPeriod, [queryKeys.vacationBids.all])
 }
 
 export function useDeleteVacationBidPeriod() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: vacationBidsApi.deletePeriod,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all }),
-  })
+  return useInvalidatingMutation(vacationBidsApi.deletePeriod, [queryKeys.vacationBids.all])
 }
 
 export function useOpenVacationBidding() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; window_duration_hours: number; start_at?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; window_duration_hours: number; start_at?: string }) =>
       vacationBidsApi.openBidding(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all }),
-  })
+    [queryKeys.vacationBids.all],
+  )
 }
 
 export function useSubmitVacationBid() {
@@ -63,12 +55,8 @@ export function useSubmitVacationBid() {
 }
 
 export function useProcessVacationBids() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: vacationBidsApi.processBids,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all })
-      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
-    },
-  })
+  return useInvalidatingMutation(vacationBidsApi.processBids, [
+    queryKeys.vacationBids.all,
+    queryKeys.leave.all,
+  ])
 }

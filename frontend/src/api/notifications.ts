@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export type NotificationType =
   | 'leave_reviewed'
@@ -38,18 +38,17 @@ export interface NotificationListParams {
 
 export const notificationsApi = {
   list: (params?: NotificationListParams) =>
-    api.get<NotificationListResponse>('/api/notifications', { params }).then((r) => r.data),
+    apiClient.get<NotificationListResponse>('/api/notifications', { params }),
 
   unreadCount: () =>
-    api.get<{ count: number }>('/api/notifications/unread-count').then((r) => r.data),
+    apiClient.get<{ count: number }>('/api/notifications/unread-count'),
 
   markRead: (id: string) =>
-    api.patch<Notification>(`/api/notifications/${id}/read`).then((r) => r.data),
+    apiClient.patch<Notification>(`/api/notifications/${id}/read`),
 
   markAllRead: () =>
-    api.post<{ updated: number }>('/api/notifications/read-all').then((r) => r.data),
+    apiClient.post<{ updated: number }>('/api/notifications/read-all'),
 
   delete: (id: string) =>
-    api.delete(`/api/notifications/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/notifications/${id}`),
 }
-

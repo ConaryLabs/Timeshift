@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { format, addDays } from 'date-fns'
 import { Hand, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { NO_VALUE, extractApiError } from '@/lib/format'
+import { NO_VALUE, extractApiError, formatDate } from '@/lib/format'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { StepIndicator } from '@/components/callout/StepIndicator'
 import { CALLOUT_STEPS } from '@/components/callout/calloutSteps'
@@ -103,15 +103,24 @@ export default function CalloutPage() {
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
 
   const { data: events, isLoading, isError, refetch } = useCalloutEvents()
-  const { data: calloutList } = useCalloutList(selectedEvent ?? '')
-  const { data: volunteers } = useCalloutVolunteers(selectedEvent ?? '')
+
+  // Auto-select the only open event when the list loads (derived, no effect needed)
+  const autoSelectedEvent = useMemo(() => {
+    if (!events) return null
+    const openEvents = events.filter((e) => e.status === 'open')
+    return openEvents.length === 1 ? openEvents[0].id : null
+  }, [events])
+  const effectiveSelectedEvent = selectedEvent ?? autoSelectedEvent
+
+  const { data: calloutList } = useCalloutList(effectiveSelectedEvent ?? '')
+  const { data: volunteers } = useCalloutVolunteers(effectiveSelectedEvent ?? '')
   const cancelMut = useCancelCalloutEvent()
   const createMut = useCreateCalloutEvent()
   const recordMut = useRecordAttempt()
   const volunteerMut = useVolunteer()
   const advanceStepMut = useAdvanceCalloutStep()
 
-  const { data: bumpRequests } = useBumpRequests(selectedEvent ?? '')
+  const { data: bumpRequests } = useBumpRequests(effectiveSelectedEvent ?? '')
   const createBumpMut = useCreateBumpRequest()
   const reviewBumpMut = useReviewBumpRequest()
 
@@ -121,15 +130,6 @@ export default function CalloutPage() {
   const { data: otRequests } = useOtRequests({ status: 'open' })
 
   const templateMap = Object.fromEntries((templates ?? []).map((t) => [t.id, t]))
-
-  // Auto-select the only open event when the list loads
-  useEffect(() => {
-    if (selectedEvent || !events) return
-    const openEvents = events.filter((e) => e.status === 'open')
-    if (openEvents.length === 1) {
-      setSelectedEvent(openEvents[0].id)
-    }
-  }, [events, selectedEvent])
 
   // Sort scheduled shifts so today's shifts appear first
   const sortedShifts = useMemo(() => {
@@ -142,7 +142,7 @@ export default function CalloutPage() {
     })
   }, [scheduledShifts, today, templateMap])
 
-  const selectedEventData = (events ?? []).find((e) => e.id === selectedEvent)
+  const selectedEventData = (events ?? []).find((e) => e.id === effectiveSelectedEvent)
   const eventIsOpen = selectedEventData?.status === 'open'
   const eventIsFilled = selectedEventData?.status === 'filled'
   const currentStep = selectedEventData?.current_step ?? null
@@ -182,11 +182,11 @@ export default function CalloutPage() {
   }
 
   function handleAdvanceStep() {
-    if (!selectedEvent) return
+    if (!effectiveSelectedEvent) return
     const next = getNextStep()
     if (!next) return
     advanceStepMut.mutate(
-      { eventId: selectedEvent, step: next },
+      { eventId: effectiveSelectedEvent, step: next },
       {
         onSuccess: () => toast.success('Advanced to next step'),
         onError: (err: unknown) => {
@@ -198,8 +198,8 @@ export default function CalloutPage() {
   }
 
   function handleVolunteer() {
-    if (!selectedEvent) return
-    volunteerMut.mutate(selectedEvent, {
+    if (!effectiveSelectedEvent) return
+    volunteerMut.mutate(effectiveSelectedEvent, {
       onSuccess: () => toast.success('Volunteered successfully'),
       onError: (err: unknown) => {
         const msg = extractApiError(err, 'Failed to volunteer')
@@ -233,9 +233,9 @@ export default function CalloutPage() {
   }
 
   function recordResponse(userId: string, response: 'declined' | 'no_answer') {
-    if (!selectedEvent) return
+    if (!effectiveSelectedEvent) return
     recordMut.mutate(
-      { eventId: selectedEvent, user_id: userId, response },
+      { eventId: effectiveSelectedEvent, user_id: userId, response },
       {
         onError: (err: unknown) => {
           const msg = extractApiError(err, 'Failed to record response')
@@ -246,10 +246,10 @@ export default function CalloutPage() {
   }
 
   function handleAccept() {
-    if (!acceptTarget || !selectedEvent) return
+    if (!acceptTarget || !effectiveSelectedEvent) return
     recordMut.mutate(
       {
-        eventId: selectedEvent,
+        eventId: effectiveSelectedEvent,
         user_id: acceptTarget.user_id,
         response: 'accepted',
         notes: acceptNotes || undefined,
@@ -269,9 +269,9 @@ export default function CalloutPage() {
   }
 
   function handleBumpSubmit() {
-    if (!selectedEvent || bumpDisplacedUserId === NO_VALUE) return
+    if (!effectiveSelectedEvent || bumpDisplacedUserId === NO_VALUE) return
     createBumpMut.mutate(
-      { eventId: selectedEvent, displaced_user_id: bumpDisplacedUserId, reason: bumpReason || undefined },
+      { eventId: effectiveSelectedEvent, displaced_user_id: bumpDisplacedUserId, reason: bumpReason || undefined },
       {
         onSuccess: () => {
           toast.success('Bump request submitted')
@@ -377,17 +377,17 @@ export default function CalloutPage() {
                 key={ev.id}
                 type="button"
                 onClick={() => setSelectedEvent(ev.id)}
-                aria-label={`Callout event from ${new Date(ev.created_at).toLocaleDateString()}${ev.shift_template_name ? `, ${ev.shift_template_name}` : ''}`}
+                aria-label={`Callout event from ${formatDate(ev.created_at)}${ev.shift_template_name ? `, ${ev.shift_template_name}` : ''}`}
                 className={cn(
                   "border rounded-lg p-3 cursor-pointer transition-colors w-full text-left",
-                  selectedEvent === ev.id
+                  effectiveSelectedEvent === ev.id
                     ? "border-primary bg-primary/5"
                     : "hover:bg-accent/50",
                 )}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">
-                    {new Date(ev.created_at).toLocaleDateString()}
+                    {formatDate(ev.created_at)}
                   </span>
                   <div className="flex items-center gap-2">
                     {ev.current_step && ev.status === 'open' && (
@@ -433,7 +433,7 @@ export default function CalloutPage() {
 
         {/* Callout list + step indicator */}
         <div>
-          {selectedEvent && eventIsOpen && (
+          {effectiveSelectedEvent && eventIsOpen && (
             <>
               {/* Step indicator */}
               <StepIndicator currentStep={currentStep} />
@@ -484,9 +484,9 @@ export default function CalloutPage() {
           )}
 
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
-            {selectedEvent ? 'Callout List' : 'Select an event'}
+            {effectiveSelectedEvent ? 'Callout List' : 'Select an event'}
           </h3>
-          {selectedEvent && (
+          {effectiveSelectedEvent && (
             <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-64 mb-3" />
           )}
           {calloutList && (
@@ -499,7 +499,7 @@ export default function CalloutPage() {
           )}
 
           {/* Bump request section — visible when event is filled */}
-          {selectedEvent && eventIsFilled && (
+          {effectiveSelectedEvent && eventIsFilled && (
             <div className="mt-6">
               {/* Employee: Request Bump button */}
               {!isManager && (

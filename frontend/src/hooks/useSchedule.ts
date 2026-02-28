@@ -3,6 +3,7 @@ import { scheduleApi } from '@/api/schedule'
 import { schedulePeriodsApi } from '@/api/schedulePeriods'
 import { shiftsApi } from '@/api/shifts'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 // -- Schedule --
 
@@ -15,27 +16,19 @@ export function useStaffing(startDate: string, endDate: string, teamId?: string,
 }
 
 export function useCreateAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: scheduleApi.createAssignment,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+  return useInvalidatingMutation(scheduleApi.createAssignment, [
+    queryKeys.schedule.all,
+    queryKeys.coveragePlans.all,
+    queryKeys.staffing.all,
+  ])
 }
 
 export function useDeleteAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: scheduleApi.deleteAssignment,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+  return useInvalidatingMutation(scheduleApi.deleteAssignment, [
+    queryKeys.schedule.all,
+    queryKeys.coveragePlans.all,
+    queryKeys.staffing.all,
+  ])
 }
 
 // -- Schedule Views --
@@ -72,25 +65,17 @@ export function useAnnotations(startDate: string, endDate: string) {
 }
 
 export function useCreateAnnotation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: scheduleApi.createAnnotation,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.annotations })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(scheduleApi.createAnnotation, [
+    queryKeys.schedule.annotations,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 export function useDeleteAnnotation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: scheduleApi.deleteAnnotation,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.annotations })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
-    },
-  })
+  return useInvalidatingMutation(scheduleApi.deleteAnnotation, [
+    queryKeys.schedule.annotations,
+    queryKeys.schedule.dashboard,
+  ])
 }
 
 // -- Schedule Periods --
@@ -103,20 +88,15 @@ export function useSchedulePeriods() {
 }
 
 export function useCreatePeriod() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: schedulePeriodsApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.periods.all }),
-  })
+  return useInvalidatingMutation(schedulePeriodsApi.create, [queryKeys.periods.all])
 }
 
 export function useUpdateSchedulePeriod() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; start_date?: string; end_date?: string; bargaining_unit?: string | null }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; name?: string; start_date?: string; end_date?: string; bargaining_unit?: string | null }) =>
       schedulePeriodsApi.update(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.periods.all }),
-  })
+    [queryKeys.periods.all],
+  )
 }
 
 export function useSlotAssignments(periodId: string) {
@@ -159,20 +139,15 @@ export function useShiftTemplates() {
 }
 
 export function useCreateTemplate() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: scheduleApi.createTemplate,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shifts.templates }),
-  })
+  return useInvalidatingMutation(scheduleApi.createTemplate, [queryKeys.shifts.templates])
 }
 
 export function useUpdateTemplate() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string; is_active?: boolean; expected_updated_at?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; name?: string; color?: string; is_active?: boolean; expected_updated_at?: string }) =>
       scheduleApi.updateTemplate(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.shifts.templates }),
-  })
+    [queryKeys.shifts.templates],
+  )
 }
 
 // -- Scheduled Shifts --

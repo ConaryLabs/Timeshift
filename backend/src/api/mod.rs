@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod bargaining_units;
+pub mod helpers;
 pub mod bidding;
 pub mod callout;
 pub mod classifications;

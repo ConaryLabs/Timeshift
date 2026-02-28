@@ -15,7 +15,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { ErrorState } from '@/components/ui/error-state'
 import { useOrganization, useUpdateOrganization, useOrgSettings, useSetOrgSetting } from '@/hooks/queries'
 import type { OrgSetting } from '@/api/organization'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDate } from '@/lib/format'
 
 const BASE_US_TIMEZONES = [
   'America/New_York',
@@ -275,7 +275,7 @@ export default function OrgSettingsPage() {
               </div>
               <div>
                 <span className="text-muted-foreground">Created:</span>{' '}
-                {new Date(org.created_at).toLocaleDateString()}
+                {formatDate(org.created_at)}
               </div>
             </CardContent>
           </Card>

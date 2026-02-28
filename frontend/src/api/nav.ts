@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface NavBadges {
   pending_leave: number
@@ -7,5 +7,5 @@ export interface NavBadges {
 }
 
 export const navApi = {
-  badges: () => api.get<NavBadges>('/api/nav/badges').then((r) => r.data),
+  badges: () => apiClient.get<NavBadges>('/api/nav/badges'),
 }

@@ -6,11 +6,13 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     auth::AuthUser,
     error::{AppError, Result},
     models::common::ReviewAction,
     models::leave_donation::{CreateDonationRequest, ReviewDonationRequest, SickLeaveDonation},
     org_guard,
+    services::leave::adjust_leave_balance,
 };
 
 /// GET /api/leave/donations
@@ -308,81 +310,39 @@ pub async fn review(
         }
 
         // Deduct from donor's specific sick leave type
-        sqlx::query!(
-            r#"
-            INSERT INTO accrual_transactions
-                (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
-            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'donation_out',
-                    $6, $7)
-            "#,
-            Uuid::new_v4(),
+        adjust_leave_balance(
+            &mut tx,
             auth.org_id,
             donation.donor_id,
             donation.leave_type_id,
             -donation.hours,
-            format!(
+            "donation_out",
+            Some(&format!(
                 "Sick leave donation to recipient (FY{})",
                 donation.fiscal_year
-            ),
+            )),
+            Some(donation.id),
             auth.id,
+            &auth.org_timezone,
         )
-        .execute(&mut *tx)
-        .await?;
-
-        let today = crate::services::timezone::org_today(&auth.org_timezone);
-        sqlx::query!(
-            r#"
-            INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
-            ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
-            SET balance_hours = leave_balances.balance_hours - $5::FLOAT8::NUMERIC,
-                as_of_date = $6, updated_at = NOW()
-            "#,
-            Uuid::new_v4(),
-            auth.org_id,
-            donation.donor_id,
-            donation.leave_type_id,
-            donation.hours,
-            today,
-        )
-        .execute(&mut *tx)
         .await?;
 
         // Credit recipient's sick leave balance
-        sqlx::query!(
-            r#"
-            INSERT INTO accrual_transactions
-                (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
-            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'donation_in',
-                    $6, $7)
-            "#,
-            Uuid::new_v4(),
+        adjust_leave_balance(
+            &mut tx,
             auth.org_id,
             donation.recipient_id,
             donation.leave_type_id,
             donation.hours,
-            format!("Sick leave donation received (FY{})", donation.fiscal_year),
+            "donation_in",
+            Some(&format!(
+                "Sick leave donation received (FY{})",
+                donation.fiscal_year
+            )),
+            Some(donation.id),
             auth.id,
+            &auth.org_timezone,
         )
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-            VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
-            ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
-            SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-                as_of_date = $6, updated_at = NOW()
-            "#,
-            Uuid::new_v4(),
-            auth.org_id,
-            donation.recipient_id,
-            donation.leave_type_id,
-            donation.hours,
-            today,
-        )
-        .execute(&mut *tx)
         .await?;
     }
 
@@ -462,5 +422,5 @@ pub async fn cancel(
         ));
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }

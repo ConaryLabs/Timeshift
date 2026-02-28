@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export type LeaveStatus = 'pending' | 'approved' | 'denied' | 'cancelled'
 
@@ -90,25 +90,25 @@ export interface CreateLeaveBody {
 
 export const leaveApi = {
   listTypes: () =>
-    api.get<LeaveTypeRecord[]>('/api/leave/types').then((r) => r.data),
+    apiClient.get<LeaveTypeRecord[]>('/api/leave/types'),
 
   list: (params?: { limit?: number; offset?: number; status?: string }) =>
-    api.get<LeaveRequest[]>('/api/leave', { params }).then((r) => r.data),
+    apiClient.get<LeaveRequest[]>('/api/leave', { params }),
 
   get: (id: string) =>
-    api.get<LeaveRequest>(`/api/leave/${id}`).then((r) => r.data),
+    apiClient.get<LeaveRequest>(`/api/leave/${id}`),
 
   create: (body: CreateLeaveBody) =>
-    api.post<LeaveRequest>('/api/leave', body).then((r) => r.data),
+    apiClient.post<LeaveRequest>('/api/leave', body),
 
   cancel: (id: string) =>
-    api.patch(`/api/leave/${id}/cancel`).then((r) => r.data),
+    apiClient.patch(`/api/leave/${id}/cancel`),
 
   review: (
     id: string,
     body: { status: 'approved' | 'denied'; reviewer_notes?: string },
-  ) => api.patch<LeaveRequest>(`/api/leave/${id}/review`, body).then((r) => r.data),
+  ) => apiClient.patch<LeaveRequest>(`/api/leave/${id}/review`, body),
 
   bulkReview: (body: { ids: string[]; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
-    api.post<{ ok: boolean; reviewed: number }>('/api/leave/bulk-review', body).then((r) => r.data),
+    apiClient.post<{ ok: boolean; reviewed: number }>('/api/leave/bulk-review', body),
 }

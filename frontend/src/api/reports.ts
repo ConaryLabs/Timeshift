@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface CoverageReport {
   date: string
@@ -56,17 +56,17 @@ export interface WorkSummaryReport {
 
 export const reportsApi = {
   coverage: (params: { start_date: string; end_date: string; team_id?: string }) =>
-    api.get<CoverageReport[]>('/api/reports/coverage', { params }).then((r) => r.data),
+    apiClient.get<CoverageReport[]>('/api/reports/coverage', { params }),
 
   otSummary: (params?: { fiscal_year?: number; classification_id?: string }) =>
-    api.get<OtSummaryReport[]>('/api/reports/ot-summary', { params }).then((r) => r.data),
+    apiClient.get<OtSummaryReport[]>('/api/reports/ot-summary', { params }),
 
   leaveSummary: (params: { start_date: string; end_date: string }) =>
-    api.get<LeaveSummaryReport[]>('/api/reports/leave-summary', { params }).then((r) => r.data),
+    apiClient.get<LeaveSummaryReport[]>('/api/reports/leave-summary', { params }),
 
   otByPeriod: (params: { start_date: string; end_date: string; classification_id?: string }) =>
-    api.get<OtByPeriodReport[]>('/api/reports/ot-by-period', { params }).then((r) => r.data),
+    apiClient.get<OtByPeriodReport[]>('/api/reports/ot-by-period', { params }),
 
   workSummary: (params: { start_date: string; end_date: string; user_id?: string }) =>
-    api.get<WorkSummaryReport[]>('/api/reports/work-summary', { params }).then((r) => r.data),
+    apiClient.get<WorkSummaryReport[]>('/api/reports/work-summary', { params }),
 }

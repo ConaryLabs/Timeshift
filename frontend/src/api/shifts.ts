@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface ScheduledShift {
   id: string
@@ -13,10 +13,10 @@ export interface ScheduledShift {
 
 export const shiftsApi = {
   listScheduled: (params?: { start_date?: string; end_date?: string }) =>
-    api.get<ScheduledShift[]>('/api/shifts/scheduled', { params }).then((r) => r.data),
+    apiClient.get<ScheduledShift[]>('/api/shifts/scheduled', { params }),
 
   getScheduled: (id: string) =>
-    api.get<ScheduledShift>(`/api/shifts/scheduled/${id}`).then((r) => r.data),
+    apiClient.get<ScheduledShift>(`/api/shifts/scheduled/${id}`),
 
   createScheduled: (body: {
     shift_template_id: string
@@ -24,8 +24,8 @@ export const shiftsApi = {
     required_headcount?: number
     slot_id?: string
     notes?: string
-  }) => api.post<ScheduledShift>('/api/shifts/scheduled', body).then((r) => r.data),
+  }) => apiClient.post<ScheduledShift>('/api/shifts/scheduled', body),
 
   deleteScheduled: (id: string) =>
-    api.delete(`/api/shifts/scheduled/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/shifts/scheduled/${id}`),
 }

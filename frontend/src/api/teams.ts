@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface TeamSummary {
   id: string
@@ -40,26 +40,26 @@ export interface ShiftSlotView {
 
 export const teamsApi = {
   list: () =>
-    api.get<TeamSummary[]>('/api/teams').then((r) => r.data),
+    apiClient.get<TeamSummary[]>('/api/teams'),
 
   get: (id: string) =>
-    api.get<Team>(`/api/teams/${id}`).then((r) => r.data),
+    apiClient.get<Team>(`/api/teams/${id}`),
 
   create: (body: { name: string; supervisor_id?: string; parent_team_id?: string }) =>
-    api.post<Team>('/api/teams', body).then((r) => r.data),
+    apiClient.post<Team>('/api/teams', body),
 
   update: (id: string, body: { name?: string; supervisor_id?: string | null; parent_team_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
-    api.patch<Team>(`/api/teams/${id}`, body).then((r) => r.data),
+    apiClient.patch<Team>(`/api/teams/${id}`, body),
 
   listSlots: (teamId: string) =>
-    api.get<ShiftSlotView[]>(`/api/teams/${teamId}/slots`).then((r) => r.data),
+    apiClient.get<ShiftSlotView[]>(`/api/teams/${teamId}/slots`),
 
   createSlot: (teamId: string, body: {
     shift_template_id: string
     classification_id: string
     days_of_week: number[]
     label?: string
-  }) => api.post<ShiftSlotView>(`/api/teams/${teamId}/slots`, body).then((r) => r.data),
+  }) => apiClient.post<ShiftSlotView>(`/api/teams/${teamId}/slots`, body),
 
   updateSlot: (slotId: string, body: {
     shift_template_id?: string
@@ -67,5 +67,5 @@ export const teamsApi = {
     days_of_week?: number[]
     label?: string
     is_active?: boolean
-  }) => api.patch<ShiftSlotView>(`/api/shift-slots/${slotId}`, body).then((r) => r.data),
+  }) => apiClient.patch<ShiftSlotView>(`/api/shift-slots/${slotId}`, body),
 }

@@ -10,7 +10,7 @@ import { ErrorState } from '@/components/ui/error-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { useVacationBidWindow, useSubmitVacationBid } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { extractApiError, formatDateShort, toLocalDateStr } from '@/lib/format'
+import { extractApiError, formatDateShort, toLocalDateStr, formatDateTime } from '@/lib/format'
 
 interface DatePick {
   start_date: string
@@ -250,7 +250,7 @@ export default function VacationBidPage() {
                     </div>
                   ))}
                   <p className="text-xs text-muted-foreground mt-2">
-                    Submitted {new Date(bidWindow?.submitted_at ?? '').toLocaleString()}
+                    Submitted {formatDateTime(bidWindow?.submitted_at ?? '')}
                   </p>
                 </>
               ) : picks.length === 0 ? (
@@ -324,11 +324,11 @@ export default function VacationBidPage() {
             <CardContent className="text-sm space-y-1">
               <p>
                 <span className="text-muted-foreground">Opens:</span>{' '}
-                {new Date(bidWindow?.opens_at ?? '').toLocaleString()}
+                {formatDateTime(bidWindow?.opens_at ?? '')}
               </p>
               <p>
                 <span className="text-muted-foreground">Closes:</span>{' '}
-                {new Date(bidWindow?.closes_at ?? '').toLocaleString()}
+                {formatDateTime(bidWindow?.closes_at ?? '')}
               </p>
               <p>
                 <span className="text-muted-foreground">Round:</span>{' '}

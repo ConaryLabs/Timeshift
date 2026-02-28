@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
@@ -13,7 +14,7 @@ use crate::{
         BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveRequestLine,
         LeaveSegment, LeaveStatus, LeaveTypeRecord, ReviewLeaveRequest,
     },
-    services::leave::{create_fmla_segments, deduct_leave_balance, refund_leave_balance},
+    services::leave::{adjust_leave_balance, create_fmla_segments, deduct_leave_balance, refund_leave_balance},
 };
 
 /// Fetch segments for a leave request (empty vec if none).
@@ -722,7 +723,7 @@ pub async fn cancel(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn review(
@@ -1277,8 +1278,6 @@ pub async fn carryover_enforcement(
     let mut users_processed = 0i64;
     let mut users_affected = 0i64;
     let mut total_cashed_out = 0.0f64;
-    let today = crate::services::timezone::org_today(&auth.org_timezone);
-
     for user in &users {
         users_processed += 1;
         let cap = match user.cap {
@@ -1326,42 +1325,21 @@ pub async fn carryover_enforcement(
             }
             let deduct = excess.min(row.balance_hours);
 
-            sqlx::query!(
-                r#"
-                INSERT INTO accrual_transactions
-                    (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
-                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'carryover',
-                        $6, $7)
-                "#,
-                Uuid::new_v4(),
+            adjust_leave_balance(
+                &mut tx,
                 auth.org_id,
                 user.id,
                 row.leave_type_id,
                 -deduct,
-                format!(
+                "carryover",
+                Some(&format!(
                     "FY{} carryover cap enforcement — excess cashed out",
                     body.fiscal_year
-                ),
+                )),
+                None,
                 auth.id,
+                &auth.org_timezone,
             )
-            .execute(&mut *tx)
-            .await?;
-
-            sqlx::query!(
-                r#"
-                UPDATE leave_balances
-                SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
-                    as_of_date = $4,
-                    updated_at = NOW()
-                WHERE user_id = $1 AND leave_type_id = $2 AND org_id = $5
-                "#,
-                user.id,
-                row.leave_type_id,
-                deduct,
-                today,
-                auth.org_id,
-            )
-            .execute(&mut *tx)
             .await?;
 
             excess -= deduct;
@@ -1483,45 +1461,21 @@ pub async fn longevity_credit(
 
     let mut tx = pool.begin().await?;
 
-    sqlx::query!(
-        r#"
-        INSERT INTO accrual_transactions
-            (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'adjustment',
-                $6, $7)
-        "#,
-        Uuid::new_v4(),
+    adjust_leave_balance(
+        &mut tx,
         auth.org_id,
         body.user_id,
         vacation_type_id,
         vacation_credit,
-        format!(
+        "adjustment",
+        Some(&format!(
             "Anniversary credit: {} yrs of service; longevity {}%",
             years_of_service, longevity_percent
-        ),
+        )),
+        None,
         auth.id,
+        &auth.org_timezone,
     )
-    .execute(&mut *tx)
-    .await?;
-
-    let today = crate::services::timezone::org_today(&auth.org_timezone);
-    sqlx::query!(
-        r#"
-        INSERT INTO leave_balances (id, org_id, user_id, leave_type_id, balance_hours, as_of_date, updated_at)
-        VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, $6, NOW())
-        ON CONFLICT (org_id, user_id, leave_type_id) DO UPDATE
-        SET balance_hours = leave_balances.balance_hours + $5::FLOAT8::NUMERIC,
-            as_of_date = $6,
-            updated_at = NOW()
-        "#,
-        Uuid::new_v4(),
-        auth.org_id,
-        body.user_id,
-        vacation_type_id,
-        vacation_credit,
-        today,
-    )
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;

@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::special_assignment::{
@@ -265,9 +266,6 @@ pub async fn delete(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Special assignment not found".into()));
-    }
-
-    Ok(Json(serde_json::json!({ "ok": true })))
+    ensure_rows_affected(rows, "Special assignment")?;
+    Ok(json_ok())
 }

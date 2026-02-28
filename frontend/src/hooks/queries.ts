@@ -2,6 +2,7 @@
 // All imports from '@/hooks/queries' continue to work unchanged.
 
 export { queryKeys } from './queryKeys'
+export { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export { useMe } from './useAuth'
 

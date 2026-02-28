@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface LeaveBalanceView {
   leave_type_id: string
@@ -36,9 +36,7 @@ export interface AccrualTransaction {
 
 export const leaveBalancesApi = {
   list: (userId?: string) =>
-    api
-      .get<LeaveBalanceView[]>('/api/leave/balances', { params: userId ? { user_id: userId } : {} })
-      .then((r) => r.data),
+    apiClient.get<LeaveBalanceView[]>('/api/leave/balances', { params: userId ? { user_id: userId } : {} }),
 
   history: (
     userId: string,
@@ -50,15 +48,13 @@ export const leaveBalancesApi = {
       offset?: number
     },
   ) =>
-    api
-      .get<AccrualTransaction[]>(`/api/leave/balances/${userId}/history`, { params })
-      .then((r) => r.data),
+    apiClient.get<AccrualTransaction[]>(`/api/leave/balances/${userId}/history`, { params }),
 
   adjust: (body: { user_id: string; leave_type_id: string; hours: number; note?: string }) =>
-    api.post('/api/leave/balances/adjust', body).then((r) => r.data),
+    apiClient.post('/api/leave/balances/adjust', body),
 
   listAccrualSchedules: () =>
-    api.get<AccrualSchedule[]>('/api/leave/accrual-schedules').then((r) => r.data),
+    apiClient.get<AccrualSchedule[]>('/api/leave/accrual-schedules'),
 
   createAccrualSchedule: (body: {
     leave_type_id: string
@@ -69,7 +65,7 @@ export const leaveBalancesApi = {
     hours_per_pay_period: number
     max_balance_hours?: number
     effective_date?: string
-  }) => api.post<AccrualSchedule>('/api/leave/accrual-schedules', body).then((r) => r.data),
+  }) => apiClient.post<AccrualSchedule>('/api/leave/accrual-schedules', body),
 
   updateAccrualSchedule: (
     id: string,
@@ -79,8 +75,8 @@ export const leaveBalancesApi = {
       years_of_service_min?: number
       years_of_service_max?: number | null
     },
-  ) => api.patch<AccrualSchedule>(`/api/leave/accrual-schedules/${id}`, body).then((r) => r.data),
+  ) => apiClient.patch<AccrualSchedule>(`/api/leave/accrual-schedules/${id}`, body),
 
   deleteAccrualSchedule: (id: string) =>
-    api.delete(`/api/leave/accrual-schedules/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/leave/accrual-schedules/${id}`),
 }

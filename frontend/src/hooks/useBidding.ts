@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { biddingApi } from '@/api/bidding'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useBidWindows(periodId: string) {
   return useQuery({
@@ -42,22 +43,15 @@ export function useSubmitBid() {
 }
 
 export function useProcessBids() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: biddingApi.processBids,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.periods.all })
-      qc.invalidateQueries({ queryKey: queryKeys.bidding.all })
-    },
-  })
+  return useInvalidatingMutation(biddingApi.processBids, [
+    queryKeys.periods.all,
+    queryKeys.bidding.all,
+  ])
 }
 
 export function useApproveBidWindow() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (windowId: string) => biddingApi.approveBidWindow(windowId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.bidding.all })
-    },
-  })
+  return useInvalidatingMutation(
+    (windowId: string) => biddingApi.approveBidWindow(windowId),
+    [queryKeys.bidding.all],
+  )
 }

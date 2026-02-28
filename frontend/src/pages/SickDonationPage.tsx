@@ -21,7 +21,7 @@ import { useDonations, useCreateDonation, useReviewDonation, useCancelDonation, 
 import { usePermissions } from '@/hooks/usePermissions'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SickLeaveDonation } from '@/api/sickDonation'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDate } from '@/lib/format'
 
 const INITIAL_FORM = { recipient_id: '', leave_type_id: '', hours: '', fiscal_year: new Date().getFullYear().toString() }
 
@@ -126,7 +126,7 @@ export default function SickDonationPage() {
     { header: 'Hours', cell: (r) => r.hours.toFixed(1) },
     { header: 'FY', accessorKey: 'fiscal_year' },
     { header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
-    { header: 'Date', cell: (r) => new Date(r.created_at).toLocaleDateString() },
+    { header: 'Date', cell: (r) => formatDate(r.created_at) },
     ...(!isManager
       ? [{
           header: 'Actions',

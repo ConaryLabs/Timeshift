@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use crate::{
     api::coverage_plans::{compute_slot_coverage, compute_slot_coverage_batch, coverage_status_per_shift, ShiftCoverageStatus},
+    api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -24,6 +25,57 @@ use crate::{
     },
     org_guard,
 };
+
+/// Minimal template descriptor used by `build_day_view_entries`.
+struct ShiftTemplateInfo {
+    id: Uuid,
+    name: String,
+    color: String,
+    start_time: time::Time,
+    end_time: time::Time,
+    crosses_midnight: bool,
+}
+
+/// Build a `Vec<DayViewEntry>` from a list of shift templates, a per-template assignment map,
+/// and a per-template coverage status map.  The function consumes entries from `assignment_map`
+/// via `remove`, so callers should pass a mutable reference.
+fn build_day_view_entries(
+    templates: Vec<ShiftTemplateInfo>,
+    assignment_map: &mut HashMap<Uuid, Vec<GridAssignment>>,
+    status_map: &HashMap<Uuid, ShiftCoverageStatus>,
+) -> Vec<DayViewEntry> {
+    templates
+        .into_iter()
+        .map(|t| {
+            let assigns = assignment_map.remove(&t.id).unwrap_or_default();
+            let actual = assigns.len() as i32;
+            let (status, shortage, by_classification) = match status_map.get(&t.id) {
+                Some(s) => (
+                    s.status.clone(),
+                    s.total_shortage,
+                    s.by_classification.clone(),
+                ),
+                None => ("green".to_string(), 0, Vec::new()),
+            };
+            // coverage_required = actual + shortage so "8/11" means 8 assigned, need 3 more
+            let required = actual + shortage;
+
+            DayViewEntry {
+                shift_template_id: t.id,
+                shift_name: t.name,
+                shift_color: t.color,
+                start_time: t.start_time,
+                end_time: t.end_time,
+                crosses_midnight: t.crosses_midnight,
+                assignments: assigns,
+                coverage_required: required,
+                coverage_actual: actual,
+                coverage_status: status,
+                coverage_by_classification: by_classification,
+            }
+        })
+        .collect()
+}
 
 /// Returns a staffing view for a date range.
 pub async fn staffing_view(
@@ -173,11 +225,9 @@ pub async fn delete_assignment(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Assignment not found".into()));
-    }
+    ensure_rows_affected(rows, "Assignment")?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // -- Schedule Periods --
@@ -497,11 +547,9 @@ pub async fn remove_slot_assignment(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Assignment not found".into()));
-    }
+    ensure_rows_affected(rows, "Assignment")?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 // -- Grid View --
@@ -750,37 +798,18 @@ pub async fn day_view(
         .collect();
     let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
 
-    let entries: Vec<DayViewEntry> = templates
+    let template_infos: Vec<ShiftTemplateInfo> = templates
         .into_iter()
-        .map(|t| {
-            let assigns = assignment_map.remove(&t.id).unwrap_or_default();
-            let actual = assigns.len() as i32;
-            let (status, shortage, by_classification) = match status_map.get(&t.id) {
-                Some(s) => (
-                    s.status.clone(),
-                    s.total_shortage,
-                    s.by_classification.clone(),
-                ),
-                None => ("green".to_string(), 0, Vec::new()),
-            };
-            // coverage_required = actual + shortage so "8/11" means 8 assigned, need 3 more
-            let required = actual + shortage;
-
-            DayViewEntry {
-                shift_template_id: t.id,
-                shift_name: t.name,
-                shift_color: t.color,
-                start_time: t.start_time,
-                end_time: t.end_time,
-                crosses_midnight: t.crosses_midnight,
-                assignments: assigns,
-                coverage_required: required,
-                coverage_actual: actual,
-                coverage_status: status,
-                coverage_by_classification: by_classification,
-            }
+        .map(|t| ShiftTemplateInfo {
+            id: t.id,
+            name: t.name,
+            color: t.color,
+            start_time: t.start_time,
+            end_time: t.end_time,
+            crosses_midnight: t.crosses_midnight,
         })
         .collect();
+    let entries = build_day_view_entries(template_infos, &mut assignment_map, &status_map);
 
     Ok(Json(entries))
 }
@@ -861,36 +890,18 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         .collect();
     let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
 
-    let current_coverage: Vec<DayViewEntry> = templates
+    let template_infos: Vec<ShiftTemplateInfo> = templates
         .into_iter()
-        .map(|t| {
-            let assigns = assignment_map.remove(&t.id).unwrap_or_default();
-            let actual = assigns.len() as i32;
-            let (status, shortage, by_classification) = match status_map.get(&t.id) {
-                Some(s) => (
-                    s.status.clone(),
-                    s.total_shortage,
-                    s.by_classification.clone(),
-                ),
-                None => ("green".to_string(), 0, Vec::new()),
-            };
-            let required = actual + shortage;
-
-            DayViewEntry {
-                shift_template_id: t.id,
-                shift_name: t.name,
-                shift_color: t.color,
-                start_time: t.start_time,
-                end_time: t.end_time,
-                crosses_midnight: t.crosses_midnight,
-                assignments: assigns,
-                coverage_required: required,
-                coverage_actual: actual,
-                coverage_status: status,
-                coverage_by_classification: by_classification,
-            }
+        .map(|t| ShiftTemplateInfo {
+            id: t.id,
+            name: t.name,
+            color: t.color,
+            start_time: t.start_time,
+            end_time: t.end_time,
+            crosses_midnight: t.crosses_midnight,
         })
         .collect();
+    let current_coverage = build_day_view_entries(template_infos, &mut assignment_map, &status_map);
 
     // Group 2: pending leave, open callouts, and annotations are all independent — run concurrently.
     let pending_leave_fut = sqlx::query_scalar!(
@@ -1028,9 +1039,7 @@ pub async fn delete_annotation(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Annotation not found".into()));
-    }
+    ensure_rows_affected(rows, "Annotation")?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }

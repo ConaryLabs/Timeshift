@@ -6,12 +6,14 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     auth::AuthUser,
     error::{AppError, Result},
     models::common::ReviewAction,
     models::leave_sellback::{
         CreateSellbackRequest, HolidaySellbackRequest, ReviewSellbackRequest,
     },
+    services::leave::adjust_leave_balance,
 };
 
 /// GET /api/leave/sellback
@@ -271,38 +273,21 @@ pub async fn review(
             }
             let deduct = remaining.min(ht.balance_hours);
 
-            sqlx::query!(
-                r#"
-                INSERT INTO accrual_transactions
-                    (id, org_id, user_id, leave_type_id, hours, reason, note, created_by)
-                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC, 'sellback', $6, $7)
-                "#,
-                Uuid::new_v4(),
+            adjust_leave_balance(
+                &mut tx,
                 auth.org_id,
                 req.user_id,
                 ht.leave_type_id,
                 -deduct,
-                format!("Holiday sellback FY{} ({})", req.fiscal_year, req.period),
+                "sellback",
+                Some(&format!(
+                    "Holiday sellback FY{} ({})",
+                    req.fiscal_year, req.period
+                )),
+                Some(req.id),
                 auth.id,
+                &auth.org_timezone,
             )
-            .execute(&mut *tx)
-            .await?;
-
-            let today = crate::services::timezone::org_today(&auth.org_timezone);
-            sqlx::query!(
-                r#"
-                UPDATE leave_balances
-                SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
-                    as_of_date = $4, updated_at = NOW()
-                WHERE user_id = $1 AND leave_type_id = $2 AND org_id = $5
-                "#,
-                req.user_id,
-                ht.leave_type_id,
-                deduct,
-                today,
-                auth.org_id,
-            )
-            .execute(&mut *tx)
             .await?;
 
             remaining -= deduct;
@@ -386,5 +371,5 @@ pub async fn cancel(
         ));
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }

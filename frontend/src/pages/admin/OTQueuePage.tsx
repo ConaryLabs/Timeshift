@@ -39,7 +39,7 @@ import {
   useOrgSettings,
 } from '@/hooks/queries'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { NO_VALUE, extractApiError } from '@/lib/format'
+import { NO_VALUE, extractApiError, formatDate } from '@/lib/format'
 import type { OtQueueEntry, OtHoursEntry } from '@/api/ot'
 
 function computeFiscalYear(date: Date, fyStartMonth: number): number {
@@ -151,7 +151,7 @@ export default function OTQueuePage() {
       header: 'Last Called',
       cell: (r) =>
         r.last_ot_event_at
-          ? new Date(r.last_ot_event_at).toLocaleDateString()
+          ? formatDate(r.last_ot_event_at)
           : <span className="text-muted-foreground">Never</span>,
     },
     {

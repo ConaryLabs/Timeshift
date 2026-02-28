@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosRequestConfig } from 'axios'
 import { toast } from 'sonner'
 import { useAuthStore } from '../store/auth'
 
@@ -116,4 +116,18 @@ api.interceptors.response.use(
 /** Broadcast logout to other tabs. Call this from explicit user-initiated logout. */
 export function broadcastLogout() {
   broadcast({ type: 'logout' })
+}
+
+/** Pre-unwrapped API client — returns response.data directly */
+export const apiClient = {
+  get: <T>(url: string, config?: AxiosRequestConfig) =>
+    api.get<T>(url, config).then((r) => r.data),
+  post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    api.post<T>(url, data, config).then((r) => r.data),
+  patch: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    api.patch<T>(url, data, config).then((r) => r.data),
+  put: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    api.put<T>(url, data, config).then((r) => r.data),
+  delete: <T>(url: string, config?: AxiosRequestConfig) =>
+    api.delete<T>(url, config).then((r) => r.data),
 }

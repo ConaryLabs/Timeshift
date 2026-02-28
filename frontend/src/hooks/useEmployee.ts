@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { employeeApi, type UpdatePreferencesRequest } from '@/api/employee'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useMyPreferences() {
   return useQuery({
@@ -10,11 +11,10 @@ export function useMyPreferences() {
 }
 
 export function useUpdateMyPreferences() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (body: UpdatePreferencesRequest) => employeeApi.updatePreferences(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.employee.preferences }),
-  })
+  return useInvalidatingMutation(
+    (body: UpdatePreferencesRequest) => employeeApi.updatePreferences(body),
+    [queryKeys.employee.preferences],
+  )
 }
 
 export function useMySchedule(startDate: string, endDate: string) {

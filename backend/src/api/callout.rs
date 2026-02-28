@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::json_ok,
     auth::AuthUser,
     error::{AppError, Result},
     models::{
@@ -643,7 +644,7 @@ pub async fn cancel_ot_assignment(
 
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 pub async fn cancel_event(
@@ -679,7 +680,7 @@ pub async fn cancel_event(
         ));
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(json_ok())
 }
 
 /// Submit a bump request to displace another employee from a filled OT callout event.

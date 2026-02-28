@@ -1,4 +1,4 @@
-import { api } from './client'
+import { apiClient } from './client'
 
 export interface Holiday {
   id: string
@@ -11,14 +11,14 @@ export interface Holiday {
 
 export const holidaysApi = {
   list: (year?: number) =>
-    api.get<Holiday[]>('/api/holidays', { params: year ? { year } : undefined }).then((r) => r.data),
+    apiClient.get<Holiday[]>('/api/holidays', { params: year ? { year } : undefined }),
 
   create: (body: { date: string; name: string; is_premium_pay?: boolean }) =>
-    api.post<Holiday>('/api/holidays', body).then((r) => r.data),
+    apiClient.post<Holiday>('/api/holidays', body),
 
   update: (id: string, body: { name?: string; is_premium_pay?: boolean }) =>
-    api.patch<Holiday>(`/api/holidays/${id}`, body).then((r) => r.data),
+    apiClient.patch<Holiday>(`/api/holidays/${id}`, body),
 
   delete: (id: string) =>
-    api.delete(`/api/holidays/${id}`).then((r) => r.data),
+    apiClient.delete(`/api/holidays/${id}`),
 }

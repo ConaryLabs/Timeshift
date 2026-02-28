@@ -32,6 +32,7 @@ import {
   useDeleteNotification,
 } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
+import { formatDateShort } from '@/lib/format'
 import type { Notification, NotificationType } from '@/api/notifications'
 
 function timeAgo(dateStr: string): string {
@@ -49,7 +50,9 @@ function timeAgo(dateStr: string): string {
   if (days < 7) return `${days}d ago`
   const weeks = Math.floor(days / 7)
   if (weeks < 4) return `${weeks}w ago`
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  // Extract the date part (YYYY-MM-DD) and use the formatter
+  const dateOnly = dateStr.split('T')[0]
+  return formatDateShort(dateOnly)
 }
 
 function notificationIcon(type: NotificationType) {

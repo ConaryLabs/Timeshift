@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { specialAssignmentsApi, type SpecialAssignmentListParams } from '@/api/specialAssignments'
 import { queryKeys } from './queryKeys'
+import { useInvalidatingMutation } from './useInvalidatingMutation'
 
 export function useSpecialAssignments(params?: SpecialAssignmentListParams) {
   return useQuery({
@@ -10,32 +11,17 @@ export function useSpecialAssignments(params?: SpecialAssignmentListParams) {
 }
 
 export function useCreateSpecialAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: specialAssignmentsApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
-    },
-  })
+  return useInvalidatingMutation(specialAssignmentsApi.create, [queryKeys.specialAssignments.all])
 }
 
 export function useUpdateSpecialAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; assignment_type?: string; end_date?: string | null; notes?: string | null }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; assignment_type?: string; end_date?: string | null; notes?: string | null }) =>
       specialAssignmentsApi.update(id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
-    },
-  })
+    [queryKeys.specialAssignments.all],
+  )
 }
 
 export function useDeleteSpecialAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: specialAssignmentsApi.delete,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.specialAssignments.all })
-    },
-  })
+  return useInvalidatingMutation(specialAssignmentsApi.delete, [queryKeys.specialAssignments.all])
 }

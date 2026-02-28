@@ -7,6 +7,8 @@ use crate::error::{AppError, Result};
 
 /// Core balance adjustment: positive delta adds hours, negative deducts.
 /// Atomically records an accrual_transaction and upserts the leave_balances row.
+/// `reference_id` is the UUID of the related entity (leave request, donation, etc.); pass `None`
+/// for administrative adjustments that have no associated workflow entity.
 #[allow(clippy::too_many_arguments)]
 pub async fn adjust_leave_balance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -16,7 +18,7 @@ pub async fn adjust_leave_balance(
     delta: f64,
     reason: &str,
     note: Option<&str>,
-    reference_id: Uuid,
+    reference_id: Option<Uuid>,
     actor_id: Uuid,
     org_timezone: &str,
 ) -> Result<()> {
@@ -81,7 +83,7 @@ pub async fn deduct_leave_balance(
         -hours.abs(),
         "usage",
         None,
-        leave_request_id,
+        Some(leave_request_id),
         reviewer_id,
         org_timezone,
     )
@@ -108,7 +110,7 @@ pub async fn refund_leave_balance(
         hours.abs(),
         "adjustment",
         Some("Refund: approved leave cancelled"),
-        leave_request_id,
+        Some(leave_request_id),
         canceller_id,
         org_timezone,
     )
