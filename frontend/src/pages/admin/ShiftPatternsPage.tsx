@@ -221,9 +221,6 @@ export default function ShiftPatternsPage() {
     },
   ]
 
-  // Keep extractApiError import satisfied (used nowhere now, but needed for the delete path above)
-  void extractApiError
-
   return (
     <div>
       <PageHeader
