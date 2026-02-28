@@ -51,6 +51,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { lazy, Suspense } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
+import { broadcastLogout } from '@/api/client'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount, useCoverageGaps, useCoverageGapBlocks } from '@/hooks/queries'
@@ -420,6 +421,7 @@ export default function AppShell() {
   function handleLogout() {
     authApi.logout().catch(() => {})
     logout()
+    broadcastLogout()
     navigate('/login')
   }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Navigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star, StickyNote, Phone, Clock, Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -22,7 +22,10 @@ export default function DayViewPage() {
   const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
   const { isManager } = usePermissions()
-  const dateStr = date ?? format(new Date(), 'yyyy-MM-dd')
+
+  // Validate date param — use today as fallback for invalid dates
+  const isValidDate = !date || !isNaN(parseISO(date).getTime())
+  const dateStr = (isValidDate && date) ? date : format(new Date(), 'yyyy-MM-dd')
 
   const { data: entries, isLoading, error } = useDayView(dateStr)
   const { data: annotations } = useAnnotations(dateStr, dateStr)
@@ -31,6 +34,11 @@ export default function DayViewPage() {
   const [annotationType, setAnnotationType] = useState<string>('note')
   const [annotationContent, setAnnotationContent] = useState('')
   const createAnnotation = useCreateAnnotation()
+
+  // Redirect after hooks if the date param is invalid
+  if (!isValidDate) {
+    return <Navigate to="/schedule" replace />
+  }
 
   const parsedDate = parseISO(dateStr)
 

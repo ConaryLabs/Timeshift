@@ -52,6 +52,7 @@ export default function TradesPage() {
   const initialDate = searchParams.get('date')
   const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>('all')
   const [search, setSearch] = useState('')
+  const [clearSelectionKey, setClearSelectionKey] = useState(0)
   const debouncedSearch = useDebounce(search)
   const [showForm, setShowForm] = useState(!!initialDate)
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
@@ -447,6 +448,7 @@ export default function TradesPage() {
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} trade(s) approved`)
+                      setClearSelectionKey((k) => k + 1)
                     },
                     onError: () => toast.error('Failed to bulk approve'),
                   },
@@ -464,6 +466,7 @@ export default function TradesPage() {
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} trade(s) denied`)
+                      setClearSelectionKey((k) => k + 1)
                     },
                     onError: () => toast.error('Failed to bulk deny'),
                   },
@@ -473,6 +476,7 @@ export default function TradesPage() {
               </Button>
             </div>
           ) : undefined}
+          clearSelectionKey={clearSelectionKey}
         />
       )}
 

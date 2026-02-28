@@ -33,7 +33,6 @@ export {
   useCreateUser,
   useUpdateUser,
   useDeactivateUser,
-  useChangePassword,
 } from './useUsers'
 
 export {

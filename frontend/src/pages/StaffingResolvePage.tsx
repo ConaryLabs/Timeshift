@@ -211,10 +211,10 @@ export default function StaffingResolvePage() {
         const baseMin30 = bStartH30 * 60 + bStartM30
         for (let sub = 0; sub < 4; sub++) {
           const totalMin = baseMin30 + sub * 30
-          const h = Math.floor(totalMin / 60)
+          const h = Math.floor(totalMin / 60) % 24
           const m = totalMin % 60
           const endMin = totalMin + 30
-          const eh = Math.floor(endMin / 60)
+          const eh = Math.floor(endMin / 60) % 24
           const em = endMin % 60
           newBlocks.push({
             ...b,

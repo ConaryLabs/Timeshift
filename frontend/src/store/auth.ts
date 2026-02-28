@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { queryClient } from '@/lib/queryClient'
+import { useUIStore } from './ui'
 
 export type Role = 'admin' | 'supervisor' | 'employee'
 
@@ -54,7 +56,11 @@ export const useAuthStore = create<AuthState>()(
         user: null,
         setAuth: setUser,
         setUser,
-        logout: () => set({ user: null }),
+        logout: () => {
+          set({ user: null })
+          queryClient.clear()
+          useUIStore.getState().reset()
+        },
       }
     },
     {

@@ -141,7 +141,7 @@ export default function DutyPositionsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update duty position')
             toast.error(msg)
           },
         },
@@ -155,7 +155,7 @@ export default function DutyPositionsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create duty position')
             toast.error(msg)
           },
         },
@@ -288,7 +288,7 @@ export default function DutyPositionsPage() {
                     setDeleteTarget(null)
                   },
                   onError: (err: unknown) => {
-                    const msg = extractApiError(err, 'Operation failed')
+                    const msg = extractApiError(err, 'Failed to delete duty position')
                     toast.error(msg)
                   },
                 })

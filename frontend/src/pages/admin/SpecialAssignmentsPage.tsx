@@ -146,7 +146,7 @@ export default function SpecialAssignmentsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update assignment')
             toast.error(msg)
           },
         },
@@ -166,7 +166,7 @@ export default function SpecialAssignmentsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create assignment')
             toast.error(msg)
           },
         },

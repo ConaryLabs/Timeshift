@@ -98,7 +98,7 @@ function NotificationRow({ notification }: { notification: Notification }) {
     if (!notification.is_read) {
       markRead.mutate(notification.id)
     }
-    if (notification.link) {
+    if (notification.link && notification.link.startsWith('/')) {
       navigate(notification.link)
     }
   }

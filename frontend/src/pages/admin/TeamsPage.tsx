@@ -85,7 +85,7 @@ export default function TeamsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update team')
             toast.error(msg)
           },
         },
@@ -99,7 +99,7 @@ export default function TeamsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create team')
             toast.error(msg)
           },
         },

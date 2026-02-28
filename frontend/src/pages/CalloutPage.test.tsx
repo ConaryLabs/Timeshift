@@ -26,6 +26,7 @@ vi.mock('@/hooks/queries', () => ({
   useBumpRequests: (...args: unknown[]) => mockBumpRequests(...args),
   useCreateBumpRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useReviewBumpRequest: () => ({ mutate: vi.fn(), isPending: false }),
+  useOtRequests: () => ({ data: [] }),
 }))
 
 vi.mock('@/hooks/useDebounce', () => ({

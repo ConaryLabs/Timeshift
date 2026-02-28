@@ -88,6 +88,7 @@ export default function LeavePage() {
   const [reviewerNotes, setReviewerNotes] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [clearSelectionKey, setClearSelectionKey] = useState(0)
   const debouncedSearch = useDebounce(search)
 
   // Clear date param from URL after reading it (clean URL for bookmarking)
@@ -358,6 +359,7 @@ export default function LeavePage() {
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} request(s) approved`)
+                      setClearSelectionKey((k) => k + 1)
                     },
                     onError: () => toast.error('Failed to bulk approve'),
                   },
@@ -375,6 +377,7 @@ export default function LeavePage() {
                   {
                     onSuccess: (data) => {
                       toast.success(`${data.reviewed} request(s) denied`)
+                      setClearSelectionKey((k) => k + 1)
                     },
                     onError: () => toast.error('Failed to bulk deny'),
                   },
@@ -384,6 +387,7 @@ export default function LeavePage() {
               </Button>
             </div>
           ) : undefined}
+          clearSelectionKey={clearSelectionKey}
         />
       )}
 
@@ -476,7 +480,7 @@ export default function LeavePage() {
                     onChange={(e) => setForm({ ...form, hours: e.target.value })}
                   />
                 </FormField>
-                <FormField label="Starting At (24hr)" htmlFor="lr-start-time">
+                <FormField label="Start Time" htmlFor="lr-start-time">
                   <Input
                     id="lr-start-time"
                     type="time"

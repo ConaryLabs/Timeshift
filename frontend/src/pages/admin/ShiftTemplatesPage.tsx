@@ -83,7 +83,7 @@ export default function ShiftTemplatesPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to create shift template')
         toast.error(msg)
       },
     })
@@ -103,7 +103,7 @@ export default function ShiftTemplatesPage() {
           setConflictOpen(true)
           return
         }
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to update shift template')
         toast.error(msg)
       },
     })
@@ -124,7 +124,7 @@ export default function ShiftTemplatesPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to update shift template')
         toast.error(msg)
       },
     })
@@ -168,7 +168,7 @@ export default function ShiftTemplatesPage() {
                 {
                   onSuccess: () => toast.success('Shift template activated'),
                   onError: (err: unknown) => {
-                    const msg = extractApiError(err, 'Operation failed')
+                    const msg = extractApiError(err, 'Failed to activate shift template')
                     toast.error(msg)
                   },
                 },
@@ -319,7 +319,7 @@ export default function ShiftTemplatesPage() {
                       setDeactivateTarget(null)
                     },
                     onError: (err: unknown) => {
-                      const msg = extractApiError(err, 'Operation failed')
+                      const msg = extractApiError(err, 'Failed to deactivate shift template')
                       toast.error(msg)
                     },
                   },

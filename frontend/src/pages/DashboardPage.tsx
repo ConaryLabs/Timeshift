@@ -21,11 +21,18 @@ import type { ClassificationCoverageDetail } from '@/api/schedule'
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { data, isLoading, error } = useDashboard()
+  const { data, isLoading, error, refetch } = useDashboard()
   const today = format(new Date(), 'yyyy-MM-dd')
 
   if (isLoading) return <LoadingState message="Loading dashboard..." />
-  if (error) return <p className="text-sm text-destructive">Failed to load dashboard</p>
+  if (error) return (
+    <div className="p-6 text-center space-y-4">
+      <p className="text-sm text-destructive">Failed to load dashboard data.</p>
+      <Button variant="outline" size="sm" onClick={() => refetch()}>
+        Try again
+      </Button>
+    </div>
+  )
   if (!data) return null
 
   const { current_coverage, pending_leave_count, open_callout_count, annotations } = data
