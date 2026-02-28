@@ -224,17 +224,7 @@ export default function DayViewPage() {
                         backgroundColor: entry.shift_color,
                         color: contrastText(entry.shift_color),
                       }
-                      const badge = isManager ? (
-                        <Link
-                          key={a.assignment_id}
-                          to={`/admin/users/${a.user_id}`}
-                          className={`${badgeClassName} hover:ring-2 hover:ring-white/50`}
-                          style={badgeStyle}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {badgeContent}
-                        </Link>
-                      ) : (
+                      const badge = (
                         <span
                           key={a.assignment_id}
                           className={badgeClassName}

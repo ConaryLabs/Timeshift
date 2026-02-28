@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
+
+use crate::models::common::deserialize_optional_field;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ShiftPattern {
@@ -33,8 +36,9 @@ impl ShiftPattern {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateShiftPatternRequest {
+    #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub pattern_days: i32,
     /// Required for simple patterns (N on, M off). Ignored when work_days_in_cycle is set.
@@ -47,15 +51,20 @@ pub struct CreateShiftPatternRequest {
     pub work_days_in_cycle: Option<Vec<i32>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateShiftPatternRequest {
+    #[validate(length(min = 1, max = 100))]
     pub name: Option<String>,
     pub pattern_days: Option<i32>,
     pub work_days: Option<i32>,
     pub off_days: Option<i32>,
     pub anchor_date: Option<time::Date>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub team_id: Option<Option<Uuid>>,
     pub is_active: Option<bool>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub work_days_in_cycle: Option<Option<Vec<i32>>>,
 }
 

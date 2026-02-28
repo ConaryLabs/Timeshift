@@ -34,6 +34,7 @@ pub async fn list(
         WHERE org_id = $1
           AND ($2::UUID IS NULL OR donor_id = $2 OR recipient_id = $2)
         ORDER BY created_at DESC
+        LIMIT 500
         "#,
         auth.org_id,
         filter_user,

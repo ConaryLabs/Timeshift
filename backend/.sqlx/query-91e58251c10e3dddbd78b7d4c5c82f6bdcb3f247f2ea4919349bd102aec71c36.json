@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "DELETE FROM refresh_tokens WHERE token = $1\n           RETURNING user_id, org_id, family_id, expires_at",
+  "query": "DELETE FROM refresh_tokens WHERE token = $1\n           RETURNING user_id, org_id, family_id, expires_at, created_at",
   "describe": {
     "columns": [
       {
@@ -22,6 +22,11 @@
         "ordinal": 3,
         "name": "expires_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -33,8 +38,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "a73d290ca882429d0137acb65ea8baea7851e04cbc652a3e6eaddf5f7ab95961"
+  "hash": "91e58251c10e3dddbd78b7d4c5c82f6bdcb3f247f2ea4919349bd102aec71c36"
 }

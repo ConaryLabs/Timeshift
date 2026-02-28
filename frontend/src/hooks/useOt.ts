@@ -121,7 +121,12 @@ export function useCancelOtRequest() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: otRequestsApi.cancel,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
+    },
   })
 }
 
@@ -130,6 +135,11 @@ export function useCancelOtAssignment() {
   return useMutation({
     mutationFn: ({ id, userId }: { id: string; userId: string }) =>
       otRequestsApi.cancelAssignment(id, userId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.otRequests.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
+    },
   })
 }

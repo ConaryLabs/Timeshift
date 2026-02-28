@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, getDay, getDaysInMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Calendar as CalendarIcon, Printer, StickyNote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -600,20 +600,6 @@ function AssignmentChip({
       )}
     </>
   )
-
-  if (isAdmin) {
-    return (
-      <Link
-        to={`/admin/users/${a.user_id}`}
-        title={tooltipParts.join(' · ')}
-        className={chipClassName}
-        style={{ backgroundColor: a.shift_color }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {chipContent}
-      </Link>
-    )
-  }
 
   return (
     <span

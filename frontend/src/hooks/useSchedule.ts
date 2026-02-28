@@ -18,7 +18,11 @@ export function useCreateAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: scheduleApi.createAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.schedule.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
+    },
   })
 }
 
@@ -26,7 +30,11 @@ export function useDeleteAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: scheduleApi.deleteAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.schedule.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
+    },
   })
 }
 

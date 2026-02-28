@@ -83,14 +83,14 @@ export default function CoveragePlanDetailPage() {
   const navigate = useNavigate()
   const planId = id ?? ''
 
-  const { data: plan, isLoading: planLoading } = useCoveragePlan(planId)
+  const { data: plan, isLoading: planLoading, isError: planError } = useCoveragePlan(planId)
   const { data: classifications } = useClassifications()
   const activeClassifications = (classifications ?? []).filter((c: { is_active: boolean }) => c.is_active)
 
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const classId = selectedClassId || activeClassifications[0]?.id || ''
 
-  const { data: slots, isLoading: slotsLoading } = useCoveragePlanSlots(planId)
+  const { data: slots, isLoading: slotsLoading, isError: slotsError } = useCoveragePlanSlots(planId)
   const bulkUpsert = useBulkUpsertSlots()
 
   const [gridState, setGridState] = useState<GridState>(emptyGrid())
@@ -170,6 +170,21 @@ export default function CoveragePlanDetailPage() {
   }
 
   if (planLoading || slotsLoading) return <LoadingState />
+
+  if (planError || slotsError) {
+    return (
+      <div>
+        <PageHeader title="Coverage Plan" />
+        <p className="text-sm text-destructive">
+          Failed to load coverage plan. It may have been deleted or you may not have access.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate('/admin/coverage-plans')}>
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Back to Plans
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div>

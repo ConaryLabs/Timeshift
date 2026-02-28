@@ -41,15 +41,8 @@ pub async fn create(
     auth: AuthUser,
     Json(req): Json<CreateSavedFilterRequest>,
 ) -> Result<Json<SavedFilter>> {
-    if req.name.trim().is_empty() {
-        return Err(AppError::BadRequest("Name is required".into()));
-    }
-
-    if req.name.len() > 255 {
-        return Err(AppError::BadRequest(
-            "Name must be 255 characters or fewer".into(),
-        ));
-    }
+    use validator::Validate;
+    req.validate()?;
 
     // Cap JSON filters payload at 64KB
     if req.filters.to_string().len() > 65_536 {

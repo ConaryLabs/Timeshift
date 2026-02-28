@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct SavedFilter {
@@ -20,9 +21,11 @@ pub struct SavedFilterQuery {
     pub page: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateSavedFilterRequest {
+    #[validate(length(min = 1, max = 100))]
     pub name: String,
+    #[validate(length(min = 1, max = 100))]
     pub page: String,
     pub filters: serde_json::Value,
     #[serde(default)]

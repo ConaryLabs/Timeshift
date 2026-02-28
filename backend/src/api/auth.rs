@@ -37,6 +37,14 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> Result<impl IntoResponse> {
+    // Reject oversized passwords early to prevent Argon2 DoS (before any DB or hash work).
+    // Legitimate passwords are at most 128 chars; anything longer is malicious.
+    if req.password.len() > 128 {
+        return Err(AppError::Unauthorized(Some(
+            "Incorrect email or password".into(),
+        )));
+    }
+
     // Multi-org login: if org_slug is provided, filter by it.
     // If not provided, verify only one user matches the email.
     let user = if let Some(ref slug) = req.org_slug {
@@ -319,7 +327,16 @@ pub async fn logout(
     let mut logout_org_id = None;
 
     if let Some(RefreshTokenCookie(raw)) = refresh {
-        let hashed = hash_token(&raw);
+        // Cookie format: "{family_id}:{raw_token}" (new) or just "{raw_token}" (legacy).
+        // Must parse before hashing, just like the refresh handler does.
+        let (cookie_family_id, raw_token) = if let Some(idx) = raw.find(':') {
+            let fam = Uuid::parse_str(&raw[..idx]).ok();
+            (fam, raw[idx + 1..].to_string())
+        } else {
+            (None, raw.clone())
+        };
+
+        let hashed = hash_token(&raw_token);
         // Look up user before deleting, for audit log
         if let Ok(Some(row)) = sqlx::query!(
             "SELECT user_id, org_id FROM refresh_tokens WHERE token = $1",
@@ -331,11 +348,25 @@ pub async fn logout(
             logout_user_id = Some(row.user_id);
             logout_org_id = Some(row.org_id);
         }
+        // Delete the specific token
         if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE token = $1", hashed)
             .execute(&state.pool)
             .await
         {
             tracing::warn!("Failed to delete refresh token on logout: {e}");
+        }
+        // Also revoke entire token family so no other device can refresh with tokens from
+        // this login session (defense in depth -- user explicitly chose to log out)
+        if let Some(fam_id) = cookie_family_id {
+            if let Err(e) = sqlx::query!(
+                "DELETE FROM refresh_tokens WHERE family_id = $1",
+                fam_id
+            )
+            .execute(&state.pool)
+            .await
+            {
+                tracing::warn!("Failed to revoke token family on logout: {e}");
+            }
         }
     }
 
@@ -388,6 +419,7 @@ pub async fn refresh(
         org_id: Uuid,
         family_id: Uuid,
         expires_at: time::OffsetDateTime,
+        created_at: time::OffsetDateTime,
     }
 
     // Atomically consume the refresh token: DELETE ... RETURNING ensures that
@@ -395,7 +427,7 @@ pub async fn refresh(
     let row = sqlx::query_as!(
         RefreshRow,
         r#"DELETE FROM refresh_tokens WHERE token = $1
-           RETURNING user_id, org_id, family_id, expires_at"#,
+           RETURNING user_id, org_id, family_id, expires_at, created_at"#,
         hashed
     )
     .fetch_optional(&state.pool)
@@ -429,14 +461,16 @@ pub async fn refresh(
         return Err(AppError::Unauthorized(None));
     }
 
-    // Verify user still active
+    // Verify user still active and check password_changed_at (defense in depth)
     struct UserRow {
         role: Role,
         is_active: bool,
+        password_changed_at: Option<time::OffsetDateTime>,
     }
     let user = sqlx::query_as!(
         UserRow,
-        r#"SELECT role AS "role: Role", is_active FROM users WHERE id = $1 AND org_id = $2"#,
+        r#"SELECT role AS "role: Role", is_active, password_changed_at
+           FROM users WHERE id = $1 AND org_id = $2"#,
         row.user_id,
         row.org_id,
     )
@@ -446,6 +480,15 @@ pub async fn refresh(
 
     if !user.is_active {
         return Err(AppError::Unauthorized(None));
+    }
+
+    // Reject refresh tokens created at or before the last password change.
+    // Primary defense is that change_password deletes all refresh tokens,
+    // but this catches any race conditions.
+    if let Some(changed_at) = user.password_changed_at {
+        if row.created_at <= changed_at {
+            return Err(AppError::Unauthorized(None));
+        }
     }
 
     // Issue new access token

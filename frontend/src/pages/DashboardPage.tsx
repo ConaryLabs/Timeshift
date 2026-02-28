@@ -1,5 +1,5 @@
 import { format } from 'date-fns'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   ClipboardList,
   Phone,
@@ -170,10 +170,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         {entry.assignments.map((a) => (
-                          <Link
+                          <span
                             key={a.assignment_id}
-                            to={`/admin/users/${a.user_id}`}
-                            className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium hover:ring-1 hover:ring-white/50 transition-shadow"
+                            className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
                             style={{
                               backgroundColor: entry.shift_color,
                               color: contrastText(entry.shift_color),
@@ -183,7 +182,7 @@ export default function DashboardPage() {
                             {a.is_overtime && (
                               <span className="ml-0.5 font-bold">OT</span>
                             )}
-                          </Link>
+                          </span>
                         ))}
                       </div>
                     </div>

@@ -224,9 +224,9 @@ pub struct ScheduleAnnotation {
 pub struct CreateAnnotationRequest {
     pub date: time::Date,
     pub shift_template_id: Option<Uuid>,
-    #[validate(length(max = 5000))]
+    #[validate(length(min = 1, max = 5000))]
     pub content: String,
-    #[validate(length(max = 50))]
+    #[validate(length(min = 1, max = 50))]
     pub annotation_type: String,
 }
 

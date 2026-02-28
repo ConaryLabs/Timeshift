@@ -46,7 +46,11 @@ export function useCreateDutyAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: dutyPositionsApi.createAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
+      qc.invalidateQueries({ queryKey: ['duty-assignments'] })
+      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
+    },
   })
 }
 
@@ -55,7 +59,11 @@ export function useUpdateDutyAssignment() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; user_id?: string; notes?: string | null }) =>
       dutyPositionsApi.updateAssignment(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
+      qc.invalidateQueries({ queryKey: ['duty-assignments'] })
+      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
+    },
   })
 }
 
@@ -63,6 +71,10 @@ export function useDeleteDutyAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: dutyPositionsApi.deleteAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.dutyPositions.all })
+      qc.invalidateQueries({ queryKey: ['duty-assignments'] })
+      qc.invalidateQueries({ queryKey: queryKeys.dutyBoard.all })
+    },
   })
 }
