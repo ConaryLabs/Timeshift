@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT lr.id, lr.user_id,\n               u.first_name, u.last_name,\n               lr.leave_type_id,\n               lt.code AS leave_type_code, lt.name AS leave_type_name,\n               lr.start_date, lr.end_date,\n               lr.hours::FLOAT8 AS hours,\n               lr.start_time,\n               lr.scheduled_shift_id,\n               lr.is_rdo,\n               lr.reason,\n               lr.emergency_contact,\n               lr.bereavement_relationship,\n               lr.bereavement_name,\n               lr.status AS \"status: LeaveStatus\",\n               lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE u.org_id = $1\n          AND lr.org_id = $1\n          AND ($2 OR lr.user_id = $3)\n        ORDER BY lr.created_at DESC\n        LIMIT $4 OFFSET $5\n        ",
+  "query": "\n        SELECT lr.id, lr.user_id,\n               u.first_name, u.last_name,\n               lr.leave_type_id,\n               lt.code AS leave_type_code, lt.name AS leave_type_name,\n               lr.start_date, lr.end_date,\n               lr.hours::FLOAT8 AS hours,\n               lr.start_time,\n               lr.scheduled_shift_id,\n               lr.is_rdo,\n               lr.reason,\n               lr.emergency_contact,\n               lr.bereavement_relationship,\n               lr.bereavement_name,\n               lr.status AS \"status: LeaveStatus\",\n               lr.reviewed_by, lr.reviewer_notes, lr.created_at, lr.updated_at\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE u.org_id = $1\n          AND lr.org_id = $1\n          AND ($2 OR lr.user_id = $3)\n          AND ($6::text IS NULL OR lr.status::text = $6)\n        ORDER BY lr.created_at DESC\n        LIMIT $4 OFFSET $5\n        ",
   "describe": {
     "columns": [
       {
@@ -132,7 +132,8 @@
         "Bool",
         "Uuid",
         "Int8",
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -160,5 +161,5 @@
       false
     ]
   },
-  "hash": "12c98c8eae554b93cbbb7ed9a9272e9253df1035fc0922645bc667abbfea5cbd"
+  "hash": "78ca9e525ab2cd9ce959e6e39f1f4e4561a469c10dfb9b7bd44ca144a71ad638"
 }

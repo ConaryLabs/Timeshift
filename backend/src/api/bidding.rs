@@ -440,7 +440,7 @@ pub async fn submit_bid(
     let window = sqlx::query!(
         r#"
         SELECT bw.id, bw.period_id, bw.user_id, bw.opens_at, bw.closes_at,
-               bw.unlocked_at, sp.org_id
+               bw.unlocked_at, bw.approved_at, sp.org_id
         FROM bid_windows bw
         JOIN schedule_periods sp ON sp.id = bw.period_id
         WHERE bw.id = $1
@@ -468,6 +468,13 @@ pub async fn submit_bid(
     }
     if now > window.closes_at {
         return Err(AppError::BadRequest("Your bid window has closed".into()));
+    }
+
+    // Prevent re-submission after approval
+    if window.approved_at.is_some() {
+        return Err(AppError::BadRequest(
+            "Your bid has already been approved and cannot be changed".into(),
+        ));
     }
 
     // M2: Check sequential unlock — window must be unlocked before submitting
@@ -519,6 +526,7 @@ pub async fn submit_bid(
         FROM shift_slots ss
         JOIN teams t ON t.id = ss.team_id
         WHERE ss.id = ANY($1::uuid[]) AND t.org_id = $2
+          AND ss.is_active = true
         "#,
         &all_slot_ids,
         auth.org_id,

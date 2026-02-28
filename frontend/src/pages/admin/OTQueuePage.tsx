@@ -36,17 +36,29 @@ import {
   useSetOtQueuePosition,
   useOtHours,
   useAdjustOtHours,
+  useOrgSettings,
 } from '@/hooks/queries'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { NO_VALUE, extractApiError } from '@/lib/format'
 import type { OtQueueEntry, OtHoursEntry } from '@/api/ot'
 
-const currentYear = new Date().getFullYear()
-const FISCAL_YEARS = [currentYear - 1, currentYear, currentYear + 1]
+function computeFiscalYear(date: Date, fyStartMonth: number): number {
+  const month = date.getMonth() + 1 // 1-based
+  return month >= fyStartMonth ? date.getFullYear() : date.getFullYear() - 1
+}
 
 export default function OTQueuePage() {
+  const { data: orgSettings } = useOrgSettings()
+  const fyStartMonth = (() => {
+    const setting = (orgSettings ?? []).find((s) => s.key === 'fiscal_year_start_month')
+    const val = typeof setting?.value === 'number' ? setting.value : parseInt(String(setting?.value ?? '1'), 10)
+    return isNaN(val) || val < 1 || val > 12 ? 1 : val
+  })()
+  const currentFiscalYear = computeFiscalYear(new Date(), fyStartMonth)
+  const FISCAL_YEARS = [currentFiscalYear - 1, currentFiscalYear, currentFiscalYear + 1]
+
   const [selectedClassification, setSelectedClassification] = useState(NO_VALUE)
-  const [fiscalYear, setFiscalYear] = useState(currentYear)
+  const [fiscalYear, setFiscalYear] = useState(currentFiscalYear)
   const [pendingMoveToFront, setPendingMoveToFront] = useState<OtQueueEntry | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<OtHoursEntry | null>(null)
   const [adjustWorked, setAdjustWorked] = useState('')

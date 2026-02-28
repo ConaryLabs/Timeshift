@@ -15,10 +15,10 @@ export function useBargainingUnits() {
 
 // -- Classifications --
 
-export function useClassifications() {
+export function useClassifications(params?: { include_inactive?: boolean }) {
   return useQuery({
-    queryKey: queryKeys.classifications.all,
-    queryFn: classificationsApi.list,
+    queryKey: [...queryKeys.classifications.all, params],
+    queryFn: () => classificationsApi.list(params),
   })
 }
 

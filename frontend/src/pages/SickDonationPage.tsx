@@ -48,7 +48,7 @@ export default function SickDonationPage() {
   const cancelMut = useCancelDonation()
 
   const sickLeaveTypes = useMemo(
-    () => (leaveTypes ?? []).filter((lt) => lt.draws_from === 'sick' && lt.is_active),
+    () => (leaveTypes ?? []).filter((lt) => lt.category === 'sick' && lt.is_active),
     [leaveTypes],
   )
 

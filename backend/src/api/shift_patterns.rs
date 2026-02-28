@@ -62,11 +62,18 @@ pub async fn create(
                 "work_days_in_cycle must not be empty".into(),
             ));
         }
+        let mut seen = std::collections::HashSet::new();
         for &d in mask {
             if d < 1 || d > req.pattern_days {
                 return Err(AppError::BadRequest(format!(
                     "work_days_in_cycle values must be between 1 and {}",
                     req.pattern_days
+                )));
+            }
+            if !seen.insert(d) {
+                return Err(AppError::BadRequest(format!(
+                    "work_days_in_cycle contains duplicate day: {}",
+                    d
                 )));
             }
         }
@@ -360,18 +367,43 @@ pub async fn create_assignment(
         return Err(AppError::NotFound("Shift pattern not found".into()));
     }
 
-    // End any existing active assignment for this user
+    // Validate: new effective_from must not predate any existing active assignment's effective_from
+    let existing = sqlx::query!(
+        r#"
+        SELECT id, effective_from
+        FROM shift_pattern_assignments
+        WHERE user_id = $1 AND org_id = $2 AND effective_to IS NULL
+        "#,
+        req.user_id,
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    if let Some(ref ex) = existing {
+        if req.effective_from < ex.effective_from {
+            return Err(AppError::BadRequest(
+                "effective_from cannot be earlier than the current assignment's effective_from".into(),
+            ));
+        }
+    }
+
+    // Wrap close-old + insert-new in a transaction
+    let mut tx = pool.begin().await?;
+
+    // End any existing active assignment for this user (only those starting on or before new date)
     sqlx::query!(
         r#"
         UPDATE shift_pattern_assignments
         SET effective_to = $3, updated_at = NOW()
         WHERE user_id = $1 AND org_id = $2 AND effective_to IS NULL
+          AND effective_from <= $3
         "#,
         req.user_id,
         auth.org_id,
         req.effective_from,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
     let row = sqlx::query_as!(
@@ -388,8 +420,10 @@ pub async fn create_assignment(
         req.effective_from,
         req.effective_to,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(row))
 }

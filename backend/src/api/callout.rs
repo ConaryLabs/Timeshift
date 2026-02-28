@@ -43,6 +43,15 @@ pub async fn list_events(
                st.name AS "shift_template_name?",
                ss.date AS "shift_date?",
                t.name AS "team_name?",
+               (SELECT a.user_id FROM assignments a
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_id?",
+               (SELECT (u.first_name || ' ' || u.last_name) FROM assignments a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_name?",
                ce.created_at, ce.updated_at
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
@@ -86,6 +95,15 @@ pub async fn get_event(
                st.name AS "shift_template_name?",
                ss.date AS "shift_date?",
                t.name AS "team_name?",
+               (SELECT a.user_id FROM assignments a
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_id?",
+               (SELECT (u.first_name || ' ' || u.last_name) FROM assignments a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_name?",
                ce.created_at, ce.updated_at
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
@@ -157,6 +175,15 @@ pub async fn create_event(
                st.name AS "shift_template_name?",
                ss.date AS "shift_date?",
                t.name AS "team_name?",
+               (SELECT a.user_id FROM assignments a
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_id?",
+               (SELECT (u.first_name || ' ' || u.last_name) FROM assignments a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.scheduled_shift_id = ce.scheduled_shift_id
+                  AND a.is_overtime = true AND a.cancelled_at IS NULL
+                LIMIT 1) AS "assigned_user_name?",
                ce.created_at, ce.updated_at
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
@@ -675,7 +702,9 @@ pub async fn create_bump_request(
     use validator::Validate;
     req.validate()?;
 
-    // 1. Fetch event context
+    let mut tx = pool.begin().await?;
+
+    // 1. Fetch event context (FOR UPDATE to prevent concurrent bump submissions)
     let event = sqlx::query!(
         r#"
         SELECT ce.status AS "status: CalloutStatus", ce.classification_id,
@@ -683,11 +712,12 @@ pub async fn create_bump_request(
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         WHERE ce.id = $1 AND ss.org_id = $2
+        FOR UPDATE OF ce
         "#,
         event_id,
         auth.org_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Callout event not found".into()))?;
     if event.status != CalloutStatus::Filled {
@@ -708,7 +738,7 @@ pub async fn create_bump_request(
         event.scheduled_shift_id,
         req.displaced_user_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?;
 
     if has_ot.is_none() {
@@ -722,14 +752,14 @@ pub async fn create_bump_request(
         "SELECT classification_id FROM users WHERE id = $1",
         auth.id
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     let displaced_class = sqlx::query_scalar!(
         "SELECT classification_id FROM users WHERE id = $1",
         req.displaced_user_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if requester_class != displaced_class {
@@ -749,7 +779,7 @@ pub async fn create_bump_request(
         auth.org_id,
         event.shift_date,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if is_holiday {
@@ -758,12 +788,13 @@ pub async fn create_bump_request(
         ));
     }
 
-    // 3. No pending bump request already
+    // 3. No pending bump request already (also guarded by partial unique index
+    // idx_bump_requests_one_pending_per_event from migration 0021)
     let pending_exists: bool = sqlx::query_scalar!(
         r#"SELECT EXISTS(SELECT 1 FROM bump_requests WHERE event_id = $1 AND status = 'pending') AS "exists!""#,
         event_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     if pending_exists {
@@ -781,7 +812,7 @@ pub async fn create_bump_request(
         "#,
         event.scheduled_shift_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     let shift_start = crate::services::timezone::local_to_utc(
@@ -828,7 +859,7 @@ pub async fn create_bump_request(
         event.classification_id, // $4
         req.displaced_user_id,   // $5
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     // CBA: Priority comparison — lowest hours worked wins. If equal, earliest queue
@@ -866,8 +897,10 @@ pub async fn create_bump_request(
         req.displaced_user_id,
         req.reason,
     )
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(bump))
 }
@@ -1044,7 +1077,23 @@ pub async fn review_bump_request(
             br.requesting_user_id, fiscal_year,
         ).await?;
 
-        // 3e. Update bump request to approved
+        // 3e. Restore displaced user's queue position — they were bumped off, not
+        // contacted for new OT, so their last_ot_event_at should be reset.
+        sqlx::query!(
+            r#"
+            UPDATE ot_queue_positions
+            SET last_ot_event_at = NULL, updated_at = NOW()
+            WHERE user_id = $1 AND classification_id = $2 AND org_id = $3 AND fiscal_year = $4
+            "#,
+            br.displaced_user_id,
+            shift_check.classification_id,
+            auth.org_id,
+            fiscal_year,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // 3f. Update bump request to approved
         sqlx::query!(
             r#"
             UPDATE bump_requests

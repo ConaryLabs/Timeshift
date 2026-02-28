@@ -11,8 +11,8 @@ export interface Classification {
 }
 
 export const classificationsApi = {
-  list: () =>
-    api.get<Classification[]>('/api/classifications').then((r) => r.data),
+  list: (params?: { include_inactive?: boolean }) =>
+    api.get<Classification[]>('/api/classifications', { params }).then((r) => r.data),
 
   create: (body: { name: string; abbreviation: string; display_order?: number }) =>
     api.post<Classification>('/api/classifications', body).then((r) => r.data),

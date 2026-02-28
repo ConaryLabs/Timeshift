@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE ot_queue_positions\n            SET last_ot_event_at = NULL, updated_at = NOW()\n            WHERE user_id = $1 AND classification_id = $2 AND org_id = $3 AND fiscal_year = $4\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "764bf4fa1a7ca3c39c982adff59531cc839976052dcd5d7dad00481021234916"
+}

@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            ss.date,\n            ss.shift_template_id,\n            st.name AS shift_name,\n            ss.required_headcount,\n            COUNT(a.id) AS \"actual_headcount!\"\n        FROM scheduled_shifts ss\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        LEFT JOIN assignments a ON a.scheduled_shift_id = ss.id AND a.cancelled_at IS NULL\n        WHERE ss.org_id = $1\n          AND ss.date >= $2\n          AND ss.date <= $3\n          AND ($4::uuid IS NULL OR ss.shift_template_id IN (\n              SELECT ss2.shift_template_id FROM shift_slots ss2\n                  JOIN teams t ON t.id = ss2.team_id\n                  WHERE ss2.team_id = $4 AND t.org_id = $1\n          ))\n        GROUP BY ss.id, ss.date, ss.shift_template_id, st.name, ss.required_headcount\n        ORDER BY ss.date, st.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "shift_template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "shift_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "required_headcount",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "actual_headcount!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "b81743d20a846f367cee3e30540eeb087416e31b1b5684f494bd2f2f8b00ae97"
+}

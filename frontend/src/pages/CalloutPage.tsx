@@ -693,13 +693,11 @@ export default function CalloutPage() {
                   <SelectValue placeholder="Select employee…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(calloutList ?? [])
-                    .filter((e) => e.user_id !== user?.id)
-                    .map((e) => (
-                      <SelectItem key={e.user_id} value={e.user_id}>
-                        {e.last_name}, {e.first_name}
-                      </SelectItem>
-                    ))}
+                  {selectedEventData?.assigned_user_id && selectedEventData.assigned_user_id !== user?.id && (
+                    <SelectItem value={selectedEventData.assigned_user_id}>
+                      {selectedEventData.assigned_user_name ?? 'Assigned employee'}
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </FormField>

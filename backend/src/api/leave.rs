@@ -9,12 +9,9 @@ use crate::{
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
-    models::{
-        common::PaginationParams,
-        leave::{
-            BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveRequestLine,
-            LeaveSegment, LeaveStatus, LeaveTypeRecord, ReviewLeaveRequest,
-        },
+    models::leave::{
+        BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveRequestLine,
+        LeaveSegment, LeaveStatus, LeaveTypeRecord, ReviewLeaveRequest,
     },
     services::leave::{create_fmla_segments, deduct_leave_balance, refund_leave_balance},
 };
@@ -74,12 +71,30 @@ async fn fetch_lines(pool: &PgPool, leave_request_id: Uuid) -> Result<Vec<LeaveR
         .collect())
 }
 
+/// Leave-specific list query params.
+#[derive(Debug, serde::Deserialize)]
+pub struct LeaveListParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub status: Option<String>,
+}
+
+impl LeaveListParams {
+    pub fn limit(&self) -> i64 {
+        self.limit.unwrap_or(100).clamp(1, 500)
+    }
+    pub fn offset(&self) -> i64 {
+        self.offset.unwrap_or(0).max(0)
+    }
+}
+
 pub async fn list(
     State(pool): State<PgPool>,
     auth: AuthUser,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<LeaveListParams>,
 ) -> Result<Json<Vec<LeaveRequest>>> {
     let is_manager = auth.role.can_approve_leave();
+    let status_filter = params.status.as_deref();
     let rows = sqlx::query!(
         r#"
         SELECT lr.id, lr.user_id,
@@ -103,6 +118,7 @@ pub async fn list(
         WHERE u.org_id = $1
           AND lr.org_id = $1
           AND ($2 OR lr.user_id = $3)
+          AND ($6::text IS NULL OR lr.status::text = $6)
         ORDER BY lr.created_at DESC
         LIMIT $4 OFFSET $5
         "#,
@@ -111,6 +127,7 @@ pub async fn list(
         auth.id,
         params.limit(),
         params.offset(),
+        status_filter,
     )
     .fetch_all(&pool)
     .await?;
@@ -393,6 +410,7 @@ pub async fn create(
                             OR $5::TIME IS NULL
                             OR (lrl.start_time < $5::TIME AND lrl.end_time > $4::TIME)
                           )
+                        FOR UPDATE OF lr
                     )
                     "#,
                     auth.id,
@@ -419,6 +437,7 @@ pub async fn create(
                       AND start_date <= $3
                       AND end_date >= $2
                       AND org_id = $4
+                    FOR UPDATE
                 )
                 "#,
                 auth.id,
@@ -442,6 +461,7 @@ pub async fn create(
                   AND start_date <= $3
                   AND end_date >= $2
                   AND org_id = $4
+                FOR UPDATE
             )
             "#,
             auth.id,
@@ -1195,7 +1215,7 @@ pub async fn list_types(
         LeaveTypeRecord,
         r#"
         SELECT id, org_id, code, name, requires_approval, is_reported, draws_from,
-               display_order, is_active, created_at
+               category AS "category?", display_order, is_active, created_at
         FROM leave_types
         WHERE org_id = $1 AND is_active = true
         ORDER BY display_order, name
@@ -1333,12 +1353,13 @@ pub async fn carryover_enforcement(
                 SET balance_hours = balance_hours - $3::FLOAT8::NUMERIC,
                     as_of_date = $4,
                     updated_at = NOW()
-                WHERE user_id = $1 AND leave_type_id = $2
+                WHERE user_id = $1 AND leave_type_id = $2 AND org_id = $5
                 "#,
                 user.id,
                 row.leave_type_id,
                 deduct,
                 today,
+                auth.org_id,
             )
             .execute(&mut *tx)
             .await?;

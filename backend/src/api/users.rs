@@ -919,6 +919,50 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
+pub async fn activate(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    // Prevent self-activation (not dangerous, but nonsensical — you're already logged in)
+    if auth.id == id {
+        return Err(AppError::BadRequest(
+            "Cannot activate your own account (you are already active).".into(),
+        ));
+    }
+
+    let rows = sqlx::query!(
+        "UPDATE users SET is_active = true, updated_at = NOW() WHERE id = $1 AND org_id = $2 AND is_active = false",
+        id,
+        auth.org_id
+    )
+    .execute(&pool)
+    .await?
+    .rows_affected();
+
+    if rows == 0 {
+        // Check if user exists but is already active
+        let exists = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2) AS \"exists!\"",
+            id,
+            auth.org_id
+        )
+        .fetch_one(&pool)
+        .await?;
+
+        if exists {
+            return Err(AppError::BadRequest("User is already active".into()));
+        }
+        return Err(AppError::NotFound("User not found".into()));
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 pub async fn change_password(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -956,9 +1000,10 @@ pub async fn change_password(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Password hashing failed: {}", e)))?
         .to_string();
 
-    // Update password and delete all refresh tokens (force re-login on all devices)
+    // Update password, set password_changed_at (invalidates existing JWTs),
+    // and delete all refresh tokens (force re-login on all devices)
     sqlx::query!(
-        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND org_id = $3",
+        "UPDATE users SET password_hash = $1, password_changed_at = NOW(), updated_at = NOW() WHERE id = $2 AND org_id = $3",
         new_hash,
         auth.id,
         auth.org_id

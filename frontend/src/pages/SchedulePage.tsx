@@ -59,7 +59,7 @@ export default function SchedulePage() {
   )
 
   // Grid data for month view coverage indicators
-  const { data: gridData, isLoading: isMonthLoading } = useScheduleGrid(
+  const { data: gridData, isLoading: isMonthLoading, error: gridError } = useScheduleGrid(
     monthStartStr,
     monthEndStr,
     selectedTeamId ?? undefined,
@@ -236,7 +236,7 @@ export default function SchedulePage() {
 
       {viewMode === 'month' && isMonthLoading && <LoadingState />}
 
-      {!isMonthLoading && !error && viewMode === 'month' && (
+      {!isMonthLoading && !gridError && viewMode === 'month' && (
         <MonthView anchor={anchor} gridData={gridData ?? []} navigate={navigate} />
       )}
     </div>
@@ -264,6 +264,7 @@ function WeekView({
     return map
   }, [data])
 
+  // TODO: Use org timezone instead of browser timezone for "today" determination
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   return (
@@ -336,6 +337,7 @@ function BoardView({
     return map
   }, [data])
 
+  // TODO: Use org timezone instead of browser timezone for "today" determination
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   return (
@@ -423,6 +425,7 @@ function MonthView({
   const monthStart = startOfMonth(anchor)
   const daysInMonth = getDaysInMonth(anchor)
   const startDow = getDay(monthStart)
+  // TODO: Use org timezone instead of browser timezone for "today" determination
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   // Group grid data by date for quick lookup

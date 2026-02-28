@@ -365,8 +365,11 @@ pub async fn block_available(
           AND otr.date = $2
           AND otr.classification_id = $3
           AND otr.status != 'cancelled'
-          AND otr.start_time < $5
-          AND otr.end_time > $4
+          AND (
+            (otr.end_time >= otr.start_time AND otr.start_time < $5 AND otr.end_time > $4)
+            OR
+            (otr.end_time < otr.start_time AND (otr.start_time < $5 OR otr.end_time > $4))
+          )
         ORDER BY otr.start_time
         "#,
         auth.org_id,

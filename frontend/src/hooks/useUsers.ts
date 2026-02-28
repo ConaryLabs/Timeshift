@@ -57,3 +57,11 @@ export function useDeactivateUser() {
   })
 }
 
+export function useActivateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: usersApi.activate,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.all }),
+  })
+}
+

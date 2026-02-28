@@ -1804,7 +1804,7 @@ pub async fn day_grid(
     for ot in &ot_assignments {
         let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
         let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
-        let crosses_midnight = end_min <= start_min;
+        let crosses_midnight = end_min < start_min;
 
         let effective_end = if crosses_midnight { 24 * 60 } else { end_min };
         let start_slot = (start_min / 30) as i16;

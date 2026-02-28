@@ -384,16 +384,18 @@ pub async fn refresh(
     let hashed = hash_token(&raw_token);
 
     struct RefreshRow {
-        id: Uuid,
         user_id: Uuid,
         org_id: Uuid,
         family_id: Uuid,
         expires_at: time::OffsetDateTime,
     }
 
+    // Atomically consume the refresh token: DELETE ... RETURNING ensures that
+    // concurrent requests with the same token cannot both succeed (only one gets the row).
     let row = sqlx::query_as!(
         RefreshRow,
-        r#"SELECT id, user_id, org_id, family_id, expires_at FROM refresh_tokens WHERE token = $1"#,
+        r#"DELETE FROM refresh_tokens WHERE token = $1
+           RETURNING user_id, org_id, family_id, expires_at"#,
         hashed
     )
     .fetch_optional(&state.pool)
@@ -424,19 +426,8 @@ pub async fn refresh(
     };
 
     if row.expires_at < time::OffsetDateTime::now_utc() {
-        if let Err(e) = sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
-            .execute(&state.pool)
-            .await
-        {
-            tracing::warn!("Failed to delete expired refresh token: {e}");
-        }
         return Err(AppError::Unauthorized(None));
     }
-
-    // Consume old token (rotation)
-    sqlx::query!("DELETE FROM refresh_tokens WHERE id = $1", row.id)
-        .execute(&state.pool)
-        .await?;
 
     // Verify user still active
     struct UserRow {

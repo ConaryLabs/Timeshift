@@ -367,7 +367,7 @@ pub async fn available_staff(
             -- Regular shifts on this date that cross midnight (start before midnight)
             (ss.date = $2 AND st.crosses_midnight
              AND $3 < 1440
-             AND $3 >= CAST(EXTRACT(HOUR FROM st.start_time) * 60 + EXTRACT(MINUTE FROM st.start_time) AS INTEGER))
+             AND $4 > CAST(EXTRACT(HOUR FROM st.start_time) * 60 + EXTRACT(MINUTE FROM st.start_time) AS INTEGER))
             OR
             -- Overnight shifts from previous date (end portion covering early morning blocks)
             (ss.date = $5 AND st.crosses_midnight

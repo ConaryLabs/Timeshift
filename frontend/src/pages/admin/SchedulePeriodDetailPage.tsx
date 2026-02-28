@@ -420,7 +420,12 @@ export default function SchedulePeriodDetailPage() {
               placeholder="24"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {activeUsers.length} active users. Total bidding time: ~{parseInt(windowDuration, 10) * activeUsers.length || 0} hours.
+              {(() => {
+                const eligible = period?.bargaining_unit
+                  ? activeUsers.filter((u) => u.bargaining_unit === period.bargaining_unit)
+                  : activeUsers
+                return `${eligible.length} eligible users${period?.bargaining_unit ? ` (${period.bargaining_unit})` : ''}. Total bidding time: ~${parseInt(windowDuration, 10) * eligible.length || 0} hours.`
+              })()}
             </p>
           </FormField>
           <DialogFooter>
