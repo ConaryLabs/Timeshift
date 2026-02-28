@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     api::helpers::json_ok,
+    api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
     models::vacation_bid::{
@@ -80,6 +81,7 @@ async fn award_vacation_bid(
     leave_type_id: Option<Uuid>,
     hours_lookup: &Option<serde_json::Value>,
     org_timezone: &str,
+    default_hours_per_day: f64,
 ) -> Result<()> {
     // Mark the bid as awarded
     sqlx::query!(
@@ -91,7 +93,7 @@ async fn award_vacation_bid(
 
     // Create approved leave request and deduct balance if a vacation leave type exists
     if let Some(lt_id) = leave_type_id {
-        let hours = calculate_hours(start_date, end_date, hours_lookup);
+        let hours = calculate_hours(start_date, end_date, hours_lookup, default_hours_per_day);
         let leave_request_id = Uuid::new_v4();
 
         sqlx::query!(
@@ -219,6 +221,40 @@ pub async fn delete_period(
     }
 
     Ok(json_ok())
+}
+
+/// POST /api/vacation-bids/periods/:id/cancel
+/// Admin only. Cancels a vacation bid period in 'draft' or 'open' status.
+pub async fn cancel_period(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<VacationBidPeriod>> {
+    if !auth.role.is_admin() {
+        return Err(AppError::Forbidden);
+    }
+
+    let updated = sqlx::query_as!(
+        VacationBidPeriod,
+        r#"
+        UPDATE vacation_bid_periods
+        SET status = 'cancelled'
+        WHERE id = $1 AND org_id = $2 AND status IN ('draft', 'open')
+        RETURNING id, org_id, year, round, status,
+                  opens_at, closes_at, created_at,
+                  allowance_hours, min_block_hours,
+                  bargaining_unit
+        "#,
+        id,
+        auth.org_id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound(
+        "Period not found or not in draft/open status".into(),
+    ))?;
+
+    Ok(Json(updated))
 }
 
 pub async fn open_bidding(
@@ -510,9 +546,13 @@ pub async fn get_window(
     .fetch_optional(&pool)
     .await?;
 
+    let default_hours_per_day = crate::services::org_settings::get_i64(
+        &pool, auth.org_id, "default_hours_per_vacation_day", 8,
+    ).await as f64;
+
     let hours_used: f64 = bids
         .iter()
-        .map(|b| calculate_hours(b.start_date, b.end_date, &hours_lookup))
+        .map(|b| calculate_hours(b.start_date, b.end_date, &hours_lookup, default_hours_per_day))
         .sum();
 
     Ok(Json(VacationWindowDetail {
@@ -567,6 +607,10 @@ pub async fn submit_bid(
     )
     .fetch_optional(&mut *tx)
     .await?;
+
+    let default_hours_per_day = crate::services::org_settings::get_i64(
+        &pool, w.org_id, "default_hours_per_vacation_day", 8,
+    ).await as f64;
 
     if w.period_status != "open" {
         return Err(AppError::BadRequest("Bidding period is not open".into()));
@@ -632,7 +676,7 @@ pub async fn submit_bid(
     // Uses calculate_hours for consistency with process_bids (non-linear Sep-Feb table).
     if let Some(min_block) = w.min_block_hours {
         for pick in &body.picks {
-            let hours = calculate_hours(pick.start_date, pick.end_date, &hours_lookup);
+            let hours = calculate_hours(pick.start_date, pick.end_date, &hours_lookup, default_hours_per_day);
             if hours < min_block as f64 {
                 return Err(AppError::BadRequest(format!(
                     "Each vacation block must be at least {} hours; got {:.0} hours",
@@ -648,7 +692,7 @@ pub async fn submit_bid(
         let total_hours: f64 = body
             .picks
             .iter()
-            .map(|p| calculate_hours(p.start_date, p.end_date, &hours_lookup))
+            .map(|p| calculate_hours(p.start_date, p.end_date, &hours_lookup, default_hours_per_day))
             .sum();
         if total_hours > allowance as f64 {
             return Err(AppError::BadRequest(format!(
@@ -767,11 +811,12 @@ pub async fn process_bids(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Find the "Vacation" leave type for the org
+    // Find the vacation leave type for the org by category (not hardcoded code)
     let leave_type = sqlx::query!(
         r#"
         SELECT id FROM leave_types
-        WHERE org_id = $1 AND code = 'VAC' AND is_active = true
+        WHERE org_id = $1 AND category = 'vacation' AND is_active = true
+        LIMIT 1
         "#,
         auth.org_id,
     )
@@ -787,6 +832,10 @@ pub async fn process_bids(
     )
     .fetch_optional(&mut *tx)
     .await?;
+
+    let default_hours_per_day = crate::services::org_settings::get_i64(
+        &pool, auth.org_id, "default_hours_per_vacation_day", 8,
+    ).await as f64;
 
     // CBA: Pre-seed with dates already awarded in earlier rounds of the same year so that
     // round 2 cannot double-book dates already granted in round 1 (seniority-based protection).
@@ -825,6 +874,13 @@ pub async fn process_bids(
         .and_then(|v| v.as_u64().map(|n| n as u32))
         .unwrap_or(3);
 
+    // Collect notifications to send after transaction commits
+    struct PendingNotification {
+        user_id: Uuid,
+        message: String,
+    }
+    let mut pending_notifications: Vec<PendingNotification> = Vec::new();
+
     // CBA: Process bids in seniority order — most senior employee's picks are awarded
     // first. If dates conflict (concurrent count >= max_concurrent_vacation), the bid is
     // skipped (not awarded). Leave balance is checked before awarding to prevent overdraft.
@@ -851,7 +907,7 @@ pub async fn process_bids(
             // Check leave balance BEFORE awarding — if insufficient, skip
             // without marking the bid as awarded or blocking the dates.
             if let Some(lt_id) = leave_type_id {
-                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
+                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup, default_hours_per_day);
 
                 // Verify sufficient balance before awarding (FOR UPDATE to prevent
                 // concurrent modifications from causing negative balances).
@@ -877,6 +933,14 @@ pub async fn process_bids(
                         "Skipping vacation bid for user {} — insufficient balance ({:.1} hrs available, {:.1} needed)",
                         window.user_id, balance, hours
                     );
+                    // Notify employee their bid was skipped due to insufficient balance
+                    pending_notifications.push(PendingNotification {
+                        user_id: window.user_id,
+                        message: format!(
+                            "Your vacation bid for {} to {} was not awarded due to insufficient leave balance",
+                            bid.start_date, bid.end_date
+                        ),
+                    });
                     continue;
                 }
             }
@@ -893,6 +957,7 @@ pub async fn process_bids(
                 leave_type_id,
                 &hours_lookup,
                 &auth.org_timezone,
+                default_hours_per_day,
             )
             .await?;
 
@@ -920,6 +985,24 @@ pub async fn process_bids(
 
     tx.commit().await?;
 
+    // Send notifications after transaction commits (best-effort)
+    for notif in &pending_notifications {
+        let _ = create_notification(
+            &pool,
+            CreateNotificationParams {
+                org_id: auth.org_id,
+                user_id: notif.user_id,
+                notification_type: "vacation_bid_skipped",
+                title: "Vacation bid not awarded",
+                message: &notif.message,
+                link: Some("/vacation-bids"),
+                source_type: Some("vacation_bid_period"),
+                source_id: Some(period_id),
+            },
+        )
+        .await;
+    }
+
     Ok(Json(updated))
 }
 
@@ -935,10 +1018,11 @@ fn calculate_hours(
     start_date: time::Date,
     end_date: time::Date,
     lookup: &Option<serde_json::Value>,
+    default_hours_per_day: f64,
 ) -> f64 {
     // If the bid is within a single month, use the simple path
     if start_date.month() == end_date.month() && start_date.year() == end_date.year() {
-        return calculate_hours_single_month(start_date, end_date, lookup);
+        return calculate_hours_single_month(start_date, end_date, lookup, default_hours_per_day);
     }
 
     // Split across month boundaries and sum each segment
@@ -959,12 +1043,18 @@ fn calculate_hours(
             end_date
         };
 
-        total += calculate_hours_single_month(seg_start, seg_end, lookup);
+        total += calculate_hours_single_month(seg_start, seg_end, lookup, default_hours_per_day);
+
+        // If we've reached or passed end_date, we're done
+        if seg_end >= end_date {
+            break;
+        }
 
         // Advance to first day of next month
-        seg_start = seg_end
-            .next_day()
-            .unwrap_or(end_date.next_day().unwrap_or(end_date));
+        seg_start = match seg_end.next_day() {
+            Some(d) => d,
+            None => break,
+        };
     }
     total
 }
@@ -974,6 +1064,7 @@ fn calculate_hours_single_month(
     start_date: time::Date,
     end_date: time::Date,
     lookup: &Option<serde_json::Value>,
+    default_hours_per_day: f64,
 ) -> f64 {
     let days = (end_date - start_date).whole_days() + 1;
 
@@ -1000,5 +1091,5 @@ fn calculate_hours_single_month(
         }
     }
 
-    days as f64 * 8.0
+    days as f64 * default_hours_per_day
 }

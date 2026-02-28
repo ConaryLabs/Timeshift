@@ -833,6 +833,72 @@ pub async fn deactivate(
     .execute(&mut *tx)
     .await?;
 
+    // Fix 1: Cancel approved future leave and refund balances
+    let cancelled_leave = sqlx::query!(
+        r#"
+        UPDATE leave_requests SET status = 'cancelled', updated_at = NOW()
+        WHERE user_id = $1 AND org_id = $2 AND status = 'approved' AND start_date > CURRENT_DATE
+        RETURNING id, leave_type_id, CAST(hours AS FLOAT8) AS "hours!"
+        "#,
+        id,
+        auth.org_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    for row in &cancelled_leave {
+        if row.hours > 0.0 {
+            crate::services::leave::adjust_leave_balance(
+                &mut tx,
+                auth.org_id,
+                id,
+                row.leave_type_id,
+                row.hours,  // positive delta = refund
+                "adjustment",
+                Some("Refund: approved leave cancelled on deactivation"),
+                Some(row.id),
+                auth.id,
+                &auth.org_timezone,
+            )
+            .await?;
+        }
+    }
+
+    // Fix 2: Withdraw active OT request volunteers for this user
+    sqlx::query!(
+        r#"
+        UPDATE ot_request_volunteers SET withdrawn_at = NOW()
+        WHERE user_id = $1 AND withdrawn_at IS NULL
+        "#,
+        id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Cancel active OT request assignments for this user
+    sqlx::query!(
+        r#"
+        UPDATE ot_request_assignments SET cancelled_at = NOW(), cancelled_by = $2
+        WHERE user_id = $1 AND cancelled_at IS NULL
+        "#,
+        id,
+        auth.id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Fix 3: Auto-deny trade approvals assigned to deactivated supervisor
+    sqlx::query!(
+        r#"
+        UPDATE trade_approvals SET status = 'denied', reviewed_at = NOW(),
+               reviewer_notes = 'Auto-denied: approver deactivated'
+        WHERE supervisor_id = $1 AND status = 'pending'
+        "#,
+        id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
 
     Ok(json_ok())

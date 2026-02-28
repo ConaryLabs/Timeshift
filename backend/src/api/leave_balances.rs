@@ -187,6 +187,10 @@ pub async fn list_accrual_schedules(
     State(pool): State<PgPool>,
     auth: AuthUser,
 ) -> Result<Json<Vec<AccrualSchedule>>> {
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
     let rows = sqlx::query!(
         r#"
         SELECT id, org_id, leave_type_id,

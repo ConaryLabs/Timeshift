@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id AS user_id,\n            MAX(ora.assigned_at)::TEXT AS \"last_mandatory_at?\"\n        FROM users u\n        LEFT JOIN seniority_records sr ON sr.user_id = u.id\n        LEFT JOIN ot_request_assignments ora ON ora.user_id = u.id\n            AND ora.ot_type = 'mandatory'\n            AND ora.cancelled_at IS NULL\n        LEFT JOIN ot_requests otr ON otr.id = ora.ot_request_id\n            AND otr.org_id = $1\n        WHERE u.org_id = $1\n          AND u.is_active = true\n          AND u.classification_id = $2\n        GROUP BY u.id, sr.bargaining_unit_seniority_date\n        -- CBA: Mandatory OT distributed in inverse seniority order (least senior first)\n        ORDER BY sr.bargaining_unit_seniority_date DESC NULLS FIRST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "last_mandatory_at?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "76b2af5c98a6e59c857f45509055d52d7cb2852749b04c272613f65dae2a2fce"
+}

@@ -14,6 +14,7 @@ use crate::{
         CreateSellbackRequest, HolidaySellbackRequest, ReviewSellbackRequest,
     },
     services::leave::adjust_leave_balance,
+    services::org_settings,
 };
 
 /// GET /api/leave/sellback
@@ -81,10 +82,66 @@ pub async fn create(
         ));
     }
 
-    if !["june", "december"].contains(&body.period.as_str()) {
-        return Err(AppError::BadRequest(
-            "period must be 'june' or 'december'".into(),
-        ));
+    // Look up allowed sellback periods from org_settings (default: "june,december")
+    let periods_csv = org_settings::get_str(
+        &pool,
+        auth.org_id,
+        org_settings::keys::SELLBACK_PERIODS,
+        "june,december",
+    )
+    .await;
+    let allowed_periods: Vec<&str> = periods_csv.split(',').map(|s| s.trim()).collect();
+    if !allowed_periods.contains(&body.period.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "period must be one of: {}",
+            allowed_periods.join(", "),
+        )));
+    }
+
+    // Enforce date window: sellback_{period}_open / sellback_{period}_close
+    let open_key = format!("sellback_{}_open", body.period);
+    let close_key = format!("sellback_{}_close", body.period);
+    let open_str = org_settings::get_str(&pool, auth.org_id, &open_key, "").await;
+    let close_str = org_settings::get_str(&pool, auth.org_id, &close_key, "").await;
+
+    if !open_str.is_empty() && !close_str.is_empty() {
+        let open_date = time::Date::parse(
+            &open_str,
+            &time::format_description::well_known::Iso8601::DEFAULT,
+        )
+        .map_err(|_| {
+            AppError::Internal(anyhow::anyhow!(
+                "Invalid date format for org_setting '{}': {}",
+                open_key,
+                open_str,
+            ))
+        })?;
+        let close_date = time::Date::parse(
+            &close_str,
+            &time::format_description::well_known::Iso8601::DEFAULT,
+        )
+        .map_err(|_| {
+            AppError::Internal(anyhow::anyhow!(
+                "Invalid date format for org_setting '{}': {}",
+                close_key,
+                close_str,
+            ))
+        })?;
+
+        let today = time::OffsetDateTime::now_utc().date();
+        if today < open_date || today > close_date {
+            return Err(AppError::BadRequest(format!(
+                "The {} sellback window is {} through {}",
+                body.period, open_str, close_str,
+            )));
+        }
+    } else {
+        tracing::debug!(
+            period = %body.period,
+            "Date enforcement not configured for sellback period (missing {} and/or {})",
+            open_key,
+            close_key,
+        );
     }
 
     // Fetch sellback cap from the user's bargaining unit config

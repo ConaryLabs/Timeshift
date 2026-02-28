@@ -60,7 +60,7 @@ export default function SchedulePage() {
   )
 
   // Grid data for month view coverage indicators
-  const { data: gridData, isLoading: isMonthLoading, isFetching: isMonthFetching, error: gridError } = useScheduleGrid(
+  const { data: gridData, isLoading: isMonthLoading, isFetching: isMonthFetching, error: gridError, refetch: refetchGrid } = useScheduleGrid(
     monthStartStr,
     monthEndStr,
     selectedTeamId ?? undefined,
@@ -235,6 +235,9 @@ export default function SchedulePage() {
       )}
 
       {viewMode === 'month' && isMonthLoading && <LoadingState />}
+      {viewMode === 'month' && gridError && !isMonthLoading && (
+        <ErrorState message="Failed to load month view." onRetry={() => refetchGrid()} />
+      )}
 
       {!isMonthLoading && !gridError && viewMode === 'month' && (
         <div className={cn(isMonthFetching && !isMonthLoading && "opacity-50 transition-opacity duration-200")}>

@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT bw.id, bw.period_id, bw.seniority_rank, bw.submitted_at, bw.approved_at,\n               sp.org_id,\n               sp.status AS \"period_status: BidPeriodStatus\"\n        FROM bid_windows bw\n        JOIN schedule_periods sp ON sp.id = bw.period_id\n        WHERE bw.id = $1\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "period_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "seniority_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "approved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "period_status: BidPeriodStatus",
+        "type_info": {
+          "Custom": {
+            "name": "bid_period_status",
+            "kind": {
+              "Enum": [
+                "draft",
+                "open",
+                "in_progress",
+                "completed",
+                "archived"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "838661a99e030c05bbaf271135735ba6d30e80409b822c3e517a8d4b1891d556"
+}

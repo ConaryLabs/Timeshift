@@ -36,8 +36,19 @@ fn hash_token(raw: &str) -> String {
 
 pub async fn login(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<impl IntoResponse> {
+    // Extract IP and User-Agent for audit logging
+    let ip_address = headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(',').next().unwrap_or(v).trim().to_string());
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
     // Reject oversized passwords early to prevent Argon2 DoS (before any DB or hash work).
     // Legitimate passwords are at most 128 chars; anything longer is malicious.
     if req.password.len() > 128 {
@@ -117,33 +128,28 @@ pub async fn login(
         None => (None, DUMMY_HASH.clone()),
     };
 
-    // ALWAYS run Argon2 verify — whether user exists, is locked, or email is invalid.
-    // This prevents timing-based enumeration of valid/locked emails.
-    let parsed = PasswordHash::new(&hash_to_verify)
-        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
-
-    let password_valid = Argon2::default()
-        .verify_password(req.password.as_bytes(), &parsed)
-        .is_ok();
-
-    // If user was not found, log failure and return (Argon2 already ran above)
-    let user = match found_user {
+    // If user was not found, run Argon2 on dummy hash (timing equalization), log and return.
+    let found_user = match found_user {
         Some(u) => u,
         None => {
-            log_audit(&state.pool, None, None, "login_failed").await;
+            let parsed = PasswordHash::new(&hash_to_verify)
+                .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
+            let _ = Argon2::default().verify_password(req.password.as_bytes(), &parsed);
+            log_audit(&state.pool, None, None, "login_failed", ip_address.as_deref(), user_agent.as_deref()).await;
             return Err(AppError::Unauthorized(Some(
                 "Incorrect email or password".into(),
             )));
         }
     };
 
-    // H3: Account lockout — check AFTER Argon2 to avoid timing side-channel.
-    // login_audit_log tracks by user_id/event_type (no email column), so we check after user lookup.
+    // Account lockout — check BEFORE Argon2 to avoid wasting CPU on locked accounts.
+    // This is safe because we already handled the "user not found" case above with timing
+    // equalization, so an attacker cannot distinguish locked vs non-existent by timing.
     let recent_failures = sqlx::query_scalar!(
         r#"SELECT COUNT(*) AS "count!" FROM login_audit_log
          WHERE user_id = $1 AND event_type = 'login_failed'
          AND created_at > NOW() - INTERVAL '15 minutes'"#,
-        user.id,
+        found_user.id,
     )
     .fetch_one(&state.pool)
     .await?;
@@ -154,18 +160,31 @@ pub async fn login(
         ));
     }
 
+    // Run Argon2 verification (only for non-locked, existing users)
+    let parsed = PasswordHash::new(&found_user.password_hash)
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid stored hash")))?;
+
+    let password_valid = Argon2::default()
+        .verify_password(req.password.as_bytes(), &parsed)
+        .is_ok();
+
     if !password_valid {
         log_audit(
             &state.pool,
-            Some(user.id),
-            Some(user.org_id),
+            Some(found_user.id),
+            Some(found_user.org_id),
             "login_failed",
+            ip_address.as_deref(),
+            user_agent.as_deref(),
         )
         .await;
         return Err(AppError::Unauthorized(Some(
             "Incorrect email or password".into(),
         )));
     }
+
+    // Rename for clarity in the rest of the handler
+    let user = found_user;
 
     let token = create_token(
         user.id,
@@ -210,6 +229,8 @@ pub async fn login(
         Some(user.id),
         Some(user.org_id),
         "login_success",
+        ip_address.as_deref(),
+        user_agent.as_deref(),
     )
     .await;
 
@@ -371,7 +392,7 @@ pub async fn logout(
         }
     }
 
-    log_audit(&state.pool, logout_user_id, logout_org_id, "logout").await;
+    log_audit(&state.pool, logout_user_id, logout_org_id, "logout", None, None).await;
 
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
     let clear_auth = format!(
@@ -534,7 +555,7 @@ pub async fn refresh(
         tracing::warn!("Failed to cap refresh tokens: {e}");
     }
 
-    log_audit(&state.pool, Some(row.user_id), Some(row.org_id), "refresh").await;
+    log_audit(&state.pool, Some(row.user_id), Some(row.org_id), "refresh", None, None).await;
 
     let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
 
@@ -575,12 +596,21 @@ pub async fn me(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<UserP
 }
 
 /// Best-effort audit log insert. Errors are logged but never propagated.
-async fn log_audit(pool: &PgPool, user_id: Option<Uuid>, org_id: Option<Uuid>, event_type: &str) {
+async fn log_audit(
+    pool: &PgPool,
+    user_id: Option<Uuid>,
+    org_id: Option<Uuid>,
+    event_type: &str,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) {
     if let Err(e) = sqlx::query!(
-        "INSERT INTO login_audit_log (user_id, org_id, event_type) VALUES ($1, $2, $3)",
+        "INSERT INTO login_audit_log (user_id, org_id, event_type, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)",
         user_id,
         org_id,
         event_type,
+        ip_address,
+        user_agent,
     )
     .execute(pool)
     .await

@@ -70,6 +70,7 @@ pub async fn upsert_ot_hours_declined(
 }
 
 /// Decrement `ot_hours.hours_worked` (floored at zero) when an OT assignment is cancelled.
+/// Logs a warning if the revert would have gone negative (clamped to zero).
 pub async fn revert_ot_hours_worked(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     user_id: Uuid,
@@ -77,6 +78,22 @@ pub async fn revert_ot_hours_worked(
     classification_id: Option<Uuid>,
     hours: f64,
 ) -> Result<(), sqlx::Error> {
+    // Fetch the current hours_worked before the update so we can detect clamping.
+    let current: Option<f64> = sqlx::query_scalar!(
+        r#"
+        SELECT CAST(hours_worked AS FLOAT8) AS "hours_worked!"
+        FROM ot_hours
+        WHERE user_id = $1 AND fiscal_year = $2
+          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            = COALESCE($3, '00000000-0000-0000-0000-000000000000'::uuid)
+        "#,
+        user_id,
+        fiscal_year,
+        classification_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
     sqlx::query!(
         r#"
         UPDATE ot_hours
@@ -93,6 +110,25 @@ pub async fn revert_ot_hours_worked(
     )
     .execute(&mut **tx)
     .await?;
+
+    // Audit: warn if the revert was clamped to zero (original hours < delta)
+    if let Some(original) = current {
+        if original < hours {
+            tracing::warn!(
+                user_id = %user_id,
+                fiscal_year = fiscal_year,
+                classification_id = ?classification_id,
+                original_hours = original,
+                revert_delta = hours,
+                clamped_to = 0.0,
+                "OT hours revert clamped to zero: original {:.2} < delta {:.2}, would have been {:.2}",
+                original,
+                hours,
+                original - hours,
+            );
+        }
+    }
+
     Ok(())
 }
 

@@ -25,7 +25,6 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField } from '@/components/ui/form-field'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -58,8 +57,6 @@ import type { CalloutListEntry } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
 import type { ClassificationGap, ClassificationBlock } from '@/api/coveragePlans'
 
-type BlockSize = '30min' | '1h' | '2h'
-
 type SelectedBlock = {
   classificationId: string
   classificationAbbr: string
@@ -81,7 +78,6 @@ export default function StaffingResolvePage() {
   const date = dateParam
 
   // UI state
-  const [blockSize, setBlockSize] = useState<BlockSize>('2h')
   const [selectedBlock, setSelectedBlock] = useState<SelectedBlock | null>(null)
   const [acceptTarget, setAcceptTarget] = useState<AcceptTarget | null>(null)
   const [acceptNotes, setAcceptNotes] = useState('')
@@ -150,13 +146,11 @@ export default function StaffingResolvePage() {
     onNoAnswer: (userId: string) => handleRecordResponse(userId, 'no_answer'),
   })
 
-  // Block columns based on block size
+  // Block columns — fixed at native 2-hour blocks from the API
   const blockColumns = useMemo(() => {
-    const count = blockSize === '30min' ? 48 : blockSize === '1h' ? 24 : 12
-    const minutesPerBlock = blockSize === '30min' ? 30 : blockSize === '1h' ? 60 : 120
-    return Array.from({ length: count }, (_, i) => {
-      const startMin = i * minutesPerBlock
-      const endMin = startMin + minutesPerBlock
+    return Array.from({ length: 12 }, (_, i) => {
+      const startMin = i * 120
+      const endMin = startMin + 120
       const startH = Math.floor(startMin / 60)
       const startM = startMin % 60
       const endH = Math.floor(endMin / 60) % 24
@@ -168,66 +162,13 @@ export default function StaffingResolvePage() {
         label: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
       }
     })
-  }, [blockSize])
+  }, [])
 
-  // Re-aggregate dayGrid data according to selected block size
+  // Use native 2h blocks from the API directly (no re-aggregation to avoid inflated values)
   const aggregatedClassifications = useMemo(() => {
     if (!dayGrid) return []
-    if (blockSize === '2h') {
-      // Native 2h blocks from the API
-      return dayGrid.classifications
-    }
-    // Re-aggregate: each API block is 2h (4 half-hour slots).
-    // For 1h: split each 2h block into two 1h blocks
-    // For 30min: split into four 30min blocks
-    // We can derive from the native block data approximately
-    return dayGrid.classifications.map((cls) => {
-      if (blockSize === '1h') {
-        // Split each 2h block into 2 1h blocks (approximate: same values)
-        const newBlocks: ClassificationBlock[] = []
-        for (const b of cls.blocks) {
-          const [bStartH, bStartM] = b.start_time.split(':').map(Number)
-          const baseMin = bStartH * 60 + bStartM
-          for (let sub = 0; sub < 2; sub++) {
-            const subStartMin = baseMin + sub * 60
-            const subEndMin = subStartMin + 60
-            const h = Math.floor(subStartMin / 60) % 24
-            const m = subStartMin % 60
-            const eh = Math.floor(subEndMin / 60) % 24
-            const em = subEndMin % 60
-            newBlocks.push({
-              ...b,
-              block_index: newBlocks.length,
-              start_time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-              end_time: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`,
-            })
-          }
-        }
-        return { ...cls, blocks: newBlocks }
-      }
-      // 30min: split each 2h block into 4
-      const newBlocks: ClassificationBlock[] = []
-      for (const b of cls.blocks) {
-        const [bStartH30, bStartM30] = b.start_time.split(':').map(Number)
-        const baseMin30 = bStartH30 * 60 + bStartM30
-        for (let sub = 0; sub < 4; sub++) {
-          const totalMin = baseMin30 + sub * 30
-          const h = Math.floor(totalMin / 60) % 24
-          const m = totalMin % 60
-          const endMin = totalMin + 30
-          const eh = Math.floor(endMin / 60) % 24
-          const em = endMin % 60
-          newBlocks.push({
-            ...b,
-            block_index: newBlocks.length,
-            start_time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-            end_time: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`,
-          })
-        }
-      }
-      return { ...cls, blocks: newBlocks }
-    })
-  }, [dayGrid, blockSize])
+    return dayGrid.classifications
+  }, [dayGrid])
 
   // --- Handlers ---
 
@@ -374,16 +315,6 @@ export default function StaffingResolvePage() {
         description={formattedDate}
         actions={
           <div className="flex items-center gap-2">
-            <Select value={blockSize} onValueChange={(v) => setBlockSize(v as BlockSize)}>
-              <SelectTrigger className="w-[100px] h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30min">30 min</SelectItem>
-                <SelectItem value="1h">1 hour</SelectItem>
-                <SelectItem value="2h">2 hours</SelectItem>
-              </SelectContent>
-            </Select>
             <Button variant="outline" size="sm" onClick={() => navigateDate(-1)} aria-label="Previous day">
               <ChevronLeft className="h-4 w-4" />
             </Button>

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { tradesApi, type TradeListParams, type TradeRequest } from '@/api/trades'
+import { tradesApi, type TradeListParams } from '@/api/trades'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
 
@@ -38,41 +38,6 @@ export function useReviewTrade() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
       tradesApi.review(id, body),
-    onMutate: async (variables) => {
-      await qc.cancelQueries({ queryKey: queryKeys.trades.all })
-
-      // Snapshot all trade list queries and detail queries
-      const previousLists = qc.getQueriesData<TradeRequest[]>({
-        queryKey: queryKeys.trades.all,
-      })
-
-      // Optimistically update the trade status in all cached lists
-      qc.setQueriesData<TradeRequest[]>(
-        { queryKey: queryKeys.trades.all },
-        (old) => {
-          if (!old || !Array.isArray(old)) return old
-          return old.map((trade: TradeRequest) =>
-            trade.id === variables.id
-              ? {
-                  ...trade,
-                  status: variables.status,
-                  reviewer_notes: variables.reviewer_notes ?? trade.reviewer_notes,
-                  updated_at: new Date().toISOString(),
-                }
-              : trade,
-          )
-        },
-      )
-
-      return { previousLists }
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          qc.setQueryData(key, data)
-        }
-      }
-    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.trades.all })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })

@@ -33,21 +33,31 @@ pub mod vacation_bids;
 use crate::AppState;
 use axum::{
     extract::State,
+    http::StatusCode,
     routing::{delete, get, patch, post},
     Json, Router,
 };
 use sqlx::PgPool;
 
-async fn health(State(pool): State<PgPool>) -> Json<serde_json::Value> {
+async fn health(State(pool): State<PgPool>) -> (StatusCode, Json<serde_json::Value>) {
     let db_ok = sqlx::query_scalar!("SELECT 1 AS \"one!\"")
         .fetch_one(&pool)
         .await
         .is_ok();
 
-    Json(serde_json::json!({
-        "status": if db_ok { "ok" } else { "degraded" },
-        "database": db_ok,
-    }))
+    let status_code = if db_ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status_code,
+        Json(serde_json::json!({
+            "status": if db_ok { "ok" } else { "degraded" },
+            "database": db_ok,
+        })),
+    )
 }
 
 pub fn router(state: AppState) -> Router {
@@ -400,6 +410,7 @@ pub fn router(state: AppState) -> Router {
             "/api/callout/events/:id/volunteers",
             get(ot::list_volunteers),
         )
+        // Bump request enablement is controlled via org_settings 'enable_bump_requests' flag in the handler
         .route(
             "/api/callout/events/:id/bump-requests",
             get(callout::list_bump_requests),
@@ -533,6 +544,10 @@ pub fn router(state: AppState) -> Router {
         )
         .with_state(state)
 }
+
+// NOTE: org_settings caching with TTL should be added to AppState in lib.rs
+// (e.g., org_settings_cache: Arc<Mutex<HashMap<(Uuid, String), (String, Instant)>>>)
+// to avoid repeated DB lookups for settings like 'enable_bump_requests'.
 
 /// Build the complete application router including pre-built rate-limited routers.
 /// main.rs constructs the rate-limited routers (which need GovernorLayer generics)

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT user_id, leave_type_id, hours::FLOAT8 AS hours,\n                   start_date, end_date\n            FROM leave_requests\n            WHERE id = $1 AND org_id = $2\n            ",
+  "query": "\n        SELECT user_id, leave_type_id, hours::FLOAT8 AS hours,\n               start_date, end_date\n        FROM leave_requests\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -43,5 +43,5 @@
       false
     ]
   },
-  "hash": "f64fbb0cb7037cced4e41cb1767bee6e5fbffaba99b4ed3a4dfdda937e703813"
+  "hash": "c90f5a81787567cd85eccb95bed94aa8939b162eb5f37dc6bff4e05a70917ef4"
 }

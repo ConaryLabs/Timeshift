@@ -58,5 +58,6 @@ export function useProcessVacationBids() {
   return useInvalidatingMutation(vacationBidsApi.processBids, [
     queryKeys.vacationBids.all,
     queryKeys.leave.all,
+    queryKeys.leave.balancesAll,
   ])
 }

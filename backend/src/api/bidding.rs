@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
+    api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::{
@@ -545,11 +546,12 @@ pub async fn approve_bid_window(
 
     let mut tx = pool.begin().await?;
 
-    // Fetch window with org check
+    // Fetch window with org check and period status
     let w = sqlx::query!(
         r#"
         SELECT bw.id, bw.period_id, bw.seniority_rank, bw.submitted_at, bw.approved_at,
-               sp.org_id
+               sp.org_id,
+               sp.status AS "period_status: BidPeriodStatus"
         FROM bid_windows bw
         JOIN schedule_periods sp ON sp.id = bw.period_id
         WHERE bw.id = $1
@@ -563,6 +565,11 @@ pub async fn approve_bid_window(
 
     if w.org_id != auth.org_id {
         return Err(AppError::NotFound("Bid window not found".into()));
+    }
+    if w.period_status != BidPeriodStatus::Open {
+        return Err(AppError::BadRequest(
+            "Cannot approve windows on a completed period".into(),
+        ));
     }
     if w.submitted_at.is_none() {
         return Err(AppError::BadRequest(
@@ -639,9 +646,9 @@ pub async fn process_bids(
     .fetch_one(&mut *tx)
     .await?;
 
-    if current_status != BidPeriodStatus::Open {
+    if current_status != BidPeriodStatus::Open && current_status != BidPeriodStatus::InProgress {
         return Err(AppError::BadRequest(
-            "Bids can only be processed for periods in 'open' status".into(),
+            "Bids can only be processed for periods in 'open' or 'in_progress' status".into(),
         ));
     }
 
@@ -666,9 +673,23 @@ pub async fn process_bids(
     .fetch_all(&mut *tx)
     .await?;
 
+    // Fetch the period name for notification messages
+    let period_name = sqlx::query_scalar!(
+        "SELECT name FROM schedule_periods WHERE id = $1",
+        period_id
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
     let mut awards_count = 0;
     // M4: Track flex slot awards per classification (max 2 per classification per cycle)
     let mut flex_awards: std::collections::HashMap<Uuid, u32> = std::collections::HashMap::new();
+    // Collect award info for post-commit notifications
+    struct AwardInfo {
+        user_id: Uuid,
+        slot_id: Uuid,
+    }
+    let mut awarded_bids: Vec<AwardInfo> = Vec::new();
 
     for win in &windows {
         // Get this window's submissions in preference order, with flex/classification info
@@ -741,6 +762,10 @@ pub async fn process_bids(
                     *flex_awards.entry(sub.classification_id).or_insert(0) += 1;
                 }
 
+                awarded_bids.push(AwardInfo {
+                    user_id: win.user_id,
+                    slot_id: sub.slot_id,
+                });
                 awards_count += 1;
                 break;
             }
@@ -756,6 +781,45 @@ pub async fn process_bids(
     .await?;
 
     tx.commit().await?;
+
+    // Send notifications for awarded bids (best-effort, after commit)
+    for award in &awarded_bids {
+        // Fetch slot name for the notification message
+        let slot_name = sqlx::query_scalar!(
+            r#"
+            SELECT CONCAT(t.name, ' - ', st.name) AS "name!"
+            FROM shift_slots ss
+            JOIN teams t ON t.id = ss.team_id
+            JOIN shift_templates st ON st.id = ss.shift_template_id
+            WHERE ss.id = $1
+            "#,
+            award.slot_id,
+        )
+        .fetch_optional(&pool)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "a shift slot".to_string());
+
+        let message = format!(
+            "Your bid for {} was awarded for period {}",
+            slot_name, period_name,
+        );
+        let _ = create_notification(
+            &pool,
+            CreateNotificationParams {
+                org_id: auth.org_id,
+                user_id: award.user_id,
+                notification_type: "bid_awarded",
+                title: "Shift bid awarded",
+                message: &message,
+                link: Some("/schedule"),
+                source_type: Some("schedule_period"),
+                source_id: Some(period_id),
+            },
+        )
+        .await;
+    }
 
     Ok(Json(serde_json::json!({
         "ok": true,
