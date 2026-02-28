@@ -165,6 +165,7 @@ export const queryKeys = {
       ['duty-assignments', date, shiftTemplateId] as const,
   },
   dutyBoard: {
+    all: ['duty-board'] as const,
     board: (date: string) => ['duty-board', date] as const,
     available: (date: string, blockIndex: number, positionId: string) =>
       ['duty-board', date, 'available', blockIndex, positionId] as const,
@@ -182,6 +183,7 @@ export const queryKeys = {
     detail: (id: string) => ['special-assignments', id] as const,
   },
   staffing: {
+    all: ['staffing'] as const,
     available: (date: string, shiftTemplateId: string, classificationId?: string) =>
       ['staffing', 'available', date, shiftTemplateId, classificationId] as const,
     blockAvailable: (date: string, classificationId: string, blockStart: string, blockEnd: string) =>

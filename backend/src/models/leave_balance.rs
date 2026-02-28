@@ -106,7 +106,7 @@ impl BalanceHistoryQuery {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct LeaveRequestLine {
+pub struct LeaveRequestLineWithRequestId {
     pub id: Uuid,
     pub leave_request_id: Uuid,
     pub date: time::Date,

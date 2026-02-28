@@ -511,9 +511,23 @@ pub async fn submit_bid(
         ));
     }
 
-    // Verify all slot_ids exist and belong to org
-    for pref in &req.preferences {
-        org_guard::verify_slot(&pool, pref.slot_id, auth.org_id).await?;
+    // Verify all slot_ids exist and belong to org (batch query instead of N+1)
+    let all_slot_ids: Vec<Uuid> = req.preferences.iter().map(|p| p.slot_id).collect();
+    let valid_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!"
+        FROM shift_slots ss
+        JOIN teams t ON t.id = ss.team_id
+        WHERE ss.id = ANY($1::uuid[]) AND t.org_id = $2
+        "#,
+        &all_slot_ids,
+        auth.org_id,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    if valid_count != all_slot_ids.len() as i64 {
+        return Err(AppError::NotFound("Shift slot not found".into()));
     }
 
     let mut tx = pool.begin().await?;

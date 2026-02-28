@@ -107,8 +107,9 @@ pub struct OrgSetting {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, validator::Validate)]
 pub struct SetOrgSettingRequest {
+    #[validate(length(max = 100))]
     pub key: String,
     pub value: serde_json::Value,
 }

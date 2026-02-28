@@ -197,17 +197,8 @@ export default function DayViewPage() {
                   />
                   <div className="absolute inset-0 flex items-center px-2 gap-1">
                     {entry.assignments.map((a) => {
-                      const badge = (
-                        <Link
-                          key={a.assignment_id}
-                          to={`/admin/users/${a.user_id}`}
-                          className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium shrink-0 hover:ring-2 hover:ring-white/50 transition-shadow"
-                          style={{
-                            backgroundColor: entry.shift_color,
-                            color: contrastText(entry.shift_color),
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                      const badgeContent = (
+                        <>
                           {a.last_name}, {a.first_name?.[0] ?? ''}
                           {a.classification_abbreviation && (
                             <span className="opacity-70 text-[10px] ml-0.5">
@@ -218,7 +209,31 @@ export default function DayViewPage() {
                             <span className="font-bold text-[10px] ml-0.5">OT</span>
                           )}
                           {a.notes && <StickyNote className="h-2.5 w-2.5 ml-0.5 opacity-70" />}
+                        </>
+                      )
+                      const badgeClassName = "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium shrink-0 transition-shadow"
+                      const badgeStyle = {
+                        backgroundColor: entry.shift_color,
+                        color: contrastText(entry.shift_color),
+                      }
+                      const badge = isManager ? (
+                        <Link
+                          key={a.assignment_id}
+                          to={`/admin/users/${a.user_id}`}
+                          className={`${badgeClassName} hover:ring-2 hover:ring-white/50`}
+                          style={badgeStyle}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {badgeContent}
                         </Link>
+                      ) : (
+                        <span
+                          key={a.assignment_id}
+                          className={badgeClassName}
+                          style={badgeStyle}
+                        >
+                          {badgeContent}
+                        </span>
                       )
                       return a.notes ? (
                         <Tooltip key={a.assignment_id}>

@@ -462,10 +462,11 @@ pub async fn list_position_qualifications(
         SELECT q.id, q.org_id, q.name, q.description, q.created_at
         FROM qualifications q
         JOIN duty_position_qualifications dpq ON dpq.qualification_id = q.id
-        WHERE dpq.duty_position_id = $1
+        WHERE dpq.duty_position_id = $1 AND q.org_id = $2
         ORDER BY q.name
         "#,
         position_id,
+        auth.org_id,
     )
     .fetch_all(&pool)
     .await?;
@@ -573,10 +574,11 @@ pub async fn list_user_qualifications(
         SELECT uq.user_id, uq.qualification_id, q.name AS qualification_name, uq.granted_at
         FROM user_qualifications uq
         JOIN qualifications q ON q.id = uq.qualification_id
-        WHERE uq.user_id = $1
+        WHERE uq.user_id = $1 AND q.org_id = $2
         ORDER BY q.name
         "#,
         user_id,
+        auth.org_id,
     )
     .fetch_all(&pool)
     .await?;

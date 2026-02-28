@@ -98,7 +98,9 @@ pub async fn available_employees(
     let shift_info = match shift_info {
         Some(info) => info,
         None => {
-            // Verify the shift template exists and belongs to this org
+            // No scheduled_shift exists for this template+date.
+            // Look up template info for the response, but do NOT auto-create
+            // a scheduled_shift row (GET should not have write side-effects).
             let tmpl = sqlx::query!(
                 "SELECT name, start_time, end_time, duration_minutes FROM shift_templates WHERE id = $1 AND org_id = $2",
                 params.shift_template_id,
@@ -108,61 +110,13 @@ pub async fn available_employees(
             .await?
             .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
 
-            // Auto-create the scheduled_shift (ON CONFLICT handles concurrent duplicate inserts)
-            let new_id = Uuid::new_v4();
-            sqlx::query!(
-                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, shift_template_id, date) DO NOTHING",
-                new_id,
-                auth.org_id,
-                params.shift_template_id,
-                params.date,
-            )
-            .execute(&pool)
-            .await?;
-            let actual_id = sqlx::query_scalar!(
-                "SELECT id FROM scheduled_shifts WHERE org_id = $1 AND shift_template_id = $2 AND date = $3",
-                auth.org_id,
-                params.shift_template_id,
-                params.date,
-            )
-            .fetch_one(&pool)
-            .await?;
-
-            // Return the same shape as the query above
-            struct ShiftInfo {
-                scheduled_shift_id: Uuid,
-                shift_template_name: String,
-                start_time: time::Time,
-                end_time: time::Time,
-                duration_minutes: i32,
-            }
-            let info = ShiftInfo {
-                scheduled_shift_id: actual_id,
-                shift_template_name: tmpl.name,
-                start_time: tmpl.start_time,
-                end_time: tmpl.end_time,
-                duration_minutes: tmpl.duration_minutes,
-            };
-
-            // Re-query to get the same anonymous struct type sqlx expects
-            // (can't return a different type from match arms)
             return Ok(Json(StaffingAvailableResponse {
-                employees: compute_available_employees(
-                    &pool,
-                    auth.org_id,
-                    &auth.org_timezone,
-                    info.scheduled_shift_id,
-                    params.classification_id,
-                    params.date,
-                    info.start_time,
-                    info.duration_minutes,
-                )
-                .await?,
-                scheduled_shift_id: info.scheduled_shift_id,
-                shift_template_name: info.shift_template_name,
-                shift_start_time: info.start_time,
-                shift_end_time: info.end_time,
-                shift_duration_minutes: info.duration_minutes,
+                employees: Vec::new(),
+                scheduled_shift_id: Uuid::nil(),
+                shift_template_name: tmpl.name,
+                shift_start_time: tmpl.start_time,
+                shift_end_time: tmpl.end_time,
+                shift_duration_minutes: tmpl.duration_minutes,
                 existing_callout: None,
                 existing_ot_requests: Vec::new(),
             }));
@@ -343,24 +297,18 @@ pub async fn block_available(
     let scheduled_shift_id = match ss {
         Some(r) => r.id,
         None => {
-            let new_id = Uuid::new_v4();
-            sqlx::query!(
-                "INSERT INTO scheduled_shifts (id, org_id, shift_template_id, date) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, shift_template_id, date) DO NOTHING",
-                new_id,
-                auth.org_id,
-                template_id,
-                params.date,
-            )
-            .execute(&pool)
-            .await?;
-            sqlx::query_scalar!(
-                "SELECT id FROM scheduled_shifts WHERE org_id = $1 AND shift_template_id = $2 AND date = $3",
-                auth.org_id,
-                template_id,
-                params.date,
-            )
-            .fetch_one(&pool)
-            .await?
+            // No scheduled_shift exists for this template+date.
+            // Return empty result rather than auto-creating (GET should not write).
+            return Ok(Json(StaffingAvailableResponse {
+                employees: Vec::new(),
+                scheduled_shift_id: Uuid::nil(),
+                shift_template_name: template_name,
+                shift_start_time: start_time,
+                shift_end_time: end_time,
+                shift_duration_minutes: duration_minutes,
+                existing_callout: None,
+                existing_ot_requests: Vec::new(),
+            }));
         }
     };
 

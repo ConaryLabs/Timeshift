@@ -732,28 +732,12 @@ pub async fn process_bids(
                 continue; // Skip this bid, dates already taken
             }
 
-            // Award the bid
-            sqlx::query!(
-                "UPDATE vacation_bids SET awarded = true WHERE id = $1",
-                bid.id,
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            // Add all dates in this bid's range to the awarded set
-            let mut d = bid.start_date;
-            while d <= bid.end_date {
-                awarded_dates.insert(d);
-                d = d.next_day().ok_or(AppError::BadRequest(
-                    "Date range exceeds maximum date".into(),
-                ))?;
-            }
-
-            // Create approved leave request if we have a vacation leave type
+            // Check leave balance BEFORE awarding — if insufficient, skip
+            // without marking the bid as awarded or blocking the dates.
             if let Some(lt_id) = leave_type_id {
                 let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
 
-                // Verify sufficient balance before deducting (FOR UPDATE to prevent
+                // Verify sufficient balance before awarding (FOR UPDATE to prevent
                 // concurrent modifications from causing negative balances).
                 let balance: f64 = sqlx::query_scalar!(
                     r#"
@@ -774,11 +758,33 @@ pub async fn process_bids(
 
                 if balance < hours {
                     tracing::warn!(
-                        "Skipping vacation bid deduction for user {} — insufficient balance ({:.1} hrs available, {:.1} needed)",
+                        "Skipping vacation bid for user {} — insufficient balance ({:.1} hrs available, {:.1} needed)",
                         window.user_id, balance, hours
                     );
                     continue;
                 }
+            }
+
+            // Award the bid
+            sqlx::query!(
+                "UPDATE vacation_bids SET awarded = true WHERE id = $1",
+                bid.id,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            // Add all dates in this bid's range to the awarded set
+            let mut d = bid.start_date;
+            while d <= bid.end_date {
+                awarded_dates.insert(d);
+                d = d.next_day().ok_or(AppError::BadRequest(
+                    "Date range exceeds maximum date".into(),
+                ))?;
+            }
+
+            // Create approved leave request if we have a vacation leave type
+            if let Some(lt_id) = leave_type_id {
+                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
 
                 let leave_request_id = Uuid::new_v4();
 

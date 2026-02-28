@@ -8,6 +8,7 @@ pub struct VacationBidPeriod {
     pub org_id: Uuid,
     pub year: i32,
     pub round: i32,
+    // TODO: convert to typed enum
     pub status: String,
     #[serde(default, with = "time::serde::rfc3339::option")]
     pub opens_at: Option<OffsetDateTime>,

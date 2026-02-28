@@ -530,7 +530,7 @@ export default function AppShell() {
                   <button className="relative p-1.5 rounded-md hover:bg-accent transition-colors" aria-label="Coverage alerts">
                     <AlertTriangle className="h-4 w-4 text-destructive" />
                     <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-0.5">
-                      {gapBlocks?.length || understaffedShifts.length}
+                      {(gapBlocks?.length ?? 0) || understaffedShifts.length}
                     </span>
                   </button>
                 </PopoverTrigger>

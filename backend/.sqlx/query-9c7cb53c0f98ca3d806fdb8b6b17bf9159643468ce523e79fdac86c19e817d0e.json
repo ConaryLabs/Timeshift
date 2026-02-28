@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT q.id, q.org_id, q.name, q.description, q.created_at\n        FROM qualifications q\n        JOIN duty_position_qualifications dpq ON dpq.qualification_id = q.id\n        WHERE dpq.duty_position_id = $1\n        ORDER BY q.name\n        ",
+  "query": "\n        SELECT q.id, q.org_id, q.name, q.description, q.created_at\n        FROM qualifications q\n        JOIN duty_position_qualifications dpq ON dpq.qualification_id = q.id\n        WHERE dpq.duty_position_id = $1 AND q.org_id = $2\n        ORDER BY q.name\n        ",
   "describe": {
     "columns": [
       {
@@ -31,6 +31,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -42,5 +43,5 @@
       false
     ]
   },
-  "hash": "dde9ba06c1c4ed1965fef1555fb19dd3a1573c58e31b007bcdf5d65bb498500a"
+  "hash": "9c7cb53c0f98ca3d806fdb8b6b17bf9159643468ce523e79fdac86c19e817d0e"
 }
