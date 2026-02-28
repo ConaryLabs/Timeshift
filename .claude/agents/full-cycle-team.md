@@ -1,80 +1,71 @@
 ---
 name: full-cycle-team
-description: Launch a full review-implement-verify cycle. Phase 1 runs the expert-review-team for discovery, Phase 2 implements approved fixes in parallel, Phase 3 runs QA verification. Use when you want expert review AND fixes in one pass.
+description: Run a full review-implement-verify cycle by chaining three standalone teams. Phase 1 runs expert-review-team, Phase 2 runs implement-team, Phase 3 runs qa-hardening-team. Claude conducts between phases with user approval gates.
 ---
 
 # Full Cycle Team
 
-End-to-end review and implementation pipeline. Combines expert review, parallel implementation, and QA verification into a single coordinated workflow.
+An orchestrated pipeline that chains three standalone teams sequentially. Claude acts as conductor between phases, presenting findings and getting approval before moving on.
 
-## Overview
+## The Pipeline
 
-This is an orchestration workflow, not a team of fixed members. It coordinates three phases, each using specialized agents:
+```
+expert-review-team  →  implement-team  →  qa-hardening-team
+    (discover)           (fix)               (verify)
+         ↑                   ↑                    ↑
+     user gate           user gate           final report
+```
 
-## Phase 1 — Discovery (Read-Only)
+## Phase 1 — Discovery
 
-Launch the **expert-review-team** members in parallel:
-- **Nadia** — Systems Architect
-- **Jiro** — Code Quality Reviewer
-- **Sable** — Security Analyst
-- **Quinn** — CBA Compliance Specialist
-- **Lena** — Scope & Risk Analyst
+Run the **expert-review-team** (Nadia, Jiro, Sable, Quinn, Lena).
 
-All 5 analyze the codebase (or specified scope) and report findings.
+All 5 experts analyze the codebase in parallel and report findings.
 
-**Gate:** Team lead synthesizes findings into a prioritized report and presents it to the user. Wait for user approval before proceeding to Phase 2. The user may:
-- Approve all findings for implementation
-- Select specific findings to implement
-- Request changes to the plan
-- Stop here (review-only)
+**Gate:** Conductor synthesizes a unified report and presents it. User decides:
+- Approve all → proceed to Phase 2
+- Select specific findings → proceed with subset
+- Stop here → review-only (same as just running expert-review-team)
 
-## Phase 2 — Implementation (Parallel)
+## Phase 2 — Implementation
 
-Spawn implementation agents to fix approved findings:
-- **Max 3 fixes per agent** — prevents any single agent from taking on too much
-- **Group by file ownership** — no two agents edit the same file
-- **Type/schema changes get a dedicated agent** — migrations, model changes, and their downstream effects are isolated
-- Each agent runs `cargo check` / `tsc --noEmit` after their changes
+Run the **implement-team** (Kai plans, parallel agents execute, Rio verifies).
 
-**Coordination rules:**
-- Agents working on backend vs frontend can always run in parallel
-- Agents working on different backend files can run in parallel
-- If an agent needs to modify a file another agent owns, it waits or coordinates through the team lead
-- Ignore compilation errors in files owned by other agents (they may be mid-edit)
+Takes the approved findings from Phase 1 as input. Kai breaks them into non-overlapping batches, parallel agents execute, Rio verifies compilation.
+
+**Gate:** Conductor reports what was implemented and any issues. User decides:
+- Proceed to Phase 3 → run QA hardening
+- Fix specific issues first → iterate
+- Stop here → skip QA pass
 
 ## Phase 3 — QA Verification
 
-After implementation agents complete:
-1. Run full compilation: `cargo check`, `tsc --noEmit`
-2. Run linting: `cargo clippy`, `npm run lint`
-3. Run tests: `cargo test`
-4. If backend SQL changed: `make sqlx-prepare`
-5. Fix any issues found
+Run the **qa-hardening-team** (Hana, Orin, Kali, Zara).
+
+Audits the post-implementation state for test health, error handling, security, and edge cases. Catches anything the implementation introduced or that the expert review missed.
+
+**Final report:** Conductor presents combined results from all 3 phases.
 
 ## How to Run
 
-Tell Claude: "Run the full-cycle-team" or "Full cycle review of [area]"
+Tell Claude: "Run the full-cycle-team" or "Full cycle [area]"
 
-The team will:
-1. Create a team with TeamCreate
-2. Run Phase 1 discovery (5 expert agents in parallel)
-3. Present findings and wait for approval
-4. Run Phase 2 implementation (grouped parallel agents)
-5. Run Phase 3 QA verification
-6. Report final results
-
-## Scoping
-
-- "Full cycle the leave subsystem" → all phases focus on leave-related code
-- "Full cycle the frontend" → skip backend-specific analysis
-- "Full cycle recent changes" → focus on last N commits
-
-## When to Use This vs Other Teams
+## When to Use This vs Individual Teams
 
 | Situation | Use |
 |-----------|-----|
-| Just want expert opinions | `expert-review-team` |
-| Just want to fix known issues | Direct implementation agents |
-| Want review + fixes in one pass | `full-cycle-team` |
+| Just want expert opinions, no changes | `expert-review-team` |
+| Already have a list of fixes to implement | `implement-team` |
+| Code is done, need production hardening | `qa-hardening-team` |
+| Want review + fixes + verification in one pass | `full-cycle-team` |
 | Pre-PR review of your changes | `pr-review-team` |
-| Production hardening | `qa-hardening-team` |
+| UX/UI/accessibility audit | `ux-review-team` |
+| Bug investigation | `debug-team` |
+| Safe code restructuring | `refactor-team` |
+| Improve test coverage | `test-gen-team` |
+
+## Scoping
+
+- "Full cycle the leave subsystem" → all 3 phases focus on leave-related code
+- "Full cycle the frontend" → skip backend-specific analysis
+- "Full cycle recent changes" → focus on files changed in last N commits
