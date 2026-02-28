@@ -38,6 +38,9 @@ pub struct CalloutEvent {
     pub shift_template_name: Option<String>,
     pub shift_date: Option<time::Date>,
     pub team_name: Option<String>,
+    /// User currently assigned OT for this event's shift (if filled).
+    pub assigned_user_id: Option<Uuid>,
+    pub assigned_user_name: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]

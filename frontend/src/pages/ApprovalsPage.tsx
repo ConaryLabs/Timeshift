@@ -59,7 +59,7 @@ export default function ApprovalsPage() {
   const [denyTarget, setDenyTarget] = useState<{ id: string; type: Tab } | null>(null)
   const [denyReason, setDenyReason] = useState('')
 
-  const { data: allLeave, isLoading: leaveLoading } = useLeaveRequests()
+  const { data: allLeave, isLoading: leaveLoading } = useLeaveRequests({ status: 'pending' })
   const { data: allTrades, isLoading: tradesLoading } = useTrades({ status: 'pending_approval' })
   const { data: navBadges } = useNavBadges()
 
@@ -68,10 +68,7 @@ export default function ApprovalsPage() {
   const bulkReviewLeave = useBulkReviewLeave()
   const bulkReviewTrade = useBulkReviewTrade()
 
-  const pendingLeave = useMemo(
-    () => (allLeave ?? []).filter((r) => r.status === 'pending'),
-    [allLeave],
-  )
+  const pendingLeave = useMemo(() => allLeave ?? [], [allLeave])
   const pendingTrades = useMemo(() => allTrades ?? [], [allTrades])
 
   const leaveCount = navBadges?.pending_leave ?? pendingLeave.length

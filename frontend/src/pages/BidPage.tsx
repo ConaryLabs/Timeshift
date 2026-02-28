@@ -14,14 +14,16 @@ import type { AvailableSlot } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function getWindowStatus(window: { opens_at: string; closes_at: string; submitted_at: string | null; unlocked_at: string | null }) {
+function getWindowStatus(window: { opens_at: string; closes_at: string; submitted_at: string | null; unlocked_at: string | null; approved_at: string | null }) {
   if (!window.unlocked_at) return 'locked'
-  if (window.submitted_at) return 'submitted'
   const now = new Date()
   const opens = new Date(window.opens_at)
   const closes = new Date(window.closes_at)
   if (now < opens) return 'upcoming'
-  if (now > closes) return 'closed'
+  if (now > closes) return window.submitted_at ? 'submitted' : 'closed'
+  // Window is open — if approved, show as submitted (no further changes allowed)
+  if (window.approved_at) return 'submitted'
+  // Within timing and already submitted: still 'open' to allow resubmission
   return 'open'
 }
 

@@ -14,7 +14,7 @@ export function useLeaveTypes() {
   })
 }
 
-export function useLeaveRequests(params?: { limit?: number; offset?: number }) {
+export function useLeaveRequests(params?: { limit?: number; offset?: number; status?: string }) {
   return useQuery({
     queryKey: queryKeys.leave.list(params),
     queryFn: () => leaveApi.list(params),

@@ -25,6 +25,7 @@ import {
   useCreateUser,
   useUpdateUser,
   useDeactivateUser,
+  useActivateUser,
   useClassifications,
   queryKeys,
 } from '@/hooks/queries'
@@ -121,6 +122,7 @@ export default function UsersPage() {
   const updateMut = useUpdateUser()
   const pendingEditVars = useRef<Parameters<typeof updateMut.mutate>[0] | null>(null)
   const deactivateMut = useDeactivateUser()
+  const activateMut = useActivateUser()
 
   const { confirmClose, confirmDialog } = useConfirmClose()
 
@@ -321,9 +323,7 @@ export default function UsersPage() {
               if (!checked) {
                 setDeactivateTarget(r)
               } else {
-                updateMut.mutate(
-                  { id: r.id, is_active: true },
-                  {
+                activateMut.mutate(r.id, {
                     onSuccess: () => toast.success('User activated'),
                     onError: (err: unknown) => {
                       const msg = extractApiError(err, 'Failed to activate user')

@@ -110,7 +110,10 @@ export function useAddPositionQualification() {
   return useMutation({
     mutationFn: ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
       dutyBoardApi.addPositionQualification(positionId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.position(vars.positionId) })
+    },
   })
 }
 
@@ -119,7 +122,10 @@ export function useRemovePositionQualification() {
   return useMutation({
     mutationFn: ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
       dutyBoardApi.removePositionQualification(positionId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.position(vars.positionId) })
+    },
   })
 }
 
@@ -137,7 +143,10 @@ export function useAddUserQualification() {
   return useMutation({
     mutationFn: ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
       dutyBoardApi.addUserQualification(userId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.user(vars.userId) })
+    },
   })
 }
 
@@ -146,7 +155,10 @@ export function useRemoveUserQualification() {
   return useMutation({
     mutationFn: ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
       dutyBoardApi.removeUserQualification(userId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
+      qc.invalidateQueries({ queryKey: queryKeys.qualifications.user(vars.userId) })
+    },
   })
 }
 

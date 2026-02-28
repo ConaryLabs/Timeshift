@@ -10,6 +10,7 @@ export interface LeaveTypeRecord {
   requires_approval: boolean
   is_reported: boolean
   draws_from: string | null
+  category: string | null
   display_order: number
   is_active: boolean
   created_at: string
@@ -91,7 +92,7 @@ export const leaveApi = {
   listTypes: () =>
     api.get<LeaveTypeRecord[]>('/api/leave/types').then((r) => r.data),
 
-  list: (params?: { limit?: number; offset?: number }) =>
+  list: (params?: { limit?: number; offset?: number; status?: string }) =>
     api.get<LeaveRequest[]>('/api/leave', { params }).then((r) => r.data),
 
   get: (id: string) =>

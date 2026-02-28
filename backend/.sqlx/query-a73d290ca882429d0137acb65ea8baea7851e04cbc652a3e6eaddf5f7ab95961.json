@@ -1,30 +1,25 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, user_id, org_id, family_id, expires_at FROM refresh_tokens WHERE token = $1",
+  "query": "DELETE FROM refresh_tokens WHERE token = $1\n           RETURNING user_id, org_id, family_id, expires_at",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 1,
         "name": "user_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 2,
+        "ordinal": 1,
         "name": "org_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "family_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "expires_at",
         "type_info": "Timestamptz"
       }
@@ -38,9 +33,8 @@
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "42d2b6357faa6d46457f8547e52fabdf358d33a1762396bc78ad552abfe11389"
+  "hash": "a73d290ca882429d0137acb65ea8baea7851e04cbc652a3e6eaddf5f7ab95961"
 }

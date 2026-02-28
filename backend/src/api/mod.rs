@@ -112,6 +112,7 @@ pub fn router(state: AppState) -> Router {
                 .patch(users::update)
                 .delete(users::deactivate),
         )
+        .route("/api/users/:id/activate", post(users::activate))
         // Shift templates
         .route(
             "/api/shifts/templates",

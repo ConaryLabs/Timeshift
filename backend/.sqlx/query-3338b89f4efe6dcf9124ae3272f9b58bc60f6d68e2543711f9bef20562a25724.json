@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, org_id, code, name, requires_approval, is_reported, draws_from,\n               category AS \"category?\", display_order, is_active, created_at\n        FROM leave_types\n        WHERE org_id = $1 AND is_active = true\n        ORDER BY display_order, name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "requires_approval",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_reported",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "draws_from",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "category?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "display_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3338b89f4efe6dcf9124ae3272f9b58bc60f6d68e2543711f9bef20562a25724"
+}

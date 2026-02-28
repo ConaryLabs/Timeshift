@@ -30,8 +30,11 @@ type FormValues = z.infer<typeof schema>
 export default function ClassificationsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Classification | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
 
-  const { data: classifications, isLoading, isError } = useClassifications()
+  const { data: classifications, isLoading, isError } = useClassifications(
+    showInactive ? { include_inactive: true } : undefined,
+  )
   const createMut = useCreateClassification()
   const updateMut = useUpdateClassification()
 
@@ -115,7 +118,19 @@ export default function ClassificationsPage() {
       <PageHeader
         title="Classifications"
         description="Job classifications for your organization"
-        actions={<Button onClick={openCreate}>+ Add Classification</Button>}
+        actions={
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-inactive"
+                checked={showInactive}
+                onCheckedChange={setShowInactive}
+              />
+              <Label htmlFor="show-inactive" className="text-sm">Show inactive</Label>
+            </div>
+            <Button onClick={openCreate}>+ Add Classification</Button>
+          </div>
+        }
       />
 
       {isError ? (

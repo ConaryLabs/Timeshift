@@ -23,6 +23,7 @@ pub struct LeaveTypeRecord {
     pub requires_approval: bool,
     pub is_reported: bool,
     pub draws_from: Option<String>,
+    pub category: Option<String>,
     pub display_order: i32,
     pub is_active: bool,
     #[serde(with = "time::serde::rfc3339")]

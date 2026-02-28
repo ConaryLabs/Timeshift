@@ -97,6 +97,8 @@ pub async fn list_settings(
 /// Allowed org_settings keys. Prevents typos from silently creating garbage entries.
 const ALLOWED_SETTING_KEYS: &[&str] = &[
     "fiscal_year_start_month",
+    "pay_period_type",
+    "bid_cycle_months",
     "ot_cross_class_window_days",
     "voluntary_ot_cancel_hours",
     "bump_deadline_hours",

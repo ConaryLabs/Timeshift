@@ -55,6 +55,7 @@ struct AuthUserRow {
     role: Role,
     is_active: bool,
     timezone: String,
+    password_changed_at: Option<OffsetDateTime>,
 }
 
 #[async_trait]
@@ -81,7 +82,8 @@ where
         // Verify user is still active and fetch current role + org timezone from the database
         let row = sqlx::query_as!(
             AuthUserRow,
-            r#"SELECT u.role AS "role: Role", u.is_active, o.timezone
+            r#"SELECT u.role AS "role: Role", u.is_active, o.timezone,
+                      u.password_changed_at
              FROM users u
              JOIN organizations o ON o.id = u.org_id
              WHERE u.id = $1 AND u.org_id = $2"#,
@@ -95,6 +97,13 @@ where
 
         if !row.is_active {
             return Err(AppError::Unauthorized(None));
+        }
+
+        // Reject tokens issued before the last password change
+        if let Some(changed_at) = row.password_changed_at {
+            if claims.iat < changed_at.unix_timestamp() {
+                return Err(AppError::Unauthorized(None));
+            }
         }
 
         Ok(AuthUser {

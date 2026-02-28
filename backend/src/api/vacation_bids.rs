@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use axum::{
     extract::{Path, Query, State},
@@ -699,10 +699,24 @@ pub async fn process_bids(
     .fetch_all(&mut *tx)
     .await?;
 
-    let mut awarded_dates: HashSet<time::Date> = prior_dates.into_iter().collect();
+    let mut awarded_dates: HashMap<time::Date, u32> = HashMap::new();
+    for d in prior_dates {
+        *awarded_dates.entry(d).or_insert(0) += 1;
+    }
+
+    // Max concurrent vacations per date — configurable via org_settings, default 3
+    let max_concurrent_val: Option<serde_json::Value> = sqlx::query_scalar!(
+        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'max_concurrent_vacation'",
+        auth.org_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    let max_concurrent: u32 = max_concurrent_val
+        .and_then(|v| v.as_u64().map(|n| n as u32))
+        .unwrap_or(3);
 
     // CBA: Process bids in seniority order — most senior employee's picks are awarded
-    // first. If dates conflict with a more senior employee's awarded dates, the bid is
+    // first. If dates conflict (concurrent count >= max_concurrent_vacation), the bid is
     // skipped (not awarded). Leave balance is checked before awarding to prevent overdraft.
     for window in &windows {
         // Get bids ordered by preference
@@ -719,11 +733,12 @@ pub async fn process_bids(
         .await?;
 
         for bid in &bids {
-            // Check if any date in this bid's range overlaps with already-awarded dates
+            // Check if any date in this bid's range would exceed concurrent vacation limit
             let mut has_conflict = false;
             let mut d = bid.start_date;
             while d <= bid.end_date {
-                if awarded_dates.contains(&d) {
+                let count = awarded_dates.get(&d).copied().unwrap_or(0);
+                if count >= max_concurrent {
                     has_conflict = true;
                     break;
                 }
@@ -777,10 +792,10 @@ pub async fn process_bids(
             .execute(&mut *tx)
             .await?;
 
-            // Add all dates in this bid's range to the awarded set
+            // Increment concurrent count for all dates in this bid's range
             let mut d = bid.start_date;
             while d <= bid.end_date {
-                awarded_dates.insert(d);
+                *awarded_dates.entry(d).or_insert(0) += 1;
                 d = d.next_day().ok_or(AppError::BadRequest(
                     "Date range exceeds maximum date".into(),
                 ))?;

@@ -52,7 +52,9 @@ pub async fn coverage(
           AND ss.date >= $2
           AND ss.date <= $3
           AND ($4::uuid IS NULL OR ss.shift_template_id IN (
-              SELECT shift_template_id FROM shift_slots WHERE team_id = $4
+              SELECT ss2.shift_template_id FROM shift_slots ss2
+                  JOIN teams t ON t.id = ss2.team_id
+                  WHERE ss2.team_id = $4 AND t.org_id = $1
           ))
         GROUP BY ss.id, ss.date, ss.shift_template_id, st.name, ss.required_headcount
         ORDER BY ss.date, st.name

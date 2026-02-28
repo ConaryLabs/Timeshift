@@ -55,11 +55,9 @@ import { broadcastLogout } from '@/api/client'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount, useCoverageGaps, useCoverageGapBlocks } from '@/hooks/queries'
-import type { ClassificationGap } from '@/api/coveragePlans'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
-const MandatoryOTDialog = lazy(() => import('@/components/coverage/MandatoryOTDialog'))
 const SmsAlertDialog = lazy(() => import('@/components/coverage/SmsAlertDialog'))
 
 /** Format "08:00" → "08", "08:30" → "0830" for compact display */
@@ -367,7 +365,6 @@ export default function AppShell() {
   const { groups, profile } = useNavItems()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [coverageOpen, setCoverageOpen] = useState(false)
-  const [otDialogGap, setOtDialogGap] = useState<ClassificationGap | null>(null)
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const { isManager } = usePermissions()
 
@@ -630,18 +627,6 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
-
-      {/* Mandatory OT Dialog */}
-      {otDialogGap && (
-        <Suspense fallback={null}>
-          <MandatoryOTDialog
-            gap={otDialogGap}
-            date={today}
-            open={!!otDialogGap}
-            onOpenChange={(open) => { if (!open) setOtDialogGap(null) }}
-          />
-        </Suspense>
-      )}
 
       {/* SMS Alert Dialog */}
       {smsDialogOpen && (

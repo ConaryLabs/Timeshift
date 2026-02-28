@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ce.classification_id,\n               ss.date AS shift_date, ce.scheduled_shift_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
+  "query": "\n        SELECT ce.status AS \"status: CalloutStatus\", ce.classification_id,\n               ss.date AS shift_date, ce.scheduled_shift_id\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        FOR UPDATE OF ce\n        ",
   "describe": {
     "columns": [
       {
@@ -48,5 +48,5 @@
       false
     ]
   },
-  "hash": "eec9925da0e8fb96642b6209d87aad74eca9be5bd4b0525300f2b1db7a914fcb"
+  "hash": "449c74b380d1180bf067517fbe816dbe92a5a68bf9a17b9425e0a5a417ad1778"
 }

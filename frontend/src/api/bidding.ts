@@ -16,6 +16,7 @@ export interface BidWindow {
   approved_at: string | null
   approved_by: string | null
   is_job_share: boolean
+  auto_advanced_at: string | null
 }
 
 export interface AvailableSlot {

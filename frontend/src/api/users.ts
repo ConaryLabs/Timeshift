@@ -30,7 +30,6 @@ export interface UpdateUserRequest {
   overall_seniority_date?: string | null
   bargaining_unit_seniority_date?: string | null
   classification_seniority_date?: string | null
-  is_active?: boolean
   medical_ot_exempt?: boolean
   employee_status?: EmployeeStatus
   /** Pass true when setting a pausing status for OJI/maternity/military (seniority not paused). */
@@ -63,6 +62,9 @@ export const usersApi = {
 
   deactivate: (id: string) =>
     api.delete(`/api/users/${id}`).then((r) => r.data),
+
+  activate: (id: string) =>
+    api.post<{ ok: boolean }>(`/api/users/${id}/activate`).then((r) => r.data),
 
   changePassword: (body: { current_password: string; new_password: string }) =>
     api.patch<{ ok: boolean }>('/api/users/me/password', body).then((r) => r.data),

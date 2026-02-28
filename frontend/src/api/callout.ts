@@ -17,6 +17,8 @@ export interface CalloutEvent {
   shift_template_name?: string
   shift_date?: string
   team_name?: string
+  assigned_user_id?: string | null
+  assigned_user_name?: string | null
   created_at: string
   updated_at: string
 }

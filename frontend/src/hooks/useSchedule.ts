@@ -105,7 +105,7 @@ export function useCreatePeriod() {
 export function useUpdateSchedulePeriod() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; start_date?: string; end_date?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string; name?: string; start_date?: string; end_date?: string; bargaining_unit?: string | null }) =>
       schedulePeriodsApi.update(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.periods.all }),
   })

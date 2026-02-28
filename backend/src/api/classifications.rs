@@ -1,7 +1,8 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
+use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -13,16 +14,27 @@ use crate::{
     },
 };
 
-pub async fn list(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<Vec<Classification>>> {
+#[derive(Debug, Deserialize)]
+pub struct ClassificationListParams {
+    pub include_inactive: Option<bool>,
+}
+
+pub async fn list(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Query(params): Query<ClassificationListParams>,
+) -> Result<Json<Vec<Classification>>> {
+    let active_only = !params.include_inactive.unwrap_or(false);
     let rows = sqlx::query_as!(
         Classification,
         r#"
         SELECT id, org_id, name, abbreviation, display_order, is_active, created_at
         FROM classifications
-        WHERE org_id = $1 AND is_active = true
+        WHERE org_id = $1 AND ($2::bool = false OR is_active = true)
         ORDER BY display_order, name
         "#,
-        auth.org_id
+        auth.org_id,
+        active_only,
     )
     .fetch_all(&pool)
     .await?;

@@ -74,22 +74,6 @@ pub async fn run_org_accrual(
     let today = crate::services::timezone::org_today(org_timezone);
     let today_str = format!("{}", today);
 
-    // Enforce carryover caps at fiscal year start before crediting new accruals.
-    // This ensures the cap is applied before any new hours land for the new year.
-    match enforce_carryover_caps(pool, org_id, org_timezone, dry_run).await {
-        Ok(n) if n > 0 => tracing::info!(
-            org_id = %org_id,
-            forfeitures = n,
-            "Carryover cap enforcement applied"
-        ),
-        Ok(_) => {}
-        Err(e) => tracing::warn!(
-            org_id = %org_id,
-            error = %e,
-            "Carryover cap enforcement failed (continuing accrual)"
-        ),
-    }
-
     // Fetch active users with accrual-relevant fields (seniority lives in seniority_records)
     let user_rows = sqlx::query!(
         r#"
@@ -164,23 +148,6 @@ pub async fn run_org_accrual(
         })
         .collect();
 
-    // Pre-fetch current balances for all users in this org
-    let balance_rows = sqlx::query!(
-        r#"
-        SELECT user_id, leave_type_id, CAST(balance_hours AS FLOAT8) AS "balance_hours!"
-        FROM leave_balances
-        WHERE org_id = $1
-        "#,
-        org_id,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    let mut balances: std::collections::HashMap<(Uuid, Uuid), f64> = balance_rows
-        .into_iter()
-        .map(|r| ((r.user_id, r.leave_type_id), r.balance_hours))
-        .collect();
-
     let mut result = AccrualRunResult {
         org_id,
         org_name: org_name.to_string(),
@@ -207,6 +174,8 @@ pub async fn run_org_accrual(
     // Begin transaction if not dry run.
     // Acquire an advisory lock keyed on org_id to prevent concurrent accrual runs.
     // Then atomically check the last-run date inside the transaction.
+    // Carryover enforcement and balance fetch happen AFTER the lock to prevent
+    // double-forfeiture and stale balance reads.
     let mut tx = if !dry_run {
         let t = pool.begin().await?;
         Some(t)
@@ -216,9 +185,8 @@ pub async fn run_org_accrual(
 
     if let Some(ref mut tx) = tx {
         // Advisory lock prevents concurrent accrual runs for the same org.
-        // Key: (0x61637275, lower 32 bits of org_id) — "acru" prefix + org discriminator.
-        let lock_key = org_id.as_u128() as i32;
-        sqlx::query!("SELECT pg_advisory_xact_lock(1633906037, $1)", lock_key)
+        let lock_key = (org_id.as_u128() & 0x7FFF_FFFF_FFFF_FFFF) as i64;
+        sqlx::query!("SELECT pg_advisory_xact_lock($1)", lock_key)
             .execute(&mut **tx)
             .await?;
 
@@ -238,6 +206,39 @@ pub async fn run_org_accrual(
             return Ok(result);
         }
     }
+
+    // Enforce carryover caps at fiscal year start before crediting new accruals.
+    // Runs after advisory lock acquisition to prevent double-forfeiture from concurrent runs.
+    match enforce_carryover_caps(pool, org_id, org_timezone, dry_run).await {
+        Ok(n) if n > 0 => tracing::info!(
+            org_id = %org_id,
+            forfeitures = n,
+            "Carryover cap enforcement applied"
+        ),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(
+            org_id = %org_id,
+            error = %e,
+            "Carryover cap enforcement failed (continuing accrual)"
+        ),
+    }
+
+    // Pre-fetch current balances AFTER lock + carryover so we see post-forfeiture values.
+    let balance_rows = sqlx::query!(
+        r#"
+        SELECT user_id, leave_type_id, CAST(balance_hours AS FLOAT8) AS "balance_hours!"
+        FROM leave_balances
+        WHERE org_id = $1
+        "#,
+        org_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut balances: std::collections::HashMap<(Uuid, Uuid), f64> = balance_rows
+        .into_iter()
+        .map(|r| ((r.user_id, r.leave_type_id), r.balance_hours))
+        .collect();
 
     for user in &users {
         if user.leave_accrual_paused {
@@ -336,24 +337,24 @@ pub async fn run_org_accrual(
         }
     }
 
-    // Update last-run date inside the transaction (atomic with the accrual writes).
+    // Update last-run date unconditionally inside the transaction (atomic with the accrual
+    // writes). Even if no credits were applied (all paused/capped), mark today as run to
+    // prevent redundant re-runs.
     if let Some(mut tx) = tx {
-        if result.credits_applied > 0 {
-            let today_json = serde_json::Value::String(today_str);
-            sqlx::query!(
-                r#"
-                INSERT INTO org_settings (id, org_id, key, value, updated_at)
-                VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())
-                ON CONFLICT (org_id, key) DO UPDATE
-                SET value = $3, updated_at = NOW()
-                "#,
-                Uuid::new_v4(),
-                org_id,
-                today_json,
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
+        let today_json = serde_json::Value::String(today_str);
+        sqlx::query!(
+            r#"
+            INSERT INTO org_settings (id, org_id, key, value, updated_at)
+            VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())
+            ON CONFLICT (org_id, key) DO UPDATE
+            SET value = $3, updated_at = NOW()
+            "#,
+            Uuid::new_v4(),
+            org_id,
+            today_json,
+        )
+        .execute(&mut *tx)
+        .await?;
         tx.commit().await?;
     }
 

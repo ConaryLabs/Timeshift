@@ -606,6 +606,8 @@ pub async fn cancel(
         return Err(AppError::Forbidden);
     }
 
+    let mut tx = pool.begin().await?;
+
     let rows = sqlx::query!(
         r#"
         UPDATE ot_requests
@@ -620,7 +622,7 @@ pub async fn cancel(
         auth.org_id,
         auth.id,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?
     .rows_affected();
 
@@ -629,6 +631,21 @@ pub async fn cancel(
             "OT request not found or already cancelled".into(),
         ));
     }
+
+    // Cascade-cancel all active assignments for this OT request
+    sqlx::query!(
+        r#"
+        UPDATE ot_request_assignments
+        SET cancelled_at = NOW(), cancelled_by = $2
+        WHERE ot_request_id = $1 AND cancelled_at IS NULL
+        "#,
+        id,
+        auth.id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

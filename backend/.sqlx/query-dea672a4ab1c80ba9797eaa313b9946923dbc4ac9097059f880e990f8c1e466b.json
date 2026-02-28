@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT EXISTS(\n                    SELECT 1 FROM leave_requests\n                    WHERE user_id = $1\n                      AND status IN ('pending', 'approved')\n                      AND start_date <= $3\n                      AND end_date >= $2\n                      AND org_id = $4\n                    FOR UPDATE\n                )\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "dea672a4ab1c80ba9797eaa313b9946923dbc4ac9097059f880e990f8c1e466b"
+}
