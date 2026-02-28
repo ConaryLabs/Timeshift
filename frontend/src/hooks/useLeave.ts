@@ -25,7 +25,11 @@ export function useCreateLeave() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: leaveApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.leave.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leave.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
+    },
   })
 }
 
@@ -37,6 +41,8 @@ export function useReviewLeave() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
       qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
     },
   })
 }
@@ -48,6 +54,8 @@ export function useBulkReviewLeave() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
       qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
     },
   })
 }
@@ -59,6 +67,8 @@ export function useCancelLeave() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leave.all })
       qc.invalidateQueries({ queryKey: queryKeys.leave.balancesAll })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
     },
   })
 }

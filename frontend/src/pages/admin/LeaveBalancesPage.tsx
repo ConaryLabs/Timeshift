@@ -147,11 +147,16 @@ export default function LeaveBalancesPage() {
 
   function handleScheduleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const hpp = parseFloat(scheduleForm.hours_per_pay_period)
+    if (isNaN(hpp) || hpp <= 0) {
+      toast.error('Hours per pay period must be a positive number')
+      return
+    }
     if (editingSchedule) {
       updateScheduleMut.mutate(
         {
           id: editingSchedule.id,
-          hours_per_pay_period: parseFloat(scheduleForm.hours_per_pay_period),
+          hours_per_pay_period: hpp,
           max_balance_hours: scheduleForm.max_balance_hours ? parseFloat(scheduleForm.max_balance_hours) : null,
           years_of_service_min: parseInt(scheduleForm.years_of_service_min),
           years_of_service_max: scheduleForm.years_of_service_max ? parseInt(scheduleForm.years_of_service_max) : null,
@@ -175,7 +180,7 @@ export default function LeaveBalancesPage() {
           bargaining_unit: scheduleForm.bargaining_unit || null,
           years_of_service_min: parseInt(scheduleForm.years_of_service_min) || 0,
           years_of_service_max: scheduleForm.years_of_service_max ? parseInt(scheduleForm.years_of_service_max) : undefined,
-          hours_per_pay_period: parseFloat(scheduleForm.hours_per_pay_period),
+          hours_per_pay_period: hpp,
           max_balance_hours: scheduleForm.max_balance_hours ? parseFloat(scheduleForm.max_balance_hours) : undefined,
           effective_date: scheduleForm.effective_date || undefined,
         },

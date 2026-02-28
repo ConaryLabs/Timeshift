@@ -63,7 +63,7 @@ export const queryKeys = {
   leave: {
     types: ['leave-types'] as const,
     all: ['leave'] as const,
-    list: (params?: { limit?: number; offset?: number }) => ['leave', params] as const,
+    list: (params?: { limit?: number; offset?: number; status?: string }) => ['leave', params] as const,
     balancesAll: ['leave-balances'] as const,
     balances: (userId?: string) => ['leave-balances', userId] as const,
     balanceHistoryAll: ['leave-balance-history'] as const,

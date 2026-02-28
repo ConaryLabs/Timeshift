@@ -52,7 +52,7 @@ pub struct DutyAssignment {
     pub duty_position_id: Uuid,
     pub user_id: Option<Uuid>,
     pub date: time::Date,
-    pub block_index: Option<i16>,
+    pub block_index: i16,
     pub status: String,
     pub notes: Option<String>,
     pub assigned_by: Option<Uuid>,
@@ -72,7 +72,7 @@ pub struct DutyAssignmentView {
     pub user_first_name: Option<String>,
     pub user_last_name: Option<String>,
     pub date: time::Date,
-    pub block_index: Option<i16>,
+    pub block_index: i16,
     pub status: String,
     pub notes: Option<String>,
     pub assigned_by: Option<Uuid>,
@@ -88,7 +88,7 @@ pub struct CreateDutyAssignmentRequest {
     pub user_id: Uuid,
     pub date: time::Date,
     #[validate(range(min = 0, max = 11))]
-    pub block_index: Option<i16>,
+    pub block_index: i16,
     #[validate(length(max = 500))]
     pub notes: Option<String>,
 }
@@ -96,6 +96,8 @@ pub struct CreateDutyAssignmentRequest {
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateDutyAssignmentRequest {
     pub user_id: Option<Uuid>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "crate::models::common::deserialize_optional_field")]
     #[validate(length(max = 500))]
     pub notes: Option<Option<String>>,
 }
@@ -131,6 +133,8 @@ pub struct CreateQualificationRequest {
 pub struct UpdateQualificationRequest {
     #[validate(length(min = 1, max = 50))]
     pub name: Option<String>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "crate::models::common::deserialize_optional_field")]
     #[validate(length(max = 200))]
     pub description: Option<Option<String>>,
 }

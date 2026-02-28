@@ -21,7 +21,10 @@ export function useCreateTrade() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: tradesApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trades.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+    },
   })
 }
 
@@ -30,7 +33,10 @@ export function useRespondTrade() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; accept: boolean }) =>
       tradesApi.respond(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trades.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+    },
   })
 }
 
@@ -42,6 +48,7 @@ export function useReviewTrade() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.trades.all })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
     },
   })
 }
@@ -53,6 +60,7 @@ export function useBulkReviewTrade() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.trades.all })
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
     },
   })
 }
@@ -61,6 +69,9 @@ export function useCancelTrade() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: tradesApi.cancel,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trades.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+    },
   })
 }

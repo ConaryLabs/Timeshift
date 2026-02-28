@@ -26,6 +26,8 @@ export function useCreateCalloutEvent() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: queryKeys.otRequests.all })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
     },
   })
 }
@@ -45,6 +47,8 @@ export function useRecordAttempt() {
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
       qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll })
       qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
     },
   })
 }
@@ -56,6 +60,8 @@ export function useCancelCalloutEvent() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.callout.events })
       qc.invalidateQueries({ queryKey: queryKeys.callout.listAll })
+      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
     },
   })
 }
@@ -70,6 +76,8 @@ export function useCancelCalloutOtAssignment() {
       qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
       qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll })
       qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
     },
   })
 }

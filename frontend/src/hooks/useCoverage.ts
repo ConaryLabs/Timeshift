@@ -76,7 +76,11 @@ export function useCreateCoveragePlanAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: coveragePlansApi.createAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
+    },
   })
 }
 
@@ -84,7 +88,11 @@ export function useDeleteCoveragePlanAssignment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: coveragePlansApi.deleteAssignment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.assignments })
+      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
+      qc.invalidateQueries({ queryKey: queryKeys.schedule.dashboard })
+    },
   })
 }
 

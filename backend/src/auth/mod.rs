@@ -99,9 +99,11 @@ where
             return Err(AppError::Unauthorized(None));
         }
 
-        // Reject tokens issued before the last password change
+        // Reject tokens issued at or before the last password change.
+        // Using <= ensures tokens from the same second as the change are also invalidated,
+        // closing the window where a token issued just before the change could survive.
         if let Some(changed_at) = row.password_changed_at {
-            if claims.iat < changed_at.unix_timestamp() {
+            if claims.iat <= changed_at.unix_timestamp() {
                 return Err(AppError::Unauthorized(None));
             }
         }

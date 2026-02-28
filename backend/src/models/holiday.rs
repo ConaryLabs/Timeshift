@@ -17,14 +17,14 @@ pub struct Holiday {
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateHolidayRequest {
     pub date: time::Date,
-    #[validate(length(max = 100))]
+    #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub is_premium_pay: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateHolidayRequest {
-    #[validate(length(max = 100))]
+    #[validate(length(min = 1, max = 100))]
     pub name: Option<String>,
     pub is_premium_pay: Option<bool>,
 }

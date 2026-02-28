@@ -554,6 +554,17 @@ pub async fn console_hours(
     auth: AuthUser,
     Query(params): Query<ConsoleHoursQuery>,
 ) -> Result<Json<Vec<ConsoleHoursEntry>>> {
+    if params.end_date < params.start_date {
+        return Err(AppError::BadRequest(
+            "end_date must be >= start_date".into(),
+        ));
+    }
+    if (params.end_date - params.start_date).whole_days() > 366 {
+        return Err(AppError::BadRequest(
+            "Date range cannot exceed 1 year".into(),
+        ));
+    }
+
     let entries = sqlx::query_as!(
         ConsoleHoursEntry,
         r#"

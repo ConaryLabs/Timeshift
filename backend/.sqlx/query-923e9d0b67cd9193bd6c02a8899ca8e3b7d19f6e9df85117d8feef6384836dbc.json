@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, org_id, donor_id, recipient_id, leave_type_id,\n               CAST(hours AS FLOAT8) AS \"hours!\",\n               fiscal_year, status, reviewed_by, reviewer_notes, created_at, updated_at\n        FROM sick_leave_donations\n        WHERE org_id = $1\n          AND ($2::UUID IS NULL OR donor_id = $2 OR recipient_id = $2)\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, org_id, user_id, fiscal_year, period,\n               CAST(hours_requested AS FLOAT8) AS \"hours_requested!\",\n               status, reviewed_by, reviewer_notes, created_at, updated_at\n        FROM holiday_sellback_requests\n        WHERE org_id = $1 AND ($2::UUID IS NULL OR user_id = $2)\n        ORDER BY created_at DESC\n        LIMIT 500\n        ",
   "describe": {
     "columns": [
       {
@@ -15,51 +15,46 @@
       },
       {
         "ordinal": 2,
-        "name": "donor_id",
+        "name": "user_id",
         "type_info": "Uuid"
       },
       {
         "ordinal": 3,
-        "name": "recipient_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 4,
-        "name": "leave_type_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 5,
-        "name": "hours!",
-        "type_info": "Float8"
-      },
-      {
-        "ordinal": 6,
         "name": "fiscal_year",
         "type_info": "Int4"
       },
       {
-        "ordinal": 7,
+        "ordinal": 4,
+        "name": "period",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "hours_requested!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
         "name": "status",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "reviewed_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 9,
+        "ordinal": 8,
         "name": "reviewer_notes",
         "type_info": "Text"
       },
       {
-        "ordinal": 10,
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 11,
+        "ordinal": 10,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -78,12 +73,11 @@
       false,
       null,
       false,
-      false,
       true,
       true,
       false,
       false
     ]
   },
-  "hash": "921071a32df5000923b81abf3114f79de30cadedcb1179b1f30c98171bb8d3a6"
+  "hash": "923e9d0b67cd9193bd6c02a8899ca8e3b7d19f6e9df85117d8feef6384836dbc"
 }

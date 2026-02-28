@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT role AS \"role: Role\", is_active FROM users WHERE id = $1 AND org_id = $2",
+  "query": "SELECT role AS \"role: Role\", is_active, password_changed_at\n           FROM users WHERE id = $1 AND org_id = $2",
   "describe": {
     "columns": [
       {
@@ -23,6 +23,11 @@
         "ordinal": 1,
         "name": "is_active",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "password_changed_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -33,8 +38,9 @@
     },
     "nullable": [
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "1a046cfe58c679f5dd1f1e4ee27c723840fc8147cc6dcd11d094f386660e1386"
+  "hash": "60c0aab6f985290580f9809db540fdeed120b4ca13a22128faa64f509a5232fb"
 }

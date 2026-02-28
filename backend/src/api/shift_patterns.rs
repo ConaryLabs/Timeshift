@@ -40,12 +40,11 @@ pub async fn create(
     auth: AuthUser,
     Json(req): Json<CreateShiftPatternRequest>,
 ) -> Result<Json<ShiftPattern>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
-    }
-
-    if req.name.trim().is_empty() {
-        return Err(AppError::BadRequest("Name is required".into()));
     }
 
     if req.pattern_days < 1 || req.pattern_days > 366 {
@@ -142,6 +141,9 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateShiftPatternRequest>,
 ) -> Result<Json<ShiftPattern>> {
+    use validator::Validate;
+    req.validate()?;
+
     if !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }

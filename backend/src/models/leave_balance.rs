@@ -58,8 +58,12 @@ pub struct CreateAccrualScheduleRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateAccrualScheduleRequest {
     pub hours_per_pay_period: Option<f64>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "crate::models::common::deserialize_optional_field")]
     pub max_balance_hours: Option<Option<f64>>,
     pub years_of_service_min: Option<i32>,
+    /// Double-option: None = keep, Some(None) = clear, Some(Some(v)) = set
+    #[serde(default, deserialize_with = "crate::models::common::deserialize_optional_field")]
     pub years_of_service_max: Option<Option<i32>>,
 }
 

@@ -38,6 +38,7 @@ pub async fn list(
           AND ($3::varchar IS NULL OR sa.assignment_type = $3)
           AND ($4::date IS NULL OR (sa.start_date <= $4 AND (sa.end_date IS NULL OR sa.end_date >= $4)))
         ORDER BY sa.start_date DESC, u.last_name, u.first_name
+        LIMIT 500
         "#,
         auth.org_id,
         params.user_id,

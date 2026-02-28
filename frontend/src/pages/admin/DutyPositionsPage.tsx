@@ -282,7 +282,8 @@ export default function DutyPositionsPage() {
             <Button
               variant="destructive"
               onClick={() => {
-                deleteMut.mutate(deleteTarget!.id, {
+                if (!deleteTarget) return
+                deleteMut.mutate(deleteTarget.id, {
                   onSuccess: () => {
                     toast.success('Duty position deleted')
                     setDeleteTarget(null)
