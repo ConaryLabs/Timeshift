@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,8 +16,9 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { useSchedulePeriods, useCreatePeriod, useUpdateSchedulePeriod, useBargainingUnits, useSlotAssignments } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { SchedulePeriod } from '@/api/schedulePeriods'
-import { extractApiError, formatDateFull } from '@/lib/format'
+import { formatDateFull } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -82,16 +82,10 @@ export default function SchedulePeriodsPage() {
       ...values,
       bargaining_unit: values.bargaining_unit || null,
     }
-    createMut.mutate(payload, {
-      onSuccess: () => {
-        toast.success('Schedule period created')
-        setDialogOpen(false)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Failed to create schedule period')
-        toast.error(msg)
-      },
-    })
+    createMut.mutate(
+      payload,
+      mutationCallbacks('Schedule period created', () => setDialogOpen(false), 'Failed to create schedule period'),
+    )
   }
 
   function onEditSubmit(values: FormValues) {
@@ -105,16 +99,10 @@ export default function SchedulePeriodsPage() {
       payload.start_date = values.start_date
       payload.end_date = values.end_date
     }
-    updateMut.mutate(payload, {
-      onSuccess: () => {
-        toast.success('Schedule period updated')
-        setEditPeriod(null)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Update failed')
-        toast.error(msg)
-      },
-    })
+    updateMut.mutate(
+      payload,
+      mutationCallbacks('Schedule period updated', () => setEditPeriod(null), 'Update failed'),
+    )
   }
 
 

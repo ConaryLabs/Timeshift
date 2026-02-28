@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -16,8 +15,8 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useClassifications, useCreateClassification, useUpdateClassification } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { Classification } from '@/api/classifications'
-import { extractApiError } from '@/lib/format'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -68,30 +67,12 @@ export default function ClassificationsPage() {
     if (editingItem) {
       updateMut.mutate(
         { id: editingItem.id, ...values },
-        {
-          onSuccess: () => {
-            toast.success('Classification updated')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to update classification')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Classification updated', () => setDialogOpen(false), 'Failed to update classification'),
       )
     } else {
       createMut.mutate(
         { name: values.name, abbreviation: values.abbreviation, display_order: values.display_order },
-        {
-          onSuccess: () => {
-            toast.success('Classification created')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to create classification')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Classification created', () => setDialogOpen(false), 'Failed to create classification'),
       )
     }
   }

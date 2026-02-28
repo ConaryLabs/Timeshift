@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { Star, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,8 +25,9 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useHolidays, useCreateHoliday, useUpdateHoliday, useDeleteHoliday } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { Holiday } from '@/api/holidays'
-import { extractApiError, formatDate } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 
 const schema = z.object({
   date: z.string().min(1, 'Date is required'),
@@ -79,45 +79,21 @@ export default function HolidayCalendarPage() {
     if (editingItem) {
       updateMut.mutate(
         { id: editingItem.id, name: values.name, is_premium_pay: values.is_premium_pay },
-        {
-          onSuccess: () => {
-            toast.success('Holiday updated')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to update holiday')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Holiday updated', () => setDialogOpen(false), 'Failed to update holiday'),
       )
     } else {
       createMut.mutate(
         { date: values.date, name: values.name, is_premium_pay: values.is_premium_pay },
-        {
-          onSuccess: () => {
-            toast.success('Holiday created')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to create holiday')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Holiday created', () => setDialogOpen(false), 'Failed to create holiday'),
       )
     }
   }
 
   function handleDelete(id: string) {
-    deleteMut.mutate(id, {
-      onSuccess: () => {
-        toast.success('Holiday deleted')
-        setDeleteConfirm(null)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Failed to delete holiday')
-        toast.error(msg)
-      },
-    })
+    deleteMut.mutate(
+      id,
+      mutationCallbacks('Holiday deleted', () => setDeleteConfirm(null), 'Failed to delete holiday'),
+    )
   }
 
   const columns: Column<Holiday>[] = [

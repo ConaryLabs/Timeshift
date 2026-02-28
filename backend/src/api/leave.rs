@@ -235,14 +235,9 @@ pub async fn get_one(
     }))
 }
 
-pub async fn create(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-    Json(body): Json<CreateLeaveRequest>,
-) -> Result<Json<LeaveRequest>> {
-    use validator::Validate;
-    body.validate()?;
-
+/// Validate leave request inputs: date ordering, hours range, span limit,
+/// segment integrity, and line integrity.  No DB access.
+fn validate_leave_inputs(body: &CreateLeaveRequest) -> Result<()> {
     if body.end_date < body.start_date {
         return Err(AppError::BadRequest(
             "end_date must be >= start_date".into(),
@@ -314,13 +309,23 @@ pub async fn create(
         }
     }
 
+    Ok(())
+}
+
+/// Verify the leave type (and any segment leave types) exist in the org,
+/// and that the optional scheduled_shift_id belongs to the org.
+async fn verify_leave_references(
+    pool: &PgPool,
+    org_id: Uuid,
+    body: &CreateLeaveRequest,
+) -> Result<()> {
     // Verify leave type belongs to caller's org and is active
     let lt_ok = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true)",
         body.leave_type_id,
-        auth.org_id
+        org_id
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
     if !lt_ok.unwrap_or(false) {
         return Err(AppError::NotFound("Leave type not found".into()));
@@ -334,9 +339,9 @@ pub async fn create(
                 WHERE ss.id = $1 AND ss.org_id = $2
             )"#,
             shift_id,
-            auth.org_id,
+            org_id,
         )
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await?;
         if !shift_ok.unwrap_or(false) {
             return Err(AppError::NotFound("Scheduled shift not found".into()));
@@ -349,9 +354,9 @@ pub async fn create(
             let seg_ok = sqlx::query_scalar!(
                 "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true)",
                 seg.leave_type_id,
-                auth.org_id,
+                org_id,
             )
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await?;
             if !seg_ok.unwrap_or(false) {
                 return Err(AppError::NotFound(format!(
@@ -362,26 +367,18 @@ pub async fn create(
         }
     }
 
-    // Get leave type code/name and creator name
-    let lt = sqlx::query!(
-        r#"SELECT code, name, category AS "category?" FROM leave_types WHERE id = $1"#,
-        body.leave_type_id
-    )
-    .fetch_one(&pool)
-    .await?;
+    Ok(())
+}
 
-    let creator = sqlx::query!(
-        "SELECT first_name, last_name FROM users WHERE id = $1",
-        auth.id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    let mut tx = pool.begin().await?;
-
-    // Check for overlapping leave requests (only pending/approved block new ones).
-    // For partial-day leave (with start_time), only block if existing leave lines
-    // on the same date(s) have overlapping times (or are full-day).
+/// Check for overlapping leave requests on the same dates (within the transaction
+/// so the check and insert are atomic).  Only pending/approved requests block new ones.
+/// For partial-day requests (start_time is Some), checks at line-level time granularity.
+async fn check_leave_overlaps(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    org_id: Uuid,
+    body: &CreateLeaveRequest,
+) -> Result<()> {
     let has_overlap = if body.start_time.is_some() {
         // Partial-day: check line-level time overlap. An existing leave blocks if
         // it has a full-day line (no start_time) OR its time range overlaps the
@@ -414,13 +411,13 @@ pub async fn create(
                         FOR UPDATE OF lr
                     )
                     "#,
-                    auth.id,
-                    auth.org_id,
+                    user_id,
+                    org_id,
                     line.date,
                     line_start,
                     line_end,
                 )
-                .fetch_one(&mut *tx)
+                .fetch_one(&mut **tx)
                 .await?;
                 if overlap.unwrap_or(false) {
                     found_overlap = true;
@@ -441,12 +438,12 @@ pub async fn create(
                     FOR UPDATE
                 )
                 "#,
-                auth.id,
+                user_id,
                 body.start_date,
                 body.end_date,
-                auth.org_id,
+                org_id,
             )
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await?;
             found_overlap = overlap.unwrap_or(false);
         }
@@ -465,20 +462,147 @@ pub async fn create(
                 FOR UPDATE
             )
             "#,
-            auth.id,
+            user_id,
             body.start_date,
             body.end_date,
-            auth.org_id,
+            org_id,
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?
     };
+
     if has_overlap.unwrap_or(false) {
         return Err(AppError::Conflict(
             "Leave request overlaps with an existing request".into(),
         ));
     }
 
+    Ok(())
+}
+
+/// Insert leave_request_segments rows: manual split coding takes priority over
+/// auto-FMLA.  If body.segments is None and the leave type is FMLA, auto-creates
+/// FMLA priority segments.
+async fn insert_leave_segments(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    leave_request_id: Uuid,
+    org_id: Uuid,
+    user_id: Uuid,
+    body: &CreateLeaveRequest,
+    is_fmla: bool,
+) -> Result<()> {
+    if let Some(ref segments) = body.segments {
+        // Manual split coding: insert exactly as supplied
+        for (i, seg) in segments.iter().enumerate() {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
+                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
+                "#,
+                leave_request_id,
+                seg.leave_type_id,
+                seg.hours,
+                i as i32,
+            )
+            .execute(&mut **tx)
+            .await?;
+        }
+    } else if is_fmla {
+        // Auto-create FMLA priority segments for FMLA leave types when hours are specified
+        if let Some(total_hours) = body.hours {
+            create_fmla_segments(tx, leave_request_id, org_id, user_id, total_hours).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Insert leave_request_lines rows: uses client-provided lines when supplied,
+/// otherwise auto-generates one line per calendar day with evenly distributed hours.
+async fn insert_leave_lines(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    leave_request_id: Uuid,
+    body: &CreateLeaveRequest,
+) -> Result<()> {
+    if let Some(ref lines) = body.lines {
+        // Use client-provided lines
+        for line in lines {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)
+                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC)
+                "#,
+                leave_request_id,
+                line.date,
+                line.start_time,
+                line.end_time,
+                line.hours,
+            )
+            .execute(&mut **tx)
+            .await?;
+        }
+    } else if let Some(total_hours) = body.hours {
+        // Auto-generate lines: distribute hours across each date in the range
+        let days = (body.end_date - body.start_date).whole_days() + 1;
+        let per_day = total_hours / days as f64;
+        let mut current = body.start_date;
+        while current <= body.end_date {
+            sqlx::query!(
+                r#"
+                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)
+                VALUES ($1, $2, $3, NULL, $4::FLOAT8::NUMERIC)
+                "#,
+                leave_request_id,
+                current,
+                body.start_time,
+                per_day,
+            )
+            .execute(&mut **tx)
+            .await?;
+            let prev = current;
+            current = current.next_day().unwrap_or(current);
+            if current == prev {
+                break; // safety: overflow guard (next_day returned None)
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn create(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Json(body): Json<CreateLeaveRequest>,
+) -> Result<Json<LeaveRequest>> {
+    use validator::Validate;
+    body.validate()?;
+
+    // 1. Pure input validation (no DB access)
+    validate_leave_inputs(&body)?;
+
+    // 2. Verify all referenced IDs exist and belong to the org
+    verify_leave_references(&pool, auth.org_id, &body).await?;
+
+    // 3. Fetch leave type metadata and creator name before opening a transaction
+    let lt = sqlx::query!(
+        r#"SELECT code, name, category AS "category?" FROM leave_types WHERE id = $1"#,
+        body.leave_type_id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let creator = sqlx::query!(
+        "SELECT first_name, last_name FROM users WHERE id = $1",
+        auth.id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let mut tx = pool.begin().await?;
+
+    // 4. Overlap check (inside transaction for atomicity)
+    check_leave_overlaps(&mut tx, auth.id, auth.org_id, &body).await?;
+
+    // 5. Insert the leave request row
     let leave_request_id = Uuid::new_v4();
     let r = sqlx::query!(
         r#"
@@ -516,76 +640,12 @@ pub async fn create(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Handle segments: manual split coding takes priority over auto-FMLA
-    if let Some(ref segments) = body.segments {
-        for (i, seg) in segments.iter().enumerate() {
-            sqlx::query!(
-                r#"
-                INSERT INTO leave_request_segments (leave_request_id, leave_type_id, hours, sort_order)
-                VALUES ($1, $2, $3::FLOAT8::NUMERIC, $4)
-                "#,
-                leave_request_id,
-                seg.leave_type_id,
-                seg.hours,
-                i as i32,
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
-    } else {
-        // Auto-create FMLA priority segments for FMLA leave types when hours are specified
-        let is_fmla = lt.category.as_deref() == Some("fmla");
-        if is_fmla {
-            if let Some(total_hours) = body.hours {
-                create_fmla_segments(&mut tx, leave_request_id, auth.org_id, auth.id, total_hours)
-                    .await?;
-            }
-        }
-    }
+    // 6. Insert segments (manual or auto-FMLA)
+    let is_fmla = lt.category.as_deref() == Some("fmla");
+    insert_leave_segments(&mut tx, leave_request_id, auth.org_id, auth.id, &body, is_fmla).await?;
 
-    // Generate leave_request_lines
-    if let Some(ref lines) = body.lines {
-        // Use client-provided lines
-        for line in lines {
-            sqlx::query!(
-                r#"
-                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)
-                VALUES ($1, $2, $3, $4, $5::FLOAT8::NUMERIC)
-                "#,
-                leave_request_id,
-                line.date,
-                line.start_time,
-                line.end_time,
-                line.hours,
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
-    } else if let Some(total_hours) = body.hours {
-        // Auto-generate lines: distribute hours across each date in the range
-        let days = (body.end_date - body.start_date).whole_days() + 1;
-        let per_day = total_hours / days as f64;
-        let mut current = body.start_date;
-        while current <= body.end_date {
-            sqlx::query!(
-                r#"
-                INSERT INTO leave_request_lines (leave_request_id, date, start_time, end_time, hours)
-                VALUES ($1, $2, $3, NULL, $4::FLOAT8::NUMERIC)
-                "#,
-                leave_request_id,
-                current,
-                body.start_time,
-                per_day,
-            )
-            .execute(&mut *tx)
-            .await?;
-            let prev = current;
-            current = current.next_day().unwrap_or(current);
-            if current == prev {
-                break; // safety: overflow guard (next_day returned None)
-            }
-        }
-    }
+    // 7. Insert per-day lines (provided or auto-generated)
+    insert_leave_lines(&mut tx, leave_request_id, &body).await?;
 
     tx.commit().await?;
 

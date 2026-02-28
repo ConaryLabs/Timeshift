@@ -140,22 +140,7 @@ pub async fn open_bidding(
         .fetch_one(&mut *tx)
         .await?;
 
-        windows.push(BidWindow {
-            id: row.id,
-            period_id: row.period_id,
-            user_id: row.user_id,
-            first_name: row.first_name,
-            last_name: row.last_name,
-            seniority_rank: row.seniority_rank,
-            opens_at: row.opens_at,
-            closes_at: row.closes_at,
-            submitted_at: row.submitted_at,
-            unlocked_at: row.unlocked_at,
-            approved_at: row.approved_at,
-            approved_by: row.approved_by,
-            is_job_share: row.is_job_share,
-            auto_advanced_at: row.auto_advanced_at,
-        });
+        windows.push(row.into());
     }
 
     // Calculate overall bid period open/close times
@@ -236,25 +221,7 @@ pub async fn list_bid_windows(
         .await?
     };
 
-    let windows = rows
-        .into_iter()
-        .map(|r| BidWindow {
-            id: r.id,
-            period_id: r.period_id,
-            user_id: r.user_id,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            seniority_rank: r.seniority_rank,
-            opens_at: r.opens_at,
-            closes_at: r.closes_at,
-            submitted_at: r.submitted_at,
-            unlocked_at: r.unlocked_at,
-            approved_at: r.approved_at,
-            approved_by: r.approved_by,
-            is_job_share: r.is_job_share,
-            auto_advanced_at: r.auto_advanced_at,
-        })
-        .collect();
+    let windows: Vec<BidWindow> = rows.into_iter().map(BidWindow::from).collect();
 
     Ok(Json(windows))
 }
@@ -317,22 +284,7 @@ pub async fn get_bid_window(
     .fetch_one(&pool)
     .await?;
 
-    let window = BidWindow {
-        id: window_row.id,
-        period_id: window_row.period_id,
-        user_id: window_row.user_id,
-        first_name: window_row.first_name,
-        last_name: window_row.last_name,
-        seniority_rank: window_row.seniority_rank,
-        opens_at: window_row.opens_at,
-        closes_at: window_row.closes_at,
-        submitted_at: window_row.submitted_at,
-        unlocked_at: window_row.unlocked_at,
-        approved_at: window_row.approved_at,
-        approved_by: window_row.approved_by,
-        is_job_share: window_row.is_job_share,
-        auto_advanced_at: window_row.auto_advanced_at,
-    };
+    let window = BidWindow::from(window_row);
 
     // Available slots: active slots for the org, marking ones already awarded
     let slots = sqlx::query!(

@@ -19,6 +19,115 @@ use crate::{
     },
 };
 
+// ---------------------------------------------------------------------------
+// process_bids helpers
+// ---------------------------------------------------------------------------
+
+/// Check if any date in [start, end] would reach or exceed `max_concurrent` awarded vacations.
+///
+/// Returns `Ok(true)` if there is a conflict (bid should be skipped), `Ok(false)` otherwise.
+/// Returns an error only if a date arithmetic overflow is encountered.
+fn check_date_conflicts(
+    awarded_dates: &HashMap<time::Date, u32>,
+    start: time::Date,
+    end: time::Date,
+    max_concurrent: u32,
+) -> Result<bool> {
+    let mut d = start;
+    while d <= end {
+        let count = awarded_dates.get(&d).copied().unwrap_or(0);
+        if count >= max_concurrent {
+            return Ok(true);
+        }
+        d = d
+            .next_day()
+            .ok_or(AppError::BadRequest("Date range exceeds maximum date".into()))?;
+    }
+    Ok(false)
+}
+
+/// Increment the concurrent-vacation count for every date in [start, end].
+///
+/// Returns an error only if a date arithmetic overflow is encountered.
+fn mark_awarded_dates(
+    awarded_dates: &mut HashMap<time::Date, u32>,
+    start: time::Date,
+    end: time::Date,
+) -> Result<()> {
+    let mut d = start;
+    while d <= end {
+        *awarded_dates.entry(d).or_insert(0) += 1;
+        d = d
+            .next_day()
+            .ok_or(AppError::BadRequest("Date range exceeds maximum date".into()))?;
+    }
+    Ok(())
+}
+
+/// Award a single vacation bid: mark it awarded, create an approved leave request,
+/// and deduct the corresponding leave balance.
+///
+/// If `leave_type_id` is `None`, the leave request and balance deduction are skipped
+/// (bid is still marked awarded).
+async fn award_vacation_bid(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    bid_id: Uuid,
+    start_date: time::Date,
+    end_date: time::Date,
+    user_id: Uuid,
+    org_id: Uuid,
+    reviewer_id: Uuid,
+    leave_type_id: Option<Uuid>,
+    hours_lookup: &Option<serde_json::Value>,
+    org_timezone: &str,
+) -> Result<()> {
+    // Mark the bid as awarded
+    sqlx::query!(
+        "UPDATE vacation_bids SET awarded = true WHERE id = $1",
+        bid_id,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    // Create approved leave request and deduct balance if a vacation leave type exists
+    if let Some(lt_id) = leave_type_id {
+        let hours = calculate_hours(start_date, end_date, hours_lookup);
+        let leave_request_id = Uuid::new_v4();
+
+        sqlx::query!(
+            r#"
+            INSERT INTO leave_requests (id, user_id, org_id, leave_type_id, start_date, end_date, hours, reason, status, reviewed_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::FLOAT8::NUMERIC, 'Vacation bid award', 'approved', $8)
+            "#,
+            leave_request_id,
+            user_id,
+            org_id,
+            lt_id,
+            start_date,
+            end_date,
+            hours,
+            reviewer_id,
+        )
+        .execute(&mut **tx)
+        .await?;
+
+        // Deduct leave balance for the awarded vacation bid
+        crate::services::leave::deduct_leave_balance(
+            tx,
+            org_id,
+            user_id,
+            lt_id,
+            hours,
+            leave_request_id,
+            reviewer_id,
+            org_timezone,
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
 pub async fn list_periods(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -735,20 +844,7 @@ pub async fn process_bids(
 
         for bid in &bids {
             // Check if any date in this bid's range would exceed concurrent vacation limit
-            let mut has_conflict = false;
-            let mut d = bid.start_date;
-            while d <= bid.end_date {
-                let count = awarded_dates.get(&d).copied().unwrap_or(0);
-                if count >= max_concurrent {
-                    has_conflict = true;
-                    break;
-                }
-                d = d.next_day().ok_or(AppError::BadRequest(
-                    "Date range exceeds maximum date".into(),
-                ))?;
-            }
-
-            if has_conflict {
+            if check_date_conflicts(&awarded_dates, bid.start_date, bid.end_date, max_concurrent)? {
                 continue; // Skip this bid, dates already taken
             }
 
@@ -785,59 +881,23 @@ pub async fn process_bids(
                 }
             }
 
-            // Award the bid
-            sqlx::query!(
-                "UPDATE vacation_bids SET awarded = true WHERE id = $1",
+            // Award the bid, create leave request, and deduct balance
+            award_vacation_bid(
+                &mut tx,
                 bid.id,
+                bid.start_date,
+                bid.end_date,
+                window.user_id,
+                auth.org_id,
+                auth.id,
+                leave_type_id,
+                &hours_lookup,
+                &auth.org_timezone,
             )
-            .execute(&mut *tx)
             .await?;
 
             // Increment concurrent count for all dates in this bid's range
-            let mut d = bid.start_date;
-            while d <= bid.end_date {
-                *awarded_dates.entry(d).or_insert(0) += 1;
-                d = d.next_day().ok_or(AppError::BadRequest(
-                    "Date range exceeds maximum date".into(),
-                ))?;
-            }
-
-            // Create approved leave request if we have a vacation leave type
-            if let Some(lt_id) = leave_type_id {
-                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup);
-
-                let leave_request_id = Uuid::new_v4();
-
-                sqlx::query!(
-                    r#"
-                    INSERT INTO leave_requests (id, user_id, org_id, leave_type_id, start_date, end_date, hours, reason, status, reviewed_by)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7::FLOAT8::NUMERIC, 'Vacation bid award', 'approved', $8)
-                    "#,
-                    leave_request_id,
-                    window.user_id,
-                    auth.org_id,
-                    lt_id,
-                    bid.start_date,
-                    bid.end_date,
-                    hours,
-                    auth.id,
-                )
-                .execute(&mut *tx)
-                .await?;
-
-                // Deduct leave balance for the awarded vacation bid
-                crate::services::leave::deduct_leave_balance(
-                    &mut tx,
-                    auth.org_id,
-                    window.user_id,
-                    lt_id,
-                    hours,
-                    leave_request_id,
-                    auth.id,
-                    &auth.org_timezone,
-                )
-                .await?;
-            }
+            mark_awarded_dates(&mut awarded_dates, bid.start_date, bid.end_date)?;
         }
     }
 

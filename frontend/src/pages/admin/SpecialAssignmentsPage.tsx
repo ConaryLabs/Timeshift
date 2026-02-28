@@ -31,7 +31,8 @@ import {
   useUsers,
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { NO_VALUE, extractApiError } from '@/lib/format'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
+import { NO_VALUE } from '@/lib/format'
 import type { SpecialAssignment } from '@/api/specialAssignments'
 
 const COMMON_TYPES = [
@@ -141,16 +142,7 @@ export default function SpecialAssignmentsPage() {
           end_date: values.end_date || null,
           notes: values.notes || null,
         },
-        {
-          onSuccess: () => {
-            toast.success('Assignment updated')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to update assignment')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Assignment updated', () => setDialogOpen(false), 'Failed to update assignment'),
       )
     } else {
       createMut.mutate(
@@ -161,32 +153,17 @@ export default function SpecialAssignmentsPage() {
           end_date: values.end_date || undefined,
           notes: values.notes || undefined,
         },
-        {
-          onSuccess: () => {
-            toast.success('Assignment created')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to create assignment')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Assignment created', () => setDialogOpen(false), 'Failed to create assignment'),
       )
     }
   }
 
   function handleDelete() {
     if (!deleteTarget) return
-    deleteMut.mutate(deleteTarget.id, {
-      onSuccess: () => {
-        toast.success('Assignment deleted')
-        setDeleteTarget(null)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Delete failed')
-        toast.error(msg)
-      },
-    })
+    deleteMut.mutate(
+      deleteTarget.id,
+      mutationCallbacks('Assignment deleted', () => setDeleteTarget(null), 'Delete failed'),
+    )
   }
 
   const columns: Column<SpecialAssignment>[] = [
