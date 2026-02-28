@@ -176,9 +176,9 @@ export default function ApprovalsPage() {
 
   function toggleItem(id: string) {
     if (tab === 'leave') {
-      setSelectedLeave((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+      setSelectedLeave((s) => { const n = new Set(s); if (n.has(id)) { n.delete(id) } else { n.add(id) } return n })
     } else {
-      setSelectedTrades((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+      setSelectedTrades((s) => { const n = new Set(s); if (n.has(id)) { n.delete(id) } else { n.add(id) } return n })
     }
   }
 

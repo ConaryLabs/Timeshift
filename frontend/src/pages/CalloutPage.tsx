@@ -264,7 +264,7 @@ export default function CalloutPage() {
     reviewBumpMut.mutate(
       { requestId, approved },
       {
-        onSuccess: () => toast.success(approved ? 'Bump approved' : 'Bump rejected'),
+        onSuccess: () => toast.success(approved ? 'Bump approved' : 'Bump denied'),
         onError: (err: unknown) => {
           const msg = extractApiError(err, 'Failed to review bump request')
           toast.error(msg)

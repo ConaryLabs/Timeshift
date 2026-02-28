@@ -126,7 +126,7 @@ export default function TeamDetailPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update slot')
             toast.error(msg)
           },
         },
@@ -146,7 +146,7 @@ export default function TeamDetailPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create slot')
             toast.error(msg)
           },
         },

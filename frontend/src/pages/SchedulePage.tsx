@@ -59,7 +59,7 @@ export default function SchedulePage() {
   )
 
   // Grid data for month view coverage indicators
-  const { data: gridData } = useScheduleGrid(
+  const { data: gridData, isLoading: isMonthLoading } = useScheduleGrid(
     monthStartStr,
     monthEndStr,
     selectedTeamId ?? undefined,
@@ -234,7 +234,9 @@ export default function SchedulePage() {
         <BoardView data={data ?? []} days={days} currentUserId={currentUserId} />
       )}
 
-      {!isLoading && !error && viewMode === 'month' && (
+      {viewMode === 'month' && isMonthLoading && <LoadingState />}
+
+      {!isMonthLoading && !error && viewMode === 'month' && (
         <MonthView anchor={anchor} gridData={gridData ?? []} navigate={navigate} />
       )}
     </div>

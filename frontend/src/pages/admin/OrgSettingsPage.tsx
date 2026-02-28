@@ -94,7 +94,7 @@ function ConfigSection() {
       {
         onSuccess: () => toast.success(`${getSettingLabel(key)} saved`),
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to save setting')
           toast.error(msg)
         },
       },
@@ -203,7 +203,7 @@ export default function OrgSettingsPage() {
         reset({ name: data.name, timezone: data.timezone })
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to update organization')
         toast.error(msg)
       },
     })

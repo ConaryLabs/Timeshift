@@ -32,7 +32,7 @@ export default function DutyBoardDisplayPage() {
   }, [])
 
   // Fetch board with 30s auto-refresh
-  const { data: board } = useDutyBoard(dateStr, { refetchInterval: 30_000 })
+  const { data: board, isLoading: boardLoading } = useDutyBoard(dateStr, { refetchInterval: 30_000 })
 
   const assignmentMap = useMemo(() => buildAssignmentMap(board?.assignments), [board?.assignments])
 
@@ -287,7 +287,7 @@ export default function DutyBoardDisplayPage() {
             fontSize: '20px',
           }}
         >
-          Loading duty board...
+          {boardLoading ? 'Loading duty board...' : 'No duty positions configured'}
         </div>
       )}
     </div>

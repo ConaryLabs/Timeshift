@@ -57,8 +57,3 @@ export function useDeactivateUser() {
   })
 }
 
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: usersApi.changePassword,
-  })
-}

@@ -84,7 +84,7 @@ export default function HolidayCalendarPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update holiday')
             toast.error(msg)
           },
         },
@@ -98,7 +98,7 @@ export default function HolidayCalendarPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create holiday')
             toast.error(msg)
           },
         },

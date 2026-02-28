@@ -12,6 +12,8 @@ interface UIState {
   setSelectedPeriodId: (id: string | null) => void
   toggleSection: (key: string) => void
   isSectionCollapsed: (key: string) => boolean
+  /** Reset org-specific selections (call on logout) */
+  reset: () => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -33,6 +35,7 @@ export const useUIStore = create<UIState>()(
           },
         })),
       isSectionCollapsed: (key) => !!get().collapsedSections[key],
+      reset: () => set({ selectedTeamId: null, selectedPeriodId: null }),
     }),
     {
       name: 'timeshift-ui',

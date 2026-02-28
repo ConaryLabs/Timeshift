@@ -253,8 +253,8 @@ export default function MyDashboardPage() {
 
         {dashboard?.upcoming_shifts && dashboard.upcoming_shifts.length > 0 ? (
           <div className="space-y-2">
-            {dashboard.upcoming_shifts.map((entry, i) => (
-              <Card key={i}>
+            {dashboard.upcoming_shifts.map((entry) => (
+              <Card key={`${entry.date}-${entry.shift_name}-${entry.start_time}`}>
                 <CardContent className="py-3">
                   <div className="flex items-center gap-3">
                     <div

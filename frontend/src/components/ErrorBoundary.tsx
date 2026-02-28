@@ -31,14 +31,9 @@ export default class ErrorBoundary extends Component<Props, State> {
             <h1 className="mb-2 text-xl font-semibold text-foreground">
               Something went wrong
             </h1>
-            <p className="mb-4 text-sm text-muted-foreground">
-              An unexpected error occurred. You can try again or reload the page.
+            <p className="mb-6 text-sm text-muted-foreground">
+              An unexpected error occurred. Please try refreshing the page.
             </p>
-            {this.state.error?.message && (
-              <p className="mb-6 text-xs text-destructive bg-destructive/10 rounded px-3 py-2 break-words">
-                {this.state.error.message}
-              </p>
-            )}
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={() => this.setState({ hasError: false, error: null })}

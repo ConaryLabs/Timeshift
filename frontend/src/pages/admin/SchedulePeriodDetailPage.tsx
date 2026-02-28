@@ -102,7 +102,7 @@ export default function SchedulePeriodDetailPage() {
           setAssignTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to save slot assignment')
           toast.error(msg)
         },
       },
@@ -119,7 +119,7 @@ export default function SchedulePeriodDetailPage() {
           setRemoveTarget(null)
         },
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to remove slot assignment')
           toast.error(msg)
         },
       },

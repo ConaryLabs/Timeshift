@@ -77,7 +77,7 @@ export default function OTQueuePage() {
       {
         onSuccess: () => toast.success(`${entry.last_name}, ${entry.first_name} moved to front`),
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to update queue position')
           toast.error(msg)
         },
       },
@@ -108,7 +108,7 @@ export default function OTQueuePage() {
           setAdjustDeclined('')
         },
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to adjust OT hours')
           toast.error(msg)
         },
       },

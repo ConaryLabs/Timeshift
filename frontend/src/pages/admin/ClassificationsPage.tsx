@@ -70,7 +70,7 @@ export default function ClassificationsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update classification')
             toast.error(msg)
           },
         },
@@ -84,7 +84,7 @@ export default function ClassificationsPage() {
             setDialogOpen(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create classification')
             toast.error(msg)
           },
         },

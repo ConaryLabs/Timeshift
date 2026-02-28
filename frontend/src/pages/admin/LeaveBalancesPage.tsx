@@ -108,7 +108,7 @@ export default function LeaveBalancesPage() {
           setAdjustDialog(null)
         },
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Operation failed')
+          const msg = extractApiError(err, 'Failed to adjust leave balance')
           toast.error(msg)
         },
       },
@@ -162,7 +162,7 @@ export default function LeaveBalancesPage() {
             setScheduleDialog(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to update accrual schedule')
             toast.error(msg)
           },
         },
@@ -185,7 +185,7 @@ export default function LeaveBalancesPage() {
             setScheduleDialog(false)
           },
           onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Operation failed')
+            const msg = extractApiError(err, 'Failed to create accrual schedule')
             toast.error(msg)
           },
         },
@@ -200,7 +200,7 @@ export default function LeaveBalancesPage() {
         setDeleteTarget(null)
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to delete accrual schedule')
         toast.error(msg)
       },
     })

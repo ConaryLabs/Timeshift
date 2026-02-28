@@ -38,6 +38,8 @@ interface DataTableProps<T> {
   toolbar?: (selectedKeys: Set<string>) => React.ReactNode
   /** Enable client-side pagination with this page size. */
   pageSize?: number
+  /** Increment this value to clear the current selection (e.g. after a bulk operation). */
+  clearSelectionKey?: number
 }
 
 function getSortValue<T>(row: T, col: Column<T>): string | number | null | undefined {
@@ -78,11 +80,20 @@ export function DataTable<T>({
   onSelectionChange,
   toolbar,
   pageSize,
+  clearSelectionKey,
 }: DataTableProps<T>) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [sortColIndex, setSortColIndex] = useState<number | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>('asc')
   const [page, setPage] = useState(0)
+
+  // Clear selection when clearSelectionKey changes (e.g. after bulk operations).
+  // Track the last-seen key in state to detect changes without refs or effects.
+  const [lastClearKey, setLastClearKey] = useState(clearSelectionKey)
+  if (clearSelectionKey !== undefined && clearSelectionKey !== lastClearKey) {
+    setLastClearKey(clearSelectionKey)
+    setSelectedKeys(new Set())
+  }
 
   const updateSelection = useCallback((next: Set<string>) => {
     setSelectedKeys(next)

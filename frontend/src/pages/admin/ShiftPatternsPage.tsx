@@ -132,12 +132,12 @@ export default function ShiftPatternsPage() {
       if (editingItem) {
         updateMut.mutate({ id: editingItem.id, ...data }, {
           onSuccess: () => { toast.success('Pattern updated'); setDialogOpen(false) },
-          onError: (err: unknown) => toast.error(extractApiError(err, 'Operation failed')),
+          onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to update shift pattern')),
         })
       } else {
         createMut.mutate(data, {
           onSuccess: () => { toast.success('Pattern created'); setDialogOpen(false) },
-          onError: (err: unknown) => toast.error(extractApiError(err, 'Operation failed')),
+          onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to create shift pattern')),
         })
       }
       return
@@ -159,13 +159,13 @@ export default function ShiftPatternsPage() {
         { id: editingItem.id, ...data },
         {
           onSuccess: () => { toast.success('Pattern updated'); setDialogOpen(false) },
-          onError: (err: unknown) => toast.error(extractApiError(err, 'Operation failed')),
+          onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to update shift pattern')),
         },
       )
     } else {
       createMut.mutate(data, {
         onSuccess: () => { toast.success('Pattern created'); setDialogOpen(false) },
-        onError: (err: unknown) => toast.error(extractApiError(err, 'Operation failed')),
+        onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to create shift pattern')),
       })
     }
   }

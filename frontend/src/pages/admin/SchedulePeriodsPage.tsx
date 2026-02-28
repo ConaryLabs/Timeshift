@@ -87,7 +87,7 @@ export default function SchedulePeriodsPage() {
         setDialogOpen(false)
       },
       onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Operation failed')
+        const msg = extractApiError(err, 'Failed to create schedule period')
         toast.error(msg)
       },
     })
