@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { ChevronsUpDown, Check, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -12,7 +14,16 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
@@ -27,13 +38,14 @@ import {
   useCancelTrade,
 } from '@/hooks/queries'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { MessageSquare } from 'lucide-react'
 import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth'
 import type { TradeRequest, TradeStatus } from '@/api/trades'
-import { extractApiError, toLocalDateStr, formatDateFull } from '@/lib/format'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
+import { cn } from '@/lib/utils'
+import { extractApiError, toLocalDateStr, formatDateFull, formatDate, formatTime } from '@/lib/format'
 
 const STATUS_TABS: { label: string; value: TradeStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -62,6 +74,9 @@ export default function TradesPage() {
   const [partnerId, setPartnerId] = useState('')
   const [myAssignmentId, setMyAssignmentId] = useState('')
   const [partnerAssignmentId, setPartnerAssignmentId] = useState('')
+  const [partnerSearchOpen, setPartnerSearchOpen] = useState(false)
+  const [partnerFilter, setPartnerFilter] = useState('')
+  const [cancelTradeTarget, setCancelTradeTarget] = useState<string | null>(null)
 
   // Clear date param from URL after reading it
   useEffect(() => {
@@ -82,6 +97,8 @@ export default function TradesPage() {
   const endStr = toLocalDateStr(futureDate)
 
   const { data: staffing } = useStaffing(startStr, endStr)
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
 
   const createMut = useCreateTrade()
   const respondMut = useRespondTrade()
@@ -109,6 +126,8 @@ export default function TradesPage() {
     () => (staffing ?? []).filter((a) => a.user_id === partnerId),
     [staffing, partnerId],
   )
+
+  const isTradeFormDirty = partnerId !== '' || myAssignmentId !== '' || partnerAssignmentId !== ''
 
   // Other active users (exclude self)
   const otherUsers = useMemo(
@@ -297,13 +316,7 @@ export default function TradesPage() {
               size="sm"
               variant="ghost"
               className="text-muted-foreground"
-              onClick={() => cancelMut.mutate(r.id, {
-                onSuccess: () => toast.success('Trade cancelled'),
-                onError: (err: unknown) => {
-                  const msg = extractApiError(err, 'Failed to cancel trade')
-                  toast.error(msg)
-                },
-              })}
+              onClick={() => setCancelTradeTarget(r.id)}
               disabled={cancelMut.isPending}
             >
               Cancel
@@ -322,10 +335,21 @@ export default function TradesPage() {
         title="Shift Trades"
         actions={
           <Button
-            onClick={() => setShowForm((v) => !v)}
+            onClick={() => {
+              if (showForm) {
+                confirmClose(isTradeFormDirty, () => {
+                  setShowForm(false)
+                  setPartnerId('')
+                  setMyAssignmentId('')
+                  setPartnerAssignmentId('')
+                })
+              } else {
+                setShowForm(true)
+              }
+            }}
             variant={showForm ? 'outline' : 'default'}
           >
-            {showForm ? 'Cancel' : '+ New Trade'}
+            {showForm ? 'Cancel' : '+ Add Trade'}
           </Button>
         }
       />
@@ -337,35 +361,78 @@ export default function TradesPage() {
         >
           <div className="flex flex-wrap items-end gap-4">
             <FormField label="Trade Partner" htmlFor="trade-partner" required>
-              <Select
-                value={partnerId}
-                onValueChange={(v) => {
-                  setPartnerId(v)
-                  setPartnerAssignmentId('')
-                }}
-              >
-                <SelectTrigger id="trade-partner" className="w-[220px]">
-                  <SelectValue placeholder="Select partner..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {otherUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.last_name}, {u.first_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={partnerSearchOpen} onOpenChange={setPartnerSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="trade-partner"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={partnerSearchOpen}
+                    className="w-[220px] justify-between font-normal"
+                  >
+                    {partnerId
+                      ? (() => {
+                          const u = otherUsers.find((u) => u.id === partnerId)
+                          return u ? `${u.last_name}, ${u.first_name}` : 'Select partner...'
+                        })()
+                      : 'Select partner...'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] p-0" align="start">
+                  <div className="p-2">
+                    <Input
+                      placeholder="Search by name..."
+                      value={partnerFilter}
+                      onChange={(e) => setPartnerFilter(e.target.value)}
+                      className="h-8"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto">
+                    {otherUsers
+                      .filter((u) => {
+                        if (!partnerFilter) return true
+                        const q = partnerFilter.toLowerCase()
+                        return (
+                          u.first_name.toLowerCase().includes(q) ||
+                          u.last_name.toLowerCase().includes(q) ||
+                          `${u.last_name}, ${u.first_name}`.toLowerCase().includes(q)
+                        )
+                      })
+                      .map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent cursor-pointer',
+                            partnerId === u.id && 'bg-accent',
+                          )}
+                          onClick={() => {
+                            setPartnerId(u.id)
+                            setPartnerAssignmentId('')
+                            setPartnerSearchOpen(false)
+                            setPartnerFilter('')
+                          }}
+                        >
+                          <Check className={cn('h-4 w-4', partnerId === u.id ? 'opacity-100' : 'opacity-0')} />
+                          {u.last_name}, {u.first_name}
+                        </button>
+                      ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </FormField>
 
             <FormField label="Your Assignment" htmlFor="my-assignment" required>
               <Select value={effectiveMyAssignmentId} onValueChange={setMyAssignmentId}>
-                <SelectTrigger id="my-assignment" className="w-[280px]">
+                <SelectTrigger id="my-assignment" className="w-[340px]">
                   <SelectValue placeholder="Select your shift..." />
                 </SelectTrigger>
                 <SelectContent>
                   {myAssignments.map((a) => (
                     <SelectItem key={a.assignment_id} value={a.assignment_id}>
-                      {a.date} - {a.shift_name}
+                      {formatDate(a.date)} - {a.shift_name} ({formatTime(a.start_time)}-{formatTime(a.end_time)})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -375,13 +442,13 @@ export default function TradesPage() {
             {partnerId && (
               <FormField label="Partner's Assignment" htmlFor="partner-assignment" required>
                 <Select value={partnerAssignmentId} onValueChange={setPartnerAssignmentId}>
-                  <SelectTrigger id="partner-assignment" className="w-[280px]">
+                  <SelectTrigger id="partner-assignment" className="w-[340px]">
                     <SelectValue placeholder="Select partner's shift..." />
                   </SelectTrigger>
                   <SelectContent>
                     {partnerAssignments.map((a) => (
                       <SelectItem key={a.assignment_id} value={a.assignment_id}>
-                        {a.date} - {a.shift_name}
+                        {formatDate(a.date)} - {a.shift_name} ({formatTime(a.start_time)}-{formatTime(a.end_time)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -394,7 +461,7 @@ export default function TradesPage() {
             type="submit"
             disabled={createMut.isPending || !partnerId || !effectiveMyAssignmentId || !partnerAssignmentId}
           >
-            Submit Trade Request
+            {createMut.isPending ? 'Submitting...' : 'Submit Trade Request'}
           </Button>
           {createMut.isError && (
             <p className="text-sm text-destructive mt-1">
@@ -418,14 +485,11 @@ export default function TradesPage() {
             </Button>
           ))}
         </div>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-56" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-64" />
       </div>
 
       {isError ? (
-        <div className="flex items-center gap-3 text-sm text-destructive">
-          <p>Failed to load trade requests.</p>
-          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
-        </div>
+        <ErrorState message="Failed to load trade requests." onRetry={() => refetch()} />
       ) : (
         <DataTable
           columns={columns}
@@ -514,6 +578,45 @@ export default function TradesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel trade confirmation dialog */}
+      <AlertDialog open={!!cancelTradeTarget} onOpenChange={(open) => { if (!open) setCancelTradeTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Trade Request</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this trade request? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setCancelTradeTarget(null)}>
+              Keep
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelMut.isPending}
+              onClick={() => {
+                if (!cancelTradeTarget) return
+                cancelMut.mutate(cancelTradeTarget, {
+                  onSuccess: () => {
+                    toast.success('Trade cancelled')
+                    setCancelTradeTarget(null)
+                  },
+                  onError: (err: unknown) => {
+                    const msg = extractApiError(err, 'Failed to cancel trade')
+                    toast.error(msg)
+                    setCancelTradeTarget(null)
+                  },
+                })
+              }}
+            >
+              {cancelMut.isPending ? 'Cancelling...' : 'Cancel Trade'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {confirmDialog}
     </div>
   )
 }

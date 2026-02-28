@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import {
@@ -118,7 +119,7 @@ function CoverageTab() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load coverage report.</p>
+        <ErrorState message="Failed to load coverage report." />
       ) : (
         <DataTable
           columns={columns}
@@ -193,7 +194,7 @@ function OtSummaryTab() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load OT summary.</p>
+        <ErrorState message="Failed to load OT summary." />
       ) : (
         <DataTable
           columns={columns}
@@ -273,7 +274,7 @@ function OtByPeriodTab() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load OT by period report.</p>
+        <ErrorState message="Failed to load OT by period report." />
       ) : (
         <DataTable
           columns={columns}
@@ -355,7 +356,7 @@ function LeaveSummaryTab() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load leave summary.</p>
+        <ErrorState message="Failed to load leave summary." />
       ) : (
         <DataTable
           columns={columns}
@@ -432,7 +433,7 @@ function WorkSummaryTab() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load work summary.</p>
+        <ErrorState message="Failed to load work summary." />
       ) : (
         <DataTable
           columns={columns}

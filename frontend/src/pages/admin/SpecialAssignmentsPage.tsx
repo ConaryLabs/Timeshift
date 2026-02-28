@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
@@ -217,7 +218,7 @@ export default function SpecialAssignmentsPage() {
       header: 'Notes',
       cell: (r) => r.notes
         ? <span className="text-sm text-muted-foreground truncate max-w-[200px] block">{r.notes}</span>
-        : <span className="text-muted-foreground">--</span>,
+        : <span className="text-muted-foreground">&mdash;</span>,
     },
     {
       header: 'Actions',
@@ -261,7 +262,7 @@ export default function SpecialAssignmentsPage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load special assignments.</p>
+        <ErrorState message="Failed to load special assignments." />
       ) : (
         <DataTable
           columns={columns}

@@ -8,8 +8,9 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
@@ -128,11 +129,11 @@ export default function TeamsPage() {
     },
     {
       header: 'Supervisor',
-      cell: (r) => r.supervisor_name ?? <span className="text-muted-foreground">--</span>,
+      cell: (r) => r.supervisor_name ?? <span className="text-muted-foreground">&mdash;</span>,
     },
     {
       header: 'Parent Team',
-      cell: (r) => r.parent_team_name ?? <span className="text-muted-foreground">--</span>,
+      cell: (r) => r.parent_team_name ?? <span className="text-muted-foreground">&mdash;</span>,
     },
     { header: 'Slots', cell: (r) => r.slot_count, className: 'w-20' },
     {
@@ -158,7 +159,7 @@ export default function TeamsPage() {
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load teams.</p>
+        <ErrorState message="Failed to load teams." />
       ) : (
         <DataTable
           columns={columns}
@@ -173,6 +174,7 @@ export default function TeamsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Team' : 'New Team'}</DialogTitle>
+            <DialogDescription>Create or edit team details.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <FormField label="Name" htmlFor="team-name" required error={errors.name?.message}>

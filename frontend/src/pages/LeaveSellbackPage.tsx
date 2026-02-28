@@ -13,11 +13,13 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { useSellbackRequests, useCreateSellback, useReviewSellback, useCancelSellback } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { HolidaySellbackRequest } from '@/api/leaveSellback'
 import { extractApiError } from '@/lib/format'
 
@@ -39,6 +41,10 @@ export default function LeaveSellbackPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reviewerNotes, setReviewerNotes] = useState('')
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const isSellbackFormDirty = form.period !== '' || form.hours_requested !== ''
 
   const { data: requests, isLoading, isError } = useSellbackRequests()
   const createMut = useCreateSellback()
@@ -153,7 +159,16 @@ export default function LeaveSellbackPage() {
         title="Holiday Sellback"
         actions={
           !isManager ? (
-            <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? 'outline' : 'default'}>
+            <Button
+              onClick={() => {
+                if (showForm) {
+                  confirmClose(isSellbackFormDirty, () => { setShowForm(false); setForm(INITIAL_FORM) })
+                } else {
+                  setShowForm(true)
+                }
+              }}
+              variant={showForm ? 'outline' : 'default'}
+            >
               {showForm ? 'Cancel' : '+ Sell Back Hours'}
             </Button>
           ) : undefined
@@ -196,7 +211,7 @@ export default function LeaveSellbackPage() {
             />
           </FormField>
           <Button type="submit" disabled={createMut.isPending || !form.period}>
-            Submit
+            {createMut.isPending ? 'Submitting...' : 'Submit'}
           </Button>
         </form>
       )}
@@ -217,7 +232,7 @@ export default function LeaveSellbackPage() {
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load sellback requests.</p>
+        <ErrorState message="Failed to load sellback requests." />
       ) : (
         <DataTable
           columns={columns}
@@ -258,6 +273,8 @@ export default function LeaveSellbackPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

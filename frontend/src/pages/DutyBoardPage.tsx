@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, X } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, X, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap } from '@/lib/dutyBoard'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -190,11 +190,11 @@ function ConsoleHoursSheet({ date }: { date: Date }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-1.5 px-2 font-medium">Name</th>
+                <th scope="col" className="text-left py-1.5 px-2 font-medium">Name</th>
                 {positions.map((p) => (
-                  <th key={p} className="text-right py-1.5 px-2 font-medium">{p}</th>
+                  <th scope="col" key={p} className="text-right py-1.5 px-2 font-medium">{p}</th>
                 ))}
-                <th className="text-right py-1.5 px-2 font-medium">Total</th>
+                <th scope="col" className="text-right py-1.5 px-2 font-medium">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -288,6 +288,12 @@ export default function DutyBoardPage() {
         description="Daily dispatch seating assignments"
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <a href="/duty-board/display" target="_blank" rel="noopener noreferrer">
+                <Monitor className="h-4 w-4 mr-1" />
+                Display Mode
+              </a>
+            </Button>
             {isManager && (
               <Button
                 variant="outline"
@@ -377,11 +383,12 @@ export default function DutyBoardPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-muted/40">
-                <th className="border px-3 py-2 text-left font-semibold whitespace-nowrap w-[100px]">
+                <th scope="col" className="border px-3 py-2 text-left font-semibold whitespace-nowrap w-[100px]">
                   Console
                 </th>
                 {BLOCK_LABELS.map((label, i) => (
                   <th
+                    scope="col"
                     key={i}
                     className={cn(
                       'border px-1 py-2 text-center font-medium text-xs w-[72px]',
@@ -413,6 +420,7 @@ export default function DutyBoardPage() {
                         <button
                           className="ml-auto text-muted-foreground hover:text-destructive transition-colors"
                           title="Remove date-specific row"
+                          aria-label={`Remove date-specific row ${position.name}`}
                           onClick={() => deleteDatePosition.mutate(position.id)}
                         >
                           <X className="h-3 w-3" />
@@ -442,6 +450,15 @@ export default function DutyBoardPage() {
                       )
                     }
 
+                    const cellKeyDown = isManager
+                      ? (e: React.KeyboardEvent) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            handleCellClick(position.id, blockIndex)
+                          }
+                        }
+                      : undefined
+
                     // OT needed
                     if (assignment?.status === 'ot_needed') {
                       return (
@@ -454,6 +471,7 @@ export default function DutyBoardPage() {
                             isActive && 'ring-2 ring-primary'
                           )}
                           onClick={() => handleCellClick(position.id, blockIndex)}
+                          {...(isManager ? { tabIndex: 0, role: 'button' as const, onKeyDown: cellKeyDown, 'aria-label': `${position.name} ${BLOCK_LABELS[blockIndex]}: OT needed` } : {})}
                         >
                           OT
                         </td>
@@ -473,6 +491,7 @@ export default function DutyBoardPage() {
                           )}
                           title={`${assignment.user_first_name} ${assignment.user_last_name}`}
                           onClick={() => handleCellClick(position.id, blockIndex)}
+                          {...(isManager ? { tabIndex: 0, role: 'button' as const, onKeyDown: cellKeyDown, 'aria-label': `${position.name} ${BLOCK_LABELS[blockIndex]}: ${assignment.user_first_name} ${assignment.user_last_name}` } : {})}
                         >
                           {assignment.user_first_name}
                         </td>
@@ -490,6 +509,7 @@ export default function DutyBoardPage() {
                           isActive && 'ring-2 ring-primary'
                         )}
                         onClick={() => handleCellClick(position.id, blockIndex)}
+                        {...(isManager ? { tabIndex: 0, role: 'button' as const, onKeyDown: cellKeyDown, 'aria-label': `${position.name} ${BLOCK_LABELS[blockIndex]}: empty` } : {})}
                       >
                         &nbsp;
                       </td>
@@ -509,6 +529,7 @@ export default function DutyBoardPage() {
             <DialogTitle>
               {activePosition?.name} &mdash; {activeCell ? BLOCK_LABELS[activeCell.blockIndex] : ''}-{activeCell ? (BLOCK_LABELS[activeCell.blockIndex + 1] || '2400') : ''}
             </DialogTitle>
+            <DialogDescription>Assign staff or mark overtime for this time block.</DialogDescription>
           </DialogHeader>
           {activeCell && activePosition && (
             <AssignmentDialogContent
@@ -530,6 +551,7 @@ export default function DutyBoardPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Add Row for {format(selectedDate, 'MMM d')}</DialogTitle>
+            <DialogDescription>Add a date-specific duty position row.</DialogDescription>
           </DialogHeader>
           <form
             onSubmit={(e) => {

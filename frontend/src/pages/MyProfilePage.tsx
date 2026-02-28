@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { useAuthStore } from '@/store/auth'
 import { useMyPreferences, useUpdateMyPreferences } from '@/hooks/queries'
 import { extractApiError } from '@/lib/format'
@@ -131,7 +132,7 @@ export default function MyProfilePage() {
           {prefsLoading ? (
             <LoadingState message="Loading preferences..." />
           ) : prefsError ? (
-            <p className="text-sm text-destructive p-4">Failed to load preferences.</p>
+            <ErrorState message="Failed to load preferences." />
           ) : (
             <div className="space-y-5">
               <div className="flex items-center justify-between">

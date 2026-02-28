@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
@@ -277,14 +278,14 @@ export default function VacationBidAdminPage() {
               createForm.reset({ year: selectedYear, round: 1, allowance_hours: '', min_block_hours: '', bargaining_unit: '__all__' })
               setCreateOpen(true)
             }}>
-              + New Period
+              + Add Period
             </Button>
           </div>
         }
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load vacation bid periods.</p>
+        <ErrorState message="Failed to load vacation bid periods." />
       ) : (
         <DataTable
           columns={periodColumns}

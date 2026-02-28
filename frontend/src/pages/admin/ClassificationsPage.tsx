@@ -6,8 +6,9 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
@@ -134,7 +135,7 @@ export default function ClassificationsPage() {
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load classifications.</p>
+        <ErrorState message="Failed to load classifications." />
       ) : (
         <DataTable
           columns={columns}
@@ -149,6 +150,7 @@ export default function ClassificationsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Classification' : 'New Classification'}</DialogTitle>
+            <DialogDescription>Create or edit classification details.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <FormField label="Name" htmlFor="cls-name" required error={errors.name?.message}>

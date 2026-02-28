@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { Badge } from '@/components/ui/badge'
 import {
   useSchedulePeriods,
@@ -388,7 +389,7 @@ export default function SchedulePeriodDetailPage() {
         </CardHeader>
         <CardContent>
           {isError ? (
-            <p className="text-sm text-destructive">Failed to load slot assignments.</p>
+            <ErrorState message="Failed to load slot assignments." />
           ) : (
             <DataTable
               columns={columns}

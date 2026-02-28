@@ -17,6 +17,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +30,7 @@ import {
   useClassifications,
   queryKeys,
 } from '@/hooks/queries'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/auth'
@@ -405,10 +407,7 @@ export default function UsersPage() {
       </div>
 
       {isError ? (
-        <div className="flex items-center gap-3 text-sm text-destructive">
-          <p>Failed to load users.</p>
-          <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
-        </div>
+        <ErrorState message="Failed to load users." onRetry={() => refetch()} />
       ) : (
         <DataTable
           columns={columns}
@@ -551,11 +550,10 @@ export default function UsersPage() {
                 </Select>
                 {PAUSING_STATUSES.includes(editForm.watch('employee_status')) && (
                   <div className="mt-2 flex items-center gap-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       id="ue-exception"
-                      {...editForm.register('seniority_pause_exception')}
-                      className="h-4 w-4 rounded border"
+                      checked={editForm.watch('seniority_pause_exception')}
+                      onCheckedChange={(v) => editForm.setValue('seniority_pause_exception', !!v)}
                     />
                     <label htmlFor="ue-exception" className="text-xs text-muted-foreground">
                       Exception — seniority continues (OJI / maternity / military)
@@ -569,7 +567,7 @@ export default function UsersPage() {
                 )}
               </FormField>
               <DialogFooter>
-                <Button type="submit" disabled={updateMut.isPending}>Save Changes</Button>
+                <Button type="submit" disabled={updateMut.isPending}>{updateMut.isPending ? 'Saving...' : 'Save Changes'}</Button>
               </DialogFooter>
             </form>
           ) : (
@@ -655,7 +653,7 @@ export default function UsersPage() {
                 </FormField>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={createMut.isPending}>Create</Button>
+                <Button type="submit" disabled={createMut.isPending}>{createMut.isPending ? 'Creating...' : 'Create'}</Button>
               </DialogFooter>
             </form>
           )}

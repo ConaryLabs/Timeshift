@@ -36,6 +36,7 @@ export const queryClient = new QueryClient({
       toast.error(msg, {
         id: isTransient(error) ? `query-error:${msg}` : undefined,
         ...(isTransient(error) && {
+          duration: 10000,
           action: {
             label: 'Retry',
             onClick: () => queryClient.refetchQueries({ queryKey: query.queryKey }),

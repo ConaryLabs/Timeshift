@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, addDays } from 'date-fns'
 import { Hand, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -51,6 +52,7 @@ import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { NO_VALUE, extractApiError } from '@/lib/format'
+import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { StepIndicator } from '@/components/callout/StepIndicator'
 import { CALLOUT_STEPS } from '@/components/callout/calloutSteps'
 import { useCalloutColumns } from '@/components/callout/CalloutListTable'
@@ -91,6 +93,11 @@ export default function CalloutPage() {
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<CalloutStatusFilter>('all')
   const [classificationFilter, setClassificationFilter] = useState(NO_VALUE)
+  const [bumpReviewTarget, setBumpReviewTarget] = useState<{ id: string; approve: boolean; name: string } | null>(null)
+
+  const { confirmClose, confirmDialog } = useConfirmClose()
+
+  const isCalloutFormDirty = form.scheduled_shift_id !== NO_VALUE || form.classification_id !== NO_VALUE || form.reason_text !== ''
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const twoWeeksOut = format(addDays(new Date(), 14), 'yyyy-MM-dd')
@@ -114,6 +121,26 @@ export default function CalloutPage() {
   const { data: otRequests } = useOtRequests({ status: 'open' })
 
   const templateMap = Object.fromEntries((templates ?? []).map((t) => [t.id, t]))
+
+  // Auto-select the only open event when the list loads
+  useEffect(() => {
+    if (selectedEvent || !events) return
+    const openEvents = events.filter((e) => e.status === 'open')
+    if (openEvents.length === 1) {
+      setSelectedEvent(openEvents[0].id)
+    }
+  }, [events, selectedEvent])
+
+  // Sort scheduled shifts so today's shifts appear first
+  const sortedShifts = useMemo(() => {
+    const shifts = scheduledShifts ?? []
+    return [...shifts].sort((a, b) => {
+      const aIsToday = a.date === today ? 0 : 1
+      const bIsToday = b.date === today ? 0 : 1
+      if (aIsToday !== bIsToday) return aIsToday - bIsToday
+      return a.date.localeCompare(b.date) || (templateMap[a.shift_template_id]?.name ?? '').localeCompare(templateMap[b.shift_template_id]?.name ?? '')
+    })
+  }, [scheduledShifts, today, templateMap])
 
   const selectedEventData = (events ?? []).find((e) => e.id === selectedEvent)
   const eventIsOpen = selectedEventData?.status === 'open'
@@ -334,10 +361,7 @@ export default function CalloutPage() {
 
           {isLoading && <LoadingState />}
           {!isLoading && isError && (
-            <div className="flex items-center gap-3 text-sm text-destructive">
-              <p>Failed to load callout events.</p>
-              <button onClick={() => refetch()} className="underline hover:no-underline">Retry</button>
-            </div>
+            <ErrorState message="Failed to load callout events." onRetry={() => refetch()} />
           )}
           {!isLoading && !isError && filteredEvents.length === 0 && (
             <EmptyState
@@ -463,7 +487,7 @@ export default function CalloutPage() {
             {selectedEvent ? 'Callout List' : 'Select an event'}
           </h3>
           {selectedEvent && (
-            <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-56 mb-3" />
+            <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." className="w-64 mb-3" />
           )}
           {calloutList && (
             <DataTable
@@ -520,7 +544,7 @@ export default function CalloutPage() {
                             className="text-green-700 hover:bg-green-50"
                             disabled={reviewBumpMut.isPending}
                             aria-label={`Approve bump by ${b.requesting_user_first_name} ${b.requesting_user_last_name}`}
-                            onClick={() => handleBumpReview(b.id, true)}
+                            onClick={() => setBumpReviewTarget({ id: b.id, approve: true, name: `${b.requesting_user_first_name} ${b.requesting_user_last_name}` })}
                           >
                             Approve
                           </Button>
@@ -530,7 +554,7 @@ export default function CalloutPage() {
                             className="text-red-700 hover:bg-red-50"
                             disabled={reviewBumpMut.isPending}
                             aria-label={`Reject bump by ${b.requesting_user_first_name} ${b.requesting_user_last_name}`}
-                            onClick={() => handleBumpReview(b.id, false)}
+                            onClick={() => setBumpReviewTarget({ id: b.id, approve: false, name: `${b.requesting_user_first_name} ${b.requesting_user_last_name}` })}
                           >
                             Reject
                           </Button>
@@ -546,7 +570,7 @@ export default function CalloutPage() {
       </div>
 
       {/* Initiate callout dialog */}
-      <Dialog open={showInitiate} onOpenChange={(open) => !open && setShowInitiate(false)}>
+      <Dialog open={showInitiate} onOpenChange={(open) => { if (!open) confirmClose(isCalloutFormDirty, () => { setShowInitiate(false); setForm(INITIAL_FORM) }) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Initiate Callout</DialogTitle>
@@ -565,7 +589,7 @@ export default function CalloutPage() {
                   <SelectValue placeholder="Select a shift…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(scheduledShifts ?? []).map((s) => {
+                  {sortedShifts.map((s) => {
                     const tmpl = templateMap[s.shift_template_id]
                     const label = tmpl ? `${s.date} — ${tmpl.name}` : s.date
                     return (
@@ -632,7 +656,7 @@ export default function CalloutPage() {
               onClick={handleInitiate}
               disabled={form.scheduled_shift_id === NO_VALUE || form.classification_id === NO_VALUE || createMut.isPending}
             >
-              Initiate
+              {createMut.isPending ? 'Initiating...' : 'Initiate'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -660,7 +684,7 @@ export default function CalloutPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAcceptTarget(null)}>Cancel</Button>
             <Button onClick={handleAccept} disabled={recordMut.isPending}>
-              Confirm Acceptance
+              {recordMut.isPending ? 'Confirming...' : 'Confirm Acceptance'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -719,7 +743,7 @@ export default function CalloutPage() {
               onClick={handleBumpSubmit}
               disabled={bumpDisplacedUserId === NO_VALUE || createBumpMut.isPending}
             >
-              Submit
+              {createBumpMut.isPending ? 'Submitting...' : 'Submit'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -766,6 +790,40 @@ export default function CalloutPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bump review confirmation dialog */}
+      <AlertDialog open={!!bumpReviewTarget} onOpenChange={(open) => { if (!open) setBumpReviewTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bumpReviewTarget?.approve ? 'Approve Bump Request' : 'Reject Bump Request'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bumpReviewTarget?.approve
+                ? `Are you sure you want to approve the bump request from ${bumpReviewTarget.name}?`
+                : `Are you sure you want to reject the bump request from ${bumpReviewTarget?.name}?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setBumpReviewTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant={bumpReviewTarget?.approve ? 'default' : 'destructive'}
+              disabled={reviewBumpMut.isPending}
+              onClick={() => {
+                if (!bumpReviewTarget) return
+                handleBumpReview(bumpReviewTarget.id, bumpReviewTarget.approve)
+                setBumpReviewTarget(null)
+              }}
+            >
+              {bumpReviewTarget?.approve ? 'Approve' : 'Reject'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {confirmDialog}
     </div>
   )
 }

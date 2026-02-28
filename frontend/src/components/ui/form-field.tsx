@@ -14,10 +14,20 @@ interface FormFieldProps {
 export function FormField({ label, htmlFor, error, required, className, children }: FormFieldProps) {
   const errorId = htmlFor ? `${htmlFor}-error` : undefined
 
-  // When an error is present, inject aria-describedby on the child input element
-  const enhanced = error && errorId && isValidElement(children)
-    ? cloneElement(children as React.ReactElement<Record<string, unknown>>, { 'aria-describedby': errorId })
-    : children
+  // Inject aria-describedby (when error) and aria-required (when required) on the child input
+  let enhanced = children
+  if (isValidElement(children)) {
+    const extraProps: Record<string, unknown> = {}
+    if (error && errorId) {
+      extraProps['aria-describedby'] = errorId
+    }
+    if (required) {
+      extraProps['aria-required'] = true
+    }
+    if (Object.keys(extraProps).length > 0) {
+      enhanced = cloneElement(children as React.ReactElement<Record<string, unknown>>, extraProps)
+    }
+  }
 
   return (
     <div className={cn("space-y-1.5", className)}>

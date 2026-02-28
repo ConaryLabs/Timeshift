@@ -19,6 +19,6 @@ createRoot(document.getElementById('root')!).render(
       </TooltipProvider>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
-    <Toaster richColors position="top-right" />
+    <Toaster richColors position="top-right" duration={5000} />
   </StrictMode>,
 )

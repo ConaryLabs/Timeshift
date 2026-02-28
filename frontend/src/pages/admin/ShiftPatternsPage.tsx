@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { FormField } from '@/components/ui/form-field'
 import { Badge } from '@/components/ui/badge'
@@ -231,7 +232,7 @@ export default function ShiftPatternsPage() {
       />
 
       {isError ? (
-        <p className="text-sm text-destructive">Failed to load shift patterns.</p>
+        <ErrorState message="Failed to load shift patterns." />
       ) : (
         <DataTable
           columns={columns}

@@ -135,6 +135,7 @@ export function SavedFilterBar({ page, currentFilters, onApplyFilter, className 
                   size="sm"
                   onClick={() => handleToggleDefault(f)}
                   title={f.is_default ? 'Remove as default' : 'Set as default'}
+                  aria-label={f.is_default ? 'Remove as default' : 'Set as default'}
                 >
                   {f.is_default ? <StarOff className="h-3.5 w-3.5 text-amber-500" /> : <Star className="h-3.5 w-3.5" />}
                 </Button>
@@ -144,6 +145,7 @@ export function SavedFilterBar({ page, currentFilters, onApplyFilter, className 
                   onClick={() => handleDelete(f.id)}
                   className="text-destructive hover:text-destructive"
                   title="Delete filter"
+                  aria-label="Delete filter"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

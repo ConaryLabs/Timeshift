@@ -13,7 +13,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
-import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useDashboard } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
 import { formatTime, contrastText } from '@/lib/format'
@@ -24,15 +25,44 @@ export default function DashboardPage() {
   const { data, isLoading, error, refetch } = useDashboard()
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  if (isLoading) return <LoadingState message="Loading dashboard..." />
-  if (error) return (
-    <div className="p-6 text-center space-y-4">
-      <p className="text-sm text-destructive">Failed to load dashboard data.</p>
-      <Button variant="outline" size="sm" onClick={() => refetch()}>
-        Try again
-      </Button>
+  if (isLoading) return (
+    <div>
+      <Skeleton className="h-8 w-48 mb-2" />
+      <Skeleton className="h-4 w-64 mb-6" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-24" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-16 mb-2" />
+              <Skeleton className="h-3 w-40" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader><Skeleton className="h-5 w-40" /></CardHeader>
+          <CardContent className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+          <CardContent className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
+  if (error) return <ErrorState message="Failed to load dashboard data." onRetry={() => refetch()} />
   if (!data) return null
 
   const { current_coverage, pending_leave_count, open_callout_count, annotations } = data

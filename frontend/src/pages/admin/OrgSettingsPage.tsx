@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { FormField } from '@/components/ui/form-field'
 import { LoadingState } from '@/components/ui/loading-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { useOrganization, useUpdateOrganization, useOrgSettings, useSetOrgSetting } from '@/hooks/queries'
 import type { OrgSetting } from '@/api/organization'
 import { extractApiError } from '@/lib/format'
@@ -215,7 +216,7 @@ export default function OrgSettingsPage() {
     return (
       <div>
         <PageHeader title="Organization Settings" />
-        <p className="text-sm text-destructive">Failed to load organization settings.</p>
+        <ErrorState message="Failed to load organization settings." />
       </div>
     )
   }

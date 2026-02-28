@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useOtRequests, useWithdrawVolunteerOtRequest } from '@/hooks/queries'
@@ -86,10 +87,7 @@ export default function VolunteeredOTPage() {
       <PageHeader title="My Volunteered OT" />
 
       {isError ? (
-        <div className="text-sm text-destructive flex items-center gap-2">
-          Failed to load volunteered OT.
-          <Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
-        </div>
+        <ErrorState message="Failed to load volunteered OT." onRetry={() => refetch()} />
       ) : (
         <DataTable
           columns={columns}
