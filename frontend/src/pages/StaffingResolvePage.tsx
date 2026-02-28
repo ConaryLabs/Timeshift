@@ -200,6 +200,13 @@ export default function StaffingResolvePage() {
     return null
   }
 
+  function getPrevStep(): CalloutStep | null {
+    if (!currentStep) return null
+    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
+    if (idx > 0) return CALLOUT_STEPS[idx - 1].key
+    return null
+  }
+
   function handleStartCallout() {
     if (!blockStaffing?.scheduled_shift_id || !selectedBlock) return
     createCalloutMut.mutate(
@@ -214,15 +221,13 @@ export default function StaffingResolvePage() {
     )
   }
 
-  function handleAdvanceStep() {
+  function handleSetStep(step: CalloutStep) {
     if (!activeCalloutId) return
-    const next = getNextStep()
-    if (!next) return
     advanceStepMut.mutate(
-      { eventId: activeCalloutId, step: next },
+      { eventId: activeCalloutId, step },
       {
-        onSuccess: () => toast.success('Advanced to next step'),
-        onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to advance step')),
+        onSuccess: () => toast.success(`Moved to ${CALLOUT_STEPS.find((s) => s.key === step)?.label}`),
+        onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to change step')),
       },
     )
   }
@@ -481,8 +486,13 @@ export default function StaffingResolvePage() {
                     <>
                       <StepIndicator currentStep={currentStep} />
                       <div className="flex items-center gap-2 mb-3">
+                        {isManager && getPrevStep() && (
+                          <Button size="sm" variant="outline" onClick={() => handleSetStep(getPrevStep()!)} disabled={advanceStepMut.isPending}>
+                            Back to: {CALLOUT_STEPS.find((s) => s.key === getPrevStep())?.label}
+                          </Button>
+                        )}
                         {isManager && getNextStep() && (
-                          <Button size="sm" variant="outline" onClick={handleAdvanceStep} disabled={advanceStepMut.isPending}>
+                          <Button size="sm" variant="outline" onClick={() => handleSetStep(getNextStep()!)} disabled={advanceStepMut.isPending}>
                             Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
                           </Button>
                         )}
