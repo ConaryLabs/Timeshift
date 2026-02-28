@@ -53,7 +53,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         // Health check (no auth required)
         .route("/api/health", get(health))
-        // Auth (login route is in main.rs with rate limiting)
+        // Auth (login/refresh routes are rate-limited in all_routes())
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
         // Organization (own org only)
@@ -530,4 +530,15 @@ pub fn router(state: AppState) -> Router {
             delete(ot_request::cancel_assignment),
         )
         .with_state(state)
+}
+
+/// Build the complete application router including pre-built rate-limited routers.
+/// main.rs constructs the rate-limited routers (which need GovernorLayer generics)
+/// and passes them here so all route merging lives in one place.
+pub fn all_routes(state: AppState, rate_limited: Vec<Router>) -> Router {
+    let mut app = router(state);
+    for rl_router in rate_limited {
+        app = app.merge(rl_router);
+    }
+    app
 }

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO ot_queue_positions\n                (id, org_id, classification_id, user_id, last_ot_event_at, fiscal_year, updated_at)\n            VALUES (gen_random_uuid(), $1, $2, $3, NULL, $4, NOW())\n            ON CONFLICT (org_id, classification_id, user_id, fiscal_year) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c78edef9a1c487479a2e64e6b788def892f589c82a8a5f226eb7cac62a11bed5"
+}

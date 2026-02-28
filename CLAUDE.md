@@ -134,7 +134,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ## Database Schema
 
-50 migrations in `backend/migrations/` (0001–0050). Key tables:
+51 migrations in `backend/migrations/` (0001–0051). Key tables:
 
 - `organizations` — Multi-tenant root
 - `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (TEXT, references `bargaining_units` table), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
@@ -191,3 +191,50 @@ PG enums: `app_role`, `employee_type_enum`, `employee_status_enum`, `leave_statu
 - React Query hook naming: `useTeams()`, `useCreateTeam()`, `useUpdateTeam()`
 - API modules export object literals with `list`, `get`, `create`, `update`, `delete` methods
 - TypeScript union types for enums (e.g., `type Role = 'admin' | 'supervisor' | 'employee'`)
+
+## Deployment
+
+Production runs on Hetzner (forge.conarylabs.com), Fedora 43, with Caddy reverse proxy.
+
+### Frontend
+
+```bash
+cd frontend && VITE_API_URL="" npm run build
+```
+
+**Critical**: Always use `VITE_API_URL=""` — without it, API calls target `localhost:8080` and login breaks in production. The build output at `frontend/dist` is served via a symlink at `/var/www/timeshift`, so no copy step is needed.
+
+### Backend
+
+```bash
+cd backend && SQLX_OFFLINE=true cargo build --release
+sudo systemctl restart timeshift-backend
+```
+
+The systemd service (`timeshift-backend.service`) holds the production DB password. Never change the DB password — it differs from the dev default (`timeshift_dev`).
+
+### Migrations
+
+```bash
+make migrate
+```
+
+Run before restarting the backend if new migrations were added. On production, DB access uses peer auth: `sudo -u postgres psql -d timeshift`.
+
+### Reseeding
+
+```bash
+make reseed
+```
+
+Works on both dev and production — auto-detects the environment and uses the appropriate auth method.
+
+### Full deploy sequence
+
+```bash
+git pull
+make migrate                                       # if new migrations
+cd frontend && VITE_API_URL="" npm run build        # rebuild frontend
+cd ../backend && SQLX_OFFLINE=true cargo build --release  # rebuild backend
+sudo systemctl restart timeshift-backend            # restart backend
+```

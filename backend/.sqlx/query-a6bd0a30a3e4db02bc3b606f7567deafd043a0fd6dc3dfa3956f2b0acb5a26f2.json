@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT users.id, users.bargaining_unit,\n               hire_date,\n               overall_seniority_date AS \"overall_seniority_date?\",\n               bu.longevity_eligible AS \"longevity_eligible!\",\n               bu.longevity_vacation_credit AS \"longevity_vacation_credit!\",\n               bu.longevity_tiers AS \"longevity_tiers?\"\n        FROM users\n        LEFT JOIN seniority_records sr ON sr.user_id = users.id\n        JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit\n        WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true\n        ",
+  "query": "\n        SELECT users.id, users.bargaining_unit,\n               hire_date,\n               overall_seniority_date AS \"overall_seniority_date?\",\n               COALESCE(bu.longevity_eligible, false) AS \"longevity_eligible!\",\n               COALESCE(bu.longevity_vacation_credit, 0.0)::FLOAT8 AS \"longevity_vacation_credit!\",\n               bu.longevity_tiers AS \"longevity_tiers?\"\n        FROM users\n        LEFT JOIN seniority_records sr ON sr.user_id = users.id\n        LEFT JOIN bargaining_units bu ON bu.org_id = users.org_id AND bu.code = users.bargaining_unit AND bu.is_active = true\n        WHERE users.id = $1 AND users.org_id = $2 AND users.is_active = true\n        ",
   "describe": {
     "columns": [
       {
@@ -50,10 +50,10 @@
       false,
       true,
       true,
-      false,
-      false,
+      null,
+      null,
       true
     ]
   },
-  "hash": "e84ce3b8cdaec96d5cb9e0efb2d58edc88c6792be2c56bdab670febc4a292705"
+  "hash": "a6bd0a30a3e4db02bc3b606f7567deafd043a0fd6dc3dfa3956f2b0acb5a26f2"
 }

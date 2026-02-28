@@ -415,8 +415,9 @@ pub struct MandatoryOtOrderEntry {
 
 /// GET /api/staffing/mandatory-ot-order
 ///
-/// Returns the last mandatory OT assignment date for each user in a classification,
-/// sorted by most overdue first (NULL = never mandated = top priority, then oldest first).
+/// CBA (VCCEA Article 15): Mandatory OT is assigned in inverse seniority order,
+/// with the employee least recently mandated going first. NULL = never mandated = top
+/// priority, then ordered by oldest mandatory assignment date.
 /// Used by MandatoryOTDialog to order the employee dropdown.
 pub async fn mandatory_ot_order(
     State(pool): State<PgPool>,

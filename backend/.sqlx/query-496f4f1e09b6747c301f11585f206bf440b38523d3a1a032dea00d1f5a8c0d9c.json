@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO org_settings (id, org_id, key, value, updated_at)\n                VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())\n                ON CONFLICT (org_id, key) DO UPDATE\n                SET value = $3, updated_at = NOW()\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "496f4f1e09b6747c301f11585f206bf440b38523d3a1a032dea00d1f5a8c0d9c"
+}

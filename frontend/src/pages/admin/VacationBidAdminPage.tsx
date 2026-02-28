@@ -122,8 +122,16 @@ export default function VacationBidAdminPage() {
 
   function handleOpenBidding(values: { window_duration_hours: number; start_at?: string }) {
     if (!openBiddingPeriod) return
+    // datetime-local inputs send "YYYY-MM-DDTHH:MM" (no seconds/timezone).
+    // Backend expects RFC3339, so append ":00" seconds and local timezone offset.
+    const payload = { ...values }
+    if (payload.start_at && !payload.start_at.includes('+') && !payload.start_at.includes('Z')) {
+      const d = new Date(payload.start_at)
+      payload.start_at = !isNaN(d.getTime()) ? d.toISOString() : undefined
+    }
+    if (!payload.start_at) delete payload.start_at
     openMut.mutate(
-      { id: openBiddingPeriod.id, ...values },
+      { id: openBiddingPeriod.id, ...payload },
       {
         onSuccess: () => {
           toast.success('Bidding opened successfully')

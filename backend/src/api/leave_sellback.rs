@@ -89,8 +89,8 @@ pub async fn create(
         r#"
         SELECT bu.sellback_annual_cap AS "cap?"
         FROM users u
-        JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit
-        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true AND bu.is_active = true
+        LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true
+        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true
         "#,
         auth.id,
         auth.org_id,

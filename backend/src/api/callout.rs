@@ -244,7 +244,8 @@ pub async fn record_attempt(
                ce.classification_id,
                ce.current_step AS "current_step?: CalloutStep",
                ce.ot_request_id,
-               ss.date AS shift_date, st.duration_minutes
+               ss.date AS shift_date, st.duration_minutes,
+               st.start_time AS shift_start_time, st.end_time AS shift_end_time
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         JOIN shift_templates  st ON st.id = ss.shift_template_id
@@ -328,6 +329,62 @@ pub async fn record_attempt(
 
     match req.response.as_str() {
         "accepted" => {
+            // CBA: Mandatory OT 10-hour protection (VCCEA § 4.4.3) — verify at least
+            // 10 hours between the end of this OT shift and the employee's next regular shift.
+            if ctx.current_step == Some(CalloutStep::Mandatory) {
+                let ot_end_time = ctx.shift_end_time;
+                let ot_crosses_midnight = ot_end_time < ctx.shift_start_time;
+                let search_date = if ot_crosses_midnight {
+                    ctx.shift_date.next_day().unwrap_or(ctx.shift_date)
+                } else {
+                    ctx.shift_date
+                };
+
+                let next_shift = sqlx::query!(
+                    r#"
+                    SELECT ss.date AS "shift_date!", st.start_time
+                    FROM assignments a
+                    JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+                    JOIN shift_templates st ON st.id = ss.shift_template_id
+                    WHERE a.user_id = $1
+                      AND ss.org_id = $2
+                      AND a.cancelled_at IS NULL
+                      AND a.is_overtime = false
+                      AND (
+                        ss.date > $3
+                        OR (ss.date = $3 AND st.start_time > $4)
+                      )
+                    ORDER BY ss.date ASC, st.start_time ASC
+                    LIMIT 1
+                    "#,
+                    req.user_id,
+                    auth.org_id,
+                    search_date,
+                    ot_end_time,
+                )
+                .fetch_optional(&mut *tx)
+                .await?;
+
+                if let Some(next) = next_shift {
+                    let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
+                    let days_between = (next.shift_date - ctx.shift_date).whole_days();
+                    let ot_end_mins =
+                        ot_end_time.hour() as i64 * 60 + ot_end_time.minute() as i64;
+                    let next_start_mins =
+                        next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
+                    let gap_minutes =
+                        (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
+
+                    if gap_minutes < 10 * 60 {
+                        return Err(AppError::BadRequest(format!(
+                            "Mandatory OT would leave less than 10 hours before the employee's \
+                             next scheduled shift on {} (VCCEA § 4.4.3).",
+                            next.shift_date,
+                        )));
+                    }
+                }
+            }
+
             // Stamp queue position so this user moves toward the back for next callout.
             crate::services::ot::stamp_ot_queue(
                 &mut tx, auth.org_id, ctx.classification_id, req.user_id, fiscal_year,
@@ -341,7 +398,8 @@ pub async fn record_attempt(
             .execute(&mut *tx)
             .await?;
 
-            // Determine ot_type from the callout step.
+            // CBA: OT type is determined by which callout step the employee accepted from.
+            // Voluntary = accepted during volunteer step; Mandatory = assigned during mandatory step.
             let ot_type = match ctx.current_step {
                 Some(CalloutStep::Volunteers) => OtType::Voluntary,
                 Some(CalloutStep::Mandatory) => OtType::Mandatory,
@@ -385,7 +443,8 @@ pub async fn record_attempt(
             }
         }
         "declined" => {
-            // Stamp queue position for declined too.
+            // CBA: Declining OT still stamps the queue position — the employee was contacted
+            // and moves to the back of the queue regardless of their response.
             crate::services::ot::stamp_ot_queue(
                 &mut tx, auth.org_id, ctx.classification_id, req.user_id, fiscal_year,
             ).await?;
@@ -395,7 +454,8 @@ pub async fn record_attempt(
                 &mut tx, req.user_id, fiscal_year, ctx.classification_id, shift_hours,
             ).await?;
         }
-        _ => {} // no_answer: no OT accounting change, no queue stamp
+        // CBA: No-answer does not stamp queue — employee was unreachable, not contacted.
+        _ => {}
     }
 
     tx.commit().await?;
@@ -476,9 +536,10 @@ pub async fn cancel_ot_assignment(
         return Err(AppError::Forbidden);
     }
 
-    // 4. Skip enforcement for managers/supervisors.
+    // CBA: Supervisors can cancel any OT assignment; employees have restrictions.
     if !auth.role.can_manage_schedule() {
-        // 5. Enforcement for non-managers.
+        // CBA: Voluntary/elective OT can be cancelled with advance notice (configurable window).
+        // Mandatory OT cannot be cancelled before the shift — only released after it starts.
         let shift_start = crate::services::timezone::local_to_utc(
             event.shift_date,
             event.start_time,
@@ -656,6 +717,47 @@ pub async fn create_bump_request(
         ));
     }
 
+    // 2b. CBA: classification crossing prohibition — cannot bump across classifications
+    let requester_class = sqlx::query_scalar!(
+        "SELECT classification_id FROM users WHERE id = $1",
+        auth.id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let displaced_class = sqlx::query_scalar!(
+        "SELECT classification_id FROM users WHERE id = $1",
+        req.displaced_user_id
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    if requester_class != displaced_class {
+        return Err(AppError::BadRequest(
+            "Cannot bump across classifications — requester and displaced employee \
+             must hold the same classification."
+                .into(),
+        ));
+    }
+
+    // 2c. CBA: holiday bump prohibition — bumping is not allowed on holidays
+    let is_holiday = sqlx::query_scalar!(
+        r#"SELECT EXISTS(
+            SELECT 1 FROM holiday_calendar
+            WHERE org_id = $1 AND date = $2
+        ) AS "exists!""#,
+        auth.org_id,
+        event.shift_date,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    if is_holiday {
+        return Err(AppError::BadRequest(
+            "Bump requests are not allowed on holidays.".into(),
+        ));
+    }
+
     // 3. No pending bump request already
     let pending_exists: bool = sqlx::query_scalar!(
         r#"SELECT EXISTS(SELECT 1 FROM bump_requests WHERE event_id = $1 AND status = 'pending') AS "exists!""#,
@@ -693,7 +795,7 @@ pub async fn create_bump_request(
             "Cannot request a bump after the shift has started".into(),
         ));
     }
-    // Bump request deadline: configurable per org (default 24 hours per VCCEA 15.9)
+    // CBA (VCCEA Article 15.9): Bump requests must be submitted before the deadline.
     let bump_deadline =
         crate::services::org_settings::get_i64(&pool, auth.org_id, "bump_deadline_hours", 24).await;
     let hours_until = (shift_start - now).whole_hours();
@@ -703,7 +805,9 @@ pub async fn create_bump_request(
         )));
     }
 
-    // 5. Priority check - requester must outrank displaced on the OT list
+    // 5. CBA (VCCEA Article 15.9): Bump priority check — requester must have strictly
+    // higher OT priority (fewer hours worked, or earlier queue timestamp if hours equal)
+    // than the displaced user. This ensures equitable OT distribution.
     let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, event.shift_date).await;
 
     let priority = sqlx::query!(
@@ -727,8 +831,9 @@ pub async fn create_bump_request(
     .fetch_one(&pool)
     .await?;
 
+    // CBA: Priority comparison — lowest hours worked wins. If equal, earliest queue
+    // timestamp wins. NULL timestamp (never contacted) = highest priority.
     let requester_outranks = if (priority.req_hours - priority.dis_hours).abs() < f64::EPSILON {
-        // Equal hours: check queue position
         match (&priority.req_queue, &priority.dis_queue) {
             (None, Some(_)) => true,         // requester never called = higher priority
             (Some(rq), Some(dq)) => rq < dq, // earlier timestamp = higher priority
@@ -811,11 +916,14 @@ pub async fn review_bump_request(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Verify shift hasn't started and event is still filled
+    // Verify shift hasn't started and event is still filled; also fetch classification
+    // and duration for OT hour accounting on bump approval.
     let shift_check = sqlx::query!(
         r#"
         SELECT ss.date AS shift_date, st.start_time,
-               ce.status AS "status: CalloutStatus"
+               ce.status AS "status: CalloutStatus",
+               ce.classification_id,
+               st.duration_minutes
         FROM callout_events ce
         JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
         JOIN shift_templates st ON st.id = ss.shift_template_id
@@ -912,7 +1020,31 @@ pub async fn review_bump_request(
             ));
         }
 
-        // 3d. Update bump request to approved
+        // 3d. Update OT hours and queue positions for the bump swap.
+        let shift_hours = shift_check.duration_minutes as f64 / 60.0;
+        let fiscal_year = crate::services::ot::org_fiscal_year(
+            &pool, auth.org_id, shift_check.shift_date,
+        ).await;
+
+        // Revert displaced user's OT hours (they're no longer working this shift).
+        crate::services::ot::revert_ot_hours_worked(
+            &mut tx, br.displaced_user_id, fiscal_year,
+            Some(shift_check.classification_id), shift_hours,
+        ).await?;
+
+        // Credit requesting user's OT hours (they're taking over the shift).
+        crate::services::ot::upsert_ot_hours_worked(
+            &mut tx, br.requesting_user_id, fiscal_year,
+            shift_check.classification_id, shift_hours,
+        ).await?;
+
+        // Stamp requesting user's queue position (they were contacted/assigned OT).
+        crate::services::ot::stamp_ot_queue(
+            &mut tx, auth.org_id, shift_check.classification_id,
+            br.requesting_user_id, fiscal_year,
+        ).await?;
+
+        // 3e. Update bump request to approved
         sqlx::query!(
             r#"
             UPDATE bump_requests

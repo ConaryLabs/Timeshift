@@ -452,26 +452,8 @@ pub async fn run_accrual(
 
     let tz = &org.timezone;
 
+    // Last-run date check and update is handled atomically inside run_org_accrual.
     let result = accrual::run_org_accrual(&pool, auth.org_id, &org.name, tz, dry_run).await?;
-
-    // Update last-run date if not dry run and credits were applied
-    if !dry_run && result.credits_applied > 0 {
-        let today_str = format!("{}", crate::services::timezone::org_today(tz));
-        let today_json = serde_json::json!(today_str);
-        sqlx::query!(
-            r#"
-            INSERT INTO org_settings (id, org_id, key, value, updated_at)
-            VALUES ($1, $2, 'accrual_last_run_date', $3, NOW())
-            ON CONFLICT (org_id, key) DO UPDATE
-            SET value = $3, updated_at = NOW()
-            "#,
-            Uuid::new_v4(),
-            auth.org_id,
-            today_json,
-        )
-        .execute(&pool)
-        .await?;
-    }
 
     Ok(Json(result))
 }

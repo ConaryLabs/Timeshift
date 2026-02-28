@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT bu.donation_annual_cap AS \"cap?\",\n               bu.donation_retention_floor AS \"floor?\"\n        FROM users u\n        LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true\n        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cap?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 1,
+        "name": "floor?",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "fb45a2da0368787712db9e46100bccabe3a25d89d2f686fc494dddfe068e1188"
+}
