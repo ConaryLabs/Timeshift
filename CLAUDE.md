@@ -134,7 +134,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ## Database Schema
 
-51 migrations in `backend/migrations/` (0001–0051). Key tables:
+53 migrations in `backend/migrations/` (0001–0053). Key tables:
 
 - `organizations` — Multi-tenant root
 - `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (TEXT, references `bargaining_units` table), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
