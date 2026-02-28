@@ -1,20 +1,7 @@
-/* eslint-disable react-hooks/preserve-manual-memoization */
 import { useMemo, useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { dutyBoardApi } from '@/api/dutyBoard'
-import { queryKeys } from '@/hooks/queryKeys'
-import type { BoardAssignment } from '@/api/dutyBoard'
-
-const BLOCK_LABELS = [
-  '0000', '0200', '0400', '0600', '0800', '1000',
-  '1200', '1400', '1600', '1800', '2000', '2200',
-]
-
-function getCurrentBlockIndex(): number {
-  const now = new Date()
-  return Math.floor((now.getHours() * 60 + now.getMinutes()) / 120)
-}
+import { useDutyBoard } from '@/hooks/useDutyBoard'
+import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap } from '@/lib/dutyBoard'
 
 /** Map position name to its row label color from the original seating chart */
 function getPositionColor(name: string): { bg: string; text: string } {
@@ -36,7 +23,7 @@ function getPositionColor(name: string): { bg: string; text: string } {
 export default function DutyBoardDisplayPage() {
   const [now, setNow] = useState(new Date())
   const dateStr = format(now, 'yyyy-MM-dd')
-  const currentBlock = getCurrentBlockIndex()
+  const currentBlock = getCurrentBlockIndex(now)
 
   // Update clock every 30 seconds
   useEffect(() => {
@@ -45,21 +32,9 @@ export default function DutyBoardDisplayPage() {
   }, [])
 
   // Fetch board with 30s auto-refresh
-  const { data: board } = useQuery({
-    queryKey: queryKeys.dutyBoard.board(dateStr),
-    queryFn: () => dutyBoardApi.getBoard(dateStr),
-    refetchInterval: 30_000,
-  })
+  const { data: board } = useDutyBoard(dateStr, { refetchInterval: 30_000 })
 
-  const assignmentMap = useMemo(() => {
-    const map = new Map<string, BoardAssignment>()
-    if (board?.assignments) {
-      for (const a of board.assignments) {
-        map.set(`${a.duty_position_id}:${a.block_index}`, a)
-      }
-    }
-    return map
-  }, [board?.assignments])
+  const assignmentMap = useMemo(() => buildAssignmentMap(board?.assignments), [board?.assignments])
 
   return (
     <div

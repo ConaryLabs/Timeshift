@@ -203,11 +203,19 @@ pub struct BoardAssignment {
 // Cell action (assign / mark_ot / clear)
 // ============================================================
 
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum CellActionKind {
+    Assign,
+    MarkOt,
+    Clear,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CellAction {
     pub duty_position_id: Uuid,
     pub block_index: i16,
-    pub action: String, // "assign" | "mark_ot" | "clear"
+    pub action: CellActionKind,
     pub user_id: Option<Uuid>,
 }
 

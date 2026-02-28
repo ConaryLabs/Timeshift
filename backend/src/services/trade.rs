@@ -3,6 +3,7 @@
 use uuid::Uuid;
 
 use crate::error::Result;
+use crate::models::common::ReviewAction;
 
 /// Fields from a trade request needed for review execution.
 pub struct TradeForReview {
@@ -36,9 +37,10 @@ pub async fn execute_trade_review(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     trade: &TradeForReview,
     reviewer_id: Uuid,
-    status: &str,
+    status: ReviewAction,
     reviewer_notes: Option<&str>,
 ) -> Result<TradeReviewOutcome> {
+    let status_str = status.to_string();
     // 1-hour approval cutoff: fetch shift dates and start times for both assignments
     let timing = sqlx::query!(
         r#"
@@ -87,7 +89,7 @@ pub async fn execute_trade_review(
 
     if approval_count == 0 {
         // Legacy path: any supervisor can approve/deny directly
-        if status == "approved" {
+        if status == ReviewAction::Approved {
             let req_rows = sqlx::query!(
                 r#"
                 UPDATE assignments SET user_id = $2, is_trade = true
@@ -172,13 +174,13 @@ pub async fn execute_trade_review(
             WHERE id = $1
             "#,
             my_approval.id,
-            status,
+            status_str,
             reviewer_notes,
         )
         .execute(&mut **tx)
         .await?;
 
-        if status == "denied" {
+        if status == ReviewAction::Denied {
             sqlx::query!(
                 r#"
                 UPDATE trade_requests

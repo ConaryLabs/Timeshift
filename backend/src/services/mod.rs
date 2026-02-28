@@ -3,6 +3,7 @@ pub mod availability;
 pub mod bidding;
 pub mod leave;
 pub mod org_settings;
+pub mod ot;
 pub mod sms;
 pub mod timezone;
 pub mod trade;

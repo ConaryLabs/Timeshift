@@ -18,6 +18,13 @@ use crate::{
     org_guard,
 };
 
+/// Parse a time string in HH:MM format (with ISO8601 fallback).
+fn parse_hhmm(s: &str, field: &str) -> Result<time::Time> {
+    time::Time::parse(s, &time::format_description::well_known::Iso8601::DEFAULT)
+        .or_else(|_| time::Time::parse(s, time::macros::format_description!("[hour]:[minute]")))
+        .map_err(|_| AppError::BadRequest(format!("Invalid {field} format (use HH:MM)")))
+}
+
 // ============================================================
 // Duty Positions CRUD
 // ============================================================
@@ -701,29 +708,8 @@ pub async fn set_position_hours(
         return Err(AppError::NotFound("Duty position not found".into()));
     }
 
-    let open_time = time::Time::parse(
-        &req.open_time,
-        &time::format_description::well_known::Iso8601::DEFAULT,
-    )
-    .or_else(|_| {
-        time::Time::parse(
-            &req.open_time,
-            time::macros::format_description!("[hour]:[minute]"),
-        )
-    })
-    .map_err(|_| AppError::BadRequest("Invalid open_time format (use HH:MM)".into()))?;
-
-    let close_time = time::Time::parse(
-        &req.close_time,
-        &time::format_description::well_known::Iso8601::DEFAULT,
-    )
-    .or_else(|_| {
-        time::Time::parse(
-            &req.close_time,
-            time::macros::format_description!("[hour]:[minute]"),
-        )
-    })
-    .map_err(|_| AppError::BadRequest("Invalid close_time format (use HH:MM)".into()))?;
+    let open_time = parse_hhmm(&req.open_time, "open_time")?;
+    let close_time = parse_hhmm(&req.close_time, "close_time")?;
 
     let crosses = req.crosses_midnight.unwrap_or(false);
 
@@ -778,25 +764,8 @@ pub async fn update_position_hours(
         return Err(AppError::NotFound("Position hours not found".into()));
     }
 
-    let open_time = if let Some(ref t) = req.open_time {
-        Some(
-            time::Time::parse(t, time::macros::format_description!("[hour]:[minute]"))
-                .map_err(|_| AppError::BadRequest("Invalid open_time format (use HH:MM)".into()))?,
-        )
-    } else {
-        None
-    };
-
-    let close_time = if let Some(ref t) = req.close_time {
-        Some(
-            time::Time::parse(t, time::macros::format_description!("[hour]:[minute]"))
-                .map_err(|_| {
-                    AppError::BadRequest("Invalid close_time format (use HH:MM)".into())
-                })?,
-        )
-    } else {
-        None
-    };
+    let open_time = req.open_time.as_deref().map(|t| parse_hhmm(t, "open_time")).transpose()?;
+    let close_time = req.close_time.as_deref().map(|t| parse_hhmm(t, "close_time")).transpose()?;
 
     let hours = sqlx::query_as!(
         DutyPositionHours,

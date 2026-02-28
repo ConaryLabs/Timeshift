@@ -789,8 +789,10 @@ pub async fn day_view(
 
 pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<DashboardData>> {
     let today = crate::services::timezone::org_today(&auth.org_timezone);
+    let today_str = today.to_string(); // "YYYY-MM-DD"
 
-    let templates = sqlx::query!(
+    // Group 1: templates, assignments, and slot coverage are all independent — run concurrently.
+    let templates_fut = sqlx::query!(
         r#"
         SELECT id, name, color, start_time, end_time, crosses_midnight
         FROM shift_templates
@@ -799,10 +801,9 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         "#,
         auth.org_id,
     )
-    .fetch_all(&pool)
-    .await?;
+    .fetch_all(&pool);
 
-    let assignments = sqlx::query!(
+    let assignments_fut = sqlx::query!(
         r#"
         SELECT
             st.id              AS shift_template_id,
@@ -826,8 +827,15 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         auth.org_id,
         today,
     )
-    .fetch_all(&pool)
-    .await?;
+    .fetch_all(&pool);
+
+    let slot_coverage_fut = compute_slot_coverage(&pool, auth.org_id, &today_str);
+
+    let (templates, assignments, slot_coverage) = tokio::try_join!(
+        async { templates_fut.await.map_err(AppError::from) },
+        async { assignments_fut.await.map_err(AppError::from) },
+        slot_coverage_fut,
+    )?;
 
     let mut assignment_map: HashMap<Uuid, Vec<GridAssignment>> = HashMap::new();
     for a in assignments {
@@ -847,8 +855,6 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
             });
     }
 
-    let today_str = today.to_string(); // "YYYY-MM-DD"
-    let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &today_str).await?;
     let shift_info: Vec<(Uuid, time::Time, time::Time, bool)> = templates
         .iter()
         .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
@@ -886,7 +892,8 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         })
         .collect();
 
-    let pending_leave_count = sqlx::query_scalar!(
+    // Group 2: pending leave, open callouts, and annotations are all independent — run concurrently.
+    let pending_leave_fut = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) AS "count!"
         FROM leave_requests lr
@@ -894,10 +901,9 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         "#,
         auth.org_id,
     )
-    .fetch_one(&pool)
-    .await?;
+    .fetch_one(&pool);
 
-    let open_callout_count = sqlx::query_scalar!(
+    let open_callout_fut = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) AS "count!"
         FROM callout_events ce
@@ -906,10 +912,9 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         "#,
         auth.org_id,
     )
-    .fetch_one(&pool)
-    .await?;
+    .fetch_one(&pool);
 
-    let annotations = sqlx::query_as!(
+    let annotations_fut = sqlx::query_as!(
         ScheduleAnnotation,
         r#"
         SELECT id, org_id, date, shift_template_id AS "shift_template_id?", content,
@@ -921,8 +926,10 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         auth.org_id,
         today,
     )
-    .fetch_all(&pool)
-    .await?;
+    .fetch_all(&pool);
+
+    let (pending_leave_count, open_callout_count, annotations) =
+        tokio::try_join!(pending_leave_fut, open_callout_fut, annotations_fut)?;
 
     Ok(Json(DashboardData {
         current_coverage,

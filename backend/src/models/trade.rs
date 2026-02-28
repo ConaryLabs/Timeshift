@@ -3,6 +3,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::models::common::ReviewAction;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "trade_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -49,8 +51,7 @@ pub struct RespondTradeRequest {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ReviewTradeRequest {
-    #[validate(length(max = 50))]
-    pub status: String,
+    pub status: ReviewAction,
     #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
     /// Optimistic locking: the `updated_at` timestamp from the last GET.
@@ -62,8 +63,7 @@ pub struct ReviewTradeRequest {
 #[derive(Debug, Deserialize, Validate)]
 pub struct BulkReviewTradeRequest {
     pub ids: Vec<Uuid>,
-    #[validate(length(max = 50))]
-    pub status: String,
+    pub status: ReviewAction,
     #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }

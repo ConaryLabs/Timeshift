@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT COUNT(*) AS \"count!\"\n            FROM trade_requests\n            WHERE partner_id = $1 AND org_id = $2 AND status = 'pending_partner'\n            ",
+  "query": "\n                SELECT COUNT(*) AS \"count!\"\n                FROM trade_requests\n                WHERE partner_id = $1 AND org_id = $2 AND status = 'pending_partner'\n                ",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "e95a446d82ded6d73b76bc4192e61c9915ea2281593600f55cf65fce73341a75"
+  "hash": "33f65807e3ae42e4db77ac3c71ea786a6d057d105fb4c5bda084729cc50211a7"
 }

@@ -15,8 +15,7 @@ import { useStaffing, useTeams, useScheduleGrid } from '@/hooks/queries'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/lib/format'
-import { NO_VALUE } from '@/lib/format'
+import { formatTime, contrastText as contrastTextHex, NO_VALUE } from '@/lib/format'
 import type { AssignmentView, GridCell } from '@/api/schedule'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -28,11 +27,7 @@ function getWeekRange(anchor: Date) {
 }
 
 function contrastText(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? 'text-gray-900' : 'text-white'
+  return contrastTextHex(hex) === '#111' ? 'text-gray-900' : 'text-white'
 }
 
 type ViewMode = 'week' | 'board' | 'month'
@@ -59,6 +54,7 @@ export default function SchedulePage() {
     viewMode === 'month' ? monthStartStr : startStr,
     viewMode === 'month' ? monthEndStr : endStr,
     selectedTeamId ?? undefined,
+    { enabled: viewMode !== 'month' },
   )
 
   // Grid data for month view coverage indicators
@@ -66,6 +62,7 @@ export default function SchedulePage() {
     monthStartStr,
     monthEndStr,
     selectedTeamId ?? undefined,
+    { enabled: viewMode === 'month' },
   )
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
@@ -254,10 +251,15 @@ function WeekView({
   days: Date[]
   currentUserId: string | undefined
 }) {
-  function byDate(date: Date) {
-    const key = format(date, 'yyyy-MM-dd')
-    return data.filter((a) => a.date === key)
-  }
+  const byDate = useMemo(() => {
+    const map = new Map<string, AssignmentView[]>()
+    for (const a of data) {
+      const arr = map.get(a.date) ?? []
+      arr.push(a)
+      map.set(a.date, arr)
+    }
+    return map
+  }, [data])
 
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
@@ -280,7 +282,7 @@ function WeekView({
                 {format(day, 'd')}
               </span>
             </div>
-            {byDate(day).map((a) => (
+            {(byDate.get(dateStr) ?? []).map((a) => (
               <AssignmentChip key={a.assignment_id} assignment={a} isOwn={a.user_id === currentUserId} />
             ))}
           </div>
@@ -319,10 +321,17 @@ function BoardView({
     return result.sort((a, b) => a.start_time.localeCompare(b.start_time))
   }, [data])
 
-  function cellAssignments(shiftName: string, date: Date) {
-    const key = format(date, 'yyyy-MM-dd')
-    return data.filter((a) => a.shift_name === shiftName && a.date === key)
-  }
+  // Group by "shiftName|date" for O(1) cell lookup
+  const cellMap = useMemo(() => {
+    const map = new Map<string, AssignmentView[]>()
+    for (const a of data) {
+      const key = `${a.shift_name}|${a.date}`
+      const arr = map.get(key) ?? []
+      arr.push(a)
+      map.set(key, arr)
+    }
+    return map
+  }, [data])
 
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
@@ -366,7 +375,7 @@ function BoardView({
               </td>
               {days.map((day) => {
                 const dateStr = format(day, 'yyyy-MM-dd')
-                const assignments = cellAssignments(shift.name, day)
+                const assignments = cellMap.get(`${shift.name}|${dateStr}`) ?? []
                 const isToday = dateStr === todayStr
                 return (
                   <td

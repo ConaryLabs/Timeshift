@@ -280,7 +280,7 @@ pub async fn list_slots(
     Path(plan_id): Path<Uuid>,
     Query(q): Query<SlotQuery>,
 ) -> Result<Json<Vec<CoveragePlanSlot>>> {
-    verify_plan_org(&pool, plan_id, auth.org_id).await?;
+    org_guard::verify_coverage_plan(&pool,plan_id, auth.org_id).await?;
 
     let rows = sqlx::query_as!(
         CoveragePlanSlot,
@@ -316,7 +316,7 @@ pub async fn bulk_upsert_slots(
         return Err(AppError::Forbidden);
     }
 
-    verify_plan_org(&pool, plan_id, auth.org_id).await?;
+    org_guard::verify_coverage_plan(&pool,plan_id, auth.org_id).await?;
 
     if req.slots.is_empty() {
         return Ok(Json(vec![]));
@@ -447,7 +447,7 @@ pub async fn create_assignment(
         return Err(AppError::Forbidden);
     }
 
-    verify_plan_org(&pool, req.plan_id, auth.org_id).await?;
+    org_guard::verify_coverage_plan(&pool,req.plan_id, auth.org_id).await?;
 
     if let Some(end) = req.end_date {
         if end < req.start_date {
@@ -2170,17 +2170,3 @@ pub(crate) fn coverage_status_per_shift(
 
 // ── Internal helper ───────────────────────────────────────────────────────────
 
-async fn verify_plan_org(pool: &PgPool, plan_id: Uuid, org_id: Uuid) -> Result<()> {
-    let ok = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM coverage_plans WHERE id = $1 AND org_id = $2)",
-        plan_id,
-        org_id,
-    )
-    .fetch_one(pool)
-    .await?;
-
-    if !ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Coverage plan not found".into()));
-    }
-    Ok(())
-}

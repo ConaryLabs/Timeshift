@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::ReviewAction,
     models::leave_sellback::{
         CreateSellbackRequest, HolidaySellbackRequest, ReviewSellbackRequest,
     },
@@ -209,12 +210,6 @@ pub async fn review(
         return Err(AppError::Forbidden);
     }
 
-    if !["approved", "denied", "cancelled"].contains(&body.status.as_str()) {
-        return Err(AppError::BadRequest(
-            "status must be 'approved', 'denied', or 'cancelled'".into(),
-        ));
-    }
-
     let mut tx = pool.begin().await?;
 
     let req = sqlx::query!(
@@ -240,7 +235,7 @@ pub async fn review(
         )));
     }
 
-    if body.status == "approved" {
+    if body.status == ReviewAction::Approved {
         // Find holiday leave type to deduct from (take from highest balance first)
         let holiday_types = sqlx::query!(
             r#"
@@ -312,6 +307,7 @@ pub async fn review(
         }
     }
 
+    let status_str = body.status.to_string();
     let updated = sqlx::query!(
         r#"
         UPDATE holiday_sellback_requests
@@ -322,7 +318,7 @@ pub async fn review(
                   status, reviewed_by, reviewer_notes, created_at, updated_at
         "#,
         id,
-        body.status,
+        status_str,
         auth.id,
         body.reviewer_notes,
     )

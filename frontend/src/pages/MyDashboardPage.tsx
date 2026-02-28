@@ -16,17 +16,9 @@ import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useMyDashboard, useOtRequests } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatTime } from '@/lib/format'
 import { useAuthStore } from '@/store/auth'
 import type { MyScheduleEntry } from '@/api/employee'
-
-function formatTime(time: string) {
-  const [h, m] = time.split(':')
-  const hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-  return `${display}:${m} ${ampm}`
-}
 
 
 function ShiftCard({ entry, label }: { entry: MyScheduleEntry; label: string }) {

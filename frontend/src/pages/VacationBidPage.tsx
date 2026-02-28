@@ -9,7 +9,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { useVacationBidWindow, useSubmitVacationBid } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { extractApiError, formatDateShort } from '@/lib/format'
+import { extractApiError, formatDateShort, toLocalDateStr } from '@/lib/format'
 
 interface DatePick {
   start_date: string
@@ -22,14 +22,6 @@ const MONTHS = [
 ]
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-
-function dateToStr(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 function getMonthDays(year: number, month: number): Date[] {
   const days: Date[] = []
@@ -46,7 +38,7 @@ function getMondayOfWeek(d: Date): string {
   const day = date.getDay()
   const diff = day === 0 ? -6 : 1 - day
   date.setDate(date.getDate() + diff)
-  return dateToStr(date)
+  return toLocalDateStr(date)
 }
 
 function getSundayOfWeek(d: Date): string {
@@ -54,7 +46,7 @@ function getSundayOfWeek(d: Date): string {
   const day = date.getDay()
   const diff = day === 0 ? 0 : 7 - day
   date.setDate(date.getDate() + diff)
-  return dateToStr(date)
+  return toLocalDateStr(date)
 }
 
 function isDateInRange(dateStr: string, start: string, end: string): boolean {
@@ -79,7 +71,7 @@ export default function VacationBidPage() {
       const end = new Date(pick.end_date + 'T00:00:00')
       const d = new Date(start)
       while (d <= end) {
-        set.add(dateToStr(d))
+        set.add(toLocalDateStr(d))
         d.setDate(d.getDate() + 1)
       }
     }
@@ -104,7 +96,7 @@ export default function VacationBidPage() {
   }, [data])
 
   const handleDayClick = useCallback((date: Date) => {
-    const dateStr = dateToStr(date)
+    const dateStr = toLocalDateStr(date)
 
     // Can't select taken dates
     if (takenSet.has(dateStr)) return
@@ -128,7 +120,7 @@ export default function VacationBidPage() {
       const weekEnd = new Date(sunday + 'T00:00:00')
       const d = new Date(weekStart)
       while (d <= weekEnd) {
-        if (takenSet.has(dateToStr(d))) {
+        if (takenSet.has(toLocalDateStr(d))) {
           toast.error('Some dates in this week are already taken')
           return
         }
@@ -386,7 +378,7 @@ function MonthCalendar({
       const end = new Date(bid.end_date + 'T00:00:00')
       const d = new Date(start)
       while (d <= end) {
-        set.add(dateToStr(d))
+        set.add(toLocalDateStr(d))
         d.setDate(d.getDate() + 1)
       }
     }
@@ -409,7 +401,7 @@ function MonthCalendar({
             <div key={`empty-${i}`} />
           ))}
           {days.map((date) => {
-            const dateStr = dateToStr(date)
+            const dateStr = toLocalDateStr(date)
             const isTaken = takenDates.has(dateStr)
             const isSelected = selectedDates.has(dateStr)
             const isAwarded = awardedSet.has(dateStr)

@@ -1,4 +1,5 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Serde module: serialize/deserialize `time::Time` as "HH:MM:SS" strings.
 pub mod time_format {
@@ -92,5 +93,51 @@ impl DateRangeParams {
 
     pub fn offset(&self) -> i64 {
         self.offset.unwrap_or(0).max(0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shared domain enums (stored as VARCHAR in the DB, typed in Rust)
+// ---------------------------------------------------------------------------
+
+/// OT assignment type — stored in `assignments.ot_type` and `ot_request_assignments.ot_type`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OtType {
+    Voluntary,
+    Mandatory,
+    MandatoryDayOff,
+    FixedCoverage,
+    Elective,
+}
+
+impl fmt::Display for OtType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Voluntary => f.write_str("voluntary"),
+            Self::Mandatory => f.write_str("mandatory"),
+            Self::MandatoryDayOff => f.write_str("mandatory_day_off"),
+            Self::FixedCoverage => f.write_str("fixed_coverage"),
+            Self::Elective => f.write_str("elective"),
+        }
+    }
+}
+
+/// Supervisor review action for leave donation, leave sellback, and trade requests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewAction {
+    Approved,
+    Denied,
+    Cancelled,
+}
+
+impl fmt::Display for ReviewAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Approved => f.write_str("approved"),
+            Self::Denied => f.write_str("denied"),
+            Self::Cancelled => f.write_str("cancelled"),
+        }
     }
 }

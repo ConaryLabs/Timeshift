@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/preserve-manual-memoization */
 import { useState, useMemo, useCallback } from 'react'
 import { format, addDays, subDays } from 'date-fns'
 import { PageHeader } from '@/components/ui/page-header'
@@ -19,20 +18,11 @@ import {
 } from '@/components/ui/select'
 import { Loader2, ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap } from '@/lib/dutyBoard'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useDutyBoard, useCellAction, useAvailableStaff, useConsoleHours, useCreateDatePosition, useDeleteDatePosition } from '@/hooks/useDutyBoard'
 import { useClassifications } from '@/hooks/queries'
 import type { BoardAssignment, AvailableEmployee } from '@/api/dutyBoard'
-
-const BLOCK_LABELS = [
-  '0000', '0200', '0400', '0600', '0800', '1000',
-  '1200', '1400', '1600', '1800', '2000', '2200',
-]
-
-function getCurrentBlockIndex(): number {
-  const now = new Date()
-  return Math.floor((now.getHours() * 60 + now.getMinutes()) / 120)
-}
 
 function getMonthRange(date: Date): { start: string; end: string } {
   const start = new Date(date.getFullYear(), date.getMonth(), 1)
@@ -244,15 +234,7 @@ export default function DutyBoardPage() {
   const currentBlock = getCurrentBlockIndex()
 
   // Build assignment lookup: positionId+blockIndex -> assignment
-  const assignmentMap = useMemo(() => {
-    const map = new Map<string, BoardAssignment>()
-    if (board?.assignments) {
-      for (const a of board.assignments) {
-        map.set(`${a.duty_position_id}:${a.block_index}`, a)
-      }
-    }
-    return map
-  }, [board?.assignments])
+  const assignmentMap = useMemo(() => buildAssignmentMap(board?.assignments), [board?.assignments])
 
   const handleCellClick = useCallback((positionId: string, blockIndex: number) => {
     if (!isManager) return

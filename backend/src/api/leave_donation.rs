@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::ReviewAction,
     models::leave_donation::{CreateDonationRequest, ReviewDonationRequest, SickLeaveDonation},
     org_guard,
 };
@@ -233,12 +234,6 @@ pub async fn review(
         return Err(AppError::Forbidden);
     }
 
-    if !["approved", "denied", "cancelled"].contains(&body.status.as_str()) {
-        return Err(AppError::BadRequest(
-            "status must be 'approved', 'denied', or 'cancelled'".into(),
-        ));
-    }
-
     let mut tx = pool.begin().await?;
 
     let donation = sqlx::query!(
@@ -264,7 +259,7 @@ pub async fn review(
         )));
     }
 
-    if body.status == "approved" {
+    if body.status == ReviewAction::Approved {
         // Fetch donor's retention floor from their BU config
         let donor_floor: f64 = sqlx::query_scalar!(
             r#"
@@ -387,6 +382,7 @@ pub async fn review(
         .await?;
     }
 
+    let status_str = body.status.to_string();
     let updated = sqlx::query!(
         r#"
         UPDATE sick_leave_donations
@@ -397,7 +393,7 @@ pub async fn review(
                   fiscal_year, status, reviewed_by, reviewer_notes, created_at, updated_at
         "#,
         id,
-        body.status,
+        status_str,
         auth.id,
         body.reviewer_notes,
     )

@@ -12,6 +12,7 @@ use crate::{
         CreatePatternAssignmentRequest, CreateShiftPatternRequest, CycleDateQuery, CycleInfo,
         ShiftPattern, ShiftPatternAssignment, ShiftPatternAssignmentRow, UpdateShiftPatternRequest,
     },
+    org_guard,
 };
 
 pub async fn list(State(pool): State<PgPool>, auth: AuthUser) -> Result<Json<Vec<ShiftPattern>>> {
@@ -98,16 +99,7 @@ pub async fn create(
     };
 
     if let Some(team_id) = req.team_id {
-        let exists = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
-            team_id,
-            auth.org_id,
-        )
-        .fetch_one(&pool)
-        .await?;
-        if exists != Some(true) {
-            return Err(AppError::NotFound("Team not found".into()));
-        }
+        org_guard::verify_team(&pool, team_id, auth.org_id).await?;
     }
 
     let row = sqlx::query_as!(
@@ -157,16 +149,7 @@ pub async fn update(
     .ok_or_else(|| AppError::NotFound("Shift pattern not found".into()))?;
 
     if let Some(Some(team_id)) = req.team_id {
-        let exists = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
-            team_id,
-            auth.org_id,
-        )
-        .fetch_one(&pool)
-        .await?;
-        if exists != Some(true) {
-            return Err(AppError::NotFound("Team not found".into()));
-        }
+        org_guard::verify_team(&pool, team_id, auth.org_id).await?;
     }
 
     // If any of pattern_days/work_days/off_days are being changed, validate the invariant

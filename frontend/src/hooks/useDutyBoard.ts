@@ -4,11 +4,12 @@ import { dutyPositionsApi } from '@/api/dutyPositions'
 import { queryKeys } from './queryKeys'
 
 // Board state
-export function useDutyBoard(date: string) {
+export function useDutyBoard(date: string, options?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: queryKeys.dutyBoard.board(date),
     queryFn: () => dutyBoardApi.getBoard(date),
     enabled: !!date,
+    ...options,
   })
 }
 
@@ -109,7 +110,7 @@ export function useAddPositionQualification() {
   return useMutation({
     mutationFn: ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
       dutyBoardApi.addPositionQualification(positionId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['qualifications'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
   })
 }
 
@@ -118,7 +119,7 @@ export function useRemovePositionQualification() {
   return useMutation({
     mutationFn: ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
       dutyBoardApi.removePositionQualification(positionId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['qualifications'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
   })
 }
 
@@ -136,7 +137,7 @@ export function useAddUserQualification() {
   return useMutation({
     mutationFn: ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
       dutyBoardApi.addUserQualification(userId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['qualifications'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
   })
 }
 
@@ -145,7 +146,7 @@ export function useRemoveUserQualification() {
   return useMutation({
     mutationFn: ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
       dutyBoardApi.removeUserQualification(userId, qualificationId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['qualifications'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.qualifications.all }),
   })
 }
 

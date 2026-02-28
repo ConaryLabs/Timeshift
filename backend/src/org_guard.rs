@@ -99,6 +99,50 @@ pub async fn verify_ot_request(pool: &PgPool, ot_request_id: Uuid, org_id: Uuid)
     check_exists(ok, "OT request")
 }
 
+pub async fn verify_duty_position(pool: &PgPool, position_id: Uuid, org_id: Uuid) -> Result<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2 AND is_active = true)",
+        position_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+    check_exists(ok, "Duty position")
+}
+
+pub async fn verify_team(pool: &PgPool, team_id: Uuid, org_id: Uuid) -> Result<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND org_id = $2)",
+        team_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+    check_exists(ok, "Team")
+}
+
+pub async fn verify_leave_type(pool: &PgPool, leave_type_id: Uuid, org_id: Uuid) -> Result<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2)",
+        leave_type_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+    check_exists(ok, "Leave type")
+}
+
+pub async fn verify_coverage_plan(pool: &PgPool, plan_id: Uuid, org_id: Uuid) -> Result<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM coverage_plans WHERE id = $1 AND org_id = $2)",
+        plan_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+    check_exists(ok, "Coverage plan")
+}
+
 pub async fn verify_period(pool: &PgPool, period_id: Uuid, org_id: Uuid) -> Result<()> {
     let ok = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM schedule_periods WHERE id = $1 AND org_id = $2)",

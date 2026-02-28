@@ -3,6 +3,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::models::common::ReviewAction;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct HolidaySellbackRequest {
     pub id: Uuid,
@@ -30,8 +32,7 @@ pub struct CreateSellbackRequest {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ReviewSellbackRequest {
-    /// "approved", "denied", or "cancelled"
-    pub status: String,
+    pub status: ReviewAction,
     #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }

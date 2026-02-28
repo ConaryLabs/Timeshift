@@ -3,6 +3,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::models::common::ReviewAction;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct SickLeaveDonation {
     pub id: Uuid,
@@ -31,8 +33,7 @@ pub struct CreateDonationRequest {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ReviewDonationRequest {
-    /// "approved", "denied", or "cancelled"
-    pub status: String,
+    pub status: ReviewAction,
     #[validate(length(max = 2000))]
     pub reviewer_notes: Option<String>,
 }

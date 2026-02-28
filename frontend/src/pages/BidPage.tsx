@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState } from '@/components/ui/loading-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBidWindow, useSubmitBid } from '@/hooks/queries'
-import { formatTime, extractApiError } from '@/lib/format'
+import { formatTime, extractApiError, formatDateTime } from '@/lib/format'
 import type { AvailableSlot } from '@/api/bidding'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -23,15 +23,6 @@ function getWindowStatus(window: { opens_at: string; closes_at: string; submitte
   if (now < opens) return 'upcoming'
   if (now > closes) return 'closed'
   return 'open'
-}
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }
 
 function timeRemaining(closes: string) {
