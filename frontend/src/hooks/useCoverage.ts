@@ -106,6 +106,15 @@ export function useCoverageGaps(date: string, options?: { enabled?: boolean }) {
   })
 }
 
+export function useCoverageGapBlocks(date: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.coveragePlans.gapBlocks(date),
+    queryFn: () => coveragePlansApi.getGapBlocks(date),
+    enabled: (options?.enabled ?? true) && !!date,
+    staleTime: 30_000,
+  })
+}
+
 export function useSendSmsAlert() {
   const qc = useQueryClient()
   return useMutation({

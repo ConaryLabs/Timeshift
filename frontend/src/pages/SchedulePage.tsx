@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, getDay, getDaysInMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Calendar as CalendarIcon, Printer, StickyNote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -493,11 +493,14 @@ function MonthView({
                             ? 'bg-green-500'
                             : 'bg-red-500'
                       if (isUnder) {
+                        const classDetail = cell.coverage_by_classification?.length
+                          ? ` (${cell.coverage_by_classification.map((c) => `${c.classification_abbreviation} −${c.shortage}`).join(', ')})`
+                          : ''
                         return (
                           <button
                             key={cell.shift_template_id}
                             type="button"
-                            title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required} — Click to resolve`}
+                            title={`${cell.shift_name}: ${cell.coverage_actual}/${cell.coverage_required}${classDetail} — Click to resolve`}
                             className={cn('rounded-full flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary/50', status, 'w-auto h-4 px-1')}
                             onClick={(e) => { e.stopPropagation(); navigate(`/staffing/resolve?date=${dateStr}`) }}
                           >
@@ -553,14 +556,16 @@ function AssignmentChip({
   ].filter(Boolean)
 
   return (
-    <div
+    <Link
+      to={`/admin/users/${a.user_id}`}
       title={tooltipParts.join(' · ')}
       className={cn(
-        'rounded px-1.5 py-0.5 text-xs mb-0.5 cursor-default flex items-center gap-1',
+        'rounded px-1.5 py-0.5 text-xs mb-0.5 flex items-center gap-1 hover:ring-1 hover:ring-white/50 transition-shadow',
         textClass,
         isOwn && 'ring-2 ring-offset-1 ring-white/80 font-semibold',
       )}
       style={{ backgroundColor: a.shift_color }}
+      onClick={(e) => e.stopPropagation()}
     >
       <span className="truncate">
         {a.last_name}, {a.first_name?.[0] ?? ''}
@@ -580,6 +585,6 @@ function AssignmentChip({
           </TooltipContent>
         </Tooltip>
       )}
-    </div>
+    </Link>
   )
 }

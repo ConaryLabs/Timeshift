@@ -213,6 +213,10 @@ pub fn router(state: AppState) -> Router {
             get(coverage_plans::classification_gaps),
         )
         .route(
+            "/api/coverage-plans/gaps/:date/blocks",
+            get(coverage_plans::gap_blocks),
+        )
+        .route(
             "/api/coverage-plans/resolved/:date",
             get(coverage_plans::resolved_coverage),
         )

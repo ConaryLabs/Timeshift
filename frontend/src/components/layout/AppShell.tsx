@@ -36,7 +36,6 @@ import {
   RotateCw,
   ChevronDown,
   Megaphone,
-  UserPlus,
   ListChecks,
   ShieldAlert,
 } from 'lucide-react'
@@ -54,13 +53,19 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount, useCoverageGaps } from '@/hooks/queries'
+import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount, useCoverageGaps, useCoverageGapBlocks } from '@/hooks/queries'
 import type { ClassificationGap } from '@/api/coveragePlans'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
 const MandatoryOTDialog = lazy(() => import('@/components/coverage/MandatoryOTDialog'))
 const SmsAlertDialog = lazy(() => import('@/components/coverage/SmsAlertDialog'))
+
+/** Format "08:00" → "08", "08:30" → "0830" for compact display */
+function fmtBlockTime(t: string): string {
+  if (t.endsWith(':00')) return t.slice(0, 2)
+  return t.replace(':', '')
+}
 
 interface NavItem {
   to: string
@@ -370,6 +375,7 @@ export default function AppShell() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const { data: todayCoverage } = useScheduleGrid(today, today, undefined, { enabled: isManager })
   const { data: coverageGaps } = useCoverageGaps(today, { enabled: isManager })
+  const { data: gapBlocks } = useCoverageGapBlocks(today, { enabled: isManager })
   const { data: navBadges } = useNavBadges()
   const { data: unreadCountData } = useUnreadCount()
   const notificationCount = unreadCountData?.count ?? 0
@@ -395,25 +401,7 @@ export default function AppShell() {
     return todayCoverage.filter((c) => c.coverage_required > 0 && c.coverage_actual < c.coverage_required)
   }, [isManager, todayCoverage])
 
-  const totalShortage = useMemo(() => {
-    if (!coverageGaps?.length) return 0
-    return coverageGaps.reduce((sum, g) => sum + g.shortage, 0)
-  }, [coverageGaps])
-
-  // Group gaps by shift for display
-  const gapsByShift = useMemo(() => {
-    if (!coverageGaps?.length) return []
-    const map = new Map<string, { shift_name: string; shift_color: string; shift_template_id: string; gaps: ClassificationGap[] }>()
-    for (const g of coverageGaps) {
-      let entry = map.get(g.shift_template_id)
-      if (!entry) {
-        entry = { shift_name: g.shift_name, shift_color: g.shift_color, shift_template_id: g.shift_template_id, gaps: [] }
-        map.set(g.shift_template_id, entry)
-      }
-      entry.gaps.push(g)
-    }
-    return Array.from(map.values())
-  }, [coverageGaps])
+  const hasGaps = (gapBlocks?.length ?? 0) > 0
 
   // L7: Keyboard shortcut Cmd+B / Ctrl+B to toggle sidebar
   useEffect(() => {
@@ -536,54 +524,38 @@ export default function AppShell() {
                 </span>
               )}
             </button>
-            {isManager && (totalShortage > 0 || understaffedShifts.length > 0) && (
+            {isManager && (hasGaps || understaffedShifts.length > 0) && (
               <Popover open={coverageOpen} onOpenChange={setCoverageOpen}>
                 <PopoverTrigger asChild>
                   <button className="relative p-1.5 rounded-md hover:bg-accent transition-colors" aria-label="Coverage alerts">
                     <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
-                      {totalShortage || understaffedShifts.length}
+                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-0.5">
+                      {gapBlocks?.length || understaffedShifts.length}
                     </span>
                   </button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-96 max-h-[70vh] overflow-y-auto">
-                  <div className="flex items-center justify-between mb-3">
+                <PopoverContent align="end" className="w-80 max-h-[70vh] overflow-y-auto">
+                  <div className="mb-3">
                     <p className="text-sm font-semibold">Staffing Gaps Today</p>
-                    {totalShortage > 0 && (
-                      <span className="text-xs text-destructive font-medium">{totalShortage} total short</span>
-                    )}
                   </div>
-                  {gapsByShift.length > 0 ? (
+                  {hasGaps ? (
                     <div className="space-y-3">
-                      {gapsByShift.map((shift) => (
-                        <div key={shift.shift_template_id}>
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span
-                              className="h-2 w-2 rounded-full shrink-0"
-                              style={{ backgroundColor: shift.shift_color }}
-                            />
-                            <span className="text-sm font-medium">{shift.shift_name}</span>
-                          </div>
-                          <div className="space-y-0.5 ml-4">
-                            {shift.gaps.map((gap) => (
-                              <button
-                                key={`${gap.classification_id}-${gap.shift_template_id}`}
-                                className="flex items-center justify-between text-sm rounded-md px-2 py-1 hover:bg-accent transition-colors group w-full cursor-pointer text-left"
-                                onClick={() => { setCoverageOpen(false); navigate(`/staffing/resolve?date=${today}&shift_template_id=${gap.shift_template_id}&classification_id=${gap.classification_id}`) }}
+                      {gapBlocks!.map((cls) => (
+                        <div key={cls.classification_id}>
+                          <div className="text-sm font-semibold mb-1">{cls.classification_abbreviation} OT</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {cls.blocks.map((block, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
                               >
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                    {gap.classification_abbreviation}
-                                  </span>
-                                  <span className="text-destructive font-medium tabular-nums text-xs">
-                                    {gap.actual}/{gap.target}
-                                  </span>
-                                  <span className="text-muted-foreground text-xs">
-                                    (−{gap.shortage})
-                                  </span>
-                                </div>
-                                <UserPlus className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                              </button>
+                                {block.start_time === block.end_time
+                                  ? 'All day'
+                                  : `${fmtBlockTime(block.start_time)}-${fmtBlockTime(block.end_time)}`}
+                                {block.shortage > 1 && (
+                                  <span className="text-red-500 dark:text-red-300 font-bold">x{block.shortage}</span>
+                                )}
+                              </span>
                             ))}
                           </div>
                         </div>
@@ -609,14 +581,14 @@ export default function AppShell() {
                         className="text-xs text-primary hover:underline"
                         onClick={() => { setCoverageOpen(false); navigate(`/schedule/day/${today}`) }}
                       >
-                        View Day Schedule
+                        Day View
                       </button>
                       <span className="text-xs text-muted-foreground">|</span>
                       <button
                         className="text-xs text-primary hover:underline"
-                        onClick={() => { setCoverageOpen(false); navigate('/available-ot') }}
+                        onClick={() => { setCoverageOpen(false); navigate(`/staffing/resolve?date=${today}`) }}
                       >
-                        Available OT
+                        Resolve Staffing
                       </button>
                     </div>
                     <button

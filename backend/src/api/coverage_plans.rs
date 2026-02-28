@@ -1213,30 +1213,24 @@ pub async fn classification_gaps(
         let end_slot = end_slot.clamp(0, 47);
 
         for &class_id in &class_ids {
-            // Find peak min and worst actual across slots in this shift's window
-            let mut peak_min: i16 = 0;
-            let mut min_actual: i32 = i32::MAX;
-            let mut has_data = false;
+            // Find the worst single-slot shortage for this classification
+            // (compare min vs actual at the same time slot, then take the worst)
+            let mut worst_shortage: i16 = 0;
+            let mut worst_min: i16 = 0;
+            let mut worst_actual: i16 = 0;
 
             for slot_idx in start_slot..=end_slot {
                 if let Some(sc) = by_slot.get(&(class_id, slot_idx)) {
-                    has_data = true;
-                    if sc.min_headcount > peak_min {
-                        peak_min = sc.min_headcount;
-                    }
-                    if sc.actual_headcount < min_actual {
-                        min_actual = sc.actual_headcount;
+                    let slot_shortage = sc.min_headcount - (sc.actual_headcount as i16);
+                    if slot_shortage > worst_shortage {
+                        worst_shortage = slot_shortage;
+                        worst_min = sc.min_headcount;
+                        worst_actual = sc.actual_headcount as i16;
                     }
                 }
             }
 
-            if !has_data || peak_min == 0 {
-                continue;
-            }
-
-            let actual = min_actual as i16;
-            let shortage = peak_min - actual;
-            if shortage <= 0 {
+            if worst_shortage <= 0 {
                 continue;
             }
 
@@ -1253,9 +1247,9 @@ pub async fn classification_gaps(
                 shift_template_id: shift.id,
                 shift_name: shift.name.clone(),
                 shift_color: shift.color.clone(),
-                target: peak_min,
-                actual,
-                shortage,
+                target: worst_min,
+                actual: worst_actual,
+                shortage: worst_shortage,
             });
         }
     }
@@ -1264,6 +1258,135 @@ pub async fn classification_gaps(
     gaps.sort_by(|a, b| b.shortage.cmp(&a.shortage));
 
     Ok(Json(gaps))
+}
+
+// ── Block-level coverage gaps (contiguous time ranges per classification) ─────
+
+/// GET /api/coverage-plans/gaps/:date/blocks
+///
+/// Returns coverage gaps organized by classification with contiguous time ranges
+/// merged. This is the source of truth for notifications and OT pages — it avoids
+/// the per-shift duplication where overlapping shifts count the same physical
+/// shortage multiple times.
+pub async fn gap_blocks(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(date_str): Path<String>,
+) -> Result<Json<Vec<crate::models::schedule::ClassificationGapBlocks>>> {
+    use crate::models::schedule::{ClassificationGapBlocks, CoverageGapBlock};
+
+    if !auth.role.can_manage_schedule() {
+        return Err(AppError::Forbidden);
+    }
+
+    let slot_coverage = compute_slot_coverage(&pool, auth.org_id, &date_str).await?;
+    if slot_coverage.is_empty() {
+        return Ok(Json(vec![]));
+    }
+
+    // Gather classification info and index by (class_id, slot_index)
+    use std::collections::HashMap;
+    let mut class_info: HashMap<Uuid, String> = HashMap::new();
+    let mut by_class_slot: HashMap<Uuid, HashMap<i16, &SlotCoverage>> = HashMap::new();
+
+    for sc in &slot_coverage {
+        class_info
+            .entry(sc.classification_id)
+            .or_insert_with(|| sc.classification_abbreviation.clone());
+        by_class_slot
+            .entry(sc.classification_id)
+            .or_default()
+            .insert(sc.slot_index, sc);
+    }
+
+    let mut result = Vec::new();
+
+    for (class_id, abbreviation) in &class_info {
+        let slots = match by_class_slot.get(class_id) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // Compute per-slot shortage (slots 0-47)
+        let mut shortage_slots: Vec<(i16, i32)> = Vec::new();
+        for slot_idx in 0..48i16 {
+            if let Some(sc) = slots.get(&slot_idx) {
+                let shortage = (sc.min_headcount as i32) - sc.actual_headcount;
+                if shortage > 0 {
+                    shortage_slots.push((slot_idx, shortage));
+                }
+            }
+        }
+
+        if shortage_slots.is_empty() {
+            continue;
+        }
+
+        // Find contiguous runs and merge into blocks
+        let mut blocks: Vec<CoverageGapBlock> = Vec::new();
+        let mut block_start = shortage_slots[0].0;
+        let mut block_max = shortage_slots[0].1;
+        let mut prev_slot = shortage_slots[0].0;
+
+        for &(slot_idx, shortage) in &shortage_slots[1..] {
+            if slot_idx == prev_slot + 1 {
+                block_max = block_max.max(shortage);
+                prev_slot = slot_idx;
+            } else {
+                blocks.push(CoverageGapBlock {
+                    start_time: slot_start_time(block_start),
+                    end_time: slot_end_time(prev_slot),
+                    shortage: block_max,
+                });
+                block_start = slot_idx;
+                block_max = shortage;
+                prev_slot = slot_idx;
+            }
+        }
+        blocks.push(CoverageGapBlock {
+            start_time: slot_start_time(block_start),
+            end_time: slot_end_time(prev_slot),
+            shortage: block_max,
+        });
+
+        // Wrap-around merge: if last block ends at 00:00 and first starts at 00:00,
+        // they're actually one continuous overnight block
+        if blocks.len() >= 2 {
+            let last_ends_midnight = blocks.last().unwrap().end_time == "00:00";
+            let first_starts_midnight = blocks[0].start_time == "00:00";
+            if last_ends_midnight && first_starts_midnight {
+                let first_end = blocks[0].end_time.clone();
+                let first_shortage = blocks[0].shortage;
+                let last = blocks.last_mut().unwrap();
+                last.end_time = first_end;
+                last.shortage = last.shortage.max(first_shortage);
+                blocks.remove(0);
+            }
+        }
+
+        result.push(ClassificationGapBlocks {
+            classification_id: *class_id,
+            classification_abbreviation: abbreviation.clone(),
+            blocks,
+        });
+    }
+
+    // Sort by abbreviation for consistent display
+    result.sort_by(|a, b| a.classification_abbreviation.cmp(&b.classification_abbreviation));
+
+    Ok(Json(result))
+}
+
+fn slot_start_time(slot: i16) -> String {
+    format!("{:02}:{:02}", slot / 2, (slot % 2) * 30)
+}
+
+fn slot_end_time(slot: i16) -> String {
+    if slot >= 47 {
+        "00:00".to_string()
+    } else {
+        slot_start_time(slot + 1)
+    }
 }
 
 // ── SMS OT Alert ─────────────────────────────────────────────────────────────
@@ -1951,15 +2074,22 @@ pub(crate) async fn resolve_plan_id(
     Ok(default)
 }
 
+/// Internal per-shift coverage result with per-classification breakdown.
+pub(crate) struct ShiftCoverageStatus {
+    pub status: String,
+    pub total_shortage: i32,
+    pub by_classification: Vec<crate::models::schedule::ClassificationCoverageDetail>,
+}
+
 /// Per-shift coverage status using per-classification gap analysis.
 ///
-/// Checks each classification independently against its minimum headcount:
-/// - status: "red" if any classification is below min, "green" if all met
-/// - total_shortage: sum of shortages across all classifications (how many more people are needed)
+/// For each classification within a shift, finds the worst single-slot shortage
+/// (max of `min_headcount - actual_headcount` at the same time slot). This avoids
+/// the old bug of comparing peak_min at one slot against min_actual at a different slot.
 pub(crate) fn coverage_status_per_shift(
     slot_coverage: &[SlotCoverage],
     shifts: &[(Uuid, time::Time, time::Time, bool)],
-) -> std::collections::HashMap<Uuid, (String, i32)> {
+) -> std::collections::HashMap<Uuid, ShiftCoverageStatus> {
     use std::collections::HashMap;
 
     // Index slot coverage by (classification_id, slot_index)
@@ -1968,9 +2098,13 @@ pub(crate) fn coverage_status_per_shift(
         by_key.insert((sc.classification_id, sc.slot_index), sc);
     }
 
-    // Collect distinct classification IDs
-    let class_ids: std::collections::HashSet<Uuid> =
-        slot_coverage.iter().map(|sc| sc.classification_id).collect();
+    // Collect distinct classification IDs with their abbreviations
+    let mut class_info: HashMap<Uuid, String> = HashMap::new();
+    for sc in slot_coverage {
+        class_info
+            .entry(sc.classification_id)
+            .or_insert_with(|| sc.classification_abbreviation.clone());
+    }
 
     let mut result = HashMap::new();
 
@@ -1990,35 +2124,45 @@ pub(crate) fn coverage_status_per_shift(
         };
         let end_slot = end_slot.clamp(0, 47).max(start_slot);
 
-        let mut is_short = false;
         let mut total_shortage: i32 = 0;
+        let mut by_classification = Vec::new();
 
-        for &class_id in &class_ids {
-            let mut peak_min: i16 = 0;
-            let mut min_actual: i32 = i32::MAX;
-            let mut has_data = false;
+        for (&class_id, abbreviation) in &class_info {
+            // Find the worst single-slot shortage for this classification
+            let mut worst_shortage: i32 = 0;
 
             for slot_idx in start_slot..=end_slot {
                 if let Some(sc) = by_key.get(&(class_id, slot_idx)) {
-                    has_data = true;
-                    peak_min = peak_min.max(sc.min_headcount);
-                    min_actual = min_actual.min(sc.actual_headcount);
+                    let slot_shortage = (sc.min_headcount as i32) - sc.actual_headcount;
+                    if slot_shortage > worst_shortage {
+                        worst_shortage = slot_shortage;
+                    }
                 }
             }
 
-            if !has_data || peak_min == 0 {
-                continue;
-            }
-
-            let shortage = (peak_min as i32) - min_actual;
-            if shortage > 0 {
-                total_shortage += shortage;
-                is_short = true;
+            if worst_shortage > 0 {
+                total_shortage += worst_shortage;
+                by_classification.push(
+                    crate::models::schedule::ClassificationCoverageDetail {
+                        classification_abbreviation: abbreviation.clone(),
+                        shortage: worst_shortage,
+                    },
+                );
             }
         }
 
-        let status = if is_short { "red" } else { "green" };
-        result.insert(template_id, (status.to_string(), total_shortage));
+        // Sort by shortage descending for consistent display
+        by_classification.sort_by(|a, b| b.shortage.cmp(&a.shortage));
+
+        let status = if total_shortage > 0 { "red" } else { "green" };
+        result.insert(
+            template_id,
+            ShiftCoverageStatus {
+                status: status.to_string(),
+                total_shortage,
+                by_classification,
+            },
+        );
     }
 
     result

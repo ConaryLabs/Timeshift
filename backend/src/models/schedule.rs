@@ -189,6 +189,22 @@ pub struct ClassificationGap {
     pub shortage: i16,
 }
 
+// -- Block-level coverage gaps (contiguous time ranges per classification) --
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CoverageGapBlock {
+    pub start_time: String,
+    pub end_time: String,
+    pub shortage: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ClassificationGapBlocks {
+    pub classification_id: Uuid,
+    pub classification_abbreviation: String,
+    pub blocks: Vec<CoverageGapBlock>,
+}
+
 // -- Schedule Annotations --
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -220,6 +236,14 @@ pub struct AnnotationQuery {
     pub end_date: time::Date,
 }
 
+// -- Per-classification coverage detail (included in API responses) --
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClassificationCoverageDetail {
+    pub classification_abbreviation: String,
+    pub shortage: i32,
+}
+
 // -- Grid View Types --
 
 #[derive(Debug, Serialize)]
@@ -232,6 +256,8 @@ pub struct GridCell {
     pub leave_count: i64,
     pub coverage_required: i32,
     pub coverage_actual: i32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub coverage_by_classification: Vec<ClassificationCoverageDetail>,
 }
 
 #[derive(Debug, Serialize)]
@@ -264,6 +290,8 @@ pub struct DayViewEntry {
     pub coverage_required: i32,
     pub coverage_actual: i32,
     pub coverage_status: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub coverage_by_classification: Vec<ClassificationCoverageDetail>,
 }
 
 // -- Day Grid Types (coverage day view with employee-level detail) --
