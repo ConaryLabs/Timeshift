@@ -1,5 +1,5 @@
 import { format } from 'date-fns'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   ClipboardList,
   Phone,
@@ -17,6 +17,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { useDashboard } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/format'
+import type { ClassificationCoverageDetail } from '@/api/schedule'
 
 function contrastText(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16)
@@ -170,9 +171,10 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         {entry.assignments.map((a) => (
-                          <span
+                          <Link
                             key={a.assignment_id}
-                            className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
+                            to={`/admin/users/${a.user_id}`}
+                            className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium hover:ring-1 hover:ring-white/50 transition-shadow"
                             style={{
                               backgroundColor: entry.shift_color,
                               color: contrastText(entry.shift_color),
@@ -182,7 +184,7 @@ export default function DashboardPage() {
                             {a.is_overtime && (
                               <span className="ml-0.5 font-bold">OT</span>
                             )}
-                          </span>
+                          </Link>
                         ))}
                       </div>
                     </div>
@@ -191,6 +193,7 @@ export default function DashboardPage() {
                         actual={entry.coverage_actual}
                         required={entry.coverage_required}
                         status={entry.coverage_status}
+                        byClassification={entry.coverage_by_classification}
                       />
                     </div>
                   </div>
@@ -245,10 +248,12 @@ function CoverageIndicator({
   actual,
   required,
   status,
+  byClassification,
 }: {
   actual: number
   required: number
   status: string
+  byClassification?: ClassificationCoverageDetail[]
 }) {
   return (
     <div className="flex flex-col items-end">
@@ -262,7 +267,20 @@ function CoverageIndicator({
       >
         {actual}/{required}
       </span>
-      <span className="text-[10px] text-muted-foreground">staff</span>
+      {byClassification && byClassification.length > 0 ? (
+        <div className="flex items-center gap-1 mt-0.5">
+          {byClassification.map((c) => (
+            <span
+              key={c.classification_abbreviation}
+              className="text-[9px] font-medium text-red-600 dark:text-red-400"
+            >
+              {c.classification_abbreviation}&nbsp;−{c.shortage}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-[10px] text-muted-foreground">staff</span>
+      )}
     </div>
   )
 }

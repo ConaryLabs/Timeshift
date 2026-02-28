@@ -196,6 +196,7 @@ export {
   useDeleteCoveragePlanAssignment,
   useResolvedCoverage,
   useCoverageGaps,
+  useCoverageGapBlocks,
   useSendSmsAlert,
   useDayGrid,
 } from './useCoverage'

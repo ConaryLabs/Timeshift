@@ -48,6 +48,7 @@ export const queryKeys = {
     assignments: ['coverage-plans', 'assignments'] as const,
     resolved: (date: string) => ['coverage-plans', 'resolved', date] as const,
     gaps: (date: string) => ['coverage-plans', 'gaps', date] as const,
+    gapBlocks: (date: string) => ['coverage-plans', 'gap-blocks', date] as const,
     dayGrid: (date: string) => ['coverage-plans', 'day-grid', date] as const,
   },
   periods: {

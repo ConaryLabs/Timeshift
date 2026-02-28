@@ -841,8 +841,8 @@ async fn day_view_reflects_coverage_plan() {
         .expect("Should find Day Shift entry");
 
     assert_eq!(
-        day_shift["coverage_required"], 3,
-        "Day Shift should pick up target=3 from the overlapping plan slot"
+        day_shift["coverage_required"], 1,
+        "Day Shift should pick up min_headcount=1 from the overlapping plan slot"
     );
     assert_eq!(day_shift["coverage_actual"], 0);
     assert_eq!(day_shift["coverage_status"], "red");

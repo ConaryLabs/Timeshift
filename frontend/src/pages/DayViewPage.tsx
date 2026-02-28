@@ -16,6 +16,7 @@ import { useDayView, useAnnotations, useCreateAnnotation } from '@/hooks/queries
 import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/format'
+import type { ClassificationCoverageDetail } from '@/api/schedule'
 
 function contrastText(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16)
@@ -165,6 +166,7 @@ export default function DayViewPage() {
                         actual={entry.coverage_actual}
                         required={entry.coverage_required}
                         status={entry.coverage_status}
+                        byClassification={entry.coverage_by_classification}
                       />
                     </button>
                   ) : (
@@ -172,6 +174,7 @@ export default function DayViewPage() {
                       actual={entry.coverage_actual}
                       required={entry.coverage_required}
                       status={entry.coverage_status}
+                      byClassification={entry.coverage_by_classification}
                     />
                   )}
                   {isManager && entry.coverage_status === 'red' && (
@@ -203,13 +206,15 @@ export default function DayViewPage() {
                   <div className="absolute inset-0 flex items-center px-2 gap-1">
                     {entry.assignments.map((a) => {
                       const badge = (
-                        <span
+                        <Link
                           key={a.assignment_id}
-                          className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium shrink-0"
+                          to={`/admin/users/${a.user_id}`}
+                          className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium shrink-0 hover:ring-2 hover:ring-white/50 transition-shadow"
                           style={{
                             backgroundColor: entry.shift_color,
                             color: contrastText(entry.shift_color),
                           }}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           {a.last_name}, {a.first_name?.[0] ?? ''}
                           {a.classification_abbreviation && (
@@ -221,7 +226,7 @@ export default function DayViewPage() {
                             <span className="font-bold text-[10px] ml-0.5">OT</span>
                           )}
                           {a.notes && <StickyNote className="h-2.5 w-2.5 ml-0.5 opacity-70" />}
-                        </span>
+                        </Link>
                       )
                       return a.notes ? (
                         <Tooltip key={a.assignment_id}>
@@ -298,10 +303,12 @@ function CoverageIndicator({
   actual,
   required,
   status,
+  byClassification,
 }: {
   actual: number
   required: number
   status: string
+  byClassification?: ClassificationCoverageDetail[]
 }) {
   if (required === 0 && actual === 0) {
     return (
@@ -310,17 +317,31 @@ function CoverageIndicator({
   }
 
   return (
-    <div
-      className={cn(
-        'flex items-center gap-1.5 px-2 py-1 rounded-md text-sm font-medium',
-        status === 'green' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-        status === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    <div className="flex items-center gap-1.5">
+      <div
+        className={cn(
+          'flex items-center gap-1.5 px-2 py-1 rounded-md text-sm font-medium',
+          status === 'green' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+          status === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+        )}
+      >
+        {status === 'red' && <AlertTriangle className="h-3.5 w-3.5" />}
+        <span>
+          {actual}/{required}
+        </span>
+      </div>
+      {byClassification && byClassification.length > 0 && (
+        <div className="flex items-center gap-1">
+          {byClassification.map((c) => (
+            <span
+              key={c.classification_abbreviation}
+              className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
+            >
+              {c.classification_abbreviation} −{c.shortage}
+            </span>
+          ))}
+        </div>
       )}
-    >
-      {status === 'red' && <AlertTriangle className="h-3.5 w-3.5" />}
-      <span>
-        {actual}/{required}
-      </span>
     </div>
   )
 }

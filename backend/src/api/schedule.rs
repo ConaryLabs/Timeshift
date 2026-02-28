@@ -8,7 +8,7 @@ use uuid::Uuid;
 use std::collections::HashMap;
 
 use crate::{
-    api::coverage_plans::{compute_slot_coverage, compute_slot_coverage_batch, coverage_status_per_shift},
+    api::coverage_plans::{compute_slot_coverage, compute_slot_coverage_batch, coverage_status_per_shift, ShiftCoverageStatus},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -622,6 +622,7 @@ pub async fn grid(
                 leave_count: *leave_map.get(&r.date).unwrap_or(&0),
                 coverage_required: 0,
                 coverage_actual: 0,
+                coverage_by_classification: Vec::new(),
             }
         });
 
@@ -649,7 +650,7 @@ pub async fn grid(
         .collect();
     let slot_coverage_batch =
         compute_slot_coverage_batch(&pool, auth.org_id, &unique_dates).await?;
-    let mut date_coverage: HashMap<time::Date, HashMap<Uuid, (String, i32)>> = HashMap::new();
+    let mut date_coverage: HashMap<time::Date, HashMap<Uuid, ShiftCoverageStatus>> = HashMap::new();
     for (d, slot_coverage) in slot_coverage_batch {
         if !slot_coverage.is_empty() {
             let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
@@ -659,8 +660,9 @@ pub async fn grid(
 
     for ((date, _), cell) in cells_map.iter_mut() {
         if let Some(status_map) = date_coverage.get(date) {
-            if let Some((_status, shortage)) = status_map.get(&cell.shift_template_id) {
-                cell.coverage_required = cell.coverage_actual + shortage;
+            if let Some(shift_status) = status_map.get(&cell.shift_template_id) {
+                cell.coverage_required = cell.coverage_actual + shift_status.total_shortage;
+                cell.coverage_by_classification = shift_status.by_classification.clone();
             }
         }
     }
@@ -753,10 +755,14 @@ pub async fn day_view(
         .map(|t| {
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
-            let (status, shortage) = status_map
-                .get(&t.id)
-                .cloned()
-                .unwrap_or_else(|| ("green".to_string(), 0));
+            let (status, shortage, by_classification) = match status_map.get(&t.id) {
+                Some(s) => (
+                    s.status.clone(),
+                    s.total_shortage,
+                    s.by_classification.clone(),
+                ),
+                None => ("green".to_string(), 0, Vec::new()),
+            };
             // coverage_required = actual + shortage so "8/11" means 8 assigned, need 3 more
             let required = actual + shortage;
 
@@ -771,6 +777,7 @@ pub async fn day_view(
                 coverage_required: required,
                 coverage_actual: actual,
                 coverage_status: status,
+                coverage_by_classification: by_classification,
             }
         })
         .collect();
@@ -853,10 +860,14 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         .map(|t| {
             let assigns = assignment_map.remove(&t.id).unwrap_or_default();
             let actual = assigns.len() as i32;
-            let (status, shortage) = status_map
-                .get(&t.id)
-                .cloned()
-                .unwrap_or_else(|| ("green".to_string(), 0));
+            let (status, shortage, by_classification) = match status_map.get(&t.id) {
+                Some(s) => (
+                    s.status.clone(),
+                    s.total_shortage,
+                    s.by_classification.clone(),
+                ),
+                None => ("green".to_string(), 0, Vec::new()),
+            };
             let required = actual + shortage;
 
             DayViewEntry {
@@ -870,6 +881,7 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
                 coverage_required: required,
                 coverage_actual: actual,
                 coverage_status: status,
+                coverage_by_classification: by_classification,
             }
         })
         .collect();

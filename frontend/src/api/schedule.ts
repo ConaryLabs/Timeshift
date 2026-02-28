@@ -49,6 +49,11 @@ export interface GridAssignment {
   notes?: string | null
 }
 
+export interface ClassificationCoverageDetail {
+  classification_abbreviation: string
+  shortage: number
+}
+
 export interface GridCell {
   date: string
   shift_template_id: string
@@ -58,6 +63,7 @@ export interface GridCell {
   leave_count: number
   coverage_required: number
   coverage_actual: number
+  coverage_by_classification?: ClassificationCoverageDetail[]
 }
 
 export interface DayViewEntry {
@@ -71,6 +77,7 @@ export interface DayViewEntry {
   coverage_required: number
   coverage_actual: number
   coverage_status: 'green' | 'yellow' | 'red'
+  coverage_by_classification?: ClassificationCoverageDetail[]
 }
 
 export interface ScheduleAnnotation {

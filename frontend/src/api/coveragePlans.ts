@@ -70,6 +70,20 @@ export interface ClassificationGap {
   shortage: number
 }
 
+// -- Block-level gaps (contiguous time ranges per classification) --
+
+export interface CoverageGapBlock {
+  start_time: string
+  end_time: string
+  shortage: number
+}
+
+export interface ClassificationGapBlocks {
+  classification_id: string
+  classification_abbreviation: string
+  blocks: CoverageGapBlock[]
+}
+
 // -- Day Grid types --
 
 export interface BlockEmployee {
@@ -154,6 +168,9 @@ export const coveragePlansApi = {
 
   getGaps: (date: string) =>
     api.get<ClassificationGap[]>(`/api/coverage-plans/gaps/${date}`).then((r) => r.data),
+
+  getGapBlocks: (date: string) =>
+    api.get<ClassificationGapBlocks[]>(`/api/coverage-plans/gaps/${date}/blocks`).then((r) => r.data),
 
   sendSmsAlert: (date: string, body?: { classification_id?: string }) =>
     api.post<SmsAlertResult>(`/api/coverage-plans/gaps/${date}/sms-alert`, body ?? {}).then((r) => r.data),
