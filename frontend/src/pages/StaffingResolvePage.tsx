@@ -348,7 +348,7 @@ export default function StaffingResolvePage() {
     classification_abbreviation: selectedBlock.classificationAbbr,
     shift_template_id: '', // not used by MandatoryOTDialog for the block flow
     shift_name: `${selectedBlock.blockStart}-${selectedBlock.blockEnd}`,
-    shift_color: 'var(--destructive)',
+    shift_color: '#dc2626',
     target: selectedBlock.min,
     actual: selectedBlock.actual as unknown as number,
     shortage,
