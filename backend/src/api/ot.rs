@@ -414,26 +414,14 @@ pub async fn advance_step(
         ));
     }
 
-    // CBA (VCCEA Article 15): Callout steps must follow strict ordering:
+    // CBA (VCCEA Article 15): Callout steps follow this ordering:
     // 1. Volunteers → 2. Low OT Hours → 3. Inverse Seniority → 4. Equal OT Hours → 5. Mandatory
-    // Mandatory OT (step 5) is the last resort after exhausting all voluntary options.
-    let expected = match event.current_step {
-        None => CalloutStep::Volunteers,
-        Some(CalloutStep::Volunteers) => CalloutStep::LowOtHours,
-        Some(CalloutStep::LowOtHours) => CalloutStep::InverseSeniority,
-        Some(CalloutStep::InverseSeniority) => CalloutStep::EqualOtHours,
-        Some(CalloutStep::EqualOtHours) => CalloutStep::Mandatory,
-        Some(CalloutStep::Mandatory) => {
-            return Err(AppError::BadRequest(
-                "All callout steps have been completed".into(),
-            ))
-        }
-    };
-    if req.step != expected {
-        return Err(AppError::BadRequest(format!(
-            "Next step must be {:?}; got {:?}",
-            expected, req.step
-        )));
+    // Supervisors can move forward or backward between steps as needed
+    // (e.g., revisit volunteers after checking low OT hours).
+    if event.current_step.as_ref() == Some(&req.step) {
+        return Err(AppError::BadRequest(
+            "Already on that step".into(),
+        ));
     }
 
     sqlx::query!(

@@ -181,16 +181,21 @@ export default function CalloutPage() {
     return null
   }
 
-  function handleAdvanceStep() {
+  function getPrevStep(): CalloutStep | null {
+    if (!currentStep) return null
+    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
+    if (idx > 0) return CALLOUT_STEPS[idx - 1].key
+    return null
+  }
+
+  function handleSetStep(step: CalloutStep) {
     if (!effectiveSelectedEvent) return
-    const next = getNextStep()
-    if (!next) return
     advanceStepMut.mutate(
-      { eventId: effectiveSelectedEvent, step: next },
+      { eventId: effectiveSelectedEvent, step },
       {
-        onSuccess: () => toast.success('Advanced to next step'),
+        onSuccess: () => toast.success(`Moved to ${CALLOUT_STEPS.find((s) => s.key === step)?.label}`),
         onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Failed to advance step')
+          const msg = extractApiError(err, 'Failed to change step')
           toast.error(msg)
         },
       },
@@ -440,11 +445,21 @@ export default function CalloutPage() {
 
               {/* Controls row */}
               <div className="flex items-center gap-2 mb-4">
+                {isManager && getPrevStep() && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSetStep(getPrevStep()!)}
+                    disabled={advanceStepMut.isPending}
+                  >
+                    Back to: {CALLOUT_STEPS.find((s) => s.key === getPrevStep())?.label}
+                  </Button>
+                )}
                 {isManager && getNextStep() && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={handleAdvanceStep}
+                    onClick={() => handleSetStep(getNextStep()!)}
                     disabled={advanceStepMut.isPending}
                   >
                     Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
