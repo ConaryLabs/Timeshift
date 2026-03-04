@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO duty_assignments (id, org_id, duty_position_id, user_id, date, block_index, status, assigned_by)\n                VALUES ($1, $2, $3, NULL, $4, $5, 'ot_needed', $6)\n                ON CONFLICT (duty_position_id, date, block_index)\n                DO UPDATE SET user_id = NULL, status = 'ot_needed', assigned_by = $6, updated_at = NOW()\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Int2",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e681ee9720782bb1792a64fdf6744c96a96cccc725d16099b0fe185aa11f70fa"
+}

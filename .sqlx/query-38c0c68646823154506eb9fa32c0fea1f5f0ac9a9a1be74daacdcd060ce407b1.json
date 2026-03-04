@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            lt.code AS leave_type_code,\n            lt.name AS leave_type_name,\n            COUNT(lr.id) AS \"total_requests!\",\n            COUNT(lr.id) FILTER (WHERE lr.status = 'approved') AS \"approved_count!\",\n            COUNT(lr.id) FILTER (WHERE lr.status = 'denied') AS \"denied_count!\",\n            COUNT(lr.id) FILTER (WHERE lr.status = 'pending') AS \"pending_count!\",\n            CAST(COALESCE(SUM(lr.hours) FILTER (WHERE lr.status = 'approved'), 0) AS FLOAT8) AS \"total_hours!\"\n        FROM leave_requests lr\n        JOIN leave_types lt ON lt.id = lr.leave_type_id\n        JOIN users u ON u.id = lr.user_id\n        WHERE u.org_id = $1\n          AND lr.org_id = $1\n          AND lr.start_date <= $3\n          AND lr.end_date >= $2\n        GROUP BY lt.id, lt.code, lt.name\n        ORDER BY lt.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "leave_type_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "leave_type_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "total_requests!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "approved_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "denied_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "pending_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "total_hours!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "38c0c68646823154506eb9fa32c0fea1f5f0ac9a9a1be74daacdcd060ce407b1"
+}

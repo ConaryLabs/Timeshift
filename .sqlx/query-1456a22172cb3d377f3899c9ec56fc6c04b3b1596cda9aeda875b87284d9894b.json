@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, duty_position_id, day_of_week, open_time, close_time, crosses_midnight\n        FROM duty_position_hours\n        WHERE duty_position_id = $1\n        ORDER BY day_of_week\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "duty_position_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "day_of_week",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "open_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "close_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "crosses_midnight",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1456a22172cb3d377f3899c9ec56fc6c04b3b1596cda9aeda875b87284d9894b"
+}

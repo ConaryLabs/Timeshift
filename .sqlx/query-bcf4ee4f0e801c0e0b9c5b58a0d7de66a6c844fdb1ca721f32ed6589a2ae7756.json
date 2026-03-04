@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO saved_filters (id, org_id, user_id, name, page, filters, is_default)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        RETURNING id, org_id, user_id, name, page, filters, is_default, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "page",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "filters",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_default",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Jsonb",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bcf4ee4f0e801c0e0b9c5b58a0d7de66a6c844fdb1ca721f32ed6589a2ae7756"
+}

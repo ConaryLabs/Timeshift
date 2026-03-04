@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT category AS \"category?\" FROM leave_types WHERE id = $1 AND org_id = $2 AND is_active = true",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "7cffff19a2168417b4fc8c2029e857fd59beb6e2cb09cbc8bbe3a7029ca8c036"
+}

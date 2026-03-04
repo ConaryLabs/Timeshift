@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM trade_requests\n            WHERE (requester_assignment_id = ANY(ARRAY[$1::uuid, $2::uuid])\n                OR partner_assignment_id = ANY(ARRAY[$1::uuid, $2::uuid]))\n              AND status IN ('pending_partner', 'pending_approval')\n              AND org_id = $3\n        ) AS \"exists!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d5dcc5361e5ecc1787f9fd8e22261e126087bfb202e4fa18407b98a66ba1a65a"
+}

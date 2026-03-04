@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE callout_events\n        SET current_step = $2::callout_step, step_started_at = NOW(), updated_at = NOW()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "callout_step",
+            "kind": {
+              "Enum": [
+                "volunteers",
+                "low_ot_hours",
+                "inverse_seniority",
+                "equal_ot_hours",
+                "mandatory"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "75c307b1b93ede96cf6509d6fae2e88a0965c986aad31cf069e46b278ff99195"
+}

@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH eligible AS (\n            SELECT\n                u.id,\n                u.employee_id,\n                u.first_name,\n                u.last_name,\n                u.phone,\n                u.classification_id,\n                u.medical_ot_exempt,\n                cl.abbreviation AS classification_abbreviation,\n                sr.overall_seniority_date,\n                COALESCE(ot.hours_worked, 0.0)::FLOAT8 AS ot_hours,\n                oq.last_ot_event_at,\n                -- Blocking: already assigned to this shift\n                EXISTS (\n                    SELECT 1 FROM assignments a\n                    WHERE a.user_id = u.id AND a.scheduled_shift_id = $1\n                      AND a.cancelled_at IS NULL\n                ) AS is_already_scheduled,\n                -- Blocking: assigned to an OT request on this date\n                EXISTS (\n                    SELECT 1 FROM ot_request_assignments ora\n                    JOIN ot_requests otr ON otr.id = ora.ot_request_id\n                    WHERE ora.user_id = u.id\n                      AND otr.org_id = $2\n                      AND otr.date = $8::DATE\n                      AND ora.cancelled_at IS NULL\n                      AND otr.status != 'cancelled'\n                ) AS is_assigned_ot,\n                -- Blocking: on approved leave that overlaps the shift\n                EXISTS (\n                    SELECT 1 FROM leave_requests lr\n                    WHERE lr.user_id = u.id\n                      AND lr.org_id = $2\n                      AND lr.status = 'approved'\n                      AND lr.start_date <= $8::DATE\n                      AND lr.end_date   >= $8::DATE\n                      -- Exclude non-overlapping partial-day leave\n                      AND NOT (\n                          EXISTS (\n                              SELECT 1 FROM leave_request_lines lrl\n                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                                AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                          )\n                          AND NOT EXISTS (\n                              SELECT 1 FROM leave_request_lines lrl\n                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                                AND (lrl.start_time IS NULL OR lrl.end_time IS NULL)\n                          )\n                          AND NOT EXISTS (\n                              SELECT 1 FROM leave_request_lines lrl\n                              CROSS JOIN LATERAL (\n                                  SELECT\n                                      EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                          + EXTRACT(MINUTE FROM lrl.start_time)::INT AS ls,\n                                      CASE\n                                          WHEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                              <= EXTRACT(HOUR FROM lrl.start_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.start_time)::INT\n                                          THEN EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT + 1440\n                                          ELSE EXTRACT(HOUR FROM lrl.end_time)::INT * 60\n                                                  + EXTRACT(MINUTE FROM lrl.end_time)::INT\n                                      END AS le\n                              ) t\n                              WHERE lrl.leave_request_id = lr.id AND lrl.date = $8::DATE\n                                AND lrl.start_time IS NOT NULL AND lrl.end_time IS NOT NULL\n                                AND (\n                                    (t.ls < $6 AND t.le > $7)\n                                    OR (t.ls + 1440 < $6 AND t.le + 1440 > $7)\n                                )\n                          )\n                      )\n                ) AS is_on_leave\n            FROM users u\n            LEFT JOIN classifications cl ON cl.id = u.classification_id\n            LEFT JOIN seniority_records sr ON sr.user_id = u.id\n            LEFT JOIN ot_hours ot ON ot.user_id = u.id\n                AND ot.fiscal_year = $3\n                AND ot.classification_id = $4\n            LEFT JOIN ot_queue_positions oq ON\n                oq.org_id = $2\n                AND oq.user_id = u.id\n                AND oq.fiscal_year = $3\n                AND oq.classification_id = u.classification_id\n            WHERE u.is_active = true AND u.employee_status = 'active' AND u.org_id = $2\n              AND ($5 OR u.classification_id = $4)\n              AND u.classification_id IS NOT NULL\n        )\n        SELECT\n            e.id,\n            e.employee_id,\n            e.first_name,\n            e.last_name,\n            e.phone AS \"phone?\",\n            (e.classification_id IS DISTINCT FROM $4) AS \"is_cross_class!: bool\",\n            e.classification_abbreviation AS \"classification_abbreviation?\",\n            e.overall_seniority_date AS \"overall_seniority_date?\",\n            e.ot_hours,\n            (NOT e.medical_ot_exempt AND NOT e.is_already_scheduled\n                AND NOT e.is_assigned_ot AND NOT e.is_on_leave) AS is_available,\n            CASE\n                WHEN e.medical_ot_exempt THEN 'Medical OT exempt'\n                WHEN e.is_already_scheduled THEN 'Already scheduled'\n                WHEN e.is_assigned_ot THEN 'Assigned to OT'\n                WHEN e.is_on_leave THEN 'On approved leave'\n                ELSE NULL\n            END AS unavailable_reason\n        FROM eligible e\n        ORDER BY\n            (e.classification_id = $4) DESC,\n            (NOT e.medical_ot_exempt AND NOT e.is_already_scheduled\n                AND NOT e.is_assigned_ot AND NOT e.is_on_leave) DESC,\n            e.last_ot_event_at ASC NULLS FIRST,\n            e.ot_hours ASC,\n            -- Tie-breaker: inverse seniority (least senior = most recent hire date first;\n            -- NULL seniority = no date = least senior = highest OT priority)\n            e.overall_seniority_date DESC NULLS FIRST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "phone?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_cross_class!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "classification_abbreviation?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "overall_seniority_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "ot_hours",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_available",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "unavailable_reason",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Uuid",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      null,
+      false,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "23f5e43f2e291883a53ce4a645ab29df762b4fa8df1a8ec0a09085429b576150"
+}

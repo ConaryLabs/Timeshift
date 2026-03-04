@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            sl.id AS slot_id,\n            t.name AS team_name,\n            st.name AS shift_template_name,\n            st.start_time,\n            st.end_time,\n            cl.name AS classification_name,\n            cl.abbreviation AS classification_abbreviation,\n            sl.days_of_week,\n            sl.label,\n            CASE WHEN sa.id IS NOT NULL THEN true ELSE false END AS \"already_awarded!\",\n            sl.is_flex AS \"is_flex!\"\n        FROM shift_slots sl\n        JOIN teams t ON t.id = sl.team_id\n        JOIN shift_templates st ON st.id = sl.shift_template_id\n        JOIN classifications cl ON cl.id = sl.classification_id\n        LEFT JOIN slot_assignments sa ON sa.slot_id = sl.id AND sa.period_id = $2\n        WHERE t.org_id = $1\n          AND t.is_active = true\n          AND sl.is_active = true\n        ORDER BY t.name, st.start_time, cl.abbreviation\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slot_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "team_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "shift_template_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "classification_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "classification_abbreviation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "days_of_week",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 8,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "already_awarded!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_flex!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "5facc1ad474aa078209e142957ece3a84df00fd080ecd785178377b05001ae3d"
+}

@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO org_settings (id, org_id, key, value, updated_at)\n        VALUES ($1, $2, $3, $4, NOW())\n        ON CONFLICT (org_id, key) DO UPDATE\n        SET value = $4, updated_at = NOW()\n        RETURNING id, org_id, key, value, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "key",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ec52f3a8ed088d8a31732cd8ce104e7e857faa64b421f7f0000100a7d4b0e7de"
+}

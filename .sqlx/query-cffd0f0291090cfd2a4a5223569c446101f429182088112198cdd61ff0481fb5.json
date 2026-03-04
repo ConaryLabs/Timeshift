@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT start_date, end_date FROM schedule_periods WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "start_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "end_date",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "cffd0f0291090cfd2a4a5223569c446101f429182088112198cdd61ff0481fb5"
+}

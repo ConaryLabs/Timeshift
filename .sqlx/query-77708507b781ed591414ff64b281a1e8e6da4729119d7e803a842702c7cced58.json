@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT bu.sellback_annual_cap AS \"cap?\"\n        FROM users u\n        LEFT JOIN bargaining_units bu ON bu.org_id = u.org_id AND bu.code = u.bargaining_unit AND bu.is_active = true\n        WHERE u.id = $1 AND u.org_id = $2 AND u.is_active = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cap?",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "77708507b781ed591414ff64b281a1e8e6da4729119d7e803a842702c7cced58"
+}

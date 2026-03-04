@@ -1,0 +1,104 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, org_id, user_id, notification_type, title, message,\n               link, source_type, source_id, is_read, created_at, read_at,\n               COUNT(*) OVER() AS \"total!\",\n               COUNT(*) FILTER (WHERE is_read = FALSE) OVER() AS \"unread_count!\"\n        FROM notifications\n        WHERE user_id = $1 AND org_id = $2\n          AND (NOT $3::BOOL OR is_read = FALSE)\n        ORDER BY created_at DESC\n        LIMIT $4 OFFSET $5\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "notification_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "link",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "source_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "source_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_read",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "read_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "unread_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "92d96dab72ccfa807dc2688ac441be7ac7fd008b9d1135e4f668bf1c6474668c"
+}

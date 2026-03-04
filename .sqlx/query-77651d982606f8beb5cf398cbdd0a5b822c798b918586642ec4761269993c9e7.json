@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            cp.id,\n            cp.org_id,\n            cp.name,\n            cp.description,\n            cp.is_default,\n            cp.is_active,\n            cp.created_by,\n            cp.created_at,\n            cp.updated_at,\n            COUNT(DISTINCT cps.id) AS \"slot_count!\",\n            COUNT(DISTINCT cpa.id) AS \"assignment_count!\"\n        FROM coverage_plans cp\n        LEFT JOIN coverage_plan_slots       cps ON cps.plan_id = cp.id\n        LEFT JOIN coverage_plan_assignments cpa ON cpa.plan_id = cp.id\n        WHERE cp.org_id = $1\n        GROUP BY cp.id\n        ORDER BY cp.is_default DESC, cp.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_default",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "slot_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "assignment_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "77651d982606f8beb5cf398cbdd0a5b822c798b918586642ec4761269993c9e7"
+}

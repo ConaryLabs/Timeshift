@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT a.user_id FROM assignments a\n        WHERE a.scheduled_shift_id = $1 AND a.user_id = $2\n          AND a.is_overtime = true AND a.cancelled_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a720a1c09cfca70740d6549a23edc38660d34ea21864d32dfddb8914d121e6fa"
+}

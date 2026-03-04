@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE leave_requests SET status = 'cancelled', updated_at = NOW()\n        WHERE user_id = $1 AND org_id = $2 AND status = 'approved' AND start_date > CURRENT_DATE\n        RETURNING id, leave_type_id, CAST(hours AS FLOAT8) AS \"hours!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "hours!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "f2ca6a0ce5ec858f7a292e232915097d19fc4ddab310f9aaf9dbbf27a8ad7504"
+}

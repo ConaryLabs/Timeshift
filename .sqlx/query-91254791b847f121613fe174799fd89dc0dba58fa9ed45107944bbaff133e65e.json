@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COALESCE(SUM(CAST(st.duration_minutes AS FLOAT8) / 60.0), 0.0) AS \"h!\"\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        WHERE a.user_id = $1\n          AND ss.org_id = $2\n          AND ss.date = $3\n          AND a.cancelled_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "h!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "91254791b847f121613fe174799fd89dc0dba58fa9ed45107944bbaff133e65e"
+}

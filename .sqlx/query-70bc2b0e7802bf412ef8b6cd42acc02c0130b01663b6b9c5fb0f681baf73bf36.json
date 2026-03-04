@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, start_time, end_time, crosses_midnight\n        FROM shift_templates\n        WHERE org_id = $1 AND is_active = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 2,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "crosses_midnight",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "70bc2b0e7802bf412ef8b6cd42acc02c0130b01663b6b9c5fb0f681baf73bf36"
+}

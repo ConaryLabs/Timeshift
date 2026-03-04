@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ce.id,\n               ce.status AS \"status: CalloutStatus\",\n               ce.current_step AS \"current_step?: CalloutStep\"\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.scheduled_shift_id = $1\n          AND ce.classification_id = $2\n          AND ce.status = 'open'\n          AND ss.org_id = $3\n        ORDER BY ce.created_at DESC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "status: CalloutStatus",
+        "type_info": {
+          "Custom": {
+            "name": "callout_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "current_step?: CalloutStep",
+        "type_info": {
+          "Custom": {
+            "name": "callout_step",
+            "kind": {
+              "Enum": [
+                "volunteers",
+                "low_ot_hours",
+                "inverse_seniority",
+                "equal_ot_hours",
+                "mandatory"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "699e5d0b277157f7966136c58ddb4c560d21acb13af837d104b12bca5cbf5ece"
+}

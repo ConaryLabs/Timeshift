@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            a.id, a.ot_request_id, a.user_id,\n            (u.first_name || ' ' || u.last_name) AS \"user_name!\",\n            a.ot_type,\n            a.assigned_by,\n            (ab.first_name || ' ' || ab.last_name) AS \"assigned_by_name!\",\n            a.assigned_at,\n            a.cancelled_at,\n            a.cancelled_by\n        FROM ot_request_assignments a\n        JOIN ot_requests r ON r.id = a.ot_request_id AND r.org_id = $2\n        JOIN users u ON u.id = a.user_id\n        JOIN users ab ON ab.id = a.assigned_by\n        WHERE a.ot_request_id = $1\n        ORDER BY a.assigned_at ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "ot_request_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "ot_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "assigned_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "assigned_by_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "assigned_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "cancelled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "cancelled_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d63003ba02e7b81e0c5e4b19c499f6d0d53544227e66560d181f90258a1e6fee"
+}

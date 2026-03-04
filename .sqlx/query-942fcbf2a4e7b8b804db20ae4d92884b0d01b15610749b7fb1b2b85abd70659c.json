@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT value::TEXT FROM org_settings WHERE org_id = $1 AND key = 'accrual_last_run_date'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "942fcbf2a4e7b8b804db20ae4d92884b0d01b15610749b7fb1b2b85abd70659c"
+}

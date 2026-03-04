@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT u.id, u.phone AS \"phone!\"\n        FROM users u\n        JOIN employee_preferences ep ON ep.user_id = u.id\n        WHERE u.org_id = $1\n          AND u.is_active = true\n          AND ep.notification_sms = true\n          AND u.phone IS NOT NULL\n          AND u.phone != ''\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phone!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "d0b0c1c7f2e7f1417777b352057c654180a2f3d8f040a8286b97bd9905c9c777"
+}

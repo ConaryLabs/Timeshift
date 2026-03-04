@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT bargaining_unit AS \"bargaining_unit?\" FROM schedule_periods WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bargaining_unit?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "860fca49a1e2b29409114b10b208c3cc7d46d6612c648f3bef0edfd1afdba21c"
+}

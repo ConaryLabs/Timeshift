@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ot_hours\n            (id, user_id, fiscal_year, classification_id, hours_worked, hours_declined)\n        VALUES (gen_random_uuid(), $1, $2, $3, $4::FLOAT8::NUMERIC, $5::FLOAT8::NUMERIC)\n        ON CONFLICT (user_id, fiscal_year,\n            COALESCE(classification_id,\n                     '00000000-0000-0000-0000-000000000000'::uuid))\n        DO UPDATE SET\n            hours_worked   = GREATEST(ot_hours.hours_worked   + $4::FLOAT8::NUMERIC, 0),\n            hours_declined = GREATEST(ot_hours.hours_declined + $5::FLOAT8::NUMERIC, 0),\n            updated_at     = NOW()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d948af324e974047eb6f5763c1ead699f4b69acef8b8caea637f1b0127c3ea17"
+}

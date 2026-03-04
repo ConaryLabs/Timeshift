@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ss.date, st.name AS shift_name, st.color AS shift_color,\n               st.start_time, st.end_time, st.crosses_midnight,\n               t.name AS \"team_name?\", a.position, a.is_overtime, a.is_trade, a.notes\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id\n        LEFT JOIN teams t ON t.id = sl.team_id\n        WHERE a.user_id = $1 AND ss.date > $2\n          AND ss.org_id = $3\n          AND a.cancelled_at IS NULL\n        ORDER BY ss.date, st.start_time\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "shift_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "shift_color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "crosses_midnight",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "team_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "position",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_overtime",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_trade",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "notes",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "222e0baa562a093e038f5d6a622185b6b5c9a67ef66225d538a52726e88eac5b"
+}

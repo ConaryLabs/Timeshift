@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE bid_windows SET unlocked_at = $3\n            WHERE period_id = $1 AND seniority_rank = $2 AND unlocked_at IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "00df132412495f437f1b0c4939034704aa7f8d05e47b02aca862876c438f8c81"
+}

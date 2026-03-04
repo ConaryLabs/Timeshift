@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE vacation_bids SET awarded = true WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "96175c3309f1df566caee62439226ec731b1484e9a2f103b8ec0286b2dbcbf6d"
+}

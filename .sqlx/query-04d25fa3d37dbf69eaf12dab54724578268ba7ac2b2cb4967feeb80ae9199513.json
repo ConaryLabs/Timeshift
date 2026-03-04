@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT CONCAT(t.name, ' - ', st.name) AS \"name!\"\n            FROM shift_slots ss\n            JOIN teams t ON t.id = ss.team_id\n            JOIN shift_templates st ON st.id = ss.shift_template_id\n            WHERE ss.id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "04d25fa3d37dbf69eaf12dab54724578268ba7ac2b2cb4967feeb80ae9199513"
+}

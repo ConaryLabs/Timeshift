@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            st.id              AS shift_template_id,\n            a.id               AS assignment_id,\n            u.id               AS user_id,\n            u.employee_id,\n            u.first_name,\n            u.last_name,\n            cl.abbreviation    AS \"classification_abbreviation?\",\n            a.is_overtime,\n            a.is_trade\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates st  ON st.id = ss.shift_template_id\n        JOIN users u             ON u.id  = a.user_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE ss.org_id = $1 AND ss.date = $2\n          AND a.cancelled_at IS NULL\n        ORDER BY st.start_time, u.last_name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "shift_template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "assignment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "employee_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "classification_abbreviation?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_overtime",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_trade",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0482f627898129d4b619f4898830d6389d7f7d099ca3a019ae027a197ac28c36"
+}

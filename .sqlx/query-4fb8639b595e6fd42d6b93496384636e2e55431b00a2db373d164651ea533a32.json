@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ce.id, ce.status AS \"status: CalloutStatus\"\n        FROM callout_events ce\n        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id\n        WHERE ce.id = $1 AND ss.org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "status: CalloutStatus",
+        "type_info": {
+          "Custom": {
+            "name": "callout_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4fb8639b595e6fd42d6b93496384636e2e55431b00a2db373d164651ea533a32"
+}

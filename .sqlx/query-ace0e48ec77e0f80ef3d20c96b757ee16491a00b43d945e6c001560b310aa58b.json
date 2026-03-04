@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT dpq.duty_position_id, q.name AS qualification_name\n        FROM duty_position_qualifications dpq\n        JOIN qualifications q ON q.id = dpq.qualification_id\n        WHERE dpq.duty_position_id = ANY($1)\n        ORDER BY q.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "duty_position_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "qualification_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ace0e48ec77e0f80ef3d20c96b757ee16491a00b43d945e6c001560b310aa58b"
+}
