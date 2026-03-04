@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.id, w.user_id, w.opens_at, w.closes_at,\n               p.round, p.org_id, p.status AS period_status,\n               p.allowance_hours, p.min_block_hours\n        FROM vacation_bid_windows w\n        JOIN vacation_bid_periods p ON p.id = w.vacation_bid_period_id\n        WHERE w.id = $1\n        FOR UPDATE OF w\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "opens_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "closes_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "period_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "allowance_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "min_block_hours",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "646a59499d1368da6b5fa6e86162f7af027713da1171e8b9c734c6cfc21e744a"
+}

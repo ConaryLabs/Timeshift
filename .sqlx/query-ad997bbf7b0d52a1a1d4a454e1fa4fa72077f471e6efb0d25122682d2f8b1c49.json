@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO trade_approvals (org_id, trade_id, supervisor_id)\n                VALUES ($1, $2, $3)\n                ON CONFLICT (trade_id, supervisor_id) DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad997bbf7b0d52a1a1d4a454e1fa4fa72077f471e6efb0d25122682d2f8b1c49"
+}

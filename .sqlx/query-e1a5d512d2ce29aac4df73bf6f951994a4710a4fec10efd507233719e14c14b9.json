@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE vacation_bid_periods\n        SET status = 'completed'\n        WHERE id = $1\n        RETURNING id, org_id, year, round, status,\n                  opens_at, closes_at, created_at,\n                  allowance_hours, min_block_hours,\n                  bargaining_unit\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "year",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "opens_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "closes_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "allowance_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "min_block_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "bargaining_unit",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e1a5d512d2ce29aac4df73bf6f951994a4710a4fec10efd507233719e14c14b9"
+}

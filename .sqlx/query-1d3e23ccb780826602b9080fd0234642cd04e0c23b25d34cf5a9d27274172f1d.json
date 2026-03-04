@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT lr.user_id AS \"user_id!\"\n        FROM leave_requests lr\n        LEFT JOIN leave_request_lines lrl ON lrl.leave_request_id = lr.id\n        WHERE lr.user_id = ANY($1)\n          AND lr.status = 'approved'\n          AND (\n            -- Full-day leave covering this date\n            (lr.start_date <= $2 AND lr.end_date >= $2 AND lrl.id IS NULL)\n            OR\n            -- Line-level leave on this date\n            (lrl.date = $2 AND (\n                lrl.start_time IS NULL\n                OR (\n                    CAST(EXTRACT(HOUR FROM lrl.start_time) * 60 + EXTRACT(MINUTE FROM lrl.start_time) AS INTEGER) < $4\n                    AND CAST(EXTRACT(HOUR FROM lrl.end_time) * 60 + EXTRACT(MINUTE FROM lrl.end_time) AS INTEGER) > $3\n                )\n            ))\n          )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Date",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1d3e23ccb780826602b9080fd0234642cd04e0c23b25d34cf5a9d27274172f1d"
+}

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.id, w.user_id\n        FROM vacation_bid_windows w\n        WHERE w.vacation_bid_period_id = $1\n        ORDER BY w.seniority_rank\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "600e5a998a74c8f3be31bc6968f6f7714e8d8abe1095cb1301076db9b53637f6"
+}

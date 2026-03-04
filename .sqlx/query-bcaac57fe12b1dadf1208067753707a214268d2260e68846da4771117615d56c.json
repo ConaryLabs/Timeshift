@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id AS user_id,\n            u.first_name,\n            u.last_name,\n            c.name AS \"classification_name?\",\n            ss.date,\n            CAST(COALESCE(st.duration_minutes, 0) AS FLOAT8) / 60.0 AS \"hours!\",\n            a.ot_type AS \"ot_type?\"\n        FROM assignments a\n        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n        JOIN shift_templates st ON st.id = ss.shift_template_id\n        JOIN users u ON u.id = a.user_id\n        LEFT JOIN classifications c ON c.id = u.classification_id\n        WHERE ss.org_id = $1\n          AND ss.date >= $2\n          AND ss.date <= $3\n          AND a.ot_type IS NOT NULL\n          AND a.cancelled_at IS NULL\n          AND ($4::uuid IS NULL OR u.classification_id = $4)\n        ORDER BY u.last_name, u.first_name, ss.date\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "classification_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "hours!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "ot_type?",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "bcaac57fe12b1dadf1208067753707a214268d2260e68846da4771117615d56c"
+}

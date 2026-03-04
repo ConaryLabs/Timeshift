@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ot_requests SET\n            status = $3,\n            updated_at = NOW()\n        WHERE id = $1 AND org_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "ot_request_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "partially_filled",
+                "filled",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "615855dd70eb0e53bdc99093f73891e569479ea8be12d9970a014e943b317e55"
+}

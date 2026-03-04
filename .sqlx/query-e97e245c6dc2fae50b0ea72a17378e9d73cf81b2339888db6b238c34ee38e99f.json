@@ -1,0 +1,138 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT tr.id, tr.org_id, tr.requester_id, tr.partner_id,\n               tr.requester_assignment_id, tr.partner_assignment_id,\n               tr.requester_date, tr.partner_date,\n               tr.status AS \"status: TradeStatus\",\n               tr.reviewed_by, tr.reviewer_notes,\n               tr.created_at, tr.updated_at,\n               ru.first_name || ' ' || ru.last_name AS \"requester_name!\",\n               pu.first_name || ' ' || pu.last_name AS \"partner_name!\"\n        FROM trade_requests tr\n        JOIN users ru ON ru.id = tr.requester_id\n        JOIN users pu ON pu.id = tr.partner_id\n        WHERE tr.org_id = $1\n          AND ($2 OR tr.requester_id = $3 OR tr.partner_id = $3)\n          AND ($4::trade_status IS NULL OR tr.status = $4)\n          AND ($5::uuid IS NULL OR tr.requester_id = $5 OR tr.partner_id = $5)\n        ORDER BY tr.created_at DESC\n        LIMIT $6 OFFSET $7\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "requester_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "partner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "requester_assignment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "partner_assignment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "requester_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "partner_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "status: TradeStatus",
+        "type_info": {
+          "Custom": {
+            "name": "trade_status",
+            "kind": {
+              "Enum": [
+                "pending_partner",
+                "pending_approval",
+                "approved",
+                "denied",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "reviewed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "reviewer_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "requester_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "partner_name!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "trade_status",
+            "kind": {
+              "Enum": [
+                "pending_partner",
+                "pending_approval",
+                "approved",
+                "denied",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "e97e245c6dc2fae50b0ea72a17378e9d73cf81b2339888db6b238c34ee38e99f"
+}

@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE holiday_sellback_requests\n        SET status = $2, reviewed_by = $3, reviewer_notes = $4, updated_at = NOW()\n        WHERE id = $1\n        RETURNING id, org_id, user_id, fiscal_year, period,\n                  CAST(hours_requested AS FLOAT8) AS \"hours_requested!\",\n                  status, reviewed_by, reviewer_notes, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "fiscal_year",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "period",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "hours_requested!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "reviewed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "reviewer_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "884253a4b0b4b7e7aeb9e72ddd6301121179e7087f4ca854ce20dde938319245"
+}

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT lrs.leave_type_id, CAST(lrs.hours AS FLOAT8) AS \"hours!\",\n                           lt.code AS leave_type_code,\n                           lt.category AS \"leave_type_category?\"\n                    FROM leave_request_segments lrs\n                    JOIN leave_types lt ON lt.id = lrs.leave_type_id\n                    WHERE lrs.leave_request_id = $1\n                    ORDER BY lrs.sort_order\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "hours!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "leave_type_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "leave_type_category?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      true
+    ]
+  },
+  "hash": "964cbec8311b2eb77705c721ea0141edc773c55457f1439b1a15e7b3467f60d4"
+}

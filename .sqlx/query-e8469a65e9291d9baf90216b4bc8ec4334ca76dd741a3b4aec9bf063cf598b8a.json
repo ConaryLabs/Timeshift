@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE schedule_periods SET status = 'completed' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e8469a65e9291d9baf90216b4bc8ec4334ca76dd741a3b4aec9bf063cf598b8a"
+}

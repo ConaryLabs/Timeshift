@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE trade_requests\n        SET status = $2, updated_at = NOW()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "trade_status",
+            "kind": {
+              "Enum": [
+                "pending_partner",
+                "pending_approval",
+                "approved",
+                "denied",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "14989e18e0e86f9c4f927e201e87fafe6b17c70aea6fd1f8d116c728c10ee6f8"
+}

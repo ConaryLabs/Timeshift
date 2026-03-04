@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pattern_days, work_days, off_days FROM shift_patterns WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pattern_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "work_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "off_days",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1c82b6f514894d3b46ac9c20ef50af36d3d0b4937b92fab287fdbb76ad96c999"
+}

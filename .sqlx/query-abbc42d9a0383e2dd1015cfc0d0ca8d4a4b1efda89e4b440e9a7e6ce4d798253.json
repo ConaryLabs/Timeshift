@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE callout_events SET status = 'filled', updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "abbc42d9a0383e2dd1015cfc0d0ca8d4a4b1efda89e4b440e9a7e6ce4d798253"
+}

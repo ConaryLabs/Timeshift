@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE accrual_schedules\n        SET hours_per_pay_period = CASE WHEN $2 THEN $3::FLOAT8::NUMERIC ELSE hours_per_pay_period END,\n            max_balance_hours    = CASE WHEN $4 THEN $5::FLOAT8::NUMERIC ELSE max_balance_hours END,\n            years_of_service_min = CASE WHEN $6 THEN $7 ELSE years_of_service_min END,\n            years_of_service_max = CASE WHEN $8 THEN $9 ELSE years_of_service_max END\n        WHERE id = $1 AND org_id = $10\n        RETURNING id, org_id, leave_type_id,\n                  employee_type::TEXT AS \"employee_type!\",\n                  bargaining_unit AS \"bargaining_unit?\",\n                  years_of_service_min,\n                  years_of_service_max,\n                  CAST(hours_per_pay_period AS FLOAT8) AS \"hours_per_pay_period!\",\n                  CAST(max_balance_hours AS FLOAT8) AS \"max_balance_hours?\",\n                  effective_date, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "leave_type_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "employee_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "bargaining_unit?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "years_of_service_min",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "years_of_service_max",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "hours_per_pay_period!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "max_balance_hours?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "effective_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Float8",
+        "Bool",
+        "Float8",
+        "Bool",
+        "Int4",
+        "Bool",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      true,
+      null,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "d0bfe10b5085b13c9a2980a2ff5b70446fb17ef53d42627b99ed486dde1992a8"
+}

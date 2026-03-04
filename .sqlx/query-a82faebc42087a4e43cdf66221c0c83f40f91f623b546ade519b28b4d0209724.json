@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT CAST(balance_hours AS FLOAT8) AS \"balance!\"\n                                 FROM leave_balances\n                                 WHERE user_id = $1 AND leave_type_id = $2\n                                 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "balance!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a82faebc42087a4e43cdf66221c0c83f40f91f623b546ade519b28b4d0209724"
+}

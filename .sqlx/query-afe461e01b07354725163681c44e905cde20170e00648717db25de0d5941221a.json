@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM duty_position_qualifications WHERE duty_position_id = $1 AND qualification_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "afe461e01b07354725163681c44e905cde20170e00648717db25de0d5941221a"
+}

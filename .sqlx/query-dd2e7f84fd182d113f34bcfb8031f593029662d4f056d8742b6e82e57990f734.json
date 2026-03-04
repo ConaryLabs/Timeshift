@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ot_volunteers (id, org_id, callout_event_id, user_id, volunteered_at)\n        VALUES (gen_random_uuid(), $1, $2, $3, NOW())\n        ON CONFLICT (callout_event_id, user_id) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dd2e7f84fd182d113f34bcfb8031f593029662d4f056d8742b6e82e57990f734"
+}

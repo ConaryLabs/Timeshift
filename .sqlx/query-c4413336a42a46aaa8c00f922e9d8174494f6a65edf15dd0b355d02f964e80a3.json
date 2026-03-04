@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT a.id, a.user_id\n            FROM assignments a\n            JOIN callout_attempts ca ON ca.event_id = $1\n                AND ca.user_id = a.user_id AND ca.response = 'accepted'\n            WHERE a.scheduled_shift_id = $2\n              AND a.is_overtime = true AND a.cancelled_at IS NULL\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c4413336a42a46aaa8c00f922e9d8174494f6a65edf15dd0b355d02f964e80a3"
+}

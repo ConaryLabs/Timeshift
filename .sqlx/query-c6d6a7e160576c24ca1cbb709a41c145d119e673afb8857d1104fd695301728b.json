@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE leave_requests\n        SET status         = $2,\n            reviewed_by    = $3,\n            reviewer_notes = $4,\n            updated_at     = NOW()\n        WHERE id = $1\n          AND status = 'pending'\n          AND org_id = $5\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "leave_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "approved",
+                "denied",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c6d6a7e160576c24ca1cbb709a41c145d119e673afb8857d1104fd695301728b"
+}

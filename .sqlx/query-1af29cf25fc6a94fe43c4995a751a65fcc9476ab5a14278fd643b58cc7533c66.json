@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT da.user_id, dp.name AS position_name\n        FROM duty_assignments da\n        JOIN duty_positions dp ON dp.id = da.duty_position_id\n        WHERE da.org_id = $1\n          AND da.date = $2\n          AND da.block_index = $3\n          AND da.status = 'assigned'\n          AND da.user_id IS NOT NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "position_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "1af29cf25fc6a94fe43c4995a751a65fcc9476ab5a14278fd643b58cc7533c66"
+}

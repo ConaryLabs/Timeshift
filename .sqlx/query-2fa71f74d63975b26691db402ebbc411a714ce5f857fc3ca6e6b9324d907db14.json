@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ot_requests\n            (id, org_id, date, start_time, end_time, hours, classification_id,\n             ot_reason_id, location, is_fixed_coverage, notes, status, created_by)\n        VALUES ($1, $2, $3, $4, $5, $6::FLOAT8::NUMERIC, $7, $8, $9, $10, $11, 'open', $12)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Time",
+        "Time",
+        "Float8",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Bool",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2fa71f74d63975b26691db402ebbc411a714ce5f857fc3ca6e6b9324d907db14"
+}

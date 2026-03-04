@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT br.id, br.event_id, br.requesting_user_id,\n               ru.first_name AS requesting_user_first_name,\n               ru.last_name  AS requesting_user_last_name,\n               br.displaced_user_id,\n               du.first_name AS displaced_user_first_name,\n               du.last_name  AS displaced_user_last_name,\n               br.status, br.reason, br.created_at, br.reviewed_at, br.reviewed_by\n        FROM bump_requests br\n        JOIN users ru ON ru.id = br.requesting_user_id\n        JOIN users du ON du.id = br.displaced_user_id\n        WHERE br.event_id = $1 AND br.org_id = $2\n        ORDER BY br.created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "event_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "requesting_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "requesting_user_first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "requesting_user_last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "displaced_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "displaced_user_first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "displaced_user_last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "reviewed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "reviewed_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2fabc3652212a5e651ae686f2756363dc3d3d4f8130dc89d1db54ddec9622684"
+}

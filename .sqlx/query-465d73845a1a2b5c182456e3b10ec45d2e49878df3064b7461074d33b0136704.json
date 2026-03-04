@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            v.id, v.ot_request_id, v.user_id,\n            (u.first_name || ' ' || u.last_name) AS \"user_name!\",\n            u.email AS user_email,\n            cl.name AS \"classification_name?\",\n            v.volunteered_at,\n            v.withdrawn_at\n        FROM ot_request_volunteers v\n        JOIN ot_requests r ON r.id = v.ot_request_id AND r.org_id = $2\n        JOIN users u ON u.id = v.user_id\n        LEFT JOIN classifications cl ON cl.id = u.classification_id\n        WHERE v.ot_request_id = $1\n        ORDER BY v.volunteered_at ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "ot_request_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "user_email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "classification_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "volunteered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "withdrawn_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "465d73845a1a2b5c182456e3b10ec45d2e49878df3064b7461074d33b0136704"
+}

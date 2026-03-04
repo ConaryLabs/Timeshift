@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM shift_slots ss\n            JOIN teams t ON t.id = ss.team_id\n            WHERE ss.id = $1 AND t.org_id = $2\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "980470a6189b955123986e4c82896abcad4895b04e25027abc174b1ca5f14c43"
+}

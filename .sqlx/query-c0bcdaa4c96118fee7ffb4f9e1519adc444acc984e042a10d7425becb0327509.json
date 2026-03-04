@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT CAST(hours_worked AS FLOAT8) AS \"hours_worked!\"\n        FROM ot_hours\n        WHERE user_id = $1 AND fiscal_year = $2\n          AND COALESCE(classification_id, '00000000-0000-0000-0000-000000000000'::uuid)\n            = COALESCE($3, '00000000-0000-0000-0000-000000000000'::uuid)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hours_worked!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c0bcdaa4c96118fee7ffb4f9e1519adc444acc984e042a10d7425becb0327509"
+}

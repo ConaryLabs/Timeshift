@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "935345da134fa74417b20b117866dffee838f7eaa3bbcbbd7f2ca699c5d3db5e"
+}

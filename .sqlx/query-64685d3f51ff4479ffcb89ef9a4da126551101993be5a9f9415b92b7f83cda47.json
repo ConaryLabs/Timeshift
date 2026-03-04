@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT ss.date AS \"shift_date!\", st.start_time\n            FROM assignments a\n            JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id\n            JOIN shift_templates st ON st.id = ss.shift_template_id\n            WHERE a.user_id = $1\n              AND ss.org_id = $2\n              AND a.cancelled_at IS NULL\n              AND (\n                ss.date > $3\n                OR (ss.date = $3 AND st.start_time > $4)\n              )\n            ORDER BY ss.date ASC, st.start_time ASC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "shift_date!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "start_time",
+        "type_info": "Time"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Time"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "64685d3f51ff4479ffcb89ef9a4da126551101993be5a9f9415b92b7f83cda47"
+}

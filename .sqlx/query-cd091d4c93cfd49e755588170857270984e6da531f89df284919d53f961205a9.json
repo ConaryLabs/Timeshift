@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE shift_pattern_assignments\n        SET effective_to = $3, updated_at = NOW()\n        WHERE user_id = $1 AND org_id = $2 AND effective_to IS NULL\n          AND effective_from <= $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cd091d4c93cfd49e755588170857270984e6da531f89df284919d53f961205a9"
+}
