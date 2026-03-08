@@ -1,3 +1,4 @@
+// frontend/src/pages/VacationBidPage.tsx
 import { useState, useMemo, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -10,7 +11,7 @@ import { ErrorState } from '@/components/ui/error-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { useVacationBidWindow, useSubmitVacationBid } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { extractApiError, formatDateShort, toLocalDateStr, formatDateTime } from '@/lib/format'
+import { extractApiError, formatDateShort, toLocalDateStr, formatDateTime, DAY_LABELS } from '@/lib/format'
 
 interface DatePick {
   start_date: string
@@ -21,8 +22,6 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getMonthDays(year: number, month: number): Date[] {
   const days: Date[] = []

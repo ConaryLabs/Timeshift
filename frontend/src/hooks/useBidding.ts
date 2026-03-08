@@ -1,3 +1,4 @@
+// frontend/src/hooks/useBidding.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { biddingApi } from '@/api/bidding'
 import { queryKeys } from './queryKeys'
@@ -50,8 +51,5 @@ export function useProcessBids() {
 }
 
 export function useApproveBidWindow() {
-  return useInvalidatingMutation(
-    (windowId: string) => biddingApi.approveBidWindow(windowId),
-    [queryKeys.bidding.all],
-  )
+  return useInvalidatingMutation(biddingApi.approveBidWindow, [queryKeys.bidding.all])
 }

@@ -1,6 +1,5 @@
 //! Leave balance operations: adjustments, deductions, refunds, FMLA segmentation.
 
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::{AppError, Result};
@@ -232,61 +231,3 @@ pub async fn create_fmla_segments(
     Ok(())
 }
 
-/// CBA compliance: validate combined carryover cap across leave types.
-///
-/// When processing end-of-year carryover, the CBA may cap the total hours carried
-/// over across all eligible leave categories. This function checks whether the
-/// proposed carryover for a user would exceed the org's combined cap.
-///
-/// Reads `leave_carryover_cap_hours` from org_settings. Returns Ok(()) if no cap
-/// is configured or if the total is within the cap. Returns Err if exceeded.
-///
-/// `carryover_categories`: which leave categories are subject to the combined cap
-/// (e.g., ["vacation", "comp", "holiday"]).
-pub async fn validate_carryover_cap(
-    pool: &PgPool,
-    org_id: Uuid,
-    user_id: Uuid,
-    carryover_categories: &[&str],
-) -> Result<()> {
-    let cap_str = crate::services::org_settings::get_str(
-        pool,
-        org_id,
-        "leave_carryover_cap_hours",
-        "0",
-    )
-    .await;
-    let cap: f64 = cap_str.parse().unwrap_or(0.0);
-    if cap <= 0.0 {
-        return Ok(()); // No cap configured
-    }
-
-    // Sum current balances across all leave types in the specified categories
-    let cats: Vec<String> = carryover_categories.iter().map(|s| s.to_string()).collect();
-    let total: f64 = sqlx::query_scalar!(
-        r#"
-        SELECT COALESCE(SUM(CAST(lb.balance_hours AS FLOAT8)), 0.0) AS "total!"
-        FROM leave_balances lb
-        JOIN leave_types lt ON lt.id = lb.leave_type_id AND lt.org_id = lb.org_id
-        WHERE lb.org_id = $1
-          AND lb.user_id = $2
-          AND lt.is_active = true
-          AND lt.category = ANY($3)
-        "#,
-        org_id,
-        user_id,
-        &cats,
-    )
-    .fetch_one(pool)
-    .await?;
-
-    if total > cap {
-        return Err(AppError::BadRequest(format!(
-            "Combined leave carryover ({:.1} hours) exceeds the maximum of {:.0} hours. \
-             Excess hours must be used or forfeited before carryover.",
-            total, cap,
-        )));
-    }
-
-    Ok(())
-}

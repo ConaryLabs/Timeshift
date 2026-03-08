@@ -1,3 +1,4 @@
+// backend/src/auth/mod.rs
 use async_trait::async_trait;
 use axum::{
     extract::{FromRef, FromRequestParts},
@@ -139,7 +140,7 @@ fn extract_token_from_parts(headers: &HeaderMap) -> Option<String> {
     extract_cookie(headers, "auth_token").or_else(|| extract_bearer_token(headers))
 }
 
-pub fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
     let prefix = format!("{}=", name);
     for part in cookie_header.split(';') {
@@ -177,11 +178,9 @@ pub fn create_token(
         iat: now.unix_timestamp(),
     };
 
-    let token = encode(
+    Ok(encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
-    )?;
-
-    Ok(token)
+    )?)
 }

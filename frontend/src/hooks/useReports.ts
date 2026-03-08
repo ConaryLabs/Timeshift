@@ -1,3 +1,4 @@
+// frontend/src/hooks/useReports.ts
 import { useQuery } from '@tanstack/react-query'
 import { reportsApi } from '@/api/reports'
 import { queryKeys } from './queryKeys'

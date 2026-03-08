@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/CoveragePlanAssignmentsPage.tsx
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'

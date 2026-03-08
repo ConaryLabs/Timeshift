@@ -1,3 +1,4 @@
+// frontend/src/api/coveragePlans.ts
 import { apiClient } from './client'
 
 export interface CoveragePlan {

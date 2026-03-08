@@ -1,3 +1,4 @@
+// backend/src/api/organizations.rs
 use axum::{extract::State, Json};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -31,7 +32,6 @@ pub async fn update_own(
     auth: AuthUser,
     Json(req): Json<UpdateOrganizationRequest>,
 ) -> Result<Json<Organization>> {
-    use validator::Validate;
     req.validate()?;
 
     if !auth.role.is_admin() {
@@ -117,8 +117,7 @@ pub async fn set_setting(
         return Err(AppError::Forbidden);
     }
 
-    req.validate()
-        .map_err(AppError::Validation)?;
+    req.validate()?;
 
     if req.key.is_empty() {
         return Err(AppError::BadRequest("key must not be empty".into()));

@@ -1,26 +1,31 @@
+// components/ErrorBoundary.tsx
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-interface Props {
+interface ErrorBoundaryProps {
   children: ReactNode
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean
   error: Error | null
 }
 
-export default class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { hasError: false, error: null }
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Unhandled error:', error, info)
+  }
+
+  private resetError = () => {
+    this.setState({ hasError: false, error: null })
   }
 
   render() {
@@ -36,7 +41,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
-                onClick={() => this.setState({ hasError: false, error: null })}
+                onClick={this.resetError}
                 className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Try Again
@@ -48,7 +53,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 Reload Page
               </button>
               <button
-                onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = '/dashboard' }}
+                onClick={() => { this.resetError(); window.location.href = '/dashboard' }}
                 className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
               >
                 Go to Dashboard

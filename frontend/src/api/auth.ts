@@ -1,3 +1,4 @@
+// frontend/src/api/auth.ts
 import { apiClient } from './client'
 import type { UserProfile } from '../store/auth'
 

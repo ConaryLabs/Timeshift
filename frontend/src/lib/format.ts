@@ -1,3 +1,4 @@
+// frontend/src/lib/format.ts
 import { isAxiosError } from 'axios'
 
 export function formatTime(time: string) {
@@ -98,5 +99,55 @@ export function contrastText(hex: string): string {
   return luminance > 0.5 ? '#111' : '#fff'
 }
 
+/** Parse "HH:MM" or "HH:MM:SS" to total minutes since midnight. */
+export function parseTimeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
+/** Add (or subtract) hours from a HH:MM or HH:MM:SS time string, wrapping at midnight. Returns "HH:MM:SS". */
+export function addHoursToTime(time: string, hours: number): string {
+  const totalMinutes = ((parseTimeToMinutes(time) + hours * 60) % 1440 + 1440) % 1440
+  const newH = Math.floor(totalMinutes / 60)
+  const newM = totalMinutes % 60
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}:00`
+}
+
+/** Date with long month and year: "January 5, 2024" */
+export function formatDateLong(d: string | null): string {
+  if (!d) return '\u2014'
+  const date = new Date(d + 'T00:00:00')
+  if (isNaN(date.getTime())) return '\u2014'
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+/** Relative time description (e.g. "5m ago", "yesterday", "2w ago").
+ *  Falls back to a short date for timestamps older than ~4 weeks. */
+export function timeAgo(dateStr: string): string {
+  const now = Date.now()
+  const date = new Date(dateStr).getTime()
+  const seconds = Math.floor((now - date) / 1000)
+
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 4) return `${weeks}w ago`
+  const dateOnly = dateStr.split('T')[0]
+  return formatDateShort(dateOnly)
+}
+
 /** Sentinel value for Select dropdowns representing "no selection" / clear field */
 export const NO_VALUE = '__none__'
+
+/** Abbreviated day-of-week labels, indexed Sunday=0 through Saturday=6 */
+export const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const

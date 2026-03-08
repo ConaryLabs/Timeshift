@@ -1,3 +1,4 @@
+// frontend/src/pages/MySchedulePage.tsx
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useMySchedule, useMyPreferences } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { formatDateShort, formatDateFull, formatTime, toLocalDateStr } from '@/lib/format'
+import { formatDateShort, formatDateFull, formatTime, toLocalDateStr, DAY_LABELS } from '@/lib/format'
 import type { MyScheduleEntry } from '@/api/employee'
 
 type ViewMode = 'week' | 'month'
@@ -40,8 +41,6 @@ function getMonthStart(d: Date) {
 function addDays(d: Date, n: number) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
 }
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function MySchedulePage() {
   const nav = useNavigate()
@@ -235,7 +234,7 @@ function WeekView({
                   : 'text-muted-foreground',
               )}
             >
-              <div className="text-xs">{DAY_NAMES[day.getDay()]}</div>
+              <div className="text-xs">{DAY_LABELS[day.getDay()]}</div>
               <div className="text-lg">{day.getDate()}</div>
               <div className="absolute top-1 right-1">
                 <DayActionMenu dateStr={dateStr} hasShift={shifts.length > 0} onNavigate={onNavigate} />
@@ -308,7 +307,7 @@ function MonthView({
     <div className="border rounded-lg overflow-hidden">
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b bg-muted/50">
-        {DAY_NAMES.map((d) => (
+        {DAY_LABELS.map((d) => (
           <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">
             {d}
           </div>

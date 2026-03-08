@@ -1,3 +1,4 @@
+// frontend/src/api/shiftPatterns.ts
 import { apiClient } from './client'
 
 export interface ShiftPattern {

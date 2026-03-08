@@ -1,3 +1,4 @@
+// backend/src/error.rs
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 
@@ -24,7 +25,7 @@ pub enum AppError {
     #[error("Too many requests: {0}")]
     TooManyRequests(String),
 
-    /// Soft contract limit — can be bypassed by the caller with `force: true`.
+    /// Soft contract limit -- can be bypassed by the caller with `force: true`.
     /// Returns 409 with `{"error": "...", "soft_limit": true}`.
     #[error("Soft limit: {0}")]
     SoftLimit(String),
@@ -73,59 +74,8 @@ impl IntoResponse for AppError {
                 (StatusCode::BAD_REQUEST, messages.join("; "))
             }
             AppError::Database(e) => {
-                // Map pool timeout to 503 Service Unavailable
-                if matches!(e, sqlx::Error::PoolTimedOut) {
-                    tracing::warn!("Database pool timed out");
-                    return (
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        Json(json!({ "error": "Service temporarily unavailable" })),
-                    )
-                        .into_response();
-                }
-                // Map constraint violations to 409 Conflict
-                if let sqlx::Error::Database(ref db_err) = e {
-                    if let Some(code) = db_err.code() {
-                        match code.as_ref() {
-                            "23505" => {
-                                // unique_violation
-                                let detail = db_err.message().to_string();
-                                tracing::warn!("Unique constraint violation: {}", detail);
-                                return (
-                                    StatusCode::CONFLICT,
-                                    Json(json!({ "error": "A record with that value already exists" })),
-                                )
-                                    .into_response();
-                            }
-                            "23503" => {
-                                // foreign_key_violation
-                                tracing::warn!("Foreign key violation: {}", db_err.message());
-                                return (
-                                    StatusCode::CONFLICT,
-                                    Json(json!({ "error": "Referenced record does not exist" })),
-                                )
-                                    .into_response();
-                            }
-                            "23514" => {
-                                // check_violation
-                                tracing::warn!("Check constraint violation: {}", db_err.message());
-                                return (
-                                    StatusCode::BAD_REQUEST,
-                                    Json(json!({ "error": "Value violates a data constraint" })),
-                                )
-                                    .into_response();
-                            }
-                            "23502" => {
-                                // not_null_violation
-                                tracing::warn!("NOT NULL violation: {}", db_err.message());
-                                return (
-                                    StatusCode::BAD_REQUEST,
-                                    Json(json!({ "error": "Required field is missing" })),
-                                )
-                                    .into_response();
-                            }
-                            _ => {}
-                        }
-                    }
+                if let Some(resp) = map_db_error_response(e) {
+                    return resp;
                 }
                 tracing::error!("Database error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error".into())
@@ -141,6 +91,51 @@ impl IntoResponse for AppError {
 
         (status, Json(json!({ "error": message }))).into_response()
     }
+}
+
+/// Map well-known database errors to user-facing HTTP responses.
+fn map_db_error_response(e: &sqlx::Error) -> Option<axum::response::Response> {
+    if matches!(e, sqlx::Error::PoolTimedOut) {
+        tracing::warn!("Database pool timed out");
+        return Some(
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "error": "Service temporarily unavailable" })),
+            )
+                .into_response(),
+        );
+    }
+
+    let db_err = match e {
+        sqlx::Error::Database(ref db_err) => db_err,
+        _ => return None,
+    };
+
+    let code = db_err.code()?;
+    let (status, msg) = match code.as_ref() {
+        "23505" => {
+            tracing::warn!("Unique constraint violation: {}", db_err.message());
+            (
+                StatusCode::CONFLICT,
+                "A record with that value already exists",
+            )
+        }
+        "23503" => {
+            tracing::warn!("Foreign key violation: {}", db_err.message());
+            (StatusCode::CONFLICT, "Referenced record does not exist")
+        }
+        "23514" => {
+            tracing::warn!("Check constraint violation: {}", db_err.message());
+            (StatusCode::BAD_REQUEST, "Value violates a data constraint")
+        }
+        "23502" => {
+            tracing::warn!("NOT NULL violation: {}", db_err.message());
+            (StatusCode::BAD_REQUEST, "Required field is missing")
+        }
+        _ => return None,
+    };
+
+    Some((status, Json(json!({ "error": msg }))).into_response())
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

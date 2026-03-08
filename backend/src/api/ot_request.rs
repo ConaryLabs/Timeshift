@@ -10,7 +10,7 @@ use crate::{
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
-    models::common::OtType,
+    models::common::{OtType, Paginated},
     models::ot_request::{
         CreateOtRequest, CreateOtRequestAssignment, OtRequestAssignmentRow, OtRequestDetail,
         OtRequestQuery, OtRequestRow, OtRequestStatus, OtRequestVolunteerRow, UpdateOtRequest,

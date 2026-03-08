@@ -1,3 +1,4 @@
+// frontend/src/hooks/useDutyPositions.ts
 import { useQuery } from '@tanstack/react-query'
 import { dutyPositionsApi } from '@/api/dutyPositions'
 import { queryKeys } from './queryKeys'
@@ -34,13 +35,10 @@ export function useDutyAssignments(date: string, shiftTemplateId?: string) {
   })
 }
 
-// The duty-assignments prefix key invalidates all queryKeys.dutyPositions.assignments(...) entries
-const dutyAssignmentsAll = ['duty-assignments'] as const
-
 export function useCreateDutyAssignment() {
   return useInvalidatingMutation(dutyPositionsApi.createAssignment, [
     queryKeys.dutyPositions.all,
-    dutyAssignmentsAll,
+    queryKeys.dutyPositions.assignmentsAll,
     queryKeys.dutyBoard.all,
   ])
 }
@@ -49,14 +47,14 @@ export function useUpdateDutyAssignment() {
   return useInvalidatingMutation(
     ({ id, ...body }: { id: string; user_id?: string; notes?: string | null }) =>
       dutyPositionsApi.updateAssignment(id, body),
-    [queryKeys.dutyPositions.all, dutyAssignmentsAll, queryKeys.dutyBoard.all],
+    [queryKeys.dutyPositions.all, queryKeys.dutyPositions.assignmentsAll, queryKeys.dutyBoard.all],
   )
 }
 
 export function useDeleteDutyAssignment() {
   return useInvalidatingMutation(dutyPositionsApi.deleteAssignment, [
     queryKeys.dutyPositions.all,
-    dutyAssignmentsAll,
+    queryKeys.dutyPositions.assignmentsAll,
     queryKeys.dutyBoard.all,
   ])
 }

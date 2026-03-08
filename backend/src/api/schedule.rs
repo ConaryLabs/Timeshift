@@ -9,11 +9,11 @@ use std::collections::HashMap;
 
 use crate::{
     api::coverage_plans::{compute_slot_coverage, compute_slot_coverage_batch, coverage_status_per_shift, ShiftCoverageStatus},
-    api::helpers::{ensure_rows_affected, json_ok},
+    api::helpers::{ensure_rows_affected, json_ok, validate_date_range},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
-    models::common::PaginationParams,
+    models::common::{Paginated, PaginationParams},
     models::schedule::{
         AnnotationQuery, Assignment, AssignmentView, CreateAnnotationRequest,
         CreateAssignmentRequest, DashboardData, DayViewEntry, GridAssignment, GridCell,
@@ -83,16 +83,7 @@ pub async fn staffing_view(
     auth: AuthUser,
     Query(q): Query<StaffingQuery>,
 ) -> Result<Json<Vec<AssignmentView>>> {
-    if q.end_date < q.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-    if (q.end_date - q.start_date).whole_days() > 90 {
-        return Err(AppError::BadRequest(
-            "Date range must not exceed 90 days".into(),
-        ));
-    }
+    validate_date_range(q.start_date, q.end_date, Some(90))?;
 
     let rows = sqlx::query!(
         r#"
@@ -566,16 +557,7 @@ pub async fn grid(
     auth: AuthUser,
     Query(q): Query<GridQuery>,
 ) -> Result<Json<Vec<GridCell>>> {
-    if q.end_date < q.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-    if (q.end_date - q.start_date).whole_days() > 90 {
-        return Err(AppError::BadRequest(
-            "Date range must not exceed 90 days".into(),
-        ));
-    }
+    validate_date_range(q.start_date, q.end_date, Some(90))?;
 
     let rows = sqlx::query!(
         r#"

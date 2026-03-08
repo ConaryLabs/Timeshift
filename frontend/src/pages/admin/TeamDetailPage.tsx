@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/TeamDetailPage.tsx
 /* eslint-disable react-hooks/incompatible-library */
 import { useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
@@ -28,10 +29,8 @@ import {
   useClassifications,
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { formatTime, extractApiError } from '@/lib/format'
+import { formatTime, extractApiError, DAY_LABELS } from '@/lib/format'
 import type { ShiftSlotView } from '@/api/teams'
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const schema = z.object({
   shift_template_id: z.string().min(1, 'Shift template is required'),

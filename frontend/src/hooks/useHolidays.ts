@@ -1,3 +1,4 @@
+// frontend/src/hooks/useHolidays.ts
 import { useQuery } from '@tanstack/react-query'
 import { holidaysApi } from '@/api/holidays'
 import { queryKeys } from './queryKeys'

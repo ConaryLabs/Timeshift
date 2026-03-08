@@ -1,3 +1,4 @@
+// frontend/src/api/bargainingUnits.ts
 import { apiClient } from './client'
 
 export interface BargainingUnit {

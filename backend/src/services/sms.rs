@@ -1,4 +1,4 @@
-use tracing;
+//! Twilio SMS delivery: sends SMS messages via the Twilio REST API.
 
 #[derive(Clone, Debug)]
 pub struct TwilioConfig {

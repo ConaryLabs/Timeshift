@@ -1,3 +1,4 @@
+// frontend/src/api/reports.ts
 import { apiClient } from './client'
 
 export interface CoverageReport {

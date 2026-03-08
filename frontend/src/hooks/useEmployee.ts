@@ -1,5 +1,6 @@
+// frontend/src/hooks/useEmployee.ts
 import { useQuery } from '@tanstack/react-query'
-import { employeeApi, type UpdatePreferencesRequest } from '@/api/employee'
+import { employeeApi } from '@/api/employee'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
 
@@ -11,10 +12,7 @@ export function useMyPreferences() {
 }
 
 export function useUpdateMyPreferences() {
-  return useInvalidatingMutation(
-    (body: UpdatePreferencesRequest) => employeeApi.updatePreferences(body),
-    [queryKeys.employee.preferences],
-  )
+  return useInvalidatingMutation(employeeApi.updatePreferences, [queryKeys.employee.preferences])
 }
 
 export function useMySchedule(startDate: string, endDate: string) {

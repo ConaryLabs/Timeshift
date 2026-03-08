@@ -1,3 +1,4 @@
+// components/coverage/DayOffMandatoryDialog.tsx
 import { useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -19,16 +20,7 @@ import {
 } from '@/components/ui/select'
 import { FormField } from '@/components/ui/form-field'
 import { useCreateOtRequest, useAssignOtRequest } from '@/hooks/queries'
-import { formatTime, extractApiError } from '@/lib/format'
-
-/** Add (or subtract) hours from a HH:MM:SS time string, wrapping at midnight. */
-function addHoursToTime(time: string, hours: number): string {
-  const [h, m] = time.split(':').map(Number)
-  const totalMinutes = ((h * 60 + m + hours * 60) % 1440 + 1440) % 1440
-  const newH = Math.floor(totalMinutes / 60)
-  const newM = totalMinutes % 60
-  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}:00`
-}
+import { formatTime, extractApiError, addHoursToTime } from '@/lib/format'
 
 /** Convert "HH:MM:SS" → "HH:MM" for <input type="time" /> */
 function toTimeInput(t: string): string {

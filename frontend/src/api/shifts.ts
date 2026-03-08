@@ -1,3 +1,4 @@
+// frontend/src/api/shifts.ts
 import { apiClient } from './client'
 
 export interface ScheduledShift {

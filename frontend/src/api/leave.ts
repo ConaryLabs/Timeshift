@@ -1,3 +1,4 @@
+// frontend/src/api/leave.ts
 import { apiClient } from './client'
 
 export type LeaveStatus = 'pending' | 'approved' | 'denied' | 'cancelled'

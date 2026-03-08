@@ -1,3 +1,4 @@
+// frontend/src/pages/CalloutPage.tsx
 import { useState, useMemo } from 'react'
 import { format, addDays } from 'date-fns'
 import { Hand, ArrowUpDown } from 'lucide-react'
@@ -54,7 +55,7 @@ import { cn } from '@/lib/utils'
 import { NO_VALUE, extractApiError, formatDate } from '@/lib/format'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { StepIndicator } from '@/components/callout/StepIndicator'
-import { CALLOUT_STEPS } from '@/components/callout/calloutSteps'
+import { CALLOUT_STEPS, getNextStep as getNextCalloutStep, getPrevStep as getPrevCalloutStep } from '@/components/callout/calloutSteps'
 import { useCalloutColumns } from '@/components/callout/CalloutListTable'
 import type { CalloutEvent, BumpRequest } from '@/api/callout'
 import type { CalloutStep } from '@/api/ot'
@@ -173,20 +174,6 @@ export default function CalloutPage() {
       `${r.last_name}, ${r.first_name}`.toLowerCase().includes(q)
     )
   }, [calloutList, debouncedSearch])
-
-  function getNextStep(): CalloutStep | null {
-    if (!currentStep) return 'volunteers'
-    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
-    if (idx < CALLOUT_STEPS.length - 1) return CALLOUT_STEPS[idx + 1].key
-    return null
-  }
-
-  function getPrevStep(): CalloutStep | null {
-    if (!currentStep) return null
-    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
-    if (idx > 0) return CALLOUT_STEPS[idx - 1].key
-    return null
-  }
 
   function handleSetStep(step: CalloutStep) {
     if (!effectiveSelectedEvent) return
@@ -445,24 +432,24 @@ export default function CalloutPage() {
 
               {/* Controls row */}
               <div className="flex items-center gap-2 mb-4">
-                {isManager && getPrevStep() && (
+                {isManager && getPrevCalloutStep(currentStep) && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleSetStep(getPrevStep()!)}
+                    onClick={() => handleSetStep(getPrevCalloutStep(currentStep)!)}
                     disabled={advanceStepMut.isPending}
                   >
-                    Back to: {CALLOUT_STEPS.find((s) => s.key === getPrevStep())?.label}
+                    Back to: {CALLOUT_STEPS.find((s) => s.key === getPrevCalloutStep(currentStep))?.label}
                   </Button>
                 )}
-                {isManager && getNextStep() && (
+                {isManager && getNextCalloutStep(currentStep) && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleSetStep(getNextStep()!)}
+                    onClick={() => handleSetStep(getNextCalloutStep(currentStep)!)}
                     disabled={advanceStepMut.isPending}
                   >
-                    Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
+                    Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextCalloutStep(currentStep))?.label}
                   </Button>
                 )}
                 {!isManager && !hasVolunteered && (

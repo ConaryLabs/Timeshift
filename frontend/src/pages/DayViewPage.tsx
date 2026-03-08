@@ -1,3 +1,4 @@
+// frontend/src/pages/DayViewPage.tsx
 import { useState } from 'react'
 import { useParams, useNavigate, Navigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'

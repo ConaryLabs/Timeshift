@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::validate_date_range,
     auth::AuthUser,
     error::{AppError, Result},
     models::employee::{
@@ -122,17 +123,7 @@ pub async fn my_schedule(
     auth: AuthUser,
     Query(params): Query<MyScheduleQuery>,
 ) -> Result<Json<Vec<MyScheduleEntry>>> {
-    if params.end_date < params.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-    let range_days = (params.end_date - params.start_date).whole_days();
-    if range_days > 365 {
-        return Err(AppError::BadRequest(
-            "Date range cannot exceed 365 days".into(),
-        ));
-    }
+    validate_date_range(params.start_date, params.end_date, Some(365))?;
 
     let rows = sqlx::query!(
         r#"

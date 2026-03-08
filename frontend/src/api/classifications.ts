@@ -1,3 +1,4 @@
+// frontend/src/api/classifications.ts
 import { apiClient } from './client'
 
 export interface Classification {

@@ -86,7 +86,7 @@ pub async fn create(
     let periods_csv = org_settings::get_str(
         &pool,
         auth.org_id,
-        org_settings::keys::SELLBACK_PERIODS,
+        "sellback_periods",
         "june,december",
     )
     .await;

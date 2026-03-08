@@ -1,3 +1,4 @@
+// frontend/src/api/nav.ts
 import { apiClient } from './client'
 
 export interface NavBadges {

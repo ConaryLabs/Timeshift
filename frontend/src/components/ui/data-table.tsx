@@ -208,18 +208,21 @@ export function DataTable<T>({
               )}
               {columns.map((col, i) => {
                 const isSorted = sortColIndex === i
-                const ariaSortValue = col.sortable
-                  ? isSorted
-                    ? sortDir === 'asc' ? 'ascending' as const : 'descending' as const
-                    : 'none' as const
-                  : undefined
-                const sortLabel = col.sortable
-                  ? isSorted
-                    ? sortDir === 'asc'
-                      ? `Sort ${col.header} descending`
-                      : `Clear ${col.header} sort`
-                    : `Sort ${col.header} ascending`
-                  : undefined
+
+                let ariaSortValue: 'ascending' | 'descending' | 'none' | undefined
+                let sortLabel: string | undefined
+                if (col.sortable) {
+                  if (!isSorted) {
+                    ariaSortValue = 'none'
+                    sortLabel = `Sort ${col.header} ascending`
+                  } else if (sortDir === 'asc') {
+                    ariaSortValue = 'ascending'
+                    sortLabel = `Sort ${col.header} descending`
+                  } else {
+                    ariaSortValue = 'descending'
+                    sortLabel = `Clear ${col.header} sort`
+                  }
+                }
                 return (
                   <TableHead key={i} className={col.className} aria-sort={ariaSortValue}>
                     {col.sortable ? (

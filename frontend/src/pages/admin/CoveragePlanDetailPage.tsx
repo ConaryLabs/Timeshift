@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/CoveragePlanDetailPage.tsx
 import { useState, useCallback, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -28,10 +29,8 @@ import {
   useClassifications,
 } from '@/hooks/queries'
 import type { SlotEntry } from '@/api/coveragePlans'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, DAY_LABELS } from '@/lib/format'
 import { cn } from '@/lib/utils'
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const NUM_SLOTS = 48
 
 function slotLabel(idx: number): string {

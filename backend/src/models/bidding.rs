@@ -1,3 +1,4 @@
+// models/bidding.rs
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -13,7 +14,7 @@ pub enum BidPeriodStatus {
     Archived,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BidWindow {
     pub id: Uuid,
     pub period_id: Uuid,
@@ -41,44 +42,8 @@ pub struct BidWindow {
     pub auto_advanced_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
-pub struct BidWindowRow {
-    pub id: Uuid,
-    pub period_id: Uuid,
-    pub user_id: Uuid,
-    pub first_name: String,
-    pub last_name: String,
-    pub seniority_rank: i32,
-    pub opens_at: OffsetDateTime,
-    pub closes_at: OffsetDateTime,
-    pub submitted_at: Option<OffsetDateTime>,
-    pub unlocked_at: Option<OffsetDateTime>,
-    pub approved_at: Option<OffsetDateTime>,
-    pub approved_by: Option<Uuid>,
-    pub is_job_share: bool,
-    pub auto_advanced_at: Option<OffsetDateTime>,
-}
-
-impl From<BidWindowRow> for BidWindow {
-    fn from(r: BidWindowRow) -> Self {
-        BidWindow {
-            id: r.id,
-            period_id: r.period_id,
-            user_id: r.user_id,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            seniority_rank: r.seniority_rank,
-            opens_at: r.opens_at,
-            closes_at: r.closes_at,
-            submitted_at: r.submitted_at,
-            unlocked_at: r.unlocked_at,
-            approved_at: r.approved_at,
-            approved_by: r.approved_by,
-            is_job_share: r.is_job_share,
-            auto_advanced_at: r.auto_advanced_at,
-        }
-    }
-}
+/// Type alias for backward compatibility -- `BidWindow` now directly derives `sqlx::FromRow`.
+pub type BidWindowRow = BidWindow;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BidSubmission {

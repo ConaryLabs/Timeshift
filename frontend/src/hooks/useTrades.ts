@@ -1,3 +1,4 @@
+// frontend/src/hooks/useTrades.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { tradesApi, type TradeListParams } from '@/api/trades'
 import { queryKeys } from './queryKeys'

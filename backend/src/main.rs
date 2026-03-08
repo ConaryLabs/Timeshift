@@ -1,3 +1,4 @@
+// backend/src/main.rs
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,20 +45,12 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database connected and migrations applied");
 
     // Build optional Twilio config for SMS alerts
-    let twilio = match (&cfg.twilio_account_sid, &cfg.twilio_auth_token, &cfg.twilio_from_number) {
-        (Some(sid), Some(token), Some(from)) => {
-            tracing::info!("Twilio SMS configured (from: {})", from);
-            Some(timeshift_backend::services::sms::TwilioConfig {
-                account_sid: sid.clone(),
-                auth_token: token.clone(),
-                from_number: from.clone(),
-            })
-        }
-        _ => {
-            tracing::info!("Twilio SMS not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER to enable)");
-            None
-        }
-    };
+    let twilio = cfg.twilio_config();
+    if let Some(ref t) = twilio {
+        tracing::info!("Twilio SMS configured (from: {})", t.from_number);
+    } else {
+        tracing::info!("Twilio SMS not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER to enable)");
+    }
 
     let state = AppState {
         pool,
@@ -93,9 +86,8 @@ async fn main() -> anyhow::Result<()> {
         .allow_credentials(true)
         .allow_origin(allowed_origins);
 
-    // Rate limiting for login endpoint: 5 requests burst, replenish 1 per 2 seconds per IP
-    // SmartIpKeyExtractor reads X-Forwarded-For/X-Real-IP headers set by Caddy proxy
-    let governor_conf = Arc::new(
+    // Rate limiters per IP (SmartIpKeyExtractor reads X-Forwarded-For/X-Real-IP from Caddy)
+    let login_rl = Arc::new(
         GovernorConfigBuilder::default()
             .per_second(2)
             .burst_size(5)
@@ -103,9 +95,7 @@ async fn main() -> anyhow::Result<()> {
             .finish()
             .unwrap(),
     );
-
-    // Rate limiting for refresh endpoint: 5 requests burst, replenish 1 per 200ms per IP
-    let refresh_governor_conf = Arc::new(
+    let refresh_rl = Arc::new(
         GovernorConfigBuilder::default()
             .per_millisecond(200)
             .burst_size(10)
@@ -113,9 +103,7 @@ async fn main() -> anyhow::Result<()> {
             .finish()
             .unwrap(),
     );
-
-    // Rate limiting for callout actions (bump, volunteer): 3 requests burst, 1 per second per IP
-    let callout_action_governor_conf = Arc::new(
+    let callout_rl = Arc::new(
         GovernorConfigBuilder::default()
             .per_second(1)
             .burst_size(3)
@@ -123,9 +111,7 @@ async fn main() -> anyhow::Result<()> {
             .finish()
             .unwrap(),
     );
-
-    // Rate limiting for password change endpoint: 5 requests burst, replenish 1 per 12 seconds per IP
-    let password_governor_conf = Arc::new(
+    let password_rl = Arc::new(
         GovernorConfigBuilder::default()
             .per_second(12)
             .burst_size(5)
@@ -133,9 +119,7 @@ async fn main() -> anyhow::Result<()> {
             .finish()
             .unwrap(),
     );
-
-    // Rate limiting for SMS alert endpoint: 1 request per 60 seconds per IP
-    let sms_governor_conf = Arc::new(
+    let sms_rl = Arc::new(
         GovernorConfigBuilder::default()
             .per_second(60)
             .burst_size(1)
@@ -144,21 +128,21 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     );
 
-    let governor_limiter = governor_conf.limiter().clone();
-    let refresh_governor_limiter = refresh_governor_conf.limiter().clone();
-    let callout_action_limiter = callout_action_governor_conf.limiter().clone();
-    let password_limiter = password_governor_conf.limiter().clone();
-    let sms_limiter = sms_governor_conf.limiter().clone();
-    let cleanup_interval = Duration::from_secs(60);
+    // Periodically prune expired rate-limit entries
+    let limiters = vec![
+        login_rl.limiter().clone(),
+        refresh_rl.limiter().clone(),
+        callout_rl.limiter().clone(),
+        password_rl.limiter().clone(),
+        sms_rl.limiter().clone(),
+    ];
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(cleanup_interval);
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
         loop {
             interval.tick().await;
-            governor_limiter.retain_recent();
-            refresh_governor_limiter.retain_recent();
-            callout_action_limiter.retain_recent();
-            password_limiter.retain_recent();
-            sms_limiter.retain_recent();
+            for limiter in &limiters {
+                limiter.retain_recent();
+            }
         }
     });
 
@@ -183,33 +167,45 @@ async fn main() -> anyhow::Result<()> {
                     );
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(Duration::from_secs(60)).await;
         }
     });
 
     // Build rate-limited routers. Route registrations use api:: handlers so the
-    // handler↔URL mapping is discoverable from api/mod.rs::all_routes.
+    // handler<->URL mapping is discoverable from api/mod.rs::all_routes.
     let rate_limited = vec![
         Router::new()
             .route("/api/auth/login", post(api::auth::login))
-            .route_layer(GovernorLayer { config: governor_conf })
+            .route_layer(GovernorLayer { config: login_rl })
             .with_state(state.clone()),
         Router::new()
             .route("/api/auth/refresh", post(api::auth::refresh))
-            .route_layer(GovernorLayer { config: refresh_governor_conf })
+            .route_layer(GovernorLayer { config: refresh_rl })
             .with_state(state.clone()),
         Router::new()
-            .route("/api/callout/events/:id/bump", post(api::callout::create_bump_request))
-            .route("/api/callout/events/:id/volunteer", post(api::ot::volunteer))
-            .route_layer(GovernorLayer { config: callout_action_governor_conf })
+            .route(
+                "/api/callout/events/:id/bump",
+                post(api::callout::create_bump_request),
+            )
+            .route(
+                "/api/callout/events/:id/volunteer",
+                post(api::ot::volunteer),
+            )
+            .route_layer(GovernorLayer { config: callout_rl })
             .with_state(state.clone()),
         Router::new()
-            .route("/api/users/me/password", axum::routing::patch(api::users::change_password))
-            .route_layer(GovernorLayer { config: password_governor_conf })
+            .route(
+                "/api/users/me/password",
+                axum::routing::patch(api::users::change_password),
+            )
+            .route_layer(GovernorLayer { config: password_rl })
             .with_state(state.clone()),
         Router::new()
-            .route("/api/coverage-plans/gaps/:date/sms-alert", post(api::coverage_plans::send_sms_alert))
-            .route_layer(GovernorLayer { config: sms_governor_conf })
+            .route(
+                "/api/coverage-plans/gaps/:date/sms-alert",
+                post(api::coverage_plans::send_sms_alert),
+            )
+            .route_layer(GovernorLayer { config: sms_rl })
             .with_state(state.clone()),
     ];
 

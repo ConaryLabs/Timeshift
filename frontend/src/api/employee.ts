@@ -1,3 +1,4 @@
+// frontend/src/api/employee.ts
 import { apiClient } from './client'
 
 export interface EmployeePreferences {

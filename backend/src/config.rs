@@ -1,4 +1,7 @@
+// backend/src/config.rs
 use anyhow::Context;
+
+use crate::services::sms::TwilioConfig;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -52,5 +55,17 @@ impl Config {
             twilio_auth_token: std::env::var("TWILIO_AUTH_TOKEN").ok(),
             twilio_from_number: std::env::var("TWILIO_FROM_NUMBER").ok(),
         })
+    }
+
+    /// Build a `TwilioConfig` if all three Twilio env vars are present.
+    pub fn twilio_config(&self) -> Option<TwilioConfig> {
+        match (&self.twilio_account_sid, &self.twilio_auth_token, &self.twilio_from_number) {
+            (Some(sid), Some(token), Some(from)) => Some(TwilioConfig {
+                account_sid: sid.clone(),
+                auth_token: token.clone(),
+                from_number: from.clone(),
+            }),
+            _ => None,
+        }
     }
 }

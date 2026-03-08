@@ -1,3 +1,4 @@
+// models/common.rs
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -59,22 +60,31 @@ where
     Ok(Some(Option::deserialize(deserializer)?))
 }
 
+/// Shared pagination behavior for query param structs with `limit`/`offset` fields.
+/// `limit` defaults to 100, capped at [1, 500]. `offset` defaults to 0.
+pub trait Paginated {
+    fn raw_limit(&self) -> Option<i64>;
+    fn raw_offset(&self) -> Option<i64>;
+
+    fn limit(&self) -> i64 {
+        self.raw_limit().unwrap_or(100).clamp(1, 500)
+    }
+
+    fn offset(&self) -> i64 {
+        self.raw_offset().unwrap_or(0).max(0)
+    }
+}
+
 /// Pagination query params shared across list endpoints.
-/// `limit` defaults to 100, capped at 500. `offset` defaults to 0.
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
 
-impl PaginationParams {
-    pub fn limit(&self) -> i64 {
-        self.limit.unwrap_or(100).clamp(1, 500)
-    }
-
-    pub fn offset(&self) -> i64 {
-        self.offset.unwrap_or(0).max(0)
-    }
+impl Paginated for PaginationParams {
+    fn raw_limit(&self) -> Option<i64> { self.limit }
+    fn raw_offset(&self) -> Option<i64> { self.offset }
 }
 
 /// Optional date-range filter for list endpoints.
@@ -86,21 +96,16 @@ pub struct DateRangeParams {
     pub offset: Option<i64>,
 }
 
-impl DateRangeParams {
-    pub fn limit(&self) -> i64 {
-        self.limit.unwrap_or(100).clamp(1, 500)
-    }
-
-    pub fn offset(&self) -> i64 {
-        self.offset.unwrap_or(0).max(0)
-    }
+impl Paginated for DateRangeParams {
+    fn raw_limit(&self) -> Option<i64> { self.limit }
+    fn raw_offset(&self) -> Option<i64> { self.offset }
 }
 
 // ---------------------------------------------------------------------------
 // Shared domain enums (stored as VARCHAR in the DB, typed in Rust)
 // ---------------------------------------------------------------------------
 
-/// OT assignment type — stored in `assignments.ot_type` and `ot_request_assignments.ot_type`.
+/// OT assignment type -- stored in `assignments.ot_type` and `ot_request_assignments.ot_type`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OtType {

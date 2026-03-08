@@ -1,17 +1,19 @@
+// frontend/src/hooks/usePermissions.ts
 import { useAuthStore, type Role } from '@/store/auth'
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user)
   const role = user?.role ?? null
 
+  const isAdmin = role === 'admin'
+  const isManager = isAdmin || role === 'supervisor'
+
   return {
     role,
-    isAdmin: role === 'admin',
+    isAdmin,
     isSupervisor: role === 'supervisor',
-    isManager: role === 'admin' || role === 'supervisor',
-    canManageSchedule: role === 'admin' || role === 'supervisor',
-    canApproveLeave: role === 'admin' || role === 'supervisor',
-    canManageUsers: role === 'admin',
+    isManager,
+    canManageUsers: isAdmin,
     hasRole: (required: Role | Role[]) => {
       if (!role) return false
       const roles = Array.isArray(required) ? required : [required]

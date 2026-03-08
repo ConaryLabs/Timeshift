@@ -1,3 +1,4 @@
+// frontend/src/hooks/useShiftPatterns.ts
 import { useQuery } from '@tanstack/react-query'
 import { shiftPatternsApi } from '@/api/shiftPatterns'
 import { queryKeys } from './queryKeys'

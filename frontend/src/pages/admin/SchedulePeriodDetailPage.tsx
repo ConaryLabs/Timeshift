@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/SchedulePeriodDetailPage.tsx
 import { useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -31,12 +32,10 @@ import {
   useProcessBids,
   useApproveBidWindow,
 } from '@/hooks/queries'
-import { formatTime, NO_VALUE, extractApiError, formatDateFull, formatDateTime } from '@/lib/format'
+import { formatTime, NO_VALUE, extractApiError, formatDateFull, formatDateTime, DAY_LABELS } from '@/lib/format'
 import type { SlotAssignmentView } from '@/api/schedulePeriods'
 import type { BidWindow } from '@/api/bidding'
 import type { BidPeriodStatus } from '@/api/bidding'
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function StatusBadge({ status }: { status: BidPeriodStatus }) {
   const config: Record<BidPeriodStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {

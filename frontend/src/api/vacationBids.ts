@@ -1,3 +1,4 @@
+// frontend/src/api/vacationBids.ts
 import { apiClient } from './client'
 
 export type VacationBidPeriodStatus = 'draft' | 'open' | 'in_progress' | 'completed'

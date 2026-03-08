@@ -1,3 +1,4 @@
+// frontend/src/hooks/useCrudDialogs.ts
 import { useState, useCallback } from 'react'
 
 export interface CrudDialogState<T> {

@@ -1,3 +1,4 @@
+// frontend/src/api/organization.ts
 import { apiClient } from './client'
 
 export interface Organization {

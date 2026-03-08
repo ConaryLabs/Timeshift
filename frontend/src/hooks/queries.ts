@@ -1,3 +1,4 @@
+// frontend/src/hooks/queries.ts
 // Barrel file — re-exports everything from domain hook files.
 // All imports from '@/hooks/queries' continue to work unchanged.
 

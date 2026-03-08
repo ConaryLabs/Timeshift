@@ -1,3 +1,4 @@
+// frontend/src/api/dutyBoard.ts
 import { apiClient } from './client'
 
 export interface BoardPosition {

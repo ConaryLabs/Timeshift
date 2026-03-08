@@ -1,3 +1,4 @@
+// frontend/src/api/client.ts
 import axios, { type AxiosRequestConfig } from 'axios'
 import { toast } from 'sonner'
 import { useAuthStore } from '../store/auth'
@@ -5,9 +6,6 @@ import { useAuthStore } from '../store/auth'
 import { SESSION_EXPIRED } from './constants'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
-
-// Re-export so existing consumers (e.g. main.tsx) don't need to change their imports
-export { SESSION_EXPIRED }
 
 export const api = axios.create({
   baseURL: BASE_URL,

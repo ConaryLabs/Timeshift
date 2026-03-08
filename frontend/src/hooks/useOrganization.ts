@@ -1,3 +1,4 @@
+// frontend/src/hooks/useOrganization.ts
 import { useQuery } from '@tanstack/react-query'
 import { classificationsApi } from '@/api/classifications'
 import { organizationApi } from '@/api/organization'

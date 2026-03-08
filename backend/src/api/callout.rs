@@ -15,7 +15,7 @@ use crate::{
             CalloutStatus, CreateBumpRequest, CreateCalloutEventRequest, RecordAttemptRequest,
             ReviewBumpRequest,
         },
-        common::{OtType, PaginationParams},
+        common::{OtType, Paginated, PaginationParams},
         ot::CalloutStep,
     },
     org_guard,
