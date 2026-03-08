@@ -25,6 +25,7 @@ import { SearchInput } from '@/components/ui/search-input'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { ReviewerNotesPopover } from '@/components/ReviewerNotesPopover'
+import { ReviewDialog, type ReviewTarget } from '@/components/ReviewDialog'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { useLeaveRequests, useLeaveTypes, useCreateLeave, useReviewLeave, useBulkReviewLeave, useLeaveBalances } from '@/hooks/queries'
@@ -45,8 +46,6 @@ const STATUS_TABS: { label: string; value: string }[] = [
 // Leave type codes that trigger conditional fields
 const BEREAVEMENT_CODES = ['bereavement']
 const EMERGENCY_CODES = ['sick', 'fmla_sick', 'emergency_leave']
-
-type ReviewTarget = { id: string; action: 'approved' | 'denied' }
 
 interface LeaveFormState {
   // Step 1: Dates
@@ -91,7 +90,6 @@ export default function LeavePage() {
     initialDate ? { ...INITIAL_FORM, start_date: initialDate, end_date: initialDate } : INITIAL_FORM
   )
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
-  const [reviewerNotes, setReviewerNotes] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [clearSelectionKey, setClearSelectionKey] = useState(0)
@@ -212,18 +210,12 @@ export default function LeavePage() {
     )
   }
 
-  function openReview(id: string, action: 'approved' | 'denied') {
-    setReviewerNotes('')
-    setReviewTarget({ id, action })
-  }
-
-  function handleReview() {
-    if (!reviewTarget) return
+  function handleReview(id: string, action: 'approved' | 'denied', notes?: string) {
     reviewMut.mutate(
-      { id: reviewTarget.id, status: reviewTarget.action, reviewer_notes: reviewerNotes || undefined },
+      { id, status: action, reviewer_notes: notes },
       {
         onSuccess: () => {
-          toast.success(reviewTarget.action === 'approved' ? 'Leave request approved' : 'Leave request denied')
+          toast.success(action === 'approved' ? 'Leave request approved' : 'Leave request denied')
           setReviewTarget(null)
         },
         onError: (err: unknown) => {
@@ -268,7 +260,7 @@ export default function LeavePage() {
                   size="sm"
                   variant="outline"
                   className="text-green-700 hover:bg-green-50"
-                  onClick={() => openReview(r.id, 'approved')}
+                  onClick={() => setReviewTarget({ id: r.id, action: 'approved' })}
                 >
                   Approve
                 </Button>
@@ -276,7 +268,7 @@ export default function LeavePage() {
                   size="sm"
                   variant="outline"
                   className="text-red-700 hover:bg-red-50"
-                  onClick={() => openReview(r.id, 'denied')}
+                  onClick={() => setReviewTarget({ id: r.id, action: 'denied' })}
                 >
                   Deny
                 </Button>
@@ -659,38 +651,13 @@ export default function LeavePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Review Dialog */}
-      <Dialog open={!!reviewTarget} onOpenChange={(open) => !open && setReviewTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {reviewTarget?.action === 'approved' ? 'Approve Request' : 'Deny Request'}
-            </DialogTitle>
-            <DialogDescription>
-              Optionally add notes for the employee.
-            </DialogDescription>
-          </DialogHeader>
-          <FormField label="Reviewer Notes" htmlFor="reviewer-notes">
-            <Textarea
-              id="reviewer-notes"
-              value={reviewerNotes}
-              onChange={(e) => setReviewerNotes(e.target.value)}
-              placeholder="Optional notes..."
-              rows={3}
-            />
-          </FormField>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
-            <Button
-              variant={reviewTarget?.action === 'approved' ? 'default' : 'destructive'}
-              onClick={handleReview}
-              disabled={reviewMut.isPending}
-            >
-              {reviewTarget?.action === 'approved' ? 'Approve' : 'Deny'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReviewDialog
+        target={reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        onConfirm={handleReview}
+        isPending={reviewMut.isPending}
+        entityLabel="Request"
+      />
 
       {confirmDialog}
     </div>

@@ -38,9 +38,7 @@ export function useUpdateUser() {
       usersApi.update(id, body),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.users.all })
-      qc.invalidateQueries({ queryKey: queryKeys.users.detail(vars.id) })
-      const currentUserId = useAuthStore.getState().user?.id
-      if (vars.id === currentUserId) {
+      if (vars.id === useAuthStore.getState().user?.id) {
         qc.invalidateQueries({ queryKey: queryKeys.auth.me })
       }
     },

@@ -13,19 +13,6 @@ pub enum CalloutStep {
     Mandatory,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct OtQueuePosition {
-    pub id: Uuid,
-    pub org_id: Uuid,
-    pub classification_id: Uuid,
-    pub user_id: Uuid,
-    /// Timestamp of the last OT callout contact. NULL = never contacted (front of queue).
-    pub last_ot_event_at: Option<OffsetDateTime>,
-    pub fiscal_year: i32,
-    #[serde(with = "time::serde::rfc3339")]
-    pub updated_at: OffsetDateTime,
-}
-
 #[derive(Debug, Serialize)]
 pub struct OtQueueView {
     pub user_id: Uuid,

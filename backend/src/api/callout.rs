@@ -268,62 +268,12 @@ async fn handle_attempt_accepted(
 ) -> Result<()> {
     let shift_hours = ctx.duration_minutes as f64 / 60.0;
 
-    // CBA: 10-hour rest protection (VCCEA § 4.4.3) — verify at least 10 hours
+    // CBA: 10-hour rest protection (VCCEA Section 4.4.3) — verify at least 10 hours
     // between the end of this OT shift and the employee's next regular shift.
     // Applies to ALL OT types (voluntary, elective, mandatory), not just mandatory.
-    {
-        let ot_end_time = ctx.shift_end_time;
-        let ot_crosses_midnight = ot_end_time < ctx.shift_start_time;
-        let search_date = if ot_crosses_midnight {
-            ctx.shift_date.next_day().unwrap_or(ctx.shift_date)
-        } else {
-            ctx.shift_date
-        };
-
-        let next_shift = sqlx::query!(
-            r#"
-                    SELECT ss.date AS "shift_date!", st.start_time
-                    FROM assignments a
-                    JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
-                    JOIN shift_templates st ON st.id = ss.shift_template_id
-                    WHERE a.user_id = $1
-                      AND ss.org_id = $2
-                      AND a.cancelled_at IS NULL
-                      AND a.is_overtime = false
-                      AND (
-                        ss.date > $3
-                        OR (ss.date = $3 AND st.start_time > $4)
-                      )
-                    ORDER BY ss.date ASC, st.start_time ASC
-                    LIMIT 1
-                    "#,
-            user_id,
-            org_id,
-            search_date,
-            ot_end_time,
-        )
-        .fetch_optional(&mut **tx)
-        .await?;
-
-        if let Some(next) = next_shift {
-            let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
-            let days_between = (next.shift_date - ctx.shift_date).whole_days();
-            let ot_end_mins =
-                ot_end_time.hour() as i64 * 60 + ot_end_time.minute() as i64;
-            let next_start_mins =
-                next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
-            let gap_minutes =
-                (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
-
-            if gap_minutes < 10 * 60 {
-                return Err(AppError::BadRequest(format!(
-                    "OT would leave less than 10 hours before the employee's \
-                     next scheduled shift on {} (VCCEA § 4.4.3).",
-                    next.shift_date,
-                )));
-            }
-        }
-    }
+    crate::services::ot::check_10_hour_rest_gap(
+        tx, user_id, org_id, ctx.shift_date, ctx.shift_start_time, ctx.shift_end_time,
+    ).await?;
 
     // Stamp queue position so this user moves toward the back for next callout.
     crate::services::ot::stamp_ot_queue(
@@ -408,14 +358,6 @@ async fn handle_attempt_declined(
         tx, user_id, fiscal_year, ctx.classification_id, shift_hours,
     ).await?;
 
-    Ok(())
-}
-
-/// Handle a no-answer callout attempt.
-/// CBA: No-answer does not stamp queue — employee was unreachable, not contacted.
-async fn handle_attempt_no_answer(
-    _tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-) -> Result<()> {
     Ok(())
 }
 
@@ -553,9 +495,7 @@ pub async fn record_attempt(
             ).await?;
         }
         // "no_answer" — CBA: no queue stamp; nothing to do beyond the attempt row itself.
-        _ => {
-            handle_attempt_no_answer(&mut tx).await?;
-        }
+        _ => {}
     }
 
     tx.commit().await?;

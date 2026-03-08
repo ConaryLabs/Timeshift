@@ -22,7 +22,7 @@ pub struct UpdatePreferencesRequest {
     pub preferred_view: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MyScheduleEntry {
     pub date: time::Date,
     pub shift_name: String,

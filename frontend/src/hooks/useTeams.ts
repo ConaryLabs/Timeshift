@@ -1,5 +1,5 @@
 // frontend/src/hooks/useTeams.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { teamsApi } from '@/api/teams'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
@@ -24,15 +24,11 @@ export function useCreateTeam() {
 }
 
 export function useUpdateTeam() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; parent_team_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; name?: string; supervisor_id?: string | null; parent_team_id?: string | null; is_active?: boolean; expected_updated_at?: string }) =>
       teamsApi.update(id, body),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.teams.all })
-      qc.invalidateQueries({ queryKey: queryKeys.teams.detail(vars.id) })
-    },
-  })
+    [queryKeys.teams.all],
+  )
 }
 
 export function useTeamSlots(teamId: string) {
@@ -44,27 +40,21 @@ export function useTeamSlots(teamId: string) {
 }
 
 export function useCreateSlot() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ teamId, ...body }: {
+  return useInvalidatingMutation(
+    ({ teamId, ...body }: {
       teamId: string
       shift_template_id: string
       classification_id: string
       days_of_week: number[]
       label?: string
     }) => teamsApi.createSlot(teamId, body),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.teams.slots(vars.teamId) })
-      qc.invalidateQueries({ queryKey: queryKeys.teams.detail(vars.teamId) })
-      qc.invalidateQueries({ queryKey: queryKeys.teams.all })
-    },
-  })
+    [queryKeys.teams.all],
+  )
 }
 
 export function useUpdateSlot() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ slotId, shift_template_id, classification_id, days_of_week, label, is_active }: {
+  return useInvalidatingMutation(
+    ({ slotId, shift_template_id, classification_id, days_of_week, label, is_active }: {
       slotId: string
       teamId: string
       shift_template_id?: string
@@ -73,10 +63,6 @@ export function useUpdateSlot() {
       label?: string
       is_active?: boolean
     }) => teamsApi.updateSlot(slotId, { shift_template_id, classification_id, days_of_week, label, is_active }),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.teams.slots(vars.teamId) })
-      qc.invalidateQueries({ queryKey: queryKeys.teams.detail(vars.teamId) })
-      qc.invalidateQueries({ queryKey: queryKeys.teams.all })
-    },
-  })
+    [queryKeys.teams.all],
+  )
 }

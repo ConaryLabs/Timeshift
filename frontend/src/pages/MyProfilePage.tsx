@@ -21,13 +21,7 @@ import { ErrorState } from '@/components/ui/error-state'
 import { useAuthStore } from '@/store/auth'
 import { useMyPreferences, useUpdateMyPreferences } from '@/hooks/queries'
 import { extractApiError, formatDateLong } from '@/lib/format'
-
-const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
-  regular_full_time: 'Regular Full Time',
-  job_share: 'Job Share',
-  medical_part_time: 'Medical Part Time',
-  temp_part_time: 'Temp Part Time',
-}
+import { EMPLOYEE_TYPES } from '@/lib/constants'
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof User; label: string; value: string }) {
   return (
@@ -104,7 +98,7 @@ export default function MyProfilePage() {
           <InfoRow
             icon={Briefcase}
             label="Employee Type"
-            value={EMPLOYEE_TYPE_LABELS[user.employee_type] || user.employee_type}
+            value={EMPLOYEE_TYPES.find((t) => t.value === user.employee_type)?.label ?? user.employee_type}
           />
           <InfoRow icon={CalendarDays} label="Hire Date" value={formatDateLong(user.hire_date)} />
           <InfoRow icon={CalendarDays} label="Overall Seniority" value={formatDateLong(user.overall_seniority_date)} />

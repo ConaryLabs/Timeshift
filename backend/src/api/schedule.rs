@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::{
     api::coverage_plans::{compute_slot_coverage, compute_slot_coverage_batch, coverage_status_per_shift, ShiftCoverageStatus},
-    api::helpers::{ensure_rows_affected, json_ok, validate_date_range},
+    api::helpers::{ensure_rows_affected, json_ok, parse_date, validate_date_range},
     auth::AuthUser,
     error::{AppError, Result},
     models::bidding::BidPeriodStatus,
@@ -710,10 +710,7 @@ pub async fn day_view(
     auth: AuthUser,
     Path(date_str): Path<String>,
 ) -> Result<Json<Vec<DayViewEntry>>> {
-    let format = time::format_description::parse("[year]-[month]-[day]")
-        .map_err(|_| AppError::BadRequest("invalid date format".into()))?;
-    let date = time::Date::parse(&date_str, &format)
-        .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
+    let date = parse_date(&date_str)?;
     let templates = sqlx::query!(
         r#"
         SELECT id, name, color, start_time, end_time, crosses_midnight

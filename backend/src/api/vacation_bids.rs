@@ -21,6 +21,41 @@ use crate::{
 };
 
 // ---------------------------------------------------------------------------
+// Vacation hours config helpers
+// ---------------------------------------------------------------------------
+
+/// Configuration for calculating vacation hours charged.
+/// Fetched from org_settings once, then passed to `calculate_hours`.
+struct VacationHoursConfig {
+    hours_lookup: Option<serde_json::Value>,
+    default_hours_per_day: f64,
+}
+
+/// Fetch the vacation hours configuration (non-linear lookup table + default rate).
+/// Used by `get_window`, `submit_bid`, and `process_bids`.
+async fn fetch_vacation_hours_config(
+    pool: &PgPool,
+    org_id: Uuid,
+) -> VacationHoursConfig {
+    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
+        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None);
+
+    let default_hours_per_day = crate::services::org_settings::get_i64(
+        pool, org_id, "default_hours_per_vacation_day", 8,
+    ).await as f64;
+
+    VacationHoursConfig {
+        hours_lookup,
+        default_hours_per_day,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // process_bids helpers
 // ---------------------------------------------------------------------------
 
@@ -538,21 +573,11 @@ pub async fn get_window(
         submitted_at: w.submitted_at,
     };
 
-    // Fetch non-linear hours lookup so hours_used matches what process_bids will charge
-    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
-        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?;
-
-    let default_hours_per_day = crate::services::org_settings::get_i64(
-        &pool, auth.org_id, "default_hours_per_vacation_day", 8,
-    ).await as f64;
+    let hours_config = fetch_vacation_hours_config(&pool, auth.org_id).await;
 
     let hours_used: f64 = bids
         .iter()
-        .map(|b| calculate_hours(b.start_date, b.end_date, &hours_lookup, default_hours_per_day))
+        .map(|b| calculate_hours(b.start_date, b.end_date, &hours_config.hours_lookup, hours_config.default_hours_per_day))
         .sum();
 
     Ok(Json(VacationWindowDetail {
@@ -600,17 +625,7 @@ pub async fn submit_bid(
         return Err(AppError::Forbidden);
     }
 
-    // Fetch non-linear hours lookup so validation matches what process_bids will charge
-    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
-        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
-        w.org_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let default_hours_per_day = crate::services::org_settings::get_i64(
-        &pool, w.org_id, "default_hours_per_vacation_day", 8,
-    ).await as f64;
+    let hours_config = fetch_vacation_hours_config(&pool, w.org_id).await;
 
     if w.period_status != "open" {
         return Err(AppError::BadRequest("Bidding period is not open".into()));
@@ -676,7 +691,7 @@ pub async fn submit_bid(
     // Uses calculate_hours for consistency with process_bids (non-linear Sep-Feb table).
     if let Some(min_block) = w.min_block_hours {
         for pick in &body.picks {
-            let hours = calculate_hours(pick.start_date, pick.end_date, &hours_lookup, default_hours_per_day);
+            let hours = calculate_hours(pick.start_date, pick.end_date, &hours_config.hours_lookup, hours_config.default_hours_per_day);
             if hours < min_block as f64 {
                 return Err(AppError::BadRequest(format!(
                     "Each vacation block must be at least {} hours; got {:.0} hours",
@@ -692,7 +707,7 @@ pub async fn submit_bid(
         let total_hours: f64 = body
             .picks
             .iter()
-            .map(|p| calculate_hours(p.start_date, p.end_date, &hours_lookup, default_hours_per_day))
+            .map(|p| calculate_hours(p.start_date, p.end_date, &hours_config.hours_lookup, hours_config.default_hours_per_day))
             .sum();
         if total_hours > allowance as f64 {
             return Err(AppError::BadRequest(format!(
@@ -825,17 +840,7 @@ pub async fn process_bids(
 
     let leave_type_id = leave_type.map(|lt| lt.id);
 
-    // Fetch non-linear hours lookup from org_settings (for Sep-Feb vacation periods)
-    let hours_lookup: Option<serde_json::Value> = sqlx::query_scalar!(
-        "SELECT value FROM org_settings WHERE org_id = $1 AND key = 'vacation_hours_charged_sep_feb'",
-        auth.org_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let default_hours_per_day = crate::services::org_settings::get_i64(
-        &pool, auth.org_id, "default_hours_per_vacation_day", 8,
-    ).await as f64;
+    let hours_config = fetch_vacation_hours_config(&pool, auth.org_id).await;
 
     // CBA: Pre-seed with dates already awarded in earlier rounds of the same year so that
     // round 2 cannot double-book dates already granted in round 1 (seniority-based protection).
@@ -907,7 +912,7 @@ pub async fn process_bids(
             // Check leave balance BEFORE awarding — if insufficient, skip
             // without marking the bid as awarded or blocking the dates.
             if let Some(lt_id) = leave_type_id {
-                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_lookup, default_hours_per_day);
+                let hours = calculate_hours(bid.start_date, bid.end_date, &hours_config.hours_lookup, hours_config.default_hours_per_day);
 
                 // Verify sufficient balance before awarding (FOR UPDATE to prevent
                 // concurrent modifications from causing negative balances).
@@ -955,9 +960,9 @@ pub async fn process_bids(
                 auth.org_id,
                 auth.id,
                 leave_type_id,
-                &hours_lookup,
+                &hours_config.hours_lookup,
                 &auth.org_timezone,
-                default_hours_per_day,
+                hours_config.default_hours_per_day,
             )
             .await?;
 

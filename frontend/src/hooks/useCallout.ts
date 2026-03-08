@@ -122,19 +122,14 @@ export function useCancelCalloutEvent() {
 }
 
 export function useCancelCalloutOtAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: calloutApi.cancelOtAssignment,
-    onSuccess: (_data, eventId) => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-      qc.invalidateQueries({ queryKey: queryKeys.callout.list(eventId) })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.ot.queueAll })
-      qc.invalidateQueries({ queryKey: queryKeys.ot.hoursAll })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.all })
-      qc.invalidateQueries({ queryKey: queryKeys.staffing.all })
-    },
-  })
+  return useInvalidatingMutation(calloutApi.cancelOtAssignment, [
+    queryKeys.callout.events,
+    queryKeys.schedule.all,
+    queryKeys.ot.queueAll,
+    queryKeys.ot.hoursAll,
+    queryKeys.coveragePlans.all,
+    queryKeys.staffing.all,
+  ])
 }
 
 export function useCalloutVolunteers(eventId: string) {
@@ -146,15 +141,11 @@ export function useCalloutVolunteers(eventId: string) {
 }
 
 export function useAdvanceCalloutStep() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ eventId, step }: { eventId: string; step: CalloutStep }) =>
+  return useInvalidatingMutation(
+    ({ eventId, step }: { eventId: string; step: CalloutStep }) =>
       otApi.advanceStep(eventId, step),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-      qc.invalidateQueries({ queryKey: queryKeys.callout.list(vars.eventId) })
-    },
-  })
+    [queryKeys.callout.events],
+  )
 }
 
 // -- Bump Requests --
@@ -168,15 +159,11 @@ export function useBumpRequests(eventId: string) {
 }
 
 export function useCreateBumpRequest() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ eventId, ...payload }: { eventId: string; displaced_user_id: string; reason?: string }) =>
+  return useInvalidatingMutation(
+    ({ eventId, ...payload }: { eventId: string; displaced_user_id: string; reason?: string }) =>
       calloutApi.createBumpRequest(eventId, payload),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.callout.bumpRequests(vars.eventId) })
-      qc.invalidateQueries({ queryKey: queryKeys.callout.events })
-    },
-  })
+    [queryKeys.callout.bumpRequestsAll, queryKeys.callout.events],
+  )
 }
 
 export function useReviewBumpRequest() {

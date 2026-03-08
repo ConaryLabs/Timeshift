@@ -1,5 +1,5 @@
 // frontend/src/hooks/useTrades.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { tradesApi, type TradeListParams } from '@/api/trades'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
@@ -35,16 +35,11 @@ export function useRespondTrade() {
 }
 
 export function useReviewTrade() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; status: 'approved' | 'denied'; reviewer_notes?: string }) =>
       tradesApi.review(id, body),
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.trades.all })
-      qc.invalidateQueries({ queryKey: queryKeys.schedule.all })
-      qc.invalidateQueries({ queryKey: queryKeys.nav.badges })
-    },
-  })
+    [queryKeys.trades.all, queryKeys.schedule.all, queryKeys.nav.badges],
+  )
 }
 
 export function useBulkReviewTrade() {

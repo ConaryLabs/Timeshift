@@ -98,7 +98,8 @@ pub async fn mark_read(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Notification>> {
-    let n = sqlx::query!(
+    let n = sqlx::query_as!(
+        Notification,
         r#"
         UPDATE notifications
         SET is_read = TRUE, read_at = NOW()
@@ -114,20 +115,7 @@ pub async fn mark_read(
     .await?
     .ok_or_else(|| AppError::NotFound("Notification not found".into()))?;
 
-    Ok(Json(Notification {
-        id: n.id,
-        org_id: n.org_id,
-        user_id: n.user_id,
-        notification_type: n.notification_type,
-        title: n.title,
-        message: n.message,
-        link: n.link,
-        source_type: n.source_type,
-        source_id: n.source_id,
-        is_read: n.is_read,
-        created_at: n.created_at,
-        read_at: n.read_at,
-    }))
+    Ok(Json(n))
 }
 
 pub async fn mark_all_read(

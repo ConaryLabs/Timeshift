@@ -15,12 +15,8 @@ use crate::{
     },
 };
 
-/// GET /api/users/me/preferences — get own preferences (upsert default if none exist)
-pub async fn get_preferences(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-) -> Result<Json<EmployeePreferences>> {
-    // Ensure row exists
+/// Ensure employee_preferences row exists for user (upsert with defaults).
+async fn ensure_preferences_exist(pool: &PgPool, user_id: Uuid) -> Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO employee_preferences (id, user_id)
@@ -28,12 +24,16 @@ pub async fn get_preferences(
         ON CONFLICT (user_id) DO NOTHING
         "#,
         Uuid::new_v4(),
-        auth.id,
+        user_id,
     )
-    .execute(&pool)
+    .execute(pool)
     .await?;
+    Ok(())
+}
 
-    let p = sqlx::query_as!(
+/// Fetch employee_preferences for a user.
+async fn fetch_preferences(pool: &PgPool, user_id: Uuid) -> Result<EmployeePreferences> {
+    Ok(sqlx::query_as!(
         EmployeePreferences,
         r#"
         SELECT id, user_id, notification_email, notification_sms, preferred_view,
@@ -41,12 +41,19 @@ pub async fn get_preferences(
         FROM employee_preferences
         WHERE user_id = $1
         "#,
-        auth.id,
+        user_id,
     )
-    .fetch_one(&pool)
-    .await?;
+    .fetch_one(pool)
+    .await?)
+}
 
-    Ok(Json(p))
+/// GET /api/users/me/preferences — get own preferences (upsert default if none exist)
+pub async fn get_preferences(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+) -> Result<Json<EmployeePreferences>> {
+    ensure_preferences_exist(&pool, auth.id).await?;
+    Ok(Json(fetch_preferences(&pool, auth.id).await?))
 }
 
 /// PUT /api/users/me/preferences — update own preferences
@@ -55,7 +62,6 @@ pub async fn update_preferences(
     auth: AuthUser,
     Json(body): Json<UpdatePreferencesRequest>,
 ) -> Result<Json<EmployeePreferences>> {
-    // Validate preferred_view if provided
     if let Some(ref view) = body.preferred_view {
         if !["month", "week", "day"].contains(&view.as_str()) {
             return Err(AppError::BadRequest(
@@ -68,18 +74,7 @@ pub async fn update_preferences(
     let provided_sms = body.notification_sms.is_some();
     let provided_view = body.preferred_view.is_some();
 
-    // Ensure row exists
-    sqlx::query!(
-        r#"
-        INSERT INTO employee_preferences (id, user_id)
-        VALUES ($1, $2)
-        ON CONFLICT (user_id) DO NOTHING
-        "#,
-        Uuid::new_v4(),
-        auth.id,
-    )
-    .execute(&pool)
-    .await?;
+    ensure_preferences_exist(&pool, auth.id).await?;
 
     sqlx::query!(
         r#"
@@ -101,30 +96,17 @@ pub async fn update_preferences(
     .execute(&pool)
     .await?;
 
-    let prefs = sqlx::query_as!(
-        EmployeePreferences,
-        r#"
-        SELECT id, user_id, notification_email, notification_sms, preferred_view,
-               created_at, updated_at
-        FROM employee_preferences
-        WHERE user_id = $1
-        "#,
-        auth.id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    Ok(Json(prefs))
+    Ok(Json(fetch_preferences(&pool, auth.id).await?))
 }
 
-/// GET /api/users/me/schedule?start_date&end_date — personal schedule
-pub async fn my_schedule(
-    State(pool): State<PgPool>,
-    auth: AuthUser,
-    Query(params): Query<MyScheduleQuery>,
-) -> Result<Json<Vec<MyScheduleEntry>>> {
-    validate_date_range(params.start_date, params.end_date, Some(365))?;
-
+/// Fetch user shift assignments for a date range, ordered by date and start_time.
+async fn fetch_schedule_entries(
+    pool: &PgPool,
+    user_id: Uuid,
+    org_id: Uuid,
+    start_date: time::Date,
+    end_date: time::Date,
+) -> Result<Vec<MyScheduleEntry>> {
     let rows = sqlx::query!(
         r#"
         SELECT ss.date, st.name AS shift_name, st.color AS shift_color,
@@ -140,15 +122,15 @@ pub async fn my_schedule(
           AND a.cancelled_at IS NULL
         ORDER BY ss.date, st.start_time
         "#,
-        auth.id,
-        params.start_date,
-        params.end_date,
-        auth.org_id,
+        user_id,
+        start_date,
+        end_date,
+        org_id,
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await?;
 
-    let entries: Vec<MyScheduleEntry> = rows
+    Ok(rows
         .into_iter()
         .map(|r| MyScheduleEntry {
             date: r.date,
@@ -163,8 +145,17 @@ pub async fn my_schedule(
             is_trade: r.is_trade,
             notes: r.notes,
         })
-        .collect();
+        .collect())
+}
 
+/// GET /api/users/me/schedule?start_date&end_date — personal schedule
+pub async fn my_schedule(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Query(params): Query<MyScheduleQuery>,
+) -> Result<Json<Vec<MyScheduleEntry>>> {
+    validate_date_range(params.start_date, params.end_date, Some(365))?;
+    let entries = fetch_schedule_entries(&pool, auth.id, auth.org_id, params.start_date, params.end_date).await?;
     Ok(Json(entries))
 }
 
@@ -176,120 +167,11 @@ pub async fn my_dashboard(
     let today = crate::services::timezone::org_today(&auth.org_timezone);
     let week_end = today + time::Duration::days(7);
 
-    // Today's shift
-    let today_shift = sqlx::query!(
-        r#"
-        SELECT ss.date, st.name AS shift_name, st.color AS shift_color,
-               st.start_time, st.end_time, st.crosses_midnight,
-               t.name AS "team_name?", a.position, a.is_overtime, a.is_trade, a.notes
-        FROM assignments a
-        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
-        LEFT JOIN teams t ON t.id = sl.team_id
-        WHERE a.user_id = $1 AND ss.date = $2
-          AND ss.org_id = $3
-          AND a.cancelled_at IS NULL
-        ORDER BY st.start_time
-        LIMIT 1
-        "#,
-        auth.id,
-        today,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .map(|r| MyScheduleEntry {
-        date: r.date,
-        shift_name: r.shift_name,
-        shift_color: r.shift_color,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        crosses_midnight: r.crosses_midnight,
-        team_name: r.team_name,
-        position: r.position,
-        is_overtime: r.is_overtime,
-        is_trade: r.is_trade,
-        notes: r.notes,
-    });
-
-    // Next shift (first assignment after today)
-    let next_shift = sqlx::query!(
-        r#"
-        SELECT ss.date, st.name AS shift_name, st.color AS shift_color,
-               st.start_time, st.end_time, st.crosses_midnight,
-               t.name AS "team_name?", a.position, a.is_overtime, a.is_trade, a.notes
-        FROM assignments a
-        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
-        LEFT JOIN teams t ON t.id = sl.team_id
-        WHERE a.user_id = $1 AND ss.date > $2
-          AND ss.org_id = $3
-          AND a.cancelled_at IS NULL
-        ORDER BY ss.date, st.start_time
-        LIMIT 1
-        "#,
-        auth.id,
-        today,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .map(|r| MyScheduleEntry {
-        date: r.date,
-        shift_name: r.shift_name,
-        shift_color: r.shift_color,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        crosses_midnight: r.crosses_midnight,
-        team_name: r.team_name,
-        position: r.position,
-        is_overtime: r.is_overtime,
-        is_trade: r.is_trade,
-        notes: r.notes,
-    });
-
-    // Upcoming shifts (next 7 days including today)
-    let upcoming_rows = sqlx::query!(
-        r#"
-        SELECT ss.date, st.name AS shift_name, st.color AS shift_color,
-               st.start_time, st.end_time, st.crosses_midnight,
-               t.name AS "team_name?", a.position, a.is_overtime, a.is_trade, a.notes
-        FROM assignments a
-        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        LEFT JOIN shift_slots sl ON sl.id = ss.slot_id
-        LEFT JOIN teams t ON t.id = sl.team_id
-        WHERE a.user_id = $1 AND ss.date BETWEEN $2 AND $3
-          AND ss.org_id = $4
-          AND a.cancelled_at IS NULL
-        ORDER BY ss.date, st.start_time
-        "#,
-        auth.id,
-        today,
-        week_end,
-        auth.org_id,
-    )
-    .fetch_all(&pool)
-    .await?;
-
-    let upcoming_shifts: Vec<MyScheduleEntry> = upcoming_rows
-        .into_iter()
-        .map(|r| MyScheduleEntry {
-            date: r.date,
-            shift_name: r.shift_name,
-            shift_color: r.shift_color,
-            start_time: r.start_time,
-            end_time: r.end_time,
-            crosses_midnight: r.crosses_midnight,
-            team_name: r.team_name,
-            position: r.position,
-            is_overtime: r.is_overtime,
-            is_trade: r.is_trade,
-            notes: r.notes,
-        })
-        .collect();
+    // Fetch all shifts for the upcoming week (today through today+7) in one query.
+    // Derive today_shift and next_shift from this result set.
+    let upcoming_shifts = fetch_schedule_entries(&pool, auth.id, auth.org_id, today, week_end).await?;
+    let today_shift = upcoming_shifts.iter().find(|s| s.date == today).cloned();
+    let next_shift = upcoming_shifts.iter().find(|s| s.date > today).cloned();
 
     // Leave balances
     let balance_rows = sqlx::query!(

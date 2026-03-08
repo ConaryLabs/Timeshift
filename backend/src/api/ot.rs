@@ -142,50 +142,13 @@ pub async fn get_hours(
 ) -> Result<Json<Vec<OtHoursView>>> {
     let fiscal_year = resolve_fiscal_year(&pool, auth.org_id, &auth.org_timezone, params.fiscal_year).await;
 
-    // Employees can only see their own hours
-    if !auth.role.can_manage_schedule() {
-        let rows = sqlx::query!(
-            r#"
-            SELECT
-                ot.user_id,
-                u.first_name,
-                u.last_name,
-                ot.classification_id AS "classification_id?",
-                cl.name AS "classification_name?",
-                ot.fiscal_year,
-                CAST(ot.hours_worked AS FLOAT8) AS "hours_worked!",
-                CAST(ot.hours_declined AS FLOAT8) AS "hours_declined!"
-            FROM ot_hours ot
-            JOIN users u ON u.id = ot.user_id
-            LEFT JOIN classifications cl ON cl.id = ot.classification_id
-            WHERE u.org_id = $1 AND ot.user_id = $2 AND ot.fiscal_year = $3
-            ORDER BY u.last_name, u.first_name
-            "#,
-            auth.org_id,
-            auth.id,
-            fiscal_year,
-        )
-        .fetch_all(&pool)
-        .await?;
+    // Employees can only see their own hours; admin/supervisor can filter by user/classification.
+    let (user_filter, class_filter) = if auth.role.can_manage_schedule() {
+        (params.user_id, params.classification_id)
+    } else {
+        (Some(auth.id), None)
+    };
 
-        let views = rows
-            .into_iter()
-            .map(|r| OtHoursView {
-                user_id: r.user_id,
-                first_name: r.first_name,
-                last_name: r.last_name,
-                classification_id: r.classification_id,
-                classification_name: r.classification_name,
-                fiscal_year: r.fiscal_year,
-                hours_worked: r.hours_worked,
-                hours_declined: r.hours_declined,
-            })
-            .collect();
-
-        return Ok(Json(views));
-    }
-
-    // Admin/supervisor: optional user filter
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -208,8 +171,8 @@ pub async fn get_hours(
         "#,
         auth.org_id,
         fiscal_year,
-        params.user_id as Option<Uuid>,
-        params.classification_id as Option<Uuid>,
+        user_filter as Option<Uuid>,
+        class_filter as Option<Uuid>,
     )
     .fetch_all(&pool)
     .await?;

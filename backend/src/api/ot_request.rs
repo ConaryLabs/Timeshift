@@ -819,7 +819,6 @@ struct ValidatedOtAssignment {
 /// rules (mandatory cap, day-off hours, 14-hour daily max, 10-hour rest gap).
 async fn validate_ot_assignment(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    _pool: &PgPool,
     request_id: Uuid,
     org_id: Uuid,
     req: &CreateOtRequestAssignment,
@@ -983,58 +982,13 @@ async fn validate_ot_assignment(
         )));
     }
 
-    // Rule 3: Mandatory OT (on-shift or day-off) must leave ≥ 10 hours before the employee's
-    // next regular shift (VCCEA § 4.4.3). Midnight-crossing OT ends on the following day.
+    // Rule 3: Mandatory OT (on-shift or day-off) must leave >= 10 hours before the employee's
+    // next regular shift (VCCEA Section 4.4.3).
     if ot_type == OtType::Mandatory || ot_type == OtType::MandatoryDayOff {
-        let ot_crosses_midnight = request.end_time < request.start_time;
-        let search_date = if ot_crosses_midnight {
-            request.date.next_day().unwrap_or(request.date)
-        } else {
-            request.date
-        };
-
-        let next_shift = sqlx::query!(
-            r#"
-            SELECT ss.date AS "shift_date!", st.start_time
-            FROM assignments a
-            JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
-            JOIN shift_templates st ON st.id = ss.shift_template_id
-            WHERE a.user_id = $1
-              AND ss.org_id = $2
-              AND a.cancelled_at IS NULL
-              AND (
-                ss.date > $3
-                OR (ss.date = $3 AND st.start_time > $4)
-              )
-            ORDER BY ss.date ASC, st.start_time ASC
-            LIMIT 1
-            "#,
-            req.user_id,
-            org_id,
-            search_date,
-            request.end_time,
-        )
-        .fetch_optional(&mut **tx)
-        .await?;
-
-        if let Some(next) = next_shift {
-            let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
-            let days_between = (next.shift_date - request.date).whole_days();
-            let ot_end_mins =
-                request.end_time.hour() as i64 * 60 + request.end_time.minute() as i64;
-            let next_start_mins =
-                next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
-            let gap_minutes =
-                (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
-
-            if gap_minutes < 10 * 60 {
-                return Err(AppError::BadRequest(format!(
-                    "Mandatory OT would leave less than 10 hours before the employee's next \
-                     scheduled shift on {} (VCCEA § 4.4.3).",
-                    next.shift_date,
-                )));
-            }
-        }
+        crate::services::ot::check_10_hour_rest_gap(
+            tx, req.user_id, org_id,
+            request.date, request.start_time, request.end_time,
+        ).await?;
     }
     // ────────────────────────────────────────────────────────────────────────
 
@@ -1174,7 +1128,7 @@ pub async fn assign(
 
     let mut tx = pool.begin().await?;
 
-    let validated = validate_ot_assignment(&mut tx, &pool, id, auth.org_id, &req).await?;
+    let validated = validate_ot_assignment(&mut tx, id, auth.org_id, &req).await?;
     track_ot_hours(&mut tx, &pool, auth.org_id, req.user_id, &validated).await?;
     let assignment = create_ot_assignment_record(
         &mut tx,

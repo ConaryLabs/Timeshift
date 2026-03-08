@@ -220,10 +220,6 @@ export {
   useCreateDutyPosition,
   useUpdateDutyPosition,
   useDeleteDutyPosition,
-  useDutyAssignments,
-  useCreateDutyAssignment,
-  useUpdateDutyAssignment,
-  useDeleteDutyAssignment,
 } from './useDutyPositions'
 
 export {
@@ -232,6 +228,26 @@ export {
   useUpdateSpecialAssignment,
   useDeleteSpecialAssignment,
 } from './useSpecialAssignments'
+
+export {
+  useDutyBoard,
+  useCellAction,
+  useCreateDatePosition,
+  useDeleteDatePosition,
+  useAvailableStaff,
+  useConsoleHours,
+  useQualifications,
+  useCreateQualification,
+  useDeleteQualification,
+  usePositionQualifications,
+  useAddPositionQualification,
+  useRemovePositionQualification,
+  useUserQualifications,
+  useAddUserQualification,
+  useRemoveUserQualification,
+  useSetPositionHours,
+  useDeletePositionHours,
+} from './useDutyBoard'
 
 export {
   useStaffingAvailable,

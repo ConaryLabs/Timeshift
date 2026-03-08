@@ -27,8 +27,11 @@ import {
   useUpdateDutyPosition,
   useDeleteDutyPosition,
   useClassifications,
+  useQualifications,
+  usePositionQualifications,
+  useAddPositionQualification,
+  useRemovePositionQualification,
 } from '@/hooks/queries'
-import { useQualifications, usePositionQualifications, useAddPositionQualification, useRemovePositionQualification } from '@/hooks/useDutyBoard'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { DutyPosition } from '@/api/dutyPositions'

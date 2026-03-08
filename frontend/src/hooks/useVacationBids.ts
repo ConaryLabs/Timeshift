@@ -1,5 +1,5 @@
 // frontend/src/hooks/useVacationBids.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { vacationBidsApi } from '@/api/vacationBids'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
@@ -44,15 +44,11 @@ export function useOpenVacationBidding() {
 }
 
 export function useSubmitVacationBid() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ windowId, picks }: { windowId: string; picks: { start_date: string; end_date: string; preference_rank: number }[] }) =>
+  return useInvalidatingMutation(
+    ({ windowId, picks }: { windowId: string; picks: { start_date: string; end_date: string; preference_rank: number }[] }) =>
       vacationBidsApi.submitBid(windowId, { picks }),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.vacationBids.window(vars.windowId) })
-      qc.invalidateQueries({ queryKey: queryKeys.vacationBids.all })
-    },
-  })
+    [queryKeys.vacationBids.all],
+  )
 }
 
 export function useProcessVacationBids() {

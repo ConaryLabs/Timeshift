@@ -42,17 +42,6 @@ pub struct BidWindow {
     pub auto_advanced_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct BidSubmission {
-    pub id: Uuid,
-    pub bid_window_id: Uuid,
-    pub slot_id: Uuid,
-    pub preference_rank: i32,
-    pub awarded: bool,
-    #[serde(with = "time::serde::rfc3339")]
-    pub created_at: OffsetDateTime,
-}
-
 #[derive(Debug, Serialize)]
 pub struct BidSubmissionView {
     pub id: Uuid,

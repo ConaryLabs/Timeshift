@@ -455,18 +455,7 @@ pub async fn add_position_qualification(
     }
 
     org_guard::verify_duty_position(&pool, position_id, auth.org_id).await?;
-
-    let qual_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM qualifications WHERE id = $1 AND org_id = $2)",
-        req.qualification_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !qual_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Qualification not found".into()));
-    }
+    org_guard::verify_qualification(&pool, req.qualification_id, auth.org_id).await?;
 
     sqlx::query!(
         r#"
@@ -545,18 +534,7 @@ pub async fn add_user_qualification(
     }
 
     org_guard::verify_user(&pool, user_id, auth.org_id).await?;
-
-    let qual_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM qualifications WHERE id = $1 AND org_id = $2)",
-        req.qualification_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !qual_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Qualification not found".into()));
-    }
+    org_guard::verify_qualification(&pool, req.qualification_id, auth.org_id).await?;
 
     sqlx::query!(
         r#"

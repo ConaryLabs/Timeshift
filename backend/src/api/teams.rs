@@ -289,7 +289,6 @@ pub async fn update_slot(
     Ok(Json(view))
 }
 
-
 async fn check_team_cycle(pool: &PgPool, team_id: Uuid, new_parent_id: Uuid) -> Result<()> {
     let mut current = Some(new_parent_id);
     let mut visited = std::collections::HashSet::new();
