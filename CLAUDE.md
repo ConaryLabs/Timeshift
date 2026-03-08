@@ -23,7 +23,6 @@ make backend           # Run Axum server on :8080
 make frontend          # Run Vite dev server on :5173
 make test              # Run backend integration tests
 make sqlx-prepare      # Regenerate offline query cache (run after any SQL changes)
-make dbhub             # Launch dbhub MCP server
 ```
 
 After changing any SQL query in Rust code, always run `make sqlx-prepare` and commit the updated `backend/.sqlx/` directory.
