@@ -1,4 +1,4 @@
-.PHONY: dev db-reset migrate seed reseed sqlx-prepare backend frontend dbhub test
+.PHONY: dev db-reset migrate seed reseed sqlx-prepare backend frontend test
 
 DB_URL ?= postgres://timeshift:timeshift_dev@127.0.0.1:5432/timeshift
 
@@ -26,17 +26,6 @@ sqlx-prepare:
 # Run the backend
 backend:
 	cd backend && DATABASE_URL=$(DB_URL) cargo run
-
-# Run dbhub MCP server against this project's database.
-# It prefers DSN if set; otherwise falls back to DATABASE_URL (from .env or env).
-dbhub:
-	@set -a; [ -f .env ] && . ./.env; set +a; \
-	DSN=$${DSN:-$${DATABASE_URL}}; \
-	if [ -z "$$DSN" ]; then \
-		echo "Missing DSN/DATABASE_URL. Set one in .env or your shell."; \
-		exit 1; \
-	fi; \
-	npx -y @bytebase/dbhub@latest --dsn "$$DSN"
 
 # Run backend tests
 test:
