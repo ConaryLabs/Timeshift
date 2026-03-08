@@ -49,15 +49,19 @@ cd frontend && npm run build
 
 ### Seed credentials
 
-All accounts use password `admin123`. Seed contains ~99 users total; key accounts for testing:
+All accounts use password `admin123`. Seed admin: `admin@valleycom.org`. See `/reseed` skill for full test account list.
 
-| Role | Email | Classification | Bargaining Unit |
-|------|-------|---------------|-----------------|
-| Admin | `admin@valleycom.org` | Supervisor | Non-represented |
-| Supervisor | `sarah.chen@valleycom.org` | Supervisor | VCSG |
-| Employee | `mike.johnson@valleycom.org` | COII | VCCEA |
-| Employee | `lisa.park@valleycom.org` | COI | VCCEA |
-| Employee | `james.rivera@valleycom.org` | COII | VCCEA |
+## Common Pitfalls
+
+- **Axum 0.7 route params**: Use `:id` syntax, NOT `{id}` (that's Axum 0.8+ / matchit 0.8+)
+- **SQLx NUMERIC columns**: Cast to FLOAT8 in SELECT (`CAST(hours AS FLOAT8)`); bind as `$N::FLOAT8::NUMERIC`
+- **SQLx LEFT JOIN nulls**: Use `AS "col?"` for sqlx to infer nullability
+- **SQLx after query changes**: Always run `make sqlx-prepare` and commit `backend/.sqlx/`
+- **`FromRequestParts`**: Requires `#[async_trait]` (axum-core 0.4)
+- **`time::Time` serde**: Use `crate::models::common::time_format`; default serde serializes as array
+- **Frontend production build**: MUST use `VITE_API_URL=""` or API calls go to localhost
+- **DB on this machine**: Use `127.0.0.1` not `localhost` (IPv6 loopback uses Ident auth)
+- **Production DB access**: Use `sudo -u postgres psql -d timeshift` (peer auth), never `PGPASSWORD=timeshift_dev`
 
 ## Backend Architecture
 
