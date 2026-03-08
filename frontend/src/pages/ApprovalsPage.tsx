@@ -1,3 +1,4 @@
+// frontend/src/pages/ApprovalsPage.tsx
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { CheckCircle2, XCircle, ChevronDown, ChevronRight } from 'lucide-react'
@@ -25,7 +26,7 @@ import {
   useNavBadges,
 } from '@/hooks/queries'
 import { cn } from '@/lib/utils'
-import { extractApiError, formatDateShort } from '@/lib/format'
+import { extractApiError, formatDateShort, timeAgo } from '@/lib/format'
 import type { LeaveRequest } from '@/api/leave'
 import type { TradeRequest } from '@/api/trades'
 
@@ -34,14 +35,6 @@ type Tab = 'leave' | 'trades'
 function formatDateRange(start: string, end: string) {
   if (start === end) return formatDateShort(start)
   return `${formatDateShort(start)} - ${formatDateShort(end)}`
-}
-
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const days = Math.floor(diff / 86400000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  return `${days}d ago`
 }
 
 function totalHours(req: LeaveRequest): number {

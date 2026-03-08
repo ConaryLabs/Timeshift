@@ -343,17 +343,7 @@ pub async fn create_assignment(
         return Err(AppError::Forbidden);
     }
 
-    // Verify user belongs to org
-    let user_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND is_active = true)",
-        req.user_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-    if user_exists != Some(true) {
-        return Err(AppError::NotFound("User not found".into()));
-    }
+    org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
 
     // Verify pattern belongs to org
     let pattern_exists = sqlx::query_scalar!(

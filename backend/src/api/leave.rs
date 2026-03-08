@@ -10,6 +10,7 @@ use crate::{
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::Paginated,
     models::leave::{
         BulkReviewLeaveRequest, CreateLeaveRequest, LeaveRequest, LeaveRequestLine,
         LeaveSegment, LeaveStatus, LeaveTypeRecord, ReviewLeaveRequest,
@@ -80,13 +81,9 @@ pub struct LeaveListParams {
     pub status: Option<String>,
 }
 
-impl LeaveListParams {
-    pub fn limit(&self) -> i64 {
-        self.limit.unwrap_or(100).clamp(1, 500)
-    }
-    pub fn offset(&self) -> i64 {
-        self.offset.unwrap_or(0).max(0)
-    }
+impl Paginated for LeaveListParams {
+    fn raw_limit(&self) -> Option<i64> { self.limit }
+    fn raw_offset(&self) -> Option<i64> { self.offset }
 }
 
 pub async fn list(

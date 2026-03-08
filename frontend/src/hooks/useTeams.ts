@@ -1,3 +1,4 @@
+// frontend/src/hooks/useTeams.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { teamsApi } from '@/api/teams'
 import { queryKeys } from './queryKeys'

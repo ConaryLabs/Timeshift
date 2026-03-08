@@ -1,14 +1,17 @@
+// backend/src/api/leave_balances.rs
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
     api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::Paginated,
     models::leave_balance::{
         AccrualSchedule, AccrualTransaction, AdjustBalanceRequest, BalanceHistoryQuery,
         CreateAccrualScheduleRequest, LeaveBalanceView, UpdateAccrualScheduleRequest,
@@ -139,7 +142,6 @@ pub async fn adjust(
     auth: AuthUser,
     Json(body): Json<AdjustBalanceRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    use validator::Validate;
     body.validate()?;
 
     if !auth.role.is_admin() {
@@ -147,18 +149,7 @@ pub async fn adjust(
     }
 
     org_guard::verify_user(&pool, body.user_id, auth.org_id).await?;
-
-    // Verify leave type belongs to org
-    let lt_ok = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2)",
-        body.leave_type_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-    if !lt_ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Leave type not found".into()));
-    }
+    org_guard::verify_leave_type(&pool, body.leave_type_id, auth.org_id).await?;
 
     let mut tx = pool.begin().await?;
 
@@ -235,24 +226,13 @@ pub async fn create_accrual_schedule(
     auth: AuthUser,
     Json(body): Json<CreateAccrualScheduleRequest>,
 ) -> Result<Json<AccrualSchedule>> {
-    use validator::Validate;
     body.validate()?;
 
     if !auth.role.is_admin() {
         return Err(AppError::Forbidden);
     }
 
-    // Verify leave type belongs to org
-    let lt_ok = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM leave_types WHERE id = $1 AND org_id = $2)",
-        body.leave_type_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-    if !lt_ok.unwrap_or(false) {
-        return Err(AppError::NotFound("Leave type not found".into()));
-    }
+    org_guard::verify_leave_type(&pool, body.leave_type_id, auth.org_id).await?;
 
     let employee_type = body
         .employee_type
@@ -421,7 +401,6 @@ pub async fn run_accrual(
 
     let dry_run = params.dry_run.unwrap_or(false);
 
-    // Get org info
     let org = sqlx::query!(
         "SELECT name, timezone FROM organizations WHERE id = $1",
         auth.org_id,

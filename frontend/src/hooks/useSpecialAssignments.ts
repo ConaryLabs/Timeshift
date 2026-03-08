@@ -1,3 +1,4 @@
+// frontend/src/hooks/useSpecialAssignments.ts
 import { useQuery } from '@tanstack/react-query'
 import { specialAssignmentsApi, type SpecialAssignmentListParams } from '@/api/specialAssignments'
 import { queryKeys } from './queryKeys'

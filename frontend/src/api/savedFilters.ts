@@ -1,3 +1,4 @@
+// frontend/src/api/savedFilters.ts
 import { apiClient } from './client'
 
 export interface SavedFilter {

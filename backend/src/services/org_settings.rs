@@ -5,22 +5,6 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
-// org_settings key constants — use these instead of string literals
-pub mod keys {
-    pub const FISCAL_YEAR_START_MONTH: &str = "fiscal_year_start_month";
-    pub const BUMP_DEADLINE_HOURS: &str = "bump_deadline_hours";
-    pub const VOLUNTARY_OT_CANCEL_HOURS: &str = "voluntary_ot_cancel_hours";
-    pub const TRADE_APPROVAL_CUTOFF_MINUTES: &str = "trade_approval_cutoff_minutes";
-    pub const TRADE_REQUIRE_SAME_PERIOD: &str = "trade_require_same_period";
-    pub const OT_CROSS_CLASS_WINDOW_DAYS: &str = "ot_cross_class_window_days";
-    pub const MAX_CONCURRENT_VACATION: &str = "max_concurrent_vacation";
-    pub const VACATION_HOURS_CHARGED_SEP_FEB: &str = "vacation_hours_charged_sep_feb";
-    pub const FMLA_EXHAUSTION_ORDER: &str = "fmla_exhaustion_order";
-    pub const SELLBACK_PERIODS: &str = "sellback_periods";
-    pub const DEFAULT_HOURS_PER_VACATION_DAY: &str = "default_hours_per_vacation_day";
-    pub const ENABLE_BUMP_REQUESTS: &str = "enable_bump_requests";
-}
-
 /// Get an org setting value as a string, falling back to the default.
 pub async fn get_str(pool: &PgPool, org_id: Uuid, key: &str, default: &str) -> String {
     sqlx::query_scalar!(

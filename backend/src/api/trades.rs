@@ -10,7 +10,7 @@ use crate::{
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
-    models::common::ReviewAction,
+    models::common::{Paginated, ReviewAction},
     models::trade::{
         BulkReviewTradeRequest, CreateTradeRequest, RespondTradeRequest, ReviewTradeRequest,
         TradeListQuery, TradeRequest, TradeStatus,

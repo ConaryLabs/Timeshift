@@ -1,6 +1,8 @@
-use serde::Serialize;
+// models/report.rs
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Serialize)]
 pub struct CoverageReport {
@@ -35,28 +37,26 @@ pub struct LeaveSummaryReport {
     pub total_hours: f64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ReportQuery {
     pub start_date: time::Date,
     pub end_date: time::Date,
     pub team_id: Option<Uuid>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct OtReportQuery {
     pub fiscal_year: Option<i32>,
     pub classification_id: Option<Uuid>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct LeaveReportQuery {
     pub start_date: time::Date,
     pub end_date: time::Date,
 }
 
-// -- New report types --
-
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct OtByPeriodQuery {
     pub start_date: time::Date,
     pub end_date: time::Date,
@@ -79,7 +79,7 @@ pub struct OtByPeriodReport {
     pub assignments: Vec<OtByPeriodEntry>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct WorkSummaryQuery {
     pub start_date: time::Date,
     pub end_date: time::Date,
@@ -107,7 +107,7 @@ pub struct OrgSetting {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SetOrgSettingRequest {
     #[validate(length(max = 100))]
     pub key: String,

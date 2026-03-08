@@ -1,3 +1,4 @@
+// frontend/src/hooks/useVacationBids.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { vacationBidsApi } from '@/api/vacationBids'
 import { queryKeys } from './queryKeys'

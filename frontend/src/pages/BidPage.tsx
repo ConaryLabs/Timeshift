@@ -1,3 +1,4 @@
+// frontend/src/pages/BidPage.tsx
 import { useState, useCallback } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -10,10 +11,8 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBidWindow, useSubmitBid } from '@/hooks/queries'
-import { formatTime, extractApiError, formatDateTime } from '@/lib/format'
+import { formatTime, extractApiError, formatDateTime, DAY_LABELS } from '@/lib/format'
 import type { AvailableSlot } from '@/api/bidding'
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getWindowStatus(window: { opens_at: string; closes_at: string; submitted_at: string | null; unlocked_at: string | null; approved_at: string | null }) {
   if (!window.unlocked_at) return 'locked'

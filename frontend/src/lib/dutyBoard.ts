@@ -1,3 +1,4 @@
+// frontend/src/lib/dutyBoard.ts
 import type { BoardAssignment } from '@/api/dutyBoard'
 
 export const BLOCK_LABELS = [

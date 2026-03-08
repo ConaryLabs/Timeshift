@@ -1,3 +1,4 @@
+// frontend/src/pages/TradesPage.tsx
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'

@@ -1,3 +1,4 @@
+// frontend/src/hooks/useSchedule.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { scheduleApi } from '@/api/schedule'
 import { schedulePeriodsApi } from '@/api/schedulePeriods'

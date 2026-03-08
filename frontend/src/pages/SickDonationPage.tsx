@@ -1,3 +1,4 @@
+// frontend/src/pages/SickDonationPage.tsx
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'

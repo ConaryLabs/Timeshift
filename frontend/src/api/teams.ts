@@ -1,3 +1,4 @@
+// frontend/src/api/teams.ts
 import { apiClient } from './client'
 
 export interface TeamSummary {

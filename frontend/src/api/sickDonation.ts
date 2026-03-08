@@ -1,3 +1,4 @@
+// frontend/src/api/sickDonation.ts
 import { apiClient } from './client'
 
 export interface SickLeaveDonation {

@@ -1,3 +1,4 @@
+// frontend/src/pages/MyProfilePage.tsx
 import { useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -19,24 +20,13 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { ErrorState } from '@/components/ui/error-state'
 import { useAuthStore } from '@/store/auth'
 import { useMyPreferences, useUpdateMyPreferences } from '@/hooks/queries'
-import { extractApiError } from '@/lib/format'
+import { extractApiError, formatDateLong } from '@/lib/format'
 
 const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
   regular_full_time: 'Regular Full Time',
   job_share: 'Job Share',
   medical_part_time: 'Medical Part Time',
   temp_part_time: 'Temp Part Time',
-}
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return '\u2014'
-  const d = new Date(dateStr + 'T00:00:00')
-  if (isNaN(d.getTime())) return '\u2014'
-  return d.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof User; label: string; value: string }) {
@@ -116,10 +106,10 @@ export default function MyProfilePage() {
             label="Employee Type"
             value={EMPLOYEE_TYPE_LABELS[user.employee_type] || user.employee_type}
           />
-          <InfoRow icon={CalendarDays} label="Hire Date" value={formatDate(user.hire_date)} />
-          <InfoRow icon={CalendarDays} label="Overall Seniority" value={formatDate(user.overall_seniority_date)} />
-          <InfoRow icon={CalendarDays} label="Bargaining Unit Seniority" value={formatDate(user.bargaining_unit_seniority_date)} />
-          <InfoRow icon={CalendarDays} label="Classification Seniority" value={formatDate(user.classification_seniority_date)} />
+          <InfoRow icon={CalendarDays} label="Hire Date" value={formatDateLong(user.hire_date)} />
+          <InfoRow icon={CalendarDays} label="Overall Seniority" value={formatDateLong(user.overall_seniority_date)} />
+          <InfoRow icon={CalendarDays} label="Bargaining Unit Seniority" value={formatDateLong(user.bargaining_unit_seniority_date)} />
+          <InfoRow icon={CalendarDays} label="Classification Seniority" value={formatDateLong(user.classification_seniority_date)} />
         </CardContent>
       </Card>
 

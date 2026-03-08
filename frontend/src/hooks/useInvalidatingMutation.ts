@@ -1,3 +1,4 @@
+// frontend/src/hooks/useInvalidatingMutation.ts
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { QueryKey, MutationFunction, UseMutationOptions } from '@tanstack/react-query'
 

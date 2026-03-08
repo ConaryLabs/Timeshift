@@ -1,3 +1,4 @@
+// frontend/src/store/ui.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 

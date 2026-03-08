@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/SchedulePeriodsPage.tsx
 /* eslint-disable react-hooks/incompatible-library */
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'

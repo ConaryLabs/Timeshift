@@ -1,3 +1,4 @@
+// frontend/src/store/auth.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { queryClient } from '@/lib/queryClient'
@@ -42,27 +43,21 @@ export interface UserProfile {
 
 interface AuthState {
   user: UserProfile | null
-  /** @deprecated Use setUser instead */
-  setAuth: (user: UserProfile) => void
   setUser: (user: UserProfile) => void
   logout: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => {
-      const setUser = (user: UserProfile) => set({ user })
-      return {
-        user: null,
-        setAuth: setUser,
-        setUser,
-        logout: () => {
-          set({ user: null })
-          queryClient.clear()
-          useUIStore.getState().reset()
-        },
-      }
-    },
+    (set) => ({
+      user: null,
+      setUser: (user: UserProfile) => set({ user }),
+      logout: () => {
+        set({ user: null })
+        queryClient.clear()
+        useUIStore.getState().reset()
+      },
+    }),
     {
       name: 'timeshift-auth',
       version: 2,

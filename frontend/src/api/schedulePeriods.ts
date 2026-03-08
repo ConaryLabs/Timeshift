@@ -1,3 +1,4 @@
+// frontend/src/api/schedulePeriods.ts
 import { apiClient } from './client'
 
 import type { BidPeriodStatus } from './bidding'

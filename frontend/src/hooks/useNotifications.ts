@@ -1,6 +1,33 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+// frontend/src/hooks/useNotifications.ts
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { notificationsApi, type NotificationListParams, type NotificationListResponse, type Notification } from '@/api/notifications'
 import { queryKeys } from './queryKeys'
+
+type NotificationSnapshot = {
+  previousLists: [unknown, NotificationListResponse | undefined][]
+  previousUnread: { count: number } | undefined
+}
+
+function snapshotNotifications(qc: QueryClient): NotificationSnapshot {
+  return {
+    previousLists: qc.getQueriesData<NotificationListResponse>({
+      queryKey: queryKeys.notifications.all,
+    }),
+    previousUnread: qc.getQueryData<{ count: number }>(queryKeys.notifications.unreadCount),
+  }
+}
+
+function rollbackNotifications(qc: QueryClient, snapshot: NotificationSnapshot | undefined): void {
+  if (!snapshot) return
+  if (snapshot.previousLists) {
+    for (const [key, data] of snapshot.previousLists) {
+      qc.setQueryData(key as readonly unknown[], data)
+    }
+  }
+  if (snapshot.previousUnread) {
+    qc.setQueryData(queryKeys.notifications.unreadCount, snapshot.previousUnread)
+  }
+}
 
 export function useNotifications(params?: NotificationListParams) {
   return useQuery({
@@ -24,16 +51,9 @@ export function useMarkNotificationRead() {
     mutationFn: notificationsApi.markRead,
     onMutate: async (id: string) => {
       await qc.cancelQueries({ queryKey: queryKeys.notifications.all })
-
-      // Snapshot all notification list queries and unread count
-      const previousLists = qc.getQueriesData<NotificationListResponse>({
-        queryKey: queryKeys.notifications.all,
-      })
-      const previousUnread = qc.getQueryData<{ count: number }>(queryKeys.notifications.unreadCount)
-
+      const snapshot = snapshotNotifications(qc)
       const now = new Date().toISOString()
 
-      // Optimistically update all notification list caches
       qc.setQueriesData<NotificationListResponse>(
         { queryKey: queryKeys.notifications.all },
         (old) => {
@@ -49,31 +69,20 @@ export function useMarkNotificationRead() {
         },
       )
 
-      // Optimistically update unread count
-      if (previousUnread) {
-        const wasAlreadyRead = previousLists.some(([, data]) =>
+      if (snapshot.previousUnread) {
+        const wasAlreadyRead = snapshot.previousLists.some(([, data]) =>
           data?.notifications.find((n: Notification) => n.id === id)?.is_read,
         )
         if (!wasAlreadyRead) {
           qc.setQueryData<{ count: number }>(queryKeys.notifications.unreadCount, {
-            count: Math.max(0, previousUnread.count - 1),
+            count: Math.max(0, snapshot.previousUnread.count - 1),
           })
         }
       }
 
-      return { previousLists, previousUnread }
+      return snapshot
     },
-    onError: (_err, _id, context) => {
-      // Rollback all notification list caches
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          qc.setQueryData(key, data)
-        }
-      }
-      if (context?.previousUnread) {
-        qc.setQueryData(queryKeys.notifications.unreadCount, context.previousUnread)
-      }
-    },
+    onError: (_err, _id, context) => rollbackNotifications(qc, context),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
     },
@@ -86,15 +95,9 @@ export function useMarkAllNotificationsRead() {
     mutationFn: notificationsApi.markAllRead,
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: queryKeys.notifications.all })
-
-      const previousLists = qc.getQueriesData<NotificationListResponse>({
-        queryKey: queryKeys.notifications.all,
-      })
-      const previousUnread = qc.getQueryData<{ count: number }>(queryKeys.notifications.unreadCount)
-
+      const snapshot = snapshotNotifications(qc)
       const now = new Date().toISOString()
 
-      // Mark all notifications as read in all cached lists
       qc.setQueriesData<NotificationListResponse>(
         { queryKey: queryKeys.notifications.all },
         (old) => {
@@ -111,21 +114,11 @@ export function useMarkAllNotificationsRead() {
         },
       )
 
-      // Zero out unread count
       qc.setQueryData<{ count: number }>(queryKeys.notifications.unreadCount, { count: 0 })
 
-      return { previousLists, previousUnread }
+      return snapshot
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          qc.setQueryData(key, data)
-        }
-      }
-      if (context?.previousUnread) {
-        qc.setQueryData(queryKeys.notifications.unreadCount, context.previousUnread)
-      }
-    },
+    onError: (_err, _vars, context) => rollbackNotifications(qc, context),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
     },
@@ -138,15 +131,10 @@ export function useDeleteNotification() {
     mutationFn: notificationsApi.delete,
     onMutate: async (id: string) => {
       await qc.cancelQueries({ queryKey: queryKeys.notifications.all })
+      const snapshot = snapshotNotifications(qc)
 
-      const previousLists = qc.getQueriesData<NotificationListResponse>({
-        queryKey: queryKeys.notifications.all,
-      })
-      const previousUnread = qc.getQueryData<{ count: number }>(queryKeys.notifications.unreadCount)
-
-      // Find whether the deleted notification was unread
       let wasUnread = false
-      for (const [, data] of previousLists) {
+      for (const [, data] of snapshot.previousLists) {
         const found = data?.notifications.find((n: Notification) => n.id === id)
         if (found) {
           wasUnread = !found.is_read
@@ -154,7 +142,6 @@ export function useDeleteNotification() {
         }
       }
 
-      // Remove the notification from all cached lists
       qc.setQueriesData<NotificationListResponse>(
         { queryKey: queryKeys.notifications.all },
         (old) => {
@@ -172,25 +159,15 @@ export function useDeleteNotification() {
         },
       )
 
-      // Update unread count if deleted notification was unread
-      if (wasUnread && previousUnread) {
+      if (wasUnread && snapshot.previousUnread) {
         qc.setQueryData<{ count: number }>(queryKeys.notifications.unreadCount, {
-          count: Math.max(0, previousUnread.count - 1),
+          count: Math.max(0, snapshot.previousUnread.count - 1),
         })
       }
 
-      return { previousLists, previousUnread }
+      return snapshot
     },
-    onError: (_err, _id, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          qc.setQueryData(key, data)
-        }
-      }
-      if (context?.previousUnread) {
-        qc.setQueryData(queryKeys.notifications.unreadCount, context.previousUnread)
-      }
-    },
+    onError: (_err, _id, context) => rollbackNotifications(qc, context),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.notifications.all })
     },

@@ -1,3 +1,4 @@
+// frontend/src/api/notifications.ts
 import { apiClient } from './client'
 
 export type NotificationType =

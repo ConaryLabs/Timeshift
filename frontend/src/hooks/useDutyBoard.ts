@@ -1,10 +1,10 @@
+// frontend/src/hooks/useDutyBoard.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dutyBoardApi } from '@/api/dutyBoard'
 import { dutyPositionsApi } from '@/api/dutyPositions'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
 
-// Board state
 export function useDutyBoard(date: string, options?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: queryKeys.dutyBoard.board(date),
@@ -14,7 +14,6 @@ export function useDutyBoard(date: string, options?: { refetchInterval?: number 
   })
 }
 
-// Cell action (assign / mark_ot / clear)
 export function useCellAction(date: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -30,7 +29,6 @@ export function useCellAction(date: string) {
   })
 }
 
-// Create a date-specific position (ad-hoc row on duty board)
 export function useCreateDatePosition(date: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -43,7 +41,6 @@ export function useCreateDatePosition(date: string) {
   })
 }
 
-// Delete a date-specific position (remove ad-hoc row)
 export function useDeleteDatePosition(date: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -55,7 +52,6 @@ export function useDeleteDatePosition(date: string) {
   })
 }
 
-// Available staff for a cell
 export function useAvailableStaff(date: string, blockIndex: number, positionId: string, enabled = false) {
   return useQuery({
     queryKey: queryKeys.dutyBoard.available(date, blockIndex, positionId),
@@ -64,7 +60,6 @@ export function useAvailableStaff(date: string, blockIndex: number, positionId: 
   })
 }
 
-// Console hours report
 export function useConsoleHours(startDate: string, endDate: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.dutyBoard.consoleHours(startDate, endDate),
@@ -73,7 +68,6 @@ export function useConsoleHours(startDate: string, endDate: string, enabled = tr
   })
 }
 
-// Qualifications
 export function useQualifications() {
   return useQuery({
     queryKey: queryKeys.qualifications.all,
@@ -89,7 +83,6 @@ export function useDeleteQualification() {
   return useInvalidatingMutation(dutyBoardApi.deleteQualification, [queryKeys.qualifications.all])
 }
 
-// Position qualifications
 export function usePositionQualifications(positionId: string) {
   return useQuery({
     queryKey: queryKeys.qualifications.position(positionId),
@@ -122,7 +115,6 @@ export function useRemovePositionQualification() {
   })
 }
 
-// User qualifications
 export function useUserQualifications(userId: string) {
   return useQuery({
     queryKey: queryKeys.qualifications.user(userId),
@@ -155,7 +147,6 @@ export function useRemoveUserQualification() {
   })
 }
 
-// Position hours
 export function useSetPositionHours() {
   return useInvalidatingMutation(
     ({ positionId, ...body }: {

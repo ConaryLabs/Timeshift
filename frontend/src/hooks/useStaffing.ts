@@ -1,3 +1,4 @@
+// frontend/src/hooks/useStaffing.ts
 import { useQuery } from '@tanstack/react-query'
 import { staffingApi } from '@/api/staffing'
 import { queryKeys } from './queryKeys'

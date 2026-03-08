@@ -1,6 +1,6 @@
 //! Timezone helpers: convert between org-local wall-clock times and UTC.
 
-use chrono::TimeZone;
+use chrono::{Datelike, TimeZone};
 use chrono_tz::Tz;
 
 use crate::error::{AppError, Result};
@@ -22,12 +22,6 @@ pub fn org_today(tz_str: &str) -> time::Date {
         local.day() as u8,
     )
     .unwrap()
-}
-
-/// Get the current year in the given timezone.
-pub fn org_year(tz_str: &str) -> i32 {
-    let tz = tz_str.parse::<Tz>().unwrap_or(chrono_tz::UTC);
-    chrono::Utc::now().with_timezone(&tz).year()
 }
 
 /// Compute fiscal year for a given date based on the org's fiscal year start month.
@@ -91,5 +85,3 @@ pub fn local_to_utc(
 
     time::OffsetDateTime::from_unix_timestamp(utc_dt.timestamp()).unwrap()
 }
-
-use chrono::Datelike;

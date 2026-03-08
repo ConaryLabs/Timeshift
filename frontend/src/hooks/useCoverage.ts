@@ -1,6 +1,6 @@
+// frontend/src/hooks/useCoverage.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { coveragePlansApi } from '@/api/coveragePlans'
-import type { SlotEntry } from '@/api/coveragePlans'
+import { coveragePlansApi, type SlotEntry } from '@/api/coveragePlans'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
 

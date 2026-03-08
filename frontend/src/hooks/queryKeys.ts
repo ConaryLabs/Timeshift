@@ -1,3 +1,4 @@
+// frontend/src/hooks/queryKeys.ts
 import type { TradeListParams } from '@/api/trades'
 import type { OtRequestListParams } from '@/api/otRequests'
 import type { NotificationListParams } from '@/api/notifications'
@@ -162,6 +163,7 @@ export const queryKeys = {
   },
   dutyPositions: {
     all: ['duty-positions'] as const,
+    assignmentsAll: ['duty-assignments'] as const,
     assignments: (date: string, shiftTemplateId?: string) =>
       ['duty-assignments', date, shiftTemplateId] as const,
   },

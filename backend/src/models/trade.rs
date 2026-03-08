@@ -1,9 +1,10 @@
+// models/trade.rs
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::models::common::ReviewAction;
+use crate::models::common::{Paginated, ReviewAction};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "trade_status", rename_all = "snake_case")]
@@ -76,12 +77,7 @@ pub struct TradeListQuery {
     pub offset: Option<i64>,
 }
 
-impl TradeListQuery {
-    pub fn limit(&self) -> i64 {
-        self.limit.unwrap_or(100).clamp(1, 500)
-    }
-
-    pub fn offset(&self) -> i64 {
-        self.offset.unwrap_or(0).max(0)
-    }
+impl Paginated for TradeListQuery {
+    fn raw_limit(&self) -> Option<i64> { self.limit }
+    fn raw_offset(&self) -> Option<i64> { self.offset }
 }

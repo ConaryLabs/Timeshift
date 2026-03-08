@@ -1,3 +1,4 @@
+// frontend/src/lib/queryClient.ts
 import { QueryClient, QueryCache } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { toast } from 'sonner'

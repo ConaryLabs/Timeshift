@@ -1,3 +1,4 @@
+// frontend/src/hooks/mutationCallbacks.ts
 import { toast } from 'sonner'
 import { extractApiError } from '@/lib/format'
 

@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/OrgSettingsPage.tsx
 /* eslint-disable react-hooks/incompatible-library */
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'

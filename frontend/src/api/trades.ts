@@ -1,3 +1,4 @@
+// frontend/src/api/trades.ts
 import { apiClient } from './client'
 
 export type TradeStatus = 'pending_partner' | 'pending_approval' | 'approved' | 'denied' | 'cancelled'

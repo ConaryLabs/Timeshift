@@ -1,3 +1,4 @@
+// backend/src/api/reports.rs
 use axum::{
     extract::{Query, State},
     Json,
@@ -7,6 +8,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
+    api::helpers::validate_date_range,
     auth::AuthUser,
     error::{AppError, Result},
     models::report::{
@@ -25,17 +27,7 @@ pub async fn coverage(
         return Err(AppError::Forbidden);
     }
 
-    if q.end_date < q.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-
-    if (q.end_date - q.start_date).whole_days() > 730 {
-        return Err(AppError::BadRequest(
-            "Date range cannot exceed 2 years".into(),
-        ));
-    }
+    validate_date_range(q.start_date, q.end_date, Some(730))?;
 
     let rows = sqlx::query!(
         r#"
@@ -168,17 +160,7 @@ pub async fn leave_summary(
         return Err(AppError::Forbidden);
     }
 
-    if q.end_date < q.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-
-    if (q.end_date - q.start_date).whole_days() > 730 {
-        return Err(AppError::BadRequest(
-            "Date range cannot exceed 2 years".into(),
-        ));
-    }
+    validate_date_range(q.start_date, q.end_date, Some(730))?;
 
     let rows = sqlx::query!(
         r#"
@@ -234,17 +216,7 @@ pub async fn ot_by_period(
         return Err(AppError::Forbidden);
     }
 
-    if q.end_date < q.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-
-    if (q.end_date - q.start_date).whole_days() > 730 {
-        return Err(AppError::BadRequest(
-            "Date range cannot exceed 2 years".into(),
-        ));
-    }
+    validate_date_range(q.start_date, q.end_date, Some(730))?;
 
     let rows = sqlx::query!(
         r#"
@@ -319,17 +291,7 @@ pub async fn work_summary(
         return Err(AppError::Forbidden);
     }
 
-    if q.end_date < q.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-
-    if (q.end_date - q.start_date).whole_days() > 730 {
-        return Err(AppError::BadRequest(
-            "Date range cannot exceed 2 years".into(),
-        ));
-    }
+    validate_date_range(q.start_date, q.end_date, Some(730))?;
 
     let rows = sqlx::query!(
         r#"

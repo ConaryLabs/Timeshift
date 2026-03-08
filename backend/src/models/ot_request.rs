@@ -1,13 +1,10 @@
+// models/ot_request.rs
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::models::common::{deserialize_optional_field, OtType};
-
-// ---------------------------------------------------------------------------
-// OT Request Status Enum
-// ---------------------------------------------------------------------------
+use crate::models::common::{deserialize_optional_field, OtType, Paginated};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "ot_request_status", rename_all = "snake_case")]
@@ -18,10 +15,6 @@ pub enum OtRequestStatus {
     Filled,
     Cancelled,
 }
-
-// ---------------------------------------------------------------------------
-// OT Request
-// ---------------------------------------------------------------------------
 
 /// OT request row with joined display fields for list queries.
 #[derive(Debug, Clone, Serialize)]
@@ -142,19 +135,10 @@ pub struct OtRequestQuery {
     pub offset: Option<i64>,
 }
 
-impl OtRequestQuery {
-    pub fn limit(&self) -> i64 {
-        self.limit.unwrap_or(100).clamp(1, 500)
-    }
-
-    pub fn offset(&self) -> i64 {
-        self.offset.unwrap_or(0).max(0)
-    }
+impl Paginated for OtRequestQuery {
+    fn raw_limit(&self) -> Option<i64> { self.limit }
+    fn raw_offset(&self) -> Option<i64> { self.offset }
 }
-
-// ---------------------------------------------------------------------------
-// OT Request Volunteers
-// ---------------------------------------------------------------------------
 
 /// Volunteer row with joined user info.
 #[derive(Debug, Clone, Serialize)]
@@ -174,10 +158,6 @@ pub struct OtRequestVolunteerRow {
     )]
     pub withdrawn_at: Option<OffsetDateTime>,
 }
-
-// ---------------------------------------------------------------------------
-// OT Request Assignments
-// ---------------------------------------------------------------------------
 
 /// Assignment row with joined user info.
 #[derive(Debug, Clone, Serialize)]
@@ -204,6 +184,6 @@ pub struct OtRequestAssignmentRow {
 pub struct CreateOtRequestAssignment {
     pub user_id: Uuid,
     pub ot_type: Option<OtType>,
-    /// When `true`, bypasses the voluntary OT soft-limit warning (12–14 h).
+    /// When `true`, bypasses the voluntary OT soft-limit warning (12-14 h).
     pub force: Option<bool>,
 }

@@ -1,3 +1,4 @@
+// backend/src/org_guard.rs
 //! Org-boundary validation helpers.
 //!
 //! Every function verifies that a given resource belongs to the caller's

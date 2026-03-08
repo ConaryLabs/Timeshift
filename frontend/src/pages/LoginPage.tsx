@@ -1,3 +1,4 @@
+// frontend/src/pages/LoginPage.tsx
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2 } from 'lucide-react'
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const setUser = useAuthStore((s) => s.setUser)
   const navigate = useNavigate()
 
   async function handleSubmit(e: React.FormEvent) {
@@ -25,7 +26,7 @@ export default function LoginPage() {
         '/api/auth/login',
         { email, password },
       )
-      setAuth(res.data.user)
+      setUser(res.data.user)
       navigate('/dashboard')
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }

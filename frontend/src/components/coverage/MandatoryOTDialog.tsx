@@ -1,3 +1,4 @@
+// components/coverage/MandatoryOTDialog.tsx
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
@@ -17,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateOtRequest, useAssignOtRequest, useDayView, useMandatoryOtOrder, useDayGrid } from '@/hooks/queries'
-import { formatTime, extractApiError } from '@/lib/format'
+import { formatTime, extractApiError, addHoursToTime, parseTimeToMinutes } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
 import type { DayViewEntry, GridAssignment } from '@/api/schedule'
 
@@ -29,25 +30,6 @@ interface Props {
 }
 
 type OtDirection = 'holdover' | 'early_callout'
-
-/** Parse "HH:MM" or "HH:MM:SS" to total minutes since midnight. */
-function parseTimeToMin(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + (m || 0)
-}
-
-/** Add hours to a time string, wrapping around midnight. Returns "HH:MM:SS". */
-function addHoursToTime(time: string, hours: number): string {
-  const totalMinutes = ((parseTimeToMin(time) + hours * 60) % 1440 + 1440) % 1440
-  const newH = Math.floor(totalMinutes / 60)
-  const newM = totalMinutes % 60
-  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}:00`
-}
-
-/** Format "HH:MM:SS" or "HH:MM" to displayable time. */
-function fmtTime(t: string): string {
-  return formatTime(t)
-}
 
 interface EligibleEmployee {
   user_id: string
@@ -101,17 +83,17 @@ function findBlockEligible(
   blockEnd: string,
   direction: OtDirection,
 ): EligibleEmployee[] {
-  const blockStartMin = parseTimeToMin(blockStart)
-  const rawBlockEndMin = parseTimeToMin(blockEnd)
+  const blockStartMin = parseTimeToMinutes(blockStart)
+  const rawBlockEndMin = parseTimeToMinutes(blockEnd)
   // Linear blockEnd for "already covers" check (extend past 1440 if block crosses midnight)
   const blockEndLinear = rawBlockEndMin <= blockStartMin ? rawBlockEndMin + 1440 : rawBlockEndMin
 
   const eligible: EligibleEmployee[] = []
 
   for (const shift of dayView) {
-    const shiftStartMin = parseTimeToMin(shift.start_time)
+    const shiftStartMin = parseTimeToMinutes(shift.start_time)
     // Linear end for "already covers" check
-    let shiftEndLinear = parseTimeToMin(shift.end_time)
+    let shiftEndLinear = parseTimeToMinutes(shift.end_time)
     if (shift.crosses_midnight) shiftEndLinear += 1440
 
     // Filter to employees in the matching classification who aren't already on OT
@@ -139,7 +121,7 @@ function findBlockEligible(
     if (direction === 'holdover') {
       // Holdover: shift ends near/within the block → employee stays longer.
       // Circular check: shiftEnd ∈ [blockStart - 2h, blockEnd]
-      const shiftEndCircular = parseTimeToMin(shift.end_time)
+      const shiftEndCircular = parseTimeToMinutes(shift.end_time)
       const endInRange = isTimeBetween(shiftEndCircular, blockStartMin - 120, rawBlockEndMin)
       // Guard: midnight-crossing shift whose end time is in the PM hours (after the
       // block) — it hasn't wrapped around yet, so it's tonight's shift. Skip it.
@@ -151,7 +133,7 @@ function findBlockEligible(
         const otStart = shift.end_time
         const otEnd = addHoursToTime(shift.end_time, 2)
         // Verify OT window actually overlaps the block (not just adjacent)
-        if (!timeRangesOverlap(parseTimeToMin(otStart), parseTimeToMin(otEnd), blockStartMin, rawBlockEndMin)) continue
+        if (!timeRangesOverlap(parseTimeToMinutes(otStart), parseTimeToMinutes(otEnd), blockStartMin, rawBlockEndMin)) continue
         for (const emp of matchingEmployees) {
           eligible.push({
             user_id: emp.user_id,
@@ -176,7 +158,7 @@ function findBlockEligible(
         const otStart = addHoursToTime(shift.start_time, -2)
         const otEnd = shift.start_time
         // Verify OT window actually overlaps the block (not just adjacent)
-        if (!timeRangesOverlap(parseTimeToMin(otStart), parseTimeToMin(otEnd), blockStartMin, rawBlockEndMin)) continue
+        if (!timeRangesOverlap(parseTimeToMinutes(otStart), parseTimeToMinutes(otEnd), blockStartMin, rawBlockEndMin)) continue
         for (const emp of matchingEmployees) {
           eligible.push({
             user_id: emp.user_id,
@@ -227,14 +209,14 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
   // Collect user IDs who already have OT covering this block (from day-grid data)
   const alreadyOtUserIds = useMemo(() => {
     if (!dayGrid || !blockTimes) return new Set<string>()
-    const blockStartMin = parseTimeToMin(blockTimes.start)
-    const blockEndMin = parseTimeToMin(blockTimes.end)
+    const blockStartMin = parseTimeToMinutes(blockTimes.start)
+    const blockEndMin = parseTimeToMinutes(blockTimes.end)
     const ids = new Set<string>()
     const classData = dayGrid.classifications.find((c) => c.classification_id === gap.classification_id)
     if (!classData) return ids
     for (const block of classData.blocks) {
-      const bStart = parseTimeToMin(block.start_time)
-      const bEnd = parseTimeToMin(block.end_time)
+      const bStart = parseTimeToMinutes(block.start_time)
+      const bEnd = parseTimeToMinutes(block.end_time)
       if (!timeRangesOverlap(bStart, bEnd, blockStartMin, blockEndMin)) continue
       for (const emp of block.employees) {
         if (emp.is_overtime) ids.add(emp.user_id)
@@ -320,11 +302,11 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
 
   // Direction descriptions
   const holdoverDesc = isBlockMode && blockTimes
-    ? `Extend past shift end to cover ${fmtTime(blockTimes.start)}-${fmtTime(blockTimes.end)}`
-    : shift ? `${fmtTime(shift.end_time)} → ${fmtTime(addHoursToTime(shift.end_time, 2))}` : ''
+    ? `Extend past shift end to cover ${formatTime(blockTimes.start)}-${formatTime(blockTimes.end)}`
+    : shift ? `${formatTime(shift.end_time)} → ${formatTime(addHoursToTime(shift.end_time, 2))}` : ''
   const earlyDesc = isBlockMode && blockTimes
-    ? `Come in early to cover ${fmtTime(blockTimes.start)}-${fmtTime(blockTimes.end)}`
-    : shift ? `${fmtTime(addHoursToTime(shift.start_time, -2))} → ${fmtTime(shift.start_time)}` : ''
+    ? `Come in early to cover ${formatTime(blockTimes.start)}-${formatTime(blockTimes.end)}`
+    : shift ? `${formatTime(addHoursToTime(shift.start_time, -2))} → ${formatTime(shift.start_time)}` : ''
 
   const DIRECTIONS: { value: OtDirection; label: string; desc: string }[] = [
     { value: 'holdover', label: 'Hold Over', desc: holdoverDesc },
@@ -353,7 +335,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
               </div>
               {shift && (
                 <span className="text-xs text-muted-foreground">
-                  {fmtTime(shift.start_time)} – {fmtTime(shift.end_time)}
+                  {formatTime(shift.start_time)} – {formatTime(shift.end_time)}
                 </span>
               )}
             </div>
@@ -403,7 +385,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
                   {isBlockMode
                     ? blockEligible.map((e) => (
                         <SelectItem key={e.user_id} value={e.user_id}>
-                          {e.first_name} {e.last_name} · {e.shift_name} ({fmtTime(e.shift_start)}–{fmtTime(e.shift_end)})
+                          {e.first_name} {e.last_name} · {e.shift_name} ({formatTime(e.shift_start)}–{formatTime(e.shift_end)})
                         </SelectItem>
                       ))
                     : legacyEligible.map((e) => (
@@ -423,7 +405,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
             )}
             {isBlockMode && selectedBlockEmp && (
               <p className="text-xs text-muted-foreground">
-                OT: {fmtTime(selectedBlockEmp.ot_start)} – {fmtTime(selectedBlockEmp.ot_end)} (2hr extension of {selectedBlockEmp.shift_name})
+                OT: {formatTime(selectedBlockEmp.ot_start)} – {formatTime(selectedBlockEmp.ot_end)} (2hr extension of {selectedBlockEmp.shift_name})
               </p>
             )}
           </div>

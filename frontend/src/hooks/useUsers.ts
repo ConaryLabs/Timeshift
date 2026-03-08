@@ -1,3 +1,4 @@
+// frontend/src/hooks/useUsers.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi } from '@/api/users'
 import { useAuthStore } from '@/store/auth'
@@ -14,7 +15,7 @@ export function useUsers(params?: { include_inactive?: boolean; limit?: number; 
 export function useUserDirectory() {
   return useQuery({
     queryKey: queryKeys.users.directory,
-    queryFn: () => usersApi.directory(),
+    queryFn: usersApi.directory,
   })
 }
 

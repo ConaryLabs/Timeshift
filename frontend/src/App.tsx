@@ -1,3 +1,4 @@
+// frontend/src/App.tsx
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'

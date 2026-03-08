@@ -10,7 +10,7 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::{
-        common::{DateRangeParams, PaginationParams},
+        common::{DateRangeParams, Paginated, PaginationParams},
         shift::{
             CreateScheduledShiftRequest, CreateShiftTemplateRequest, ScheduledShift, ShiftTemplate,
             UpdateShiftTemplateRequest,

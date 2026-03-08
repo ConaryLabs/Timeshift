@@ -1,3 +1,4 @@
+// frontend/src/pages/SchedulePage.tsx
 import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, getDay, getDaysInMonth } from 'date-fns'
@@ -17,10 +18,8 @@ import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
-import { formatTime, contrastText as contrastTextHex, NO_VALUE } from '@/lib/format'
+import { formatTime, contrastText as contrastTextHex, NO_VALUE, DAY_LABELS } from '@/lib/format'
 import type { AssignmentView, GridCell } from '@/api/schedule'
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getWeekRange(anchor: Date) {
   const start = startOfWeek(anchor, { weekStartsOn: 0 })
@@ -507,12 +506,14 @@ function MonthView({
                   <div className="flex flex-wrap gap-0.5">
                     {dayCells.slice(0, 4).map((cell) => {
                       const isUnder = cell.coverage_required > 0 && cell.coverage_actual < cell.coverage_required
-                      const status =
-                        cell.coverage_required === 0
-                          ? 'bg-muted-foreground/30'
-                          : cell.coverage_actual >= cell.coverage_required
-                            ? 'bg-green-500'
-                            : 'bg-red-500'
+                      let status: string
+                      if (cell.coverage_required === 0) {
+                        status = 'bg-muted-foreground/30'
+                      } else if (cell.coverage_actual >= cell.coverage_required) {
+                        status = 'bg-green-500'
+                      } else {
+                        status = 'bg-red-500'
+                      }
                       if (isUnder) {
                         const classDetail = cell.coverage_by_classification?.length
                           ? ` (${cell.coverage_by_classification.map((c) => `${c.classification_abbreviation} −${c.shortage}`).join(', ')})`

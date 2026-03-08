@@ -1,3 +1,4 @@
+// frontend/src/api/schedule.ts
 import { apiClient } from './client'
 
 export interface ShiftTemplate {

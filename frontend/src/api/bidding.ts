@@ -1,3 +1,4 @@
+// frontend/src/api/bidding.ts
 import { apiClient } from './client'
 
 export type BidPeriodStatus = 'draft' | 'open' | 'in_progress' | 'completed' | 'archived'

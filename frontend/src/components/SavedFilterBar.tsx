@@ -1,3 +1,4 @@
+// components/SavedFilterBar.tsx
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { Save, Star, StarOff, Trash2 } from 'lucide-react'
@@ -102,6 +103,10 @@ export function SavedFilterBar({ page, currentFilters, onApplyFilter, className 
     )
   }
 
+  const selectedFilter = effectiveSelectedId !== 'none' && filters
+    ? filters.find((x) => x.id === effectiveSelectedId) ?? null
+    : null
+
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <Select value={effectiveSelectedId} onValueChange={handleApply}>
@@ -123,35 +128,27 @@ export function SavedFilterBar({ page, currentFilters, onApplyFilter, className 
         Save
       </Button>
 
-      {effectiveSelectedId !== 'none' && filters && (
+      {selectedFilter && (
         <>
-          {(() => {
-            const f = filters.find((x) => x.id === effectiveSelectedId)
-            if (!f) return null
-            return (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleToggleDefault(f)}
-                  title={f.is_default ? 'Remove as default' : 'Set as default'}
-                  aria-label={f.is_default ? 'Remove as default' : 'Set as default'}
-                >
-                  {f.is_default ? <StarOff className="h-3.5 w-3.5 text-amber-500" /> : <Star className="h-3.5 w-3.5" />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(f.id)}
-                  className="text-destructive hover:text-destructive"
-                  title="Delete filter"
-                  aria-label="Delete filter"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )
-          })()}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleToggleDefault(selectedFilter)}
+            title={selectedFilter.is_default ? 'Remove as default' : 'Set as default'}
+            aria-label={selectedFilter.is_default ? 'Remove as default' : 'Set as default'}
+          >
+            {selectedFilter.is_default ? <StarOff className="h-3.5 w-3.5 text-amber-500" /> : <Star className="h-3.5 w-3.5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDelete(selectedFilter.id)}
+            className="text-destructive hover:text-destructive"
+            title="Delete filter"
+            aria-label="Delete filter"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </>
       )}
 

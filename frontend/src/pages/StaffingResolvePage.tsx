@@ -1,3 +1,4 @@
+// frontend/src/pages/StaffingResolvePage.tsx
 import { useState, useMemo } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
@@ -33,7 +34,7 @@ import { ErrorState } from '@/components/ui/error-state'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DataTable } from '@/components/ui/data-table'
 import { StepIndicator } from '@/components/callout/StepIndicator'
-import { CALLOUT_STEPS } from '@/components/callout/calloutSteps'
+import { CALLOUT_STEPS, getNextStep as getNextCalloutStep, getPrevStep as getPrevCalloutStep } from '@/components/callout/calloutSteps'
 import { useCalloutColumns } from '@/components/callout/CalloutListTable'
 import MandatoryOTDialog from '@/components/coverage/MandatoryOTDialog'
 import DayOffMandatoryDialog from '@/components/coverage/DayOffMandatoryDialog'
@@ -191,20 +192,6 @@ export default function StaffingResolvePage() {
       min: block.min,
       actual: block.actual,
     })
-  }
-
-  function getNextStep(): CalloutStep | null {
-    if (!currentStep) return 'volunteers'
-    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
-    if (idx < CALLOUT_STEPS.length - 1) return CALLOUT_STEPS[idx + 1].key
-    return null
-  }
-
-  function getPrevStep(): CalloutStep | null {
-    if (!currentStep) return null
-    const idx = CALLOUT_STEPS.findIndex((s) => s.key === currentStep)
-    if (idx > 0) return CALLOUT_STEPS[idx - 1].key
-    return null
   }
 
   function handleStartCallout() {
@@ -486,14 +473,14 @@ export default function StaffingResolvePage() {
                     <>
                       <StepIndicator currentStep={currentStep} />
                       <div className="flex items-center gap-2 mb-3">
-                        {isManager && getPrevStep() && (
-                          <Button size="sm" variant="outline" onClick={() => handleSetStep(getPrevStep()!)} disabled={advanceStepMut.isPending}>
-                            Back to: {CALLOUT_STEPS.find((s) => s.key === getPrevStep())?.label}
+                        {isManager && getPrevCalloutStep(currentStep) && (
+                          <Button size="sm" variant="outline" onClick={() => handleSetStep(getPrevCalloutStep(currentStep)!)} disabled={advanceStepMut.isPending}>
+                            Back to: {CALLOUT_STEPS.find((s) => s.key === getPrevCalloutStep(currentStep))?.label}
                           </Button>
                         )}
-                        {isManager && getNextStep() && (
-                          <Button size="sm" variant="outline" onClick={() => handleSetStep(getNextStep()!)} disabled={advanceStepMut.isPending}>
-                            Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextStep())?.label}
+                        {isManager && getNextCalloutStep(currentStep) && (
+                          <Button size="sm" variant="outline" onClick={() => handleSetStep(getNextCalloutStep(currentStep)!)} disabled={advanceStepMut.isPending}>
+                            Advance to: {CALLOUT_STEPS.find((s) => s.key === getNextCalloutStep(currentStep))?.label}
                           </Button>
                         )}
                       </div>

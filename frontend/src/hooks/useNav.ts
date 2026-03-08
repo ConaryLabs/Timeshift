@@ -1,3 +1,4 @@
+// frontend/src/hooks/useNav.ts
 import { useQuery } from '@tanstack/react-query'
 import { navApi } from '@/api/nav'
 import { queryKeys } from './queryKeys'
