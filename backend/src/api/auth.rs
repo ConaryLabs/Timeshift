@@ -337,6 +337,17 @@ pub async fn login(
     ))
 }
 
+/// Parse a refresh token cookie value in the format "{family_id}:{raw_token}" (new)
+/// or just "{raw_token}" (legacy). Returns `(Option<family_id>, raw_token)`.
+fn parse_refresh_cookie(raw: &str) -> (Option<Uuid>, String) {
+    if let Some(idx) = raw.find(':') {
+        let fam = Uuid::parse_str(&raw[..idx]).ok();
+        (fam, raw[idx + 1..].to_string())
+    } else {
+        (None, raw.to_string())
+    }
+}
+
 pub async fn logout(
     State(state): State<AppState>,
     refresh: Option<RefreshTokenCookie>,
@@ -345,14 +356,7 @@ pub async fn logout(
     let mut logout_org_id = None;
 
     if let Some(RefreshTokenCookie(raw)) = refresh {
-        // Cookie format: "{family_id}:{raw_token}" (new) or just "{raw_token}" (legacy).
-        // Must parse before hashing, just like the refresh handler does.
-        let (cookie_family_id, raw_token) = if let Some(idx) = raw.find(':') {
-            let fam = Uuid::parse_str(&raw[..idx]).ok();
-            (fam, raw[idx + 1..].to_string())
-        } else {
-            (None, raw.clone())
-        };
+        let (cookie_family_id, raw_token) = parse_refresh_cookie(&raw);
 
         let hashed = hash_token(&raw_token);
         // Look up user before deleting, for audit log
@@ -398,14 +402,7 @@ pub async fn refresh(
     State(state): State<AppState>,
     RefreshTokenCookie(raw): RefreshTokenCookie,
 ) -> Result<impl IntoResponse> {
-    // Cookie format: "{family_id}:{raw_token}" (new) or just "{raw_token}" (legacy).
-    // Extracting the family_id enables full-family revocation on token reuse.
-    let (cookie_family_id, raw_token) = if let Some(idx) = raw.find(':') {
-        let fam = Uuid::parse_str(&raw[..idx]).ok();
-        (fam, raw[idx + 1..].to_string())
-    } else {
-        (None, raw.clone())
-    };
+    let (cookie_family_id, raw_token) = parse_refresh_cookie(&raw);
 
     let hashed = hash_token(&raw_token);
 

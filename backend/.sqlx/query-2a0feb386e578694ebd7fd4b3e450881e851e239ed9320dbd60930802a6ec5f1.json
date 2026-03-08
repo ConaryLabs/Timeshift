@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM leave_requests\n        WHERE user_id = $1 AND org_id = $2 AND status = 'pending'\n        ",
+  "query": "\n                    SELECT COUNT(*) AS \"count!\"\n                    FROM leave_requests\n                    WHERE user_id = $1 AND org_id = $2 AND status = 'pending'\n                    ",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "53a391f38770f7fc248a345a613e19ebfe298759581e0057f7fa2d45c6871e4e"
+  "hash": "2a0feb386e578694ebd7fd4b3e450881e851e239ed9320dbd60930802a6ec5f1"
 }

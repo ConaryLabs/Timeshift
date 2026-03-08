@@ -111,6 +111,17 @@ pub async fn verify_duty_position(pool: &PgPool, position_id: Uuid, org_id: Uuid
     check_exists(ok, "Duty position")
 }
 
+pub async fn verify_shift_pattern(pool: &PgPool, pattern_id: Uuid, org_id: Uuid) -> Result<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM shift_patterns WHERE id = $1 AND org_id = $2 AND is_active = true)",
+        pattern_id,
+        org_id
+    )
+    .fetch_one(pool)
+    .await?;
+    check_exists(ok, "Shift pattern")
+}
+
 pub async fn verify_qualification(pool: &PgPool, qual_id: Uuid, org_id: Uuid) -> Result<()> {
     let ok = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM qualifications WHERE id = $1 AND org_id = $2)",

@@ -15,15 +15,9 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { SickLeaveDonation } from '@/api/sickDonation'
 import { extractApiError, formatDate } from '@/lib/format'
+import { STATUS_TABS } from '@/lib/constants'
 
 const INITIAL_FORM = { recipient_id: '', leave_type_id: '', hours: '', fiscal_year: new Date().getFullYear().toString() }
-
-const STATUS_TABS = [
-  { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Denied', value: 'denied' },
-]
 
 export default function SickDonationPage() {
   const { isManager } = usePermissions()

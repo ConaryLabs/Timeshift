@@ -98,6 +98,79 @@ async fn fetch_callout_summary(
     Ok(row)
 }
 
+/// Fetch OT request summaries for a date + classification, optionally filtered by time overlap.
+///
+/// When `time_filter` is `None`, returns all non-cancelled OT requests for the date.
+/// When `Some((block_start, block_end))`, only returns requests whose time range overlaps
+/// the given block (handling midnight-crossing shifts).
+async fn fetch_ot_request_summaries(
+    pool: &PgPool,
+    org_id: Uuid,
+    date: time::Date,
+    classification_id: Uuid,
+    time_filter: Option<(time::Time, time::Time)>,
+) -> Result<Vec<OtRequestSummary>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT otr.id,
+               otr.status::TEXT AS "status!",
+               otr.start_time,
+               otr.end_time,
+               (SELECT COUNT(*) FROM ot_request_volunteers v WHERE v.ot_request_id = otr.id) AS "volunteer_count!",
+               (SELECT COUNT(*) FROM ot_request_assignments a WHERE a.ot_request_id = otr.id AND a.cancelled_at IS NULL) AS "assignment_count!"
+        FROM ot_requests otr
+        WHERE otr.org_id = $1
+          AND otr.date = $2
+          AND otr.classification_id = $3
+          AND otr.status != 'cancelled'
+          AND ($4::TIME IS NULL OR (
+            (otr.end_time >= otr.start_time AND otr.start_time < $5 AND otr.end_time > $4)
+            OR
+            (otr.end_time < otr.start_time AND (otr.start_time < $5 OR otr.end_time > $4))
+          ))
+        ORDER BY otr.start_time
+        "#,
+        org_id,
+        date,
+        classification_id,
+        time_filter.map(|(s, _)| s) as Option<time::Time>,
+        time_filter.map(|(_, e)| e) as Option<time::Time>,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| OtRequestSummary {
+            id: r.id,
+            status: r.status,
+            volunteer_count: r.volunteer_count,
+            assignment_count: r.assignment_count,
+            start_time: r.start_time,
+            end_time: r.end_time,
+        })
+        .collect())
+}
+
+/// Build a `StaffingAvailableResponse` with no employees (used when no scheduled shift exists).
+fn empty_staffing_response(
+    template_name: String,
+    start_time: time::Time,
+    end_time: time::Time,
+    duration_minutes: i32,
+) -> StaffingAvailableResponse {
+    StaffingAvailableResponse {
+        employees: Vec::new(),
+        scheduled_shift_id: Uuid::nil(),
+        shift_template_name: template_name,
+        shift_start_time: start_time,
+        shift_end_time: end_time,
+        shift_duration_minutes: duration_minutes,
+        existing_callout: None,
+        existing_ot_requests: Vec::new(),
+    }
+}
+
 pub async fn available_employees(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -146,16 +219,12 @@ pub async fn available_employees(
             .await?
             .ok_or_else(|| AppError::NotFound("Shift template not found".into()))?;
 
-            return Ok(Json(StaffingAvailableResponse {
-                employees: Vec::new(),
-                scheduled_shift_id: Uuid::nil(),
-                shift_template_name: tmpl.name,
-                shift_start_time: tmpl.start_time,
-                shift_end_time: tmpl.end_time,
-                shift_duration_minutes: tmpl.duration_minutes,
-                existing_callout: None,
-                existing_ot_requests: Vec::new(),
-            }));
+            return Ok(Json(empty_staffing_response(
+                tmpl.name,
+                tmpl.start_time,
+                tmpl.end_time,
+                tmpl.duration_minutes,
+            )));
         }
     };
 
@@ -173,43 +242,16 @@ pub async fn available_employees(
     .await?;
 
     let existing_callout = fetch_callout_summary(
-        &pool, shift_info.scheduled_shift_id, params.classification_id, auth.org_id,
-    ).await?;
-
-    // Check for OT requests on this date + classification
-    let ot_rows = sqlx::query!(
-        r#"
-        SELECT otr.id,
-               otr.status::TEXT AS "status!",
-               otr.start_time,
-               otr.end_time,
-               (SELECT COUNT(*) FROM ot_request_volunteers v WHERE v.ot_request_id = otr.id) AS "volunteer_count!",
-               (SELECT COUNT(*) FROM ot_request_assignments a WHERE a.ot_request_id = otr.id AND a.cancelled_at IS NULL) AS "assignment_count!"
-        FROM ot_requests otr
-        WHERE otr.org_id = $1
-          AND otr.date = $2
-          AND otr.classification_id = $3
-          AND otr.status != 'cancelled'
-        ORDER BY otr.start_time
-        "#,
-        auth.org_id,
-        params.date,
+        &pool,
+        shift_info.scheduled_shift_id,
         params.classification_id,
+        auth.org_id,
     )
-    .fetch_all(&pool)
     .await?;
 
-    let existing_ot_requests = ot_rows
-        .into_iter()
-        .map(|r| OtRequestSummary {
-            id: r.id,
-            status: r.status,
-            volunteer_count: r.volunteer_count,
-            assignment_count: r.assignment_count,
-            start_time: r.start_time,
-            end_time: r.end_time,
-        })
-        .collect();
+    let existing_ot_requests =
+        fetch_ot_request_summaries(&pool, auth.org_id, params.date, params.classification_id, None)
+            .await?;
 
     Ok(Json(StaffingAvailableResponse {
         employees,
@@ -312,16 +354,12 @@ pub async fn block_available(
         None => {
             // No scheduled_shift exists for this template+date.
             // Return empty result rather than auto-creating (GET should not write).
-            return Ok(Json(StaffingAvailableResponse {
-                employees: Vec::new(),
-                scheduled_shift_id: Uuid::nil(),
-                shift_template_name: template_name,
-                shift_start_time: start_time,
-                shift_end_time: end_time,
-                shift_duration_minutes: duration_minutes,
-                existing_callout: None,
-                existing_ot_requests: Vec::new(),
-            }));
+            return Ok(Json(empty_staffing_response(
+                template_name,
+                start_time,
+                end_time,
+                duration_minutes,
+            )));
         }
     };
 
@@ -338,50 +376,21 @@ pub async fn block_available(
     .await?;
 
     let existing_callout = fetch_callout_summary(
-        &pool, scheduled_shift_id, params.classification_id, auth.org_id,
-    ).await?;
+        &pool,
+        scheduled_shift_id,
+        params.classification_id,
+        auth.org_id,
+    )
+    .await?;
 
-    // Check for OT requests on this date + classification that overlap this block
-    let ot_rows = sqlx::query!(
-        r#"
-        SELECT otr.id,
-               otr.status::TEXT AS "status!",
-               otr.start_time,
-               otr.end_time,
-               (SELECT COUNT(*) FROM ot_request_volunteers v WHERE v.ot_request_id = otr.id) AS "volunteer_count!",
-               (SELECT COUNT(*) FROM ot_request_assignments a WHERE a.ot_request_id = otr.id AND a.cancelled_at IS NULL) AS "assignment_count!"
-        FROM ot_requests otr
-        WHERE otr.org_id = $1
-          AND otr.date = $2
-          AND otr.classification_id = $3
-          AND otr.status != 'cancelled'
-          AND (
-            (otr.end_time >= otr.start_time AND otr.start_time < $5 AND otr.end_time > $4)
-            OR
-            (otr.end_time < otr.start_time AND (otr.start_time < $5 OR otr.end_time > $4))
-          )
-        ORDER BY otr.start_time
-        "#,
+    let existing_ot_requests = fetch_ot_request_summaries(
+        &pool,
         auth.org_id,
         params.date,
         params.classification_id,
-        block_start,
-        block_end,
+        Some((block_start, block_end)),
     )
-    .fetch_all(&pool)
     .await?;
-
-    let existing_ot_requests = ot_rows
-        .into_iter()
-        .map(|r| OtRequestSummary {
-            id: r.id,
-            status: r.status,
-            volunteer_count: r.volunteer_count,
-            assignment_count: r.assignment_count,
-            start_time: r.start_time,
-            end_time: r.end_time,
-        })
-        .collect();
 
     Ok(Json(StaffingAvailableResponse {
         employees,

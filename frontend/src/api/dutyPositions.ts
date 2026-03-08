@@ -18,12 +18,12 @@ export interface DutyAssignment {
   org_id: string
   duty_position_id: string
   duty_position_name: string
-  user_id: string
-  user_first_name: string
-  user_last_name: string
+  user_id: string | null
+  user_first_name: string | null
+  user_last_name: string | null
   date: string
-  shift_template_id: string | null
-  shift_template_name: string | null
+  block_index: number
+  status: string
   notes: string | null
   assigned_by: string | null
   created_at: string
@@ -43,14 +43,14 @@ export const dutyPositionsApi = {
   delete: (id: string) =>
     apiClient.delete(`/api/duty-positions/${id}`),
 
-  listAssignments: (params: { date: string; shift_template_id?: string }) =>
+  listAssignments: (params: { date: string }) =>
     apiClient.get<DutyAssignment[]>('/api/duty-assignments', { params }),
 
   createAssignment: (body: {
     duty_position_id: string
     user_id: string
     date: string
-    shift_template_id?: string
+    block_index: number
     notes?: string
   }) => apiClient.post<DutyAssignment>('/api/duty-assignments', body),
 

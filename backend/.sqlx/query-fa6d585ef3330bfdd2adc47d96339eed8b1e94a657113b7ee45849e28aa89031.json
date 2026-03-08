@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT otr.id,\n               otr.status::TEXT AS \"status!\",\n               otr.start_time,\n               otr.end_time,\n               (SELECT COUNT(*) FROM ot_request_volunteers v WHERE v.ot_request_id = otr.id) AS \"volunteer_count!\",\n               (SELECT COUNT(*) FROM ot_request_assignments a WHERE a.ot_request_id = otr.id AND a.cancelled_at IS NULL) AS \"assignment_count!\"\n        FROM ot_requests otr\n        WHERE otr.org_id = $1\n          AND otr.date = $2\n          AND otr.classification_id = $3\n          AND otr.status != 'cancelled'\n          AND ($4::TIME IS NULL OR (\n            (otr.end_time >= otr.start_time AND otr.start_time < $5 AND otr.end_time > $4)\n            OR\n            (otr.end_time < otr.start_time AND (otr.start_time < $5 OR otr.end_time > $4))\n          ))\n        ORDER BY otr.start_time\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "start_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "end_time",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "volunteer_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "assignment_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Uuid",
+        "Time",
+        "Time"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "fa6d585ef3330bfdd2adc47d96339eed8b1e94a657113b7ee45849e28aa89031"
+}

@@ -5,9 +5,8 @@ import { Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { api } from '@/api/client'
+import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
-import type { UserProfile } from '@/store/auth'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -22,11 +21,8 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.post<{ user: UserProfile }>(
-        '/api/auth/login',
-        { email, password },
-      )
-      setUser(res.data.user)
+      const { user } = await authApi.login({ email, password })
+      setUser(user)
       navigate('/dashboard')
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }

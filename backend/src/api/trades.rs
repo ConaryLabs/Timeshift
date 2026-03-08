@@ -97,10 +97,7 @@ pub async fn create(
 
     // Both assignments must be for future dates
     let today = crate::services::timezone::org_today(&auth.org_timezone);
-    if req_assignment.date < today {
-        return Err(AppError::BadRequest("Cannot trade past assignments".into()));
-    }
-    if partner_assignment.date < today {
+    if req_assignment.date < today || partner_assignment.date < today {
         return Err(AppError::BadRequest("Cannot trade past assignments".into()));
     }
 

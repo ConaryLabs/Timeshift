@@ -336,18 +336,7 @@ pub async fn create_assignment(
     }
 
     org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
-
-    // Verify pattern belongs to org
-    let pattern_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM shift_patterns WHERE id = $1 AND org_id = $2 AND is_active = true)",
-        req.pattern_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-    if pattern_exists != Some(true) {
-        return Err(AppError::NotFound("Shift pattern not found".into()));
-    }
+    org_guard::verify_shift_pattern(&pool, req.pattern_id, auth.org_id).await?;
 
     // Validate: new effective_from must not predate any existing active assignment's effective_from
     let existing = sqlx::query!(

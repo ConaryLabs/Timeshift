@@ -167,64 +167,70 @@ pub async fn my_dashboard(
     let today = crate::services::timezone::org_today(&auth.org_timezone);
     let week_end = today + time::Duration::days(7);
 
-    // Fetch all shifts for the upcoming week (today through today+7) in one query.
-    // Derive today_shift and next_shift from this result set.
-    let upcoming_shifts = fetch_schedule_entries(&pool, auth.id, auth.org_id, today, week_end).await?;
+    // Run all four independent queries concurrently
+    let (upcoming_shifts, leave_balances, pending_leave_count, pending_trade_count) = tokio::try_join!(
+        fetch_schedule_entries(&pool, auth.id, auth.org_id, today, week_end),
+        async {
+            let rows = sqlx::query!(
+                r#"
+                SELECT lt.code AS leave_type_code, lt.name AS leave_type_name,
+                       CAST(lb.balance_hours AS FLOAT8) AS "balance_hours!"
+                FROM leave_balances lb
+                JOIN leave_types lt ON lt.id = lb.leave_type_id
+                WHERE lb.user_id = $1 AND lb.org_id = $2
+                ORDER BY lt.display_order
+                "#,
+                auth.id,
+                auth.org_id,
+            )
+            .fetch_all(&pool)
+            .await?;
+            Ok::<Vec<LeaveBalanceSummary>, crate::error::AppError>(
+                rows.into_iter()
+                    .map(|r| LeaveBalanceSummary {
+                        leave_type_code: r.leave_type_code,
+                        leave_type_name: r.leave_type_name,
+                        balance_hours: r.balance_hours,
+                    })
+                    .collect(),
+            )
+        },
+        async {
+            Ok::<_, crate::error::AppError>(
+                sqlx::query_scalar!(
+                    r#"
+                    SELECT COUNT(*) AS "count!"
+                    FROM leave_requests
+                    WHERE user_id = $1 AND org_id = $2 AND status = 'pending'
+                    "#,
+                    auth.id,
+                    auth.org_id,
+                )
+                .fetch_one(&pool)
+                .await?,
+            )
+        },
+        async {
+            Ok::<_, crate::error::AppError>(
+                sqlx::query_scalar!(
+                    r#"
+                    SELECT COUNT(*) AS "count!"
+                    FROM trade_requests
+                    WHERE (requester_id = $1 OR partner_id = $1)
+                      AND org_id = $2
+                      AND status IN ('pending_partner', 'pending_approval')
+                    "#,
+                    auth.id,
+                    auth.org_id,
+                )
+                .fetch_one(&pool)
+                .await?,
+            )
+        },
+    )?;
+
     let today_shift = upcoming_shifts.iter().find(|s| s.date == today).cloned();
     let next_shift = upcoming_shifts.iter().find(|s| s.date > today).cloned();
-
-    // Leave balances
-    let balance_rows = sqlx::query!(
-        r#"
-        SELECT lt.code AS leave_type_code, lt.name AS leave_type_name,
-               CAST(lb.balance_hours AS FLOAT8) AS "balance_hours!"
-        FROM leave_balances lb
-        JOIN leave_types lt ON lt.id = lb.leave_type_id
-        WHERE lb.user_id = $1 AND lb.org_id = $2
-        ORDER BY lt.display_order
-        "#,
-        auth.id,
-        auth.org_id,
-    )
-    .fetch_all(&pool)
-    .await?;
-
-    let leave_balances: Vec<LeaveBalanceSummary> = balance_rows
-        .into_iter()
-        .map(|r| LeaveBalanceSummary {
-            leave_type_code: r.leave_type_code,
-            leave_type_name: r.leave_type_name,
-            balance_hours: r.balance_hours,
-        })
-        .collect();
-
-    // Pending leave request count
-    let pending_leave_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!"
-        FROM leave_requests
-        WHERE user_id = $1 AND org_id = $2 AND status = 'pending'
-        "#,
-        auth.id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    // Pending trade request count
-    let pending_trade_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!"
-        FROM trade_requests
-        WHERE (requester_id = $1 OR partner_id = $1)
-          AND org_id = $2
-          AND status IN ('pending_partner', 'pending_approval')
-        "#,
-        auth.id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
 
     Ok(Json(MyDashboardData {
         today_shift,

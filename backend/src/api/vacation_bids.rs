@@ -9,7 +9,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
-    api::helpers::json_ok,
+    api::helpers::{json_ok, validate_sequential_ranks},
     api::notifications::{create_notification, CreateNotificationParams},
     auth::AuthUser,
     error::{AppError, Result},
@@ -718,15 +718,8 @@ pub async fn submit_bid(
     }
 
     // Validate ranks are sequential starting from 1
-    let mut ranks: Vec<i32> = body.picks.iter().map(|p| p.preference_rank).collect();
-    ranks.sort();
-    for (i, rank) in ranks.iter().enumerate() {
-        if *rank != (i as i32 + 1) {
-            return Err(AppError::BadRequest(
-                "Preference ranks must be sequential starting from 1".into(),
-            ));
-        }
-    }
+    let ranks: Vec<i32> = body.picks.iter().map(|p| p.preference_rank).collect();
+    validate_sequential_ranks(&ranks)?;
 
     // Delete previous submissions
     sqlx::query!(
