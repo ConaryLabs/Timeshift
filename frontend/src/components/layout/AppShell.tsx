@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight,
@@ -48,15 +48,14 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { lazy, Suspense } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { broadcastLogout } from '@/api/client'
 import { useUIStore } from '@/store/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useMe, useOrganization, useScheduleGrid, useNavBadges, useUnreadCount, useCoverageGaps, useCoverageGapBlocks } from '@/hooks/queries'
-import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { toLocalDateStr } from '@/lib/format'
 
 const SmsAlertDialog = lazy(() => import('@/components/coverage/SmsAlertDialog'))
 
@@ -370,7 +369,7 @@ export default function AppShell() {
 
   useMe()
   const { data: org } = useOrganization()
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const today = toLocalDateStr(new Date())
   const { data: todayCoverage } = useScheduleGrid(today, today, undefined, { enabled: isManager })
   const { data: coverageGaps } = useCoverageGaps(today, { enabled: isManager })
   const { data: gapBlocks } = useCoverageGapBlocks(today, { enabled: isManager })

@@ -15,15 +15,9 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import type { HolidaySellbackRequest } from '@/api/leaveSellback'
 import { extractApiError, formatDate } from '@/lib/format'
+import { STATUS_TABS } from '@/lib/constants'
 
 const INITIAL_FORM = { fiscal_year: new Date().getFullYear().toString(), period: '', hours_requested: '' }
-
-const STATUS_TABS = [
-  { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Denied', value: 'denied' },
-]
 
 export default function LeaveSellbackPage() {
   const { isManager } = usePermissions()

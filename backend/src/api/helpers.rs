@@ -39,6 +39,20 @@ pub fn validate_date_range(
     Ok(())
 }
 
+/// Validate that preference ranks are sequential integers starting from 1.
+pub fn validate_sequential_ranks(ranks: &[i32]) -> Result<(), AppError> {
+    let mut sorted = ranks.to_vec();
+    sorted.sort();
+    for (i, rank) in sorted.iter().enumerate() {
+        if *rank != (i as i32 + 1) {
+            return Err(AppError::BadRequest(
+                "Preference ranks must be sequential starting from 1".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Parse a "YYYY-MM-DD" date string, returning an `AppError::BadRequest` on failure.
 pub fn parse_date(date_str: &str) -> Result<Date, AppError> {
     let format = time::format_description::parse("[year]-[month]-[day]")

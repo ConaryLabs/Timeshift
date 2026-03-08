@@ -177,9 +177,9 @@ pub async fn update_plan(
 
     let new_is_default = req.is_default.unwrap_or(existing.is_default);
 
-    if new_is_default && !existing.is_default {
-        let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await?;
 
+    if new_is_default && !existing.is_default {
         sqlx::query!(
             "UPDATE coverage_plans SET is_default = FALSE, updated_at = NOW()
              WHERE org_id = $1 AND is_default = TRUE AND id != $2",
@@ -188,58 +188,33 @@ pub async fn update_plan(
         )
         .execute(&mut *tx)
         .await?;
-
-        let r = sqlx::query_as!(
-            CoveragePlan,
-            r#"
-            UPDATE coverage_plans
-            SET name        = COALESCE($3, name),
-                description = COALESCE($4, description),
-                is_default  = $5,
-                is_active   = COALESCE($6, is_active),
-                updated_at  = NOW()
-            WHERE id = $1 AND org_id = $2
-            RETURNING id, org_id, name, description, is_default, is_active,
-                      created_by, created_at, updated_at
-            "#,
-            id,
-            auth.org_id,
-            req.name,
-            req.description,
-            new_is_default,
-            req.is_active,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-        Ok(Json(r))
-    } else {
-        let r = sqlx::query_as!(
-            CoveragePlan,
-            r#"
-            UPDATE coverage_plans
-            SET name        = COALESCE($3, name),
-                description = COALESCE($4, description),
-                is_default  = $5,
-                is_active   = COALESCE($6, is_active),
-                updated_at  = NOW()
-            WHERE id = $1 AND org_id = $2
-            RETURNING id, org_id, name, description, is_default, is_active,
-                      created_by, created_at, updated_at
-            "#,
-            id,
-            auth.org_id,
-            req.name,
-            req.description,
-            new_is_default,
-            req.is_active,
-        )
-        .fetch_one(&pool)
-        .await?;
-
-        Ok(Json(r))
     }
+
+    let r = sqlx::query_as!(
+        CoveragePlan,
+        r#"
+        UPDATE coverage_plans
+        SET name        = COALESCE($3, name),
+            description = COALESCE($4, description),
+            is_default  = $5,
+            is_active   = COALESCE($6, is_active),
+            updated_at  = NOW()
+        WHERE id = $1 AND org_id = $2
+        RETURNING id, org_id, name, description, is_default, is_active,
+                  created_by, created_at, updated_at
+        "#,
+        id,
+        auth.org_id,
+        req.name,
+        req.description,
+        new_is_default,
+        req.is_active,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(r))
 }
 
 pub async fn delete_plan(

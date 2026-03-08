@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT lt.code AS leave_type_code, lt.name AS leave_type_name,\n               CAST(lb.balance_hours AS FLOAT8) AS \"balance_hours!\"\n        FROM leave_balances lb\n        JOIN leave_types lt ON lt.id = lb.leave_type_id\n        WHERE lb.user_id = $1 AND lb.org_id = $2\n        ORDER BY lt.display_order\n        ",
+  "query": "\n                SELECT lt.code AS leave_type_code, lt.name AS leave_type_name,\n                       CAST(lb.balance_hours AS FLOAT8) AS \"balance_hours!\"\n                FROM leave_balances lb\n                JOIN leave_types lt ON lt.id = lb.leave_type_id\n                WHERE lb.user_id = $1 AND lb.org_id = $2\n                ORDER BY lt.display_order\n                ",
   "describe": {
     "columns": [
       {
@@ -31,5 +31,5 @@
       null
     ]
   },
-  "hash": "9d8c68611f80031ee138b0be69dca83cc593a0aad9e578db3e3dcad6f0127c69"
+  "hash": "33f4d6cf38391d335c0f666ce4f66c3f9eb0a856c6288dbf4e2c02ff0b7d2e2c"
 }

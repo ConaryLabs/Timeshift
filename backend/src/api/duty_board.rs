@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::{
-    api::helpers::json_ok,
+    api::helpers::{json_ok, validate_date_range},
     auth::AuthUser,
     error::{AppError, Result},
     models::duty_position::{
@@ -555,16 +555,7 @@ pub async fn console_hours(
     auth: AuthUser,
     Query(params): Query<ConsoleHoursQuery>,
 ) -> Result<Json<Vec<ConsoleHoursEntry>>> {
-    if params.end_date < params.start_date {
-        return Err(AppError::BadRequest(
-            "end_date must be >= start_date".into(),
-        ));
-    }
-    if (params.end_date - params.start_date).whole_days() > 366 {
-        return Err(AppError::BadRequest(
-            "Date range cannot exceed 1 year".into(),
-        ));
-    }
+    validate_date_range(params.start_date, params.end_date, Some(366))?;
 
     let entries = sqlx::query_as!(
         ConsoleHoursEntry,

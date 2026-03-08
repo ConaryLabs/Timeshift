@@ -92,7 +92,7 @@ function ConfigSection() {
 
   function saveSetting(key: string, value: string | number) {
     setMut.mutate(
-      { key, value: value },
+      { key, value },
       {
         onSuccess: () => toast.success(`${getSettingLabel(key)} saved`),
         onError: (err: unknown) => {

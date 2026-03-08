@@ -12,14 +12,13 @@ interface UIState {
   setSelectedTeamId: (id: string | null) => void
   setSelectedPeriodId: (id: string | null) => void
   toggleSection: (key: string) => void
-  isSectionCollapsed: (key: string) => boolean
   /** Reset org-specific selections (call on logout) */
   reset: () => void
 }
 
 export const useUIStore = create<UIState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       sidebarOpen: true,
       selectedTeamId: null,
       selectedPeriodId: null,
@@ -35,7 +34,6 @@ export const useUIStore = create<UIState>()(
             [key]: !s.collapsedSections[key],
           },
         })),
-      isSectionCollapsed: (key) => !!get().collapsedSections[key],
       reset: () => set({ selectedTeamId: null, selectedPeriodId: null }),
     }),
     {

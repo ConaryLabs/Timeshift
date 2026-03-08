@@ -15,3 +15,10 @@ export const EMPLOYEE_STATUSES: { value: EmployeeStatus; label: string }[] = [
   { value: 'layoff', label: 'Layoff' },
   { value: 'separated', label: 'Separated' },
 ]
+
+export const STATUS_TABS: { label: string; value: string }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Denied', value: 'denied' },
+]

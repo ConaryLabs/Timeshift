@@ -28,7 +28,7 @@ export interface AccrualTransaction {
   user_id: string
   leave_type_id: string
   hours: number
-  reason: 'accrual' | 'usage' | 'adjustment' | 'carryover'
+  reason: 'accrual' | 'usage' | 'adjustment' | 'carryover' | 'donation_out' | 'donation_in' | 'forfeiture'
   reference_id: string | null
   note: string | null
   created_by: string

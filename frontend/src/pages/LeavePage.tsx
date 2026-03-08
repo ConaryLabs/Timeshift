@@ -35,13 +35,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { extractApiError, toLocalDateStr } from '@/lib/format'
-
-const STATUS_TABS: { label: string; value: string }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Denied', value: 'denied' },
-]
+import { STATUS_TABS } from '@/lib/constants'
 
 // Leave type codes that trigger conditional fields
 const BEREAVEMENT_CODES = ['bereavement']

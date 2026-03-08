@@ -209,9 +209,7 @@ pub async fn update(
     .await?
     .rows_affected();
 
-    if rows == 0 {
-        return Err(AppError::NotFound("Special assignment not found".into()));
-    }
+    ensure_rows_affected(rows, "Special assignment")?;
 
     Ok(Json(fetch_by_id(&pool, id, auth.org_id).await?))
 }
