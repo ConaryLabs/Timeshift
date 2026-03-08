@@ -16,6 +16,43 @@ use crate::{
     org_guard,
 };
 
+/// Fetch a single special assignment by ID with user name JOIN.
+/// Used by create() and update() to return the full response after a write.
+async fn fetch_by_id(pool: &PgPool, id: Uuid, org_id: Uuid) -> Result<SpecialAssignment> {
+    let r = sqlx::query!(
+        r#"
+        SELECT sa.id, sa.org_id, sa.user_id,
+               u.first_name AS user_first_name,
+               u.last_name AS user_last_name,
+               sa.assignment_type, sa.start_date, sa.end_date,
+               sa.notes, sa.assigned_by, sa.created_at, sa.updated_at
+        FROM special_assignments sa
+        JOIN users u ON u.id = sa.user_id
+        WHERE sa.id = $1 AND sa.org_id = $2
+        "#,
+        id,
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Special assignment not found".into()))?;
+
+    Ok(SpecialAssignment {
+        id: r.id,
+        org_id: r.org_id,
+        user_id: r.user_id,
+        user_first_name: r.user_first_name,
+        user_last_name: r.user_last_name,
+        assignment_type: r.assignment_type,
+        start_date: r.start_date,
+        end_date: r.end_date,
+        notes: r.notes,
+        assigned_by: r.assigned_by,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+    })
+}
+
 pub async fn list(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -79,38 +116,7 @@ pub async fn get_one(
         return Err(AppError::Forbidden);
     }
 
-    let r = sqlx::query!(
-        r#"
-        SELECT sa.id, sa.org_id, sa.user_id,
-               u.first_name AS user_first_name,
-               u.last_name AS user_last_name,
-               sa.assignment_type, sa.start_date, sa.end_date,
-               sa.notes, sa.assigned_by, sa.created_at, sa.updated_at
-        FROM special_assignments sa
-        JOIN users u ON u.id = sa.user_id
-        WHERE sa.id = $1 AND sa.org_id = $2
-        "#,
-        id,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Special assignment not found".into()))?;
-
-    Ok(Json(SpecialAssignment {
-        id: r.id,
-        org_id: r.org_id,
-        user_id: r.user_id,
-        user_first_name: r.user_first_name,
-        user_last_name: r.user_last_name,
-        assignment_type: r.assignment_type,
-        start_date: r.start_date,
-        end_date: r.end_date,
-        notes: r.notes,
-        assigned_by: r.assigned_by,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-    }))
+    Ok(Json(fetch_by_id(&pool, id, auth.org_id).await?))
 }
 
 pub async fn create(
@@ -139,11 +145,10 @@ pub async fn create(
     org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
 
     let id = Uuid::new_v4();
-    let r = sqlx::query!(
+    sqlx::query!(
         r#"
         INSERT INTO special_assignments (id, org_id, user_id, assignment_type, start_date, end_date, notes, assigned_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id, org_id, user_id, assignment_type, start_date, end_date, notes, assigned_by, created_at, updated_at
         "#,
         id,
         auth.org_id,
@@ -154,30 +159,10 @@ pub async fn create(
         req.notes,
         auth.id,
     )
-    .fetch_one(&pool)
+    .execute(&pool)
     .await?;
 
-    let user = sqlx::query!(
-        "SELECT first_name, last_name FROM users WHERE id = $1",
-        req.user_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    Ok(Json(SpecialAssignment {
-        id: r.id,
-        org_id: r.org_id,
-        user_id: r.user_id,
-        user_first_name: user.first_name,
-        user_last_name: user.last_name,
-        assignment_type: r.assignment_type,
-        start_date: r.start_date,
-        end_date: r.end_date,
-        notes: r.notes,
-        assigned_by: r.assigned_by,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-    }))
+    Ok(Json(fetch_by_id(&pool, id, auth.org_id).await?))
 }
 
 pub async fn update(
@@ -203,7 +188,7 @@ pub async fn update(
     let notes_provided = req.notes.is_some();
     let notes_val = req.notes.flatten();
 
-    let r = sqlx::query!(
+    let rows = sqlx::query!(
         r#"
         UPDATE special_assignments
         SET assignment_type = COALESCE($2, assignment_type),
@@ -211,7 +196,6 @@ pub async fn update(
             notes = CASE WHEN $5 THEN $6 ELSE notes END,
             updated_at = NOW()
         WHERE id = $1 AND org_id = $7
-        RETURNING id, org_id, user_id, assignment_type, start_date, end_date, notes, assigned_by, created_at, updated_at
         "#,
         id,
         req.assignment_type,
@@ -221,31 +205,15 @@ pub async fn update(
         notes_val,
         auth.org_id,
     )
-    .fetch_optional(&pool)
+    .execute(&pool)
     .await?
-    .ok_or_else(|| AppError::NotFound("Special assignment not found".into()))?;
+    .rows_affected();
 
-    let user = sqlx::query!(
-        "SELECT first_name, last_name FROM users WHERE id = $1",
-        r.user_id,
-    )
-    .fetch_one(&pool)
-    .await?;
+    if rows == 0 {
+        return Err(AppError::NotFound("Special assignment not found".into()));
+    }
 
-    Ok(Json(SpecialAssignment {
-        id: r.id,
-        org_id: r.org_id,
-        user_id: r.user_id,
-        user_first_name: user.first_name,
-        user_last_name: user.last_name,
-        assignment_type: r.assignment_type,
-        start_date: r.start_date,
-        end_date: r.end_date,
-        notes: r.notes,
-        assigned_by: r.assigned_by,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-    }))
+    Ok(Json(fetch_by_id(&pool, id, auth.org_id).await?))
 }
 
 pub async fn delete(

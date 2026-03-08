@@ -1,7 +1,7 @@
 // frontend/src/pages/DutyBoardDisplayPage.tsx
 import { useMemo, useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { useDutyBoard } from '@/hooks/useDutyBoard'
+import { useDutyBoard } from '@/hooks/queries'
 import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap } from '@/lib/dutyBoard'
 
 /** Map position name to its row label color from the original seating chart */

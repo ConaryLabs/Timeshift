@@ -1,5 +1,5 @@
 // frontend/src/hooks/useSchedule.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { scheduleApi } from '@/api/schedule'
 import { schedulePeriodsApi } from '@/api/schedulePeriods'
 import { shiftsApi } from '@/api/shifts'
@@ -109,25 +109,19 @@ export function useSlotAssignments(periodId: string) {
 }
 
 export function useAssignSlot() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ periodId, ...body }: { periodId: string; slot_id: string; user_id: string }) =>
+  return useInvalidatingMutation(
+    ({ periodId, ...body }: { periodId: string; slot_id: string; user_id: string }) =>
       schedulePeriodsApi.assignSlot(periodId, body),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.periods.assignments(vars.periodId) })
-    },
-  })
+    [queryKeys.periods.all],
+  )
 }
 
 export function useRemoveSlotAssignment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ periodId, slotId }: { periodId: string; slotId: string }) =>
+  return useInvalidatingMutation(
+    ({ periodId, slotId }: { periodId: string; slotId: string }) =>
       schedulePeriodsApi.removeAssignment(periodId, slotId),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.periods.assignments(vars.periodId) })
-    },
-  })
+    [queryKeys.periods.all],
+  )
 }
 
 // -- Shift Templates --

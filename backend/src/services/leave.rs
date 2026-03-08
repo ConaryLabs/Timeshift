@@ -22,7 +22,9 @@ pub async fn adjust_leave_balance(
     org_timezone: &str,
 ) -> Result<()> {
     // Validate reason against the DB CHECK constraint on accrual_transactions.reason
-    const VALID_REASONS: &[&str] = &["accrual", "usage", "adjustment", "carryover"];
+    const VALID_REASONS: &[&str] = &[
+        "accrual", "usage", "adjustment", "carryover", "donation_out", "donation_in", "forfeiture",
+    ];
     if !VALID_REASONS.contains(&reason) {
         return Err(AppError::BadRequest(format!("Invalid transaction reason: {reason}")));
     }

@@ -21,8 +21,7 @@ import { Loader2, ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, X, Monit
 import { cn } from '@/lib/utils'
 import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap } from '@/lib/dutyBoard'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useDutyBoard, useCellAction, useAvailableStaff, useConsoleHours, useCreateDatePosition, useDeleteDatePosition } from '@/hooks/useDutyBoard'
-import { useClassifications } from '@/hooks/queries'
+import { useDutyBoard, useCellAction, useAvailableStaff, useConsoleHours, useCreateDatePosition, useDeleteDatePosition, useClassifications } from '@/hooks/queries'
 import type { BoardAssignment, AvailableEmployee } from '@/api/dutyBoard'
 
 function getMonthRange(date: Date): { start: string; end: string } {

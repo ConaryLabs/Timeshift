@@ -323,28 +323,9 @@ pub async fn login(
 
     cap_refresh_tokens(&state.pool, user.id).await;
 
-    // Fetch classification name if set
-    let classification_name = if let Some(cid) = user.classification_id {
-        sqlx::query_scalar!(
-            "SELECT name FROM classifications WHERE id = $1 AND org_id = $2",
-            cid,
-            user.org_id,
-        )
-        .fetch_optional(&state.pool)
-        .await?
-    } else {
-        None
-    };
-
-    // Fetch seniority record
-    let seniority = sqlx::query!(
-        "SELECT overall_seniority_date, bargaining_unit_seniority_date, classification_seniority_date,
-                accrual_pause_started_at
-         FROM seniority_records WHERE user_id = $1",
-        user.id
-    )
-    .fetch_optional(&state.pool)
-    .await?;
+    // Reuse the shared fetch_user_profile query (single JOIN query instead of
+    // separate classification + seniority lookups).
+    let profile = fetch_user_profile(&state.pool, user.id, user.org_id).await?;
 
     // Cookie format: "{family_id}:{raw_token}" — family_id enables revocation of
     // all tokens in a family when token reuse is detected (theft detection).
@@ -352,38 +333,7 @@ pub async fn login(
 
     Ok((
         headers,
-        Json(LoginResponse {
-            user: UserProfile {
-                id: user.id,
-                org_id: user.org_id,
-                employee_id: user.employee_id,
-                first_name: user.first_name,
-                last_name: user.last_name,
-                email: user.email,
-                phone: user.phone,
-                role: user.role,
-                classification_id: user.classification_id,
-                classification_name,
-                employee_type: user.employee_type,
-                bargaining_unit: user.bargaining_unit,
-                hire_date: user.hire_date,
-                overall_seniority_date: seniority.as_ref().and_then(|s| s.overall_seniority_date),
-                bargaining_unit_seniority_date: seniority
-                    .as_ref()
-                    .and_then(|s| s.bargaining_unit_seniority_date),
-                classification_seniority_date: seniority
-                    .as_ref()
-                    .and_then(|s| s.classification_seniority_date),
-                cto_designation: user.cto_designation,
-                admin_training_supervisor_since: user.admin_training_supervisor_since,
-                employee_status: user.employee_status,
-                accrual_paused_since: seniority.as_ref().and_then(|s| s.accrual_pause_started_at),
-                leave_accrual_paused_at: user.leave_accrual_paused_at,
-                medical_ot_exempt: user.medical_ot_exempt,
-                is_active: user.is_active,
-                updated_at: user.updated_at,
-            },
-        }),
+        Json(LoginResponse { user: profile }),
     ))
 }
 

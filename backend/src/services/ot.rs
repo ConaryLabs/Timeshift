@@ -1,7 +1,10 @@
-//! OT tracking helpers: fiscal year resolution, hours upsert/revert, queue stamping.
+//! OT tracking helpers: fiscal year resolution, hours upsert/revert, queue stamping,
+//! and CBA contract rule enforcement.
 
 use sqlx::PgPool;
 use uuid::Uuid;
+
+use crate::error::{AppError, Result};
 
 /// Resolve the fiscal year for a given date using the org's `fiscal_year_start_month` setting.
 pub async fn org_fiscal_year(pool: &PgPool, org_id: Uuid, date: time::Date) -> i32 {
@@ -18,7 +21,7 @@ pub async fn upsert_ot_hours_worked(
     fiscal_year: i32,
     classification_id: Uuid,
     hours: f64,
-) -> Result<(), sqlx::Error> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO ot_hours
@@ -47,7 +50,7 @@ pub async fn upsert_ot_hours_declined(
     fiscal_year: i32,
     classification_id: Uuid,
     hours: f64,
-) -> Result<(), sqlx::Error> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO ot_hours
@@ -77,7 +80,7 @@ pub async fn revert_ot_hours_worked(
     fiscal_year: i32,
     classification_id: Option<Uuid>,
     hours: f64,
-) -> Result<(), sqlx::Error> {
+) -> Result<()> {
     // Fetch the current hours_worked before the update so we can detect clamping.
     let current: Option<f64> = sqlx::query_scalar!(
         r#"
@@ -142,7 +145,7 @@ pub async fn stamp_ot_queue(
     classification_id: Uuid,
     user_id: Uuid,
     fiscal_year: i32,
-) -> Result<(), sqlx::Error> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO ot_queue_positions
@@ -158,5 +161,70 @@ pub async fn stamp_ot_queue(
     )
     .execute(&mut **tx)
     .await?;
+    Ok(())
+}
+
+/// CBA (VCCEA Section 4.4.3): Verify at least 10 hours of rest between the end of an
+/// OT shift and the employee's next regular shift.
+///
+/// Used by both the callout acceptance flow and OT request assignment flow.
+pub async fn check_10_hour_rest_gap(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    org_id: Uuid,
+    ot_date: time::Date,
+    ot_start_time: time::Time,
+    ot_end_time: time::Time,
+) -> Result<()> {
+    let ot_crosses_midnight = ot_end_time < ot_start_time;
+    let search_date = if ot_crosses_midnight {
+        ot_date.next_day().unwrap_or(ot_date)
+    } else {
+        ot_date
+    };
+
+    let next_shift = sqlx::query!(
+        r#"
+        SELECT ss.date AS "shift_date!", st.start_time
+        FROM assignments a
+        JOIN scheduled_shifts ss ON ss.id = a.scheduled_shift_id
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE a.user_id = $1
+          AND ss.org_id = $2
+          AND a.cancelled_at IS NULL
+          AND a.is_overtime = false
+          AND (
+            ss.date > $3
+            OR (ss.date = $3 AND st.start_time > $4)
+          )
+        ORDER BY ss.date ASC, st.start_time ASC
+        LIMIT 1
+        "#,
+        user_id,
+        org_id,
+        search_date,
+        ot_end_time,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(next) = next_shift {
+        let ot_end_day_offset: i64 = if ot_crosses_midnight { 1 } else { 0 };
+        let days_between = (next.shift_date - ot_date).whole_days();
+        let ot_end_mins = ot_end_time.hour() as i64 * 60 + ot_end_time.minute() as i64;
+        let next_start_mins =
+            next.start_time.hour() as i64 * 60 + next.start_time.minute() as i64;
+        let gap_minutes =
+            (days_between - ot_end_day_offset) * 1440 + next_start_mins - ot_end_mins;
+
+        if gap_minutes < 10 * 60 {
+            return Err(AppError::BadRequest(format!(
+                "OT would leave less than 10 hours before the employee's \
+                 next scheduled shift on {} (VCCEA Section 4.4.3).",
+                next.shift_date,
+            )));
+        }
+    }
+
     Ok(())
 }

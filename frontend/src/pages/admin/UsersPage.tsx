@@ -39,6 +39,7 @@ import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { ConflictDialog } from '@/components/ConflictDialog'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import { NO_VALUE, extractApiError } from '@/lib/format'
 import { EMPLOYEE_TYPES, EMPLOYEE_STATUSES } from '@/lib/constants'
 import { isConflictError } from '@/lib/utils'
@@ -180,16 +181,7 @@ export default function UsersPage() {
         hire_date: values.hire_date || undefined,
         overall_seniority_date: values.overall_seniority_date || undefined,
       },
-      {
-        onSuccess: () => {
-          toast.success('User created')
-          setDialogOpen(false)
-        },
-        onError: (err: unknown) => {
-          const msg = extractApiError(err, 'Failed to create user')
-          toast.error(msg)
-        },
-      },
+      mutationCallbacks('User created', () => setDialogOpen(false), 'Failed to create user'),
     )
   }
 
@@ -234,30 +226,18 @@ export default function UsersPage() {
   function handleConflictForceSave() {
     setConflictOpen(false)
     if (!pendingEditVars.current) return
-    updateMut.mutate({ ...pendingEditVars.current, expected_updated_at: undefined }, {
-      onSuccess: () => {
-        toast.success('User updated')
-        setDialogOpen(false)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Failed to update user')
-        toast.error(msg)
-      },
-    })
+    updateMut.mutate(
+      { ...pendingEditVars.current, expected_updated_at: undefined },
+      mutationCallbacks('User updated', () => setDialogOpen(false), 'Failed to update user'),
+    )
   }
 
   function handleDeactivate() {
     if (!deactivateTarget) return
-    deactivateMut.mutate(deactivateTarget.id, {
-      onSuccess: () => {
-        toast.success('User deactivated')
-        setDeactivateTarget(null)
-      },
-      onError: (err: unknown) => {
-        const msg = extractApiError(err, 'Failed to deactivate user')
-        toast.error(msg)
-      },
-    })
+    deactivateMut.mutate(
+      deactivateTarget.id,
+      mutationCallbacks('User deactivated', () => setDeactivateTarget(null), 'Failed to deactivate user'),
+    )
   }
 
   const activeClassifications = (classifications ?? []).filter((c) => c.is_active)
@@ -314,13 +294,9 @@ export default function UsersPage() {
               if (!checked) {
                 setDeactivateTarget(r)
               } else {
-                activateMut.mutate(r.id, {
-                    onSuccess: () => toast.success('User activated'),
-                    onError: (err: unknown) => {
-                      const msg = extractApiError(err, 'Failed to activate user')
-                      toast.error(msg)
-                    },
-                  },
+                activateMut.mutate(
+                  r.id,
+                  mutationCallbacks('User activated', undefined, 'Failed to activate user'),
                 )
               }
             }}

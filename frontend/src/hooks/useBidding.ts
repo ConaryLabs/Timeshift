@@ -1,5 +1,5 @@
 // frontend/src/hooks/useBidding.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { biddingApi } from '@/api/bidding'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
@@ -21,26 +21,19 @@ export function useBidWindow(windowId: string) {
 }
 
 export function useOpenBidding() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ periodId, ...body }: { periodId: string; window_duration_hours: number; start_at?: string }) =>
+  return useInvalidatingMutation(
+    ({ periodId, ...body }: { periodId: string; window_duration_hours: number; start_at?: string }) =>
       biddingApi.openBidding(periodId, body),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.periods.all })
-      qc.invalidateQueries({ queryKey: queryKeys.bidding.windows(vars.periodId) })
-    },
-  })
+    [queryKeys.periods.all, queryKeys.bidding.all],
+  )
 }
 
 export function useSubmitBid() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ windowId, preferences }: { windowId: string; preferences: { slot_id: string; preference_rank: number }[] }) =>
+  return useInvalidatingMutation(
+    ({ windowId, preferences }: { windowId: string; preferences: { slot_id: string; preference_rank: number }[] }) =>
       biddingApi.submitBid(windowId, { preferences }),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.bidding.window(vars.windowId) })
-    },
-  })
+    [queryKeys.bidding.all],
+  )
 }
 
 export function useProcessBids() {

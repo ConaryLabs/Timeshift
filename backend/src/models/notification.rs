@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::models::common::Paginated;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Notification {
     pub id: Uuid,
     pub org_id: Uuid,

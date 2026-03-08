@@ -92,27 +92,19 @@ export function usePositionQualifications(positionId: string) {
 }
 
 export function useAddPositionQualification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
+  return useInvalidatingMutation(
+    ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
       dutyBoardApi.addPositionQualification(positionId, qualificationId),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.position(vars.positionId) })
-    },
-  })
+    [queryKeys.qualifications.all],
+  )
 }
 
 export function useRemovePositionQualification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
+  return useInvalidatingMutation(
+    ({ positionId, qualificationId }: { positionId: string; qualificationId: string }) =>
       dutyBoardApi.removePositionQualification(positionId, qualificationId),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.position(vars.positionId) })
-    },
-  })
+    [queryKeys.qualifications.all],
+  )
 }
 
 export function useUserQualifications(userId: string) {
@@ -124,27 +116,19 @@ export function useUserQualifications(userId: string) {
 }
 
 export function useAddUserQualification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
+  return useInvalidatingMutation(
+    ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
       dutyBoardApi.addUserQualification(userId, qualificationId),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.user(vars.userId) })
-    },
-  })
+    [queryKeys.qualifications.all],
+  )
 }
 
 export function useRemoveUserQualification() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
+  return useInvalidatingMutation(
+    ({ userId, qualificationId }: { userId: string; qualificationId: string }) =>
       dutyBoardApi.removeUserQualification(userId, qualificationId),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.all })
-      qc.invalidateQueries({ queryKey: queryKeys.qualifications.user(vars.userId) })
-    },
-  })
+    [queryKeys.qualifications.all],
+  )
 }
 
 export function useSetPositionHours() {

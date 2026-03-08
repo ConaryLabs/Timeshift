@@ -3,21 +3,13 @@ import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { ErrorState } from '@/components/ui/error-state'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FormField } from '@/components/ui/form-field'
+import { ReviewDialog, type ReviewTarget } from '@/components/ReviewDialog'
 import { useDonations, useCreateDonation, useReviewDonation, useCancelDonation, useUserDirectory, useLeaveTypes } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
@@ -25,8 +17,6 @@ import type { SickLeaveDonation } from '@/api/sickDonation'
 import { extractApiError, formatDate } from '@/lib/format'
 
 const INITIAL_FORM = { recipient_id: '', leave_type_id: '', hours: '', fiscal_year: new Date().getFullYear().toString() }
-
-type ReviewTarget = { id: string; action: 'approved' | 'denied' }
 
 const STATUS_TABS = [
   { label: 'All', value: 'all' },
@@ -41,7 +31,6 @@ export default function SickDonationPage() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [statusFilter, setStatusFilter] = useState('all')
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
-  const [reviewerNotes, setReviewerNotes] = useState('')
 
   const { confirmClose, confirmDialog } = useConfirmClose()
 
@@ -98,13 +87,12 @@ export default function SickDonationPage() {
     )
   }
 
-  function handleReview() {
-    if (!reviewTarget) return
+  function handleReview(id: string, action: 'approved' | 'denied', notes?: string) {
     reviewMut.mutate(
-      { id: reviewTarget.id, status: reviewTarget.action, reviewer_notes: reviewerNotes || undefined },
+      { id, status: action, reviewer_notes: notes },
       {
         onSuccess: () => {
-          toast.success(reviewTarget.action === 'approved' ? 'Donation approved' : 'Donation denied')
+          toast.success(action === 'approved' ? 'Donation approved' : 'Donation denied')
           setReviewTarget(null)
         },
         onError: (err: unknown) => {
@@ -157,7 +145,7 @@ export default function SickDonationPage() {
                   size="sm"
                   variant="outline"
                   className="text-green-700 hover:bg-green-50"
-                  onClick={() => { setReviewerNotes(''); setReviewTarget({ id: r.id, action: 'approved' }) }}
+                  onClick={() => setReviewTarget({ id: r.id, action: 'approved' })}
                 >
                   Approve
                 </Button>
@@ -165,7 +153,7 @@ export default function SickDonationPage() {
                   size="sm"
                   variant="outline"
                   className="text-red-700 hover:bg-red-50"
-                  onClick={() => { setReviewerNotes(''); setReviewTarget({ id: r.id, action: 'denied' }) }}
+                  onClick={() => setReviewTarget({ id: r.id, action: 'denied' })}
                 >
                   Deny
                 </Button>
@@ -278,35 +266,13 @@ export default function SickDonationPage() {
         />
       )}
 
-      <Dialog open={!!reviewTarget} onOpenChange={(open) => !open && setReviewTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {reviewTarget?.action === 'approved' ? 'Approve Donation' : 'Deny Donation'}
-            </DialogTitle>
-            <DialogDescription>Optionally add notes.</DialogDescription>
-          </DialogHeader>
-          <FormField label="Reviewer Notes" htmlFor="don-review-notes">
-            <Textarea
-              id="don-review-notes"
-              value={reviewerNotes}
-              onChange={(e) => setReviewerNotes(e.target.value)}
-              placeholder="Optional notes..."
-              rows={3}
-            />
-          </FormField>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
-            <Button
-              variant={reviewTarget?.action === 'approved' ? 'default' : 'destructive'}
-              onClick={handleReview}
-              disabled={reviewMut.isPending}
-            >
-              {reviewTarget?.action === 'approved' ? 'Approve' : 'Deny'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReviewDialog
+        target={reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        onConfirm={handleReview}
+        isPending={reviewMut.isPending}
+        entityLabel="Donation"
+      />
 
       {confirmDialog}
     </div>

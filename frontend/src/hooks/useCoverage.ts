@@ -1,5 +1,5 @@
 // frontend/src/hooks/useCoverage.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { coveragePlansApi, type SlotEntry } from '@/api/coveragePlans'
 import { queryKeys } from './queryKeys'
 import { useInvalidatingMutation } from './useInvalidatingMutation'
@@ -20,23 +20,19 @@ export function useCoveragePlan(id: string) {
 }
 
 export function useCreateCoveragePlan() {
-  return useInvalidatingMutation(coveragePlansApi.createPlan, [queryKeys.coveragePlans.list])
+  return useInvalidatingMutation(coveragePlansApi.createPlan, [queryKeys.coveragePlans.all])
 }
 
 export function useUpdateCoveragePlan() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; description?: string; is_default?: boolean; is_active?: boolean }) =>
+  return useInvalidatingMutation(
+    ({ id, ...body }: { id: string; name?: string; description?: string; is_default?: boolean; is_active?: boolean }) =>
       coveragePlansApi.updatePlan(id, body),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.list })
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.detail(vars.id) })
-    },
-  })
+    [queryKeys.coveragePlans.all],
+  )
 }
 
 export function useDeleteCoveragePlan() {
-  return useInvalidatingMutation(coveragePlansApi.deletePlan, [queryKeys.coveragePlans.list])
+  return useInvalidatingMutation(coveragePlansApi.deletePlan, [queryKeys.coveragePlans.all])
 }
 
 export function useCoveragePlanSlots(planId: string) {
@@ -48,14 +44,11 @@ export function useCoveragePlanSlots(planId: string) {
 }
 
 export function useBulkUpsertSlots() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ planId, slots }: { planId: string; slots: SlotEntry[] }) =>
+  return useInvalidatingMutation(
+    ({ planId, slots }: { planId: string; slots: SlotEntry[] }) =>
       coveragePlansApi.bulkUpsertSlots(planId, slots),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.coveragePlans.slots(vars.planId) })
-    },
-  })
+    [queryKeys.coveragePlans.all],
+  )
 }
 
 export function useCoveragePlanAssignments() {

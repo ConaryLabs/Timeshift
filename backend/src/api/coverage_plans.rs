@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    api::helpers::{ensure_rows_affected, json_ok},
+    api::helpers::{ensure_rows_affected, json_ok, overnight_end_slot, parse_date, time_to_slot_range},
     auth::AuthUser,
     error::{AppError, Result},
     models::schedule::{
@@ -520,12 +520,7 @@ pub(crate) async fn compute_slot_coverage(
     org_id: Uuid,
     date_str: &str,
 ) -> Result<Vec<SlotCoverage>> {
-    let date = time::Date::parse(
-        date_str,
-        &time::format_description::parse("[year]-[month]-[day]")
-            .map_err(|_| AppError::BadRequest("invalid date format".into()))?,
-    )
-    .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
+    let date = parse_date(date_str)?;
 
     let plan_id = match resolve_plan_id(pool, org_id, date).await? {
         Some(id) => id,
@@ -614,22 +609,7 @@ pub(crate) async fn compute_slot_coverage(
         let Some(class_id) = a.classification_id else {
             continue;
         };
-
-        let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
-        let end_min = if a.crosses_midnight {
-            24 * 60
-        } else {
-            a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
-        };
-
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
-        };
-        let end_slot = end_slot.clamp(0, 47);
-
+        let (start_slot, end_slot) = time_to_slot_range(a.start_time, a.end_time, a.crosses_midnight);
         for slot in start_slot..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
             user_slot_covered.insert((a.user_id, class_id, slot));
@@ -641,16 +621,9 @@ pub(crate) async fn compute_slot_coverage(
         let Some(class_id) = a.classification_id else {
             continue;
         };
-        let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
-        if end_min == 0 {
-            continue; // Ends exactly at midnight — no morning contribution
-        }
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
+        let Some(end_slot) = overnight_end_slot(a.end_time) else {
+            continue;
         };
-        let end_slot = end_slot.clamp(0, 47);
         for slot in 0..=end_slot {
             *actual.entry((class_id, slot)).or_insert(0) += 1;
             user_slot_covered.insert((a.user_id, class_id, slot));
@@ -679,22 +652,8 @@ pub(crate) async fn compute_slot_coverage(
     .await?;
 
     for ot in &ot_assignments {
-        let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
         let crosses_midnight = ot.end_time < ot.start_time;
-        let end_min = if crosses_midnight {
-            24 * 60
-        } else {
-            ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32
-        };
-
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
-        };
-        let end_slot = end_slot.clamp(0, 47);
-
+        let (start_slot, end_slot) = time_to_slot_range(ot.start_time, ot.end_time, crosses_midnight);
         for slot in start_slot..=end_slot {
             if !user_slot_covered.contains(&(ot.user_id, ot.classification_id, slot)) {
                 *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
@@ -723,16 +682,9 @@ pub(crate) async fn compute_slot_coverage(
     .await?;
 
     for ot in &ot_overnight {
-        let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
-        if end_min == 0 {
+        let Some(end_slot) = overnight_end_slot(ot.end_time) else {
             continue;
-        }
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
         };
-        let end_slot = end_slot.clamp(0, 47);
         for slot in 0..=end_slot {
             if !user_slot_covered.contains(&(ot.user_id, ot.classification_id, slot)) {
                 *actual.entry((ot.classification_id, slot)).or_insert(0) += 1;
@@ -1024,19 +976,7 @@ pub(crate) async fn compute_slot_coverage_batch(
                 let Some(class_id) = a.classification_id else {
                     continue;
                 };
-                let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
-                let end_min = if a.crosses_midnight {
-                    24 * 60
-                } else {
-                    a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
-                };
-                let start_slot = (start_min / 30) as i16;
-                let end_slot = (if end_min % 30 == 0 {
-                    end_min / 30 - 1
-                } else {
-                    end_min / 30
-                } as i16)
-                    .clamp(0, 47);
+                let (start_slot, end_slot) = time_to_slot_range(a.start_time, a.end_time, a.crosses_midnight);
                 for slot in start_slot..=end_slot {
                     *actual.entry((class_id, slot)).or_insert(0) += 1;
                     user_slot_covered.insert((a.user_id, class_id, slot));
@@ -1050,16 +990,9 @@ pub(crate) async fn compute_slot_coverage_batch(
                 let Some(class_id) = a.classification_id else {
                     continue;
                 };
-                let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
-                if end_min == 0 {
+                let Some(end_slot) = overnight_end_slot(a.end_time) else {
                     continue;
-                }
-                let end_slot = (if end_min % 30 == 0 {
-                    end_min / 30 - 1
-                } else {
-                    end_min / 30
-                } as i16)
-                    .clamp(0, 47);
+                };
                 for slot in 0..=end_slot {
                     *actual.entry((class_id, slot)).or_insert(0) += 1;
                     user_slot_covered.insert((a.user_id, class_id, slot));
@@ -1070,20 +1003,8 @@ pub(crate) async fn compute_slot_coverage_batch(
         // OT assignments for this date
         if let Some(ot) = ot_by_date.get(&d) {
             for a in ot.iter() {
-                let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
                 let crosses_midnight = a.end_time < a.start_time;
-                let end_min = if crosses_midnight {
-                    24 * 60
-                } else {
-                    a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
-                };
-                let start_slot = (start_min / 30) as i16;
-                let end_slot = (if end_min % 30 == 0 {
-                    end_min / 30 - 1
-                } else {
-                    end_min / 30
-                } as i16)
-                    .clamp(0, 47);
+                let (start_slot, end_slot) = time_to_slot_range(a.start_time, a.end_time, crosses_midnight);
                 for slot in start_slot..=end_slot {
                     if !user_slot_covered.contains(&(a.user_id, a.classification_id, slot)) {
                         *actual.entry((a.classification_id, slot)).or_insert(0) += 1;
@@ -1095,16 +1016,9 @@ pub(crate) async fn compute_slot_coverage_batch(
         // OT overnight from previous day
         if let Some(ot_overnight) = ot_overnight_by_target.get(&d) {
             for a in ot_overnight.iter() {
-                let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
-                if end_min == 0 {
+                let Some(end_slot) = overnight_end_slot(a.end_time) else {
                     continue;
-                }
-                let end_slot = (if end_min % 30 == 0 {
-                    end_min / 30 - 1
-                } else {
-                    end_min / 30
-                } as i16)
-                    .clamp(0, 47);
+                };
                 for slot in 0..=end_slot {
                     if !user_slot_covered.contains(&(a.user_id, a.classification_id, slot)) {
                         *actual.entry((a.classification_id, slot)).or_insert(0) += 1;
@@ -1192,20 +1106,7 @@ pub async fn classification_gaps(
     let mut gaps: Vec<ClassificationGap> = Vec::new();
 
     for shift in &shifts {
-        let start_min = shift.start_time.hour() as i32 * 60 + shift.start_time.minute() as i32;
-        let end_min = if shift.crosses_midnight {
-            24 * 60
-        } else {
-            shift.end_time.hour() as i32 * 60 + shift.end_time.minute() as i32
-        };
-
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if end_min % 30 == 0 {
-            ((end_min / 30) - 1) as i16
-        } else {
-            (end_min / 30) as i16
-        };
-        let end_slot = end_slot.clamp(0, 47);
+        let (start_slot, end_slot) = time_to_slot_range(shift.start_time, shift.end_time, shift.crosses_midnight);
 
         for &class_id in &class_ids {
             // Find the worst single-slot shortage for this classification
@@ -1813,20 +1714,11 @@ async fn fetch_day_grid_data(
 /// and overnight OT. OT entries are deduplicated against regular assignments so
 /// the same person is never double-counted within the same slot.
 fn build_slot_maps(data: &DayGridData) -> DayGridMaps {
+    use crate::api::helpers::{overnight_end_slot, time_to_slot_range};
     use std::collections::{HashMap, HashSet};
 
     fn time_str(t: time::Time) -> String {
         format!("{:02}:{:02}", t.hour(), t.minute())
-    }
-
-    fn slot_range(start_min: i32, end_min: i32) -> (i16, i16) {
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
-        };
-        (start_slot, end_slot.clamp(0, 47))
     }
 
     let mut actual: HashMap<(Uuid, i16), i32> = HashMap::new();
@@ -1837,13 +1729,7 @@ fn build_slot_maps(data: &DayGridData) -> DayGridMaps {
         let Some(class_id) = a.classification_id else {
             continue;
         };
-        let start_min = a.start_time.hour() as i32 * 60 + a.start_time.minute() as i32;
-        let end_min = if a.crosses_midnight {
-            24 * 60
-        } else {
-            a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32
-        };
-        let (start_slot, end_slot) = slot_range(start_min, end_min);
+        let (start_slot, end_slot) = time_to_slot_range(a.start_time, a.end_time, a.crosses_midnight);
 
         let emp = BlockEmployee {
             user_id: a.user_id,
@@ -1867,23 +1753,16 @@ fn build_slot_maps(data: &DayGridData) -> DayGridMaps {
         let Some(class_id) = a.classification_id else {
             continue;
         };
-        let end_min = a.end_time.hour() as i32 * 60 + a.end_time.minute() as i32;
-        if end_min == 0 {
+        let Some(end_slot) = overnight_end_slot(a.end_time) else {
             continue;
-        }
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
         };
-        let end_slot = end_slot.clamp(0, 47);
 
         let emp = BlockEmployee {
             user_id: a.user_id,
             first_name: a.first_name.clone(),
             last_name: a.last_name.clone(),
             shift_name: a.shift_name.clone(),
-            shift_start: "00:00".to_string(), // effective start on this date
+            shift_start: "00:00".to_string(),
             shift_end: time_str(a.end_time),
             is_overtime: a.is_overtime,
             assignment_id: a.assignment_id,
@@ -1906,11 +1785,8 @@ fn build_slot_maps(data: &DayGridData) -> DayGridMaps {
 
     // OT request assignments — contribute based on ot_requests start/end time
     for ot in &data.ot_assignments {
-        let start_min = ot.start_time.hour() as i32 * 60 + ot.start_time.minute() as i32;
-        let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
-        let crosses_midnight = end_min < start_min;
-        let effective_end = if crosses_midnight { 24 * 60 } else { end_min };
-        let (start_slot, end_slot) = slot_range(start_min, effective_end);
+        let crosses_midnight = ot.end_time < ot.start_time;
+        let (start_slot, end_slot) = time_to_slot_range(ot.start_time, ot.end_time, crosses_midnight);
 
         let emp = BlockEmployee {
             user_id: ot.user_id,
@@ -1940,16 +1816,9 @@ fn build_slot_maps(data: &DayGridData) -> DayGridMaps {
 
     // Overnight OT from previous day — contribute from slot 0 to end_time on this date
     for ot in &data.ot_overnight {
-        let end_min = ot.end_time.hour() as i32 * 60 + ot.end_time.minute() as i32;
-        if end_min == 0 {
+        let Some(end_slot) = overnight_end_slot(ot.end_time) else {
             continue;
-        }
-        let end_slot = if end_min % 30 == 0 {
-            (end_min / 30 - 1) as i16
-        } else {
-            (end_min / 30) as i16
         };
-        let end_slot = end_slot.clamp(0, 47);
 
         let emp = BlockEmployee {
             user_id: ot.user_id,
@@ -2146,12 +2015,7 @@ pub async fn day_grid(
         return Err(AppError::Forbidden);
     }
 
-    let date = time::Date::parse(
-        &date_str,
-        &time::format_description::parse("[year]-[month]-[day]")
-            .map_err(|_| AppError::BadRequest("invalid date format".into()))?,
-    )
-    .map_err(|_| AppError::BadRequest(format!("invalid date: {date_str}")))?;
+    let date = parse_date(&date_str)?;
 
     let plan_id = match resolve_plan_id(&pool, auth.org_id, date).await? {
         Some(id) => id,
@@ -2240,6 +2104,7 @@ pub(crate) fn coverage_status_per_shift(
     slot_coverage: &[SlotCoverage],
     shifts: &[(Uuid, time::Time, time::Time, bool)],
 ) -> std::collections::HashMap<Uuid, ShiftCoverageStatus> {
+    use crate::api::helpers::time_to_slot_range;
     use std::collections::HashMap;
 
     // Index slot coverage by (classification_id, slot_index)
@@ -2259,20 +2124,8 @@ pub(crate) fn coverage_status_per_shift(
     let mut result = HashMap::new();
 
     for &(template_id, start_time, end_time, crosses_midnight) in shifts {
-        let start_min = start_time.hour() as i32 * 60 + start_time.minute() as i32;
-        let end_min = if crosses_midnight {
-            24 * 60
-        } else {
-            end_time.hour() as i32 * 60 + end_time.minute() as i32
-        };
-
-        let start_slot = (start_min / 30) as i16;
-        let end_slot = if end_min % 30 == 0 {
-            ((end_min / 30) - 1) as i16
-        } else {
-            (end_min / 30) as i16
-        };
-        let end_slot = end_slot.clamp(0, 47).max(start_slot);
+        let (start_slot, end_slot) = time_to_slot_range(start_time, end_time, crosses_midnight);
+        let end_slot = end_slot.max(start_slot);
 
         let mut total_shortage: i32 = 0;
         let mut by_classification = Vec::new();

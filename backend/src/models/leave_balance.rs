@@ -6,18 +6,6 @@ use validator::Validate;
 
 use crate::models::common::Paginated;
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct LeaveBalance {
-    pub id: Uuid,
-    pub org_id: Uuid,
-    pub user_id: Uuid,
-    pub leave_type_id: Uuid,
-    pub balance_hours: f64,
-    pub as_of_date: time::Date,
-    #[serde(with = "time::serde::rfc3339")]
-    pub updated_at: OffsetDateTime,
-}
-
 #[derive(Debug, Serialize)]
 pub struct LeaveBalanceView {
     pub leave_type_id: Uuid,
@@ -105,24 +93,4 @@ pub struct BalanceHistoryQuery {
 impl Paginated for BalanceHistoryQuery {
     fn raw_limit(&self) -> Option<i64> { self.limit }
     fn raw_offset(&self) -> Option<i64> { self.offset }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct LeaveRequestLineWithRequestId {
-    pub id: Uuid,
-    pub leave_request_id: Uuid,
-    pub date: time::Date,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        with = "crate::models::common::time_format_option"
-    )]
-    pub start_time: Option<time::Time>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        with = "crate::models::common::time_format_option"
-    )]
-    pub end_time: Option<time::Time>,
-    pub hours: f64,
 }
