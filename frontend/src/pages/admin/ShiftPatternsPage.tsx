@@ -108,53 +108,46 @@ export default function ShiftPatternsPage() {
   }
 
   function onSubmit(values: SimpleFormValues) {
+    let data: {
+      name: string
+      pattern_days: number
+      work_days: number
+      off_days: number
+      anchor_date: string
+      team_id: string | null
+      work_days_in_cycle: number[] | null
+    }
+
     if (patternMode === 'complex') {
-      // Parse complex days
       const parsed = complexDays.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
       if (parsed.length === 0) {
         toast.error('Enter at least one work day for complex pattern')
         return
       }
-      const patternDays = values.pattern_days
-      const invalid = parsed.filter(d => d < 1 || d > patternDays)
+      const invalid = parsed.filter(d => d < 1 || d > values.pattern_days)
       if (invalid.length > 0) {
-        toast.error(`Work days must be between 1 and ${patternDays}`)
+        toast.error(`Work days must be between 1 and ${values.pattern_days}`)
         return
       }
-
-      const data = {
+      data = {
         name: values.name,
-        pattern_days: patternDays,
+        pattern_days: values.pattern_days,
         work_days: parsed.length,
-        off_days: patternDays - parsed.length,
+        off_days: values.pattern_days - parsed.length,
         anchor_date: values.anchor_date,
         team_id: values.team_id || null,
         work_days_in_cycle: parsed,
       }
-
-      if (editingItem) {
-        updateMut.mutate(
-          { id: editingItem.id, ...data },
-          mutationCallbacks('Pattern updated', () => setDialogOpen(false), 'Failed to update shift pattern'),
-        )
-      } else {
-        createMut.mutate(
-          data,
-          mutationCallbacks('Pattern created', () => setDialogOpen(false), 'Failed to create shift pattern'),
-        )
+    } else {
+      data = {
+        name: values.name,
+        pattern_days: values.pattern_days,
+        work_days: values.work_days,
+        off_days: values.off_days,
+        anchor_date: values.anchor_date,
+        team_id: values.team_id || null,
+        work_days_in_cycle: null,
       }
-      return
-    }
-
-    // Simple mode
-    const data = {
-      name: values.name,
-      pattern_days: values.pattern_days,
-      work_days: values.work_days,
-      off_days: values.off_days,
-      anchor_date: values.anchor_date,
-      team_id: values.team_id || null,
-      work_days_in_cycle: null as number[] | null,
     }
 
     if (editingItem) {

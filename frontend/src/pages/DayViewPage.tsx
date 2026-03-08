@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Navigate, Link } from 'react-router-dom'
 import { format, addDays, parseISO } from 'date-fns'
-import { ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, Star, StickyNote, Phone, Clock, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle, StickyNote, Phone, Clock, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useDayView, useAnnotations, useCreateAnnotation } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
+import { AnnotationBadge } from '@/components/AnnotationBadge'
 import { cn } from '@/lib/utils'
 import { formatTime, contrastText } from '@/lib/format'
 import type { ClassificationCoverageDetail } from '@/api/schedule'
@@ -112,20 +113,12 @@ export default function DayViewPage() {
       {annotations && annotations.length > 0 && (
         <div className="mb-4 space-y-1">
           {annotations.map((ann) => (
-            <div
+            <AnnotationBadge
               key={ann.id}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm',
-                ann.annotation_type === 'alert' && 'bg-destructive/10 text-destructive',
-                ann.annotation_type === 'holiday' && 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-                ann.annotation_type === 'note' && 'bg-muted',
-              )}
-            >
-              {ann.annotation_type === 'alert' && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-              {ann.annotation_type === 'holiday' && <Star className="h-3.5 w-3.5 shrink-0" />}
-              {ann.annotation_type === 'note' && <MessageSquare className="h-3.5 w-3.5 shrink-0" />}
-              <span>{ann.content}</span>
-            </div>
+              type={ann.annotation_type}
+              content={ann.content}
+              iconSize="h-3.5 w-3.5"
+            />
           ))}
         </div>
       )}

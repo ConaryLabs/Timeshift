@@ -40,24 +40,12 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { NO_VALUE, extractApiError } from '@/lib/format'
+import { EMPLOYEE_TYPES, EMPLOYEE_STATUSES } from '@/lib/constants'
 import { isConflictError } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import type { UserProfile, Role, EmployeeType, EmployeeStatus } from '@/store/auth'
 
 const ROLES: Role[] = ['admin', 'supervisor', 'employee']
-const EMPLOYEE_TYPES: { value: EmployeeType; label: string }[] = [
-  { value: 'regular_full_time', label: 'Regular Full Time' },
-  { value: 'job_share', label: 'Job Share' },
-  { value: 'medical_part_time', label: 'Medical Part Time' },
-  { value: 'temp_part_time', label: 'Temp Part Time' },
-]
-const EMPLOYEE_STATUSES: { value: EmployeeStatus; label: string }[] = [
-  { value: 'active', label: 'Active' },
-  { value: 'unpaid_loa', label: 'Unpaid LOA' },
-  { value: 'lwop', label: 'LWOP' },
-  { value: 'layoff', label: 'Layoff' },
-  { value: 'separated', label: 'Separated' },
-]
 const PAUSING_STATUSES: EmployeeStatus[] = ['unpaid_loa', 'lwop', 'layoff']
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   active: '',

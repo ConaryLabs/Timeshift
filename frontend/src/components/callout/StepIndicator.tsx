@@ -1,3 +1,4 @@
+// components/callout/StepIndicator.tsx
 import { Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'

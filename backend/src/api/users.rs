@@ -117,7 +117,7 @@ pub(crate) async fn fetch_user_profile(
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-    Ok(UserProfile {
+    Ok(UserProfileRow {
         id: row.id,
         org_id: row.org_id,
         employee_id: row.employee_id,
@@ -142,7 +142,8 @@ pub(crate) async fn fetch_user_profile(
         medical_ot_exempt: row.medical_ot_exempt,
         is_active: row.is_active,
         updated_at: row.updated_at,
-    })
+    }
+    .into())
 }
 
 /// Handle side effects of employee status changes:

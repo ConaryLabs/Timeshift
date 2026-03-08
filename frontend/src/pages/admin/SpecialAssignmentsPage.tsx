@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,7 +32,7 @@ import {
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
 import { mutationCallbacks } from '@/hooks/mutationCallbacks'
-import { NO_VALUE } from '@/lib/format'
+import { NO_VALUE, toLocalDateStr } from '@/lib/format'
 import type { SpecialAssignment } from '@/api/specialAssignments'
 
 const COMMON_TYPES = [
@@ -57,7 +56,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 function isActive(sa: SpecialAssignment): boolean {
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const today = toLocalDateStr(new Date())
   return sa.start_date <= today && (sa.end_date === null || sa.end_date >= today)
 }
 
@@ -68,7 +67,7 @@ export default function SpecialAssignmentsPage() {
   const [filterType, setFilterType] = useState<string>('')
   const [showActiveOnly, setShowActiveOnly] = useState(true)
 
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const today = toLocalDateStr(new Date())
   const listParams = useMemo(() => ({
     assignment_type: filterType || undefined,
     active_on: showActiveOnly ? today : undefined,

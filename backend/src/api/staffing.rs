@@ -62,6 +62,42 @@ pub struct OtRequestSummary {
     pub end_time: time::Time,
 }
 
+/// Look up the active callout event for a given shift + classification.
+async fn fetch_callout_summary(
+    pool: &PgPool,
+    scheduled_shift_id: Uuid,
+    classification_id: Uuid,
+    org_id: Uuid,
+) -> Result<Option<CalloutEventSummary>> {
+    let row = sqlx::query!(
+        r#"
+        SELECT ce.id,
+               ce.status AS "status: CalloutStatus",
+               ce.current_step AS "current_step?: CalloutStep"
+        FROM callout_events ce
+        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
+        WHERE ce.scheduled_shift_id = $1
+          AND ce.classification_id = $2
+          AND ce.status = 'open'
+          AND ss.org_id = $3
+        ORDER BY ce.created_at DESC
+        LIMIT 1
+        "#,
+        scheduled_shift_id,
+        classification_id,
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .map(|r| CalloutEventSummary {
+        id: r.id,
+        status: r.status,
+        current_step: r.current_step,
+    });
+
+    Ok(row)
+}
+
 pub async fn available_employees(
     State(pool): State<PgPool>,
     auth: AuthUser,
@@ -136,32 +172,9 @@ pub async fn available_employees(
     )
     .await?;
 
-    // Check for active callout events on this shift + classification
-    let existing_callout = sqlx::query!(
-        r#"
-        SELECT ce.id,
-               ce.status AS "status: CalloutStatus",
-               ce.current_step AS "current_step?: CalloutStep"
-        FROM callout_events ce
-        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.scheduled_shift_id = $1
-          AND ce.classification_id = $2
-          AND ce.status = 'open'
-          AND ss.org_id = $3
-        ORDER BY ce.created_at DESC
-        LIMIT 1
-        "#,
-        shift_info.scheduled_shift_id,
-        params.classification_id,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .map(|r| CalloutEventSummary {
-        id: r.id,
-        status: r.status,
-        current_step: r.current_step,
-    });
+    let existing_callout = fetch_callout_summary(
+        &pool, shift_info.scheduled_shift_id, params.classification_id, auth.org_id,
+    ).await?;
 
     // Check for OT requests on this date + classification
     let ot_rows = sqlx::query!(
@@ -324,32 +337,9 @@ pub async fn block_available(
     )
     .await?;
 
-    // Check for active callout on this shift + classification
-    let existing_callout = sqlx::query!(
-        r#"
-        SELECT ce.id,
-               ce.status AS "status: CalloutStatus",
-               ce.current_step AS "current_step?: CalloutStep"
-        FROM callout_events ce
-        JOIN scheduled_shifts ss ON ss.id = ce.scheduled_shift_id
-        WHERE ce.scheduled_shift_id = $1
-          AND ce.classification_id = $2
-          AND ce.status = 'open'
-          AND ss.org_id = $3
-        ORDER BY ce.created_at DESC
-        LIMIT 1
-        "#,
-        scheduled_shift_id,
-        params.classification_id,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .map(|r| CalloutEventSummary {
-        id: r.id,
-        status: r.status,
-        current_step: r.current_step,
-    });
+    let existing_callout = fetch_callout_summary(
+        &pool, scheduled_shift_id, params.classification_id, auth.org_id,
+    ).await?;
 
     // Check for OT requests on this date + classification that overlap this block
     let ot_rows = sqlx::query!(

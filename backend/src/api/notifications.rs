@@ -9,6 +9,7 @@ use crate::{
     api::helpers::{ensure_rows_affected, json_ok},
     auth::AuthUser,
     error::{AppError, Result},
+    models::common::Paginated,
     models::notification::{
         Notification, NotificationListQuery, NotificationListResponse, ReadAllResponse,
         UnreadCountResponse,

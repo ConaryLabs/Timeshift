@@ -71,213 +71,7 @@ export default function DutyBoardDisplayPage() {
       </div>
 
       {/* Grid */}
-      {board?.positions.length ? (
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              tableLayout: 'fixed',
-            }}
-          >
-            <thead>
-              <tr>
-                {/* CONSOLE header cell */}
-                <th
-                  style={{
-                    background: '#000000',
-                    color: '#ffffff',
-                    fontSize: '17px',
-                    fontWeight: 700,
-                    padding: '6px 10px',
-                    border: '1px solid #000000',
-                    textAlign: 'center',
-                    width: '120px',
-                    minWidth: '120px',
-                  }}
-                >
-                  CONSOLE
-                </th>
-                {BLOCK_LABELS.map((label, i) => (
-                  <th
-                    key={i}
-                    style={{
-                      background: i === currentBlock ? '#5B9BD5' : '#9BC2E6',
-                      color: '#000000',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      padding: '6px 4px',
-                      border: '1px solid #ffffff',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {board.positions.map((position) => {
-                const posColor = getPositionColor(position.name)
-                return (
-                  <tr key={position.id}>
-                    {/* Position label */}
-                    <td
-                      style={{
-                        background: posColor.bg,
-                        color: posColor.text,
-                        fontSize: '17px',
-                        fontWeight: 700,
-                        padding: '4px 8px',
-                        border: '1px solid #333333',
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {position.name}
-                    </td>
-                    {Array.from({ length: 12 }, (_, blockIndex) => {
-                      const assignment = assignmentMap.get(
-                        `${position.id}:${blockIndex}`
-                      )
-                      const isOpen = position.open_blocks[blockIndex]
-                      const isCurrent = blockIndex === currentBlock
-
-                      // Closed block
-                      if (!isOpen) {
-                        return (
-                          <td
-                            key={blockIndex}
-                            style={{
-                              background: '#D9D9D9',
-                              color: '#888888',
-                              fontSize: '14px',
-                              fontWeight: 700,
-                              textAlign: 'center',
-                              padding: '4px 2px',
-                              border: '1px solid #aaaaaa',
-                              ...(isCurrent
-                                ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
-                                : {}),
-                            }}
-                          >
-                            X
-                          </td>
-                        )
-                      }
-
-                      // OT needed
-                      if (assignment?.status === 'ot_needed') {
-                        return (
-                          <td
-                            key={blockIndex}
-                            style={{
-                              background: '#FFC000',
-                              color: '#000000',
-                              fontSize: '16px',
-                              fontWeight: 700,
-                              textAlign: 'center',
-                              padding: '4px 2px',
-                              border: '1px solid #333333',
-                              ...(isCurrent
-                                ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
-                                : {}),
-                            }}
-                          >
-                            OT
-                          </td>
-                        )
-                      }
-
-                      // Assigned person
-                      if (
-                        assignment?.status === 'assigned' &&
-                        assignment.user_first_name
-                      ) {
-                        return (
-                          <td
-                            key={blockIndex}
-                            style={{
-                              background: '#ffffff',
-                              color: '#000000',
-                              fontSize: '16px',
-                              fontWeight: 700,
-                              textAlign: 'center',
-                              padding: '4px 2px',
-                              border: '1px solid #333333',
-                              ...(isCurrent
-                                ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
-                                : {}),
-                            }}
-                            title={`${assignment.user_first_name} ${assignment.user_last_name}`}
-                          >
-                            {assignment.user_first_name}
-                          </td>
-                        )
-                      }
-
-                      // Empty open cell
-                      return (
-                        <td
-                          key={blockIndex}
-                          style={{
-                            background: '#ffffff',
-                            color: '#000000',
-                            fontSize: '16px',
-                            fontWeight: 700,
-                            textAlign: 'center',
-                            padding: '4px 2px',
-                            border: '1px solid #cccccc',
-                            ...(isCurrent
-                              ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
-                              : {}),
-                          }}
-                        >
-                          &nbsp;
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-            {/* Bottom header row (mirror of top, like original) */}
-            <tfoot>
-              <tr>
-                <td
-                  style={{
-                    background: '#000000',
-                    color: '#ffffff',
-                    fontSize: '17px',
-                    fontWeight: 700,
-                    padding: '6px 10px',
-                    border: '1px solid #000000',
-                    textAlign: 'center',
-                  }}
-                >
-                  CONSOLE
-                </td>
-                {BLOCK_LABELS.map((label, i) => (
-                  <td
-                    key={i}
-                    style={{
-                      background: i === currentBlock ? '#5B9BD5' : '#9BC2E6',
-                      color: '#000000',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      padding: '6px 4px',
-                      border: '1px solid #ffffff',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {label}
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      ) : boardError ? (
+      {boardError ? (
         <div
           style={{
             flex: 1,
@@ -316,6 +110,200 @@ export default function DutyBoardDisplayPage() {
           >
             Retry Now
           </button>
+        </div>
+      ) : board?.positions.length ? (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              tableLayout: 'fixed',
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    background: '#000000',
+                    color: '#ffffff',
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    padding: '6px 10px',
+                    border: '1px solid #000000',
+                    textAlign: 'center',
+                    width: '120px',
+                    minWidth: '120px',
+                  }}
+                >
+                  CONSOLE
+                </th>
+                {BLOCK_LABELS.map((label, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      background: i === currentBlock ? '#5B9BD5' : '#9BC2E6',
+                      color: '#000000',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      padding: '6px 4px',
+                      border: '1px solid #ffffff',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {board.positions.map((position) => {
+                const posColor = getPositionColor(position.name)
+                return (
+                  <tr key={position.id}>
+                    <td
+                      style={{
+                        background: posColor.bg,
+                        color: posColor.text,
+                        fontSize: '17px',
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        border: '1px solid #333333',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {position.name}
+                    </td>
+                    {Array.from({ length: 12 }, (_, blockIndex) => {
+                      const assignment = assignmentMap.get(
+                        `${position.id}:${blockIndex}`
+                      )
+                      const isOpen = position.open_blocks[blockIndex]
+                      const isCurrent = blockIndex === currentBlock
+                      const currentBlockShadow = isCurrent
+                        ? { boxShadow: 'inset 0 0 0 2px #5B9BD5' }
+                        : {}
+
+                      if (!isOpen) {
+                        return (
+                          <td
+                            key={blockIndex}
+                            style={{
+                              background: '#D9D9D9',
+                              color: '#888888',
+                              fontSize: '14px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              padding: '4px 2px',
+                              border: '1px solid #aaaaaa',
+                              ...currentBlockShadow,
+                            }}
+                          >
+                            X
+                          </td>
+                        )
+                      }
+
+                      if (assignment?.status === 'ot_needed') {
+                        return (
+                          <td
+                            key={blockIndex}
+                            style={{
+                              background: '#FFC000',
+                              color: '#000000',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              padding: '4px 2px',
+                              border: '1px solid #333333',
+                              ...currentBlockShadow,
+                            }}
+                          >
+                            OT
+                          </td>
+                        )
+                      }
+
+                      if (
+                        assignment?.status === 'assigned' &&
+                        assignment.user_first_name
+                      ) {
+                        return (
+                          <td
+                            key={blockIndex}
+                            style={{
+                              background: '#ffffff',
+                              color: '#000000',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              padding: '4px 2px',
+                              border: '1px solid #333333',
+                              ...currentBlockShadow,
+                            }}
+                            title={`${assignment.user_first_name} ${assignment.user_last_name}`}
+                          >
+                            {assignment.user_first_name}
+                          </td>
+                        )
+                      }
+
+                      return (
+                        <td
+                          key={blockIndex}
+                          style={{
+                            background: '#ffffff',
+                            color: '#000000',
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            textAlign: 'center',
+                            padding: '4px 2px',
+                            border: '1px solid #cccccc',
+                            ...currentBlockShadow,
+                          }}
+                        >
+                          &nbsp;
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td
+                  style={{
+                    background: '#000000',
+                    color: '#ffffff',
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    padding: '6px 10px',
+                    border: '1px solid #000000',
+                    textAlign: 'center',
+                  }}
+                >
+                  CONSOLE
+                </td>
+                {BLOCK_LABELS.map((label, i) => (
+                  <td
+                    key={i}
+                    style={{
+                      background: i === currentBlock ? '#5B9BD5' : '#9BC2E6',
+                      color: '#000000',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      padding: '6px 4px',
+                      border: '1px solid #ffffff',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {label}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          </table>
         </div>
       ) : (
         <div

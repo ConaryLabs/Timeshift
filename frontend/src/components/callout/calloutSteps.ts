@@ -1,3 +1,4 @@
+// components/callout/calloutSteps.ts
 import type { CalloutStep } from '@/api/ot'
 
 export const CALLOUT_STEPS: { key: CalloutStep; label: string }[] = [

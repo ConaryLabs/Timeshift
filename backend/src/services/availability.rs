@@ -28,11 +28,7 @@ pub async fn compute_available_employees(
     shift_start: time::Time,
     shift_duration_minutes: i32,
 ) -> Result<Vec<CalloutListEntry>> {
-    let fy_start =
-        crate::services::org_settings::get_i64(pool, org_id, "fiscal_year_start_month", 1)
-            .await as u32;
-    let fiscal_year: i32 =
-        crate::services::timezone::fiscal_year_for_date(shift_date, fy_start);
+    let fiscal_year = crate::services::ot::org_fiscal_year(pool, org_id, shift_date).await;
 
     // Precompute shift time bounds as minutes-from-midnight for partial-day leave overlap check.
     // shift_end_mins may exceed 1440 for overnight shifts (e.g., 22:00-06:00 → 1320..1800).
@@ -42,14 +38,9 @@ pub async fn compute_available_employees(
 
     // CBA (LOU 25-10): Cross-classification OT eligibility window. When a shift is within
     // this many days (default 10), employees from other classifications become eligible.
-    let window_days: i64 = sqlx::query_scalar!(
-        r#"SELECT CAST(value AS BIGINT) FROM org_settings WHERE org_id = $1 AND key = 'ot_cross_class_window_days'"#,
-        org_id
-    )
-    .fetch_optional(pool)
-    .await?
-    .flatten()
-    .unwrap_or(10);
+    let window_days =
+        crate::services::org_settings::get_i64(pool, org_id, "ot_cross_class_window_days", 10)
+            .await;
 
     let today = crate::services::timezone::org_today(org_timezone);
     let days_until_shift = (shift_date - today).whole_days();

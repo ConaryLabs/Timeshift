@@ -149,15 +149,6 @@ pub async fn update(
         return Err(AppError::Forbidden);
     }
 
-    let _existing = sqlx::query!(
-        "SELECT id FROM shift_patterns WHERE id = $1 AND org_id = $2",
-        id,
-        auth.org_id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Shift pattern not found".into()))?;
-
     if let Some(Some(team_id)) = req.team_id {
         org_guard::verify_team(&pool, team_id, auth.org_id).await?;
     }
@@ -169,8 +160,9 @@ pub async fn update(
             id,
             auth.org_id,
         )
-        .fetch_one(&pool)
-        .await?;
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Shift pattern not found".into()))?;
 
         let pd = req.pattern_days.unwrap_or(existing.pattern_days);
         let wd = req.work_days.unwrap_or(existing.work_days);

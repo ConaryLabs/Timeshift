@@ -113,7 +113,7 @@ async fn test_advance_step_ordering() {
         "Advancing to 'inverse_seniority' should succeed"
     );
 
-    // Step 3: trying to go back to 'low_ot_hours' should fail
+    // Step 3: going back to 'low_ot_hours' is allowed (supervisors can revisit steps)
     let resp = client
         .patch(&url)
         .header("Authorization", format!("Bearer {}", token))
@@ -123,11 +123,25 @@ async fn test_advance_step_ordering() {
         .unwrap();
     assert_eq!(
         resp.status(),
-        400,
-        "Going back to 'low_ot_hours' should return 400"
+        200,
+        "Going back to 'low_ot_hours' should succeed"
     );
 
-    // Step 4: skipping to 'mandatory' should fail (must go to equal_ot_hours first)
+    // Step 4: skipping to 'mandatory' is allowed (any step is valid)
+    let resp = client
+        .patch(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&serde_json::json!({ "step": "mandatory" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        200,
+        "Skipping to 'mandatory' should succeed"
+    );
+
+    // Step 5: moving to the same step should fail
     let resp = client
         .patch(&url)
         .header("Authorization", format!("Bearer {}", token))
@@ -138,7 +152,7 @@ async fn test_advance_step_ordering() {
     assert_eq!(
         resp.status(),
         400,
-        "Skipping to 'mandatory' should return 400"
+        "Moving to the same step should return 400"
     );
 
     common::cleanup_test_org(&pool, org_id).await;

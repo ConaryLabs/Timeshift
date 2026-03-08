@@ -41,13 +41,7 @@ import type { LeaveBalanceView } from '@/api/leaveBalances'
 import type { AccrualSchedule, AccrualTransaction } from '@/api/leaveBalances'
 import { Link } from 'react-router-dom'
 import { extractApiError, formatDate } from '@/lib/format'
-
-const EMPLOYEE_TYPES = [
-  { value: 'regular_full_time', label: 'Regular Full Time' },
-  { value: 'job_share', label: 'Job Share' },
-  { value: 'medical_part_time', label: 'Medical Part Time' },
-  { value: 'temp_part_time', label: 'Temp Part Time' },
-]
+import { EMPLOYEE_TYPES } from '@/lib/constants'
 
 type Tab = 'balances' | 'schedules'
 

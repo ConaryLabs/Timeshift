@@ -34,8 +34,8 @@ import {
   useUpdateCoveragePlan,
   useDeleteCoveragePlan,
 } from '@/hooks/queries'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { CoveragePlanView } from '@/api/coveragePlans'
-import { extractApiError } from '@/lib/format'
 
 const INITIAL_FORM = { name: '', description: '', isDefault: false }
 
@@ -72,27 +72,18 @@ export default function CoveragePlansPage() {
     if (editingPlan) {
       updateMut.mutate(
         { id: editingPlan.id, name: form.name.trim(), description: form.description || undefined, is_default: form.isDefault },
-        {
-          onSuccess: () => { toast.success('Plan updated'); setDialogOpen(false) },
-          onError: (err) => toast.error(extractApiError(err, 'Update failed')),
-        },
+        mutationCallbacks('Plan updated', () => setDialogOpen(false), 'Update failed'),
       )
     } else {
       createMut.mutate(
         { name: form.name.trim(), description: form.description || undefined, is_default: form.isDefault },
-        {
-          onSuccess: () => { toast.success('Plan created'); setDialogOpen(false) },
-          onError: (err) => toast.error(extractApiError(err, 'Create failed')),
-        },
+        mutationCallbacks('Plan created', () => setDialogOpen(false), 'Create failed'),
       )
     }
   }
 
   function handleDelete(id: string) {
-    deleteMut.mutate(id, {
-      onSuccess: () => { toast.success('Plan deleted'); setDeleteConfirm(null) },
-      onError: (err) => toast.error(extractApiError(err, 'Delete failed')),
-    })
+    deleteMut.mutate(id, mutationCallbacks('Plan deleted', () => setDeleteConfirm(null), 'Delete failed'))
   }
 
   const columns: Column<CoveragePlanView>[] = [

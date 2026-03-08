@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateOtRequest, useAssignOtRequest, useDayView, useMandatoryOtOrder, useDayGrid } from '@/hooks/queries'
+import { otRequestsApi } from '@/api/otRequests'
 import { formatTime, extractApiError, addHoursToTime, parseTimeToMinutes } from '@/lib/format'
 import type { ClassificationGap } from '@/api/coveragePlans'
 import type { DayViewEntry, GridAssignment } from '@/api/schedule'
@@ -291,10 +292,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
       onOpenChange(false)
     } catch (err: unknown) {
       if (createdOtId) {
-        try {
-          const { api: client } = await import('@/api/client')
-          await client.patch(`/api/ot-requests/${createdOtId}/cancel`)
-        } catch { /* cleanup is best-effort */ }
+        otRequestsApi.cancel(createdOtId).catch(() => {})
       }
       toast.error(extractApiError(err, 'Failed to assign mandatory OT'))
     }

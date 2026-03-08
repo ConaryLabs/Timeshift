@@ -507,13 +507,9 @@ function MonthView({
                     {dayCells.slice(0, 4).map((cell) => {
                       const isUnder = cell.coverage_required > 0 && cell.coverage_actual < cell.coverage_required
                       let status: string
-                      if (cell.coverage_required === 0) {
-                        status = 'bg-muted-foreground/30'
-                      } else if (cell.coverage_actual >= cell.coverage_required) {
-                        status = 'bg-green-500'
-                      } else {
-                        status = 'bg-red-500'
-                      }
+                      if (cell.coverage_required === 0) status = 'bg-muted-foreground/30'
+                      else if (isUnder) status = 'bg-red-500'
+                      else status = 'bg-green-500'
                       if (isUnder) {
                         const classDetail = cell.coverage_by_classification?.length
                           ? ` (${cell.coverage_by_classification.map((c) => `${c.classification_abbreviation} −${c.shortage}`).join(', ')})`

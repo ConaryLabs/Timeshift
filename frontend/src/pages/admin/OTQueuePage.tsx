@@ -72,10 +72,6 @@ export default function OTQueuePage() {
   const { data: hoursData, isLoading: hoursLoading } = useOtHours({ fiscal_year: fiscalYear })
   const adjustMut = useAdjustOtHours()
 
-  function handleMoveToFront(entry: OtQueueEntry) {
-    setPendingMoveToFront(entry)
-  }
-
   function confirmMoveToFront() {
     if (!pendingMoveToFront) return
     const entry = pendingMoveToFront
@@ -128,14 +124,6 @@ export default function OTQueuePage() {
     )
   }
 
-  function handleClassificationChange(value: string) {
-    setSelectedClassification(value)
-  }
-
-  function handleFiscalYearChange(value: string) {
-    setFiscalYear(parseInt(value, 10))
-  }
-
   const queueColumns: Column<OtQueueEntry>[] = [
     {
       header: 'Name',
@@ -174,7 +162,7 @@ export default function OTQueuePage() {
             size="sm"
             variant="outline"
             disabled={setPositionMut.isPending || isAlreadyFront}
-            onClick={() => handleMoveToFront(r)}
+            onClick={() => setPendingMoveToFront(r)}
           >
             Move to Front
           </Button>
@@ -238,7 +226,7 @@ export default function OTQueuePage() {
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="w-64">
           <FormField label="Classification" htmlFor="ot-class">
-            <Select value={selectedClassification} onValueChange={handleClassificationChange}>
+            <Select value={selectedClassification} onValueChange={setSelectedClassification}>
               <SelectTrigger id="ot-class">
                 <SelectValue placeholder="Select classification…" />
               </SelectTrigger>
@@ -255,7 +243,7 @@ export default function OTQueuePage() {
         </div>
         <div className="w-36">
           <FormField label="Fiscal Year" htmlFor="ot-fy">
-            <Select value={String(fiscalYear)} onValueChange={handleFiscalYearChange}>
+            <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(parseInt(v, 10))}>
               <SelectTrigger id="ot-fy">
                 <SelectValue />
               </SelectTrigger>

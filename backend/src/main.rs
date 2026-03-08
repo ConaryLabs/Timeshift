@@ -44,9 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Database connected and migrations applied");
 
-    // Build optional Twilio config for SMS alerts
-    let twilio = cfg.twilio_config();
-    if let Some(ref t) = twilio {
+    if let Some(ref t) = cfg.twilio {
         tracing::info!("Twilio SMS configured (from: {})", t.from_number);
     } else {
         tracing::info!("Twilio SMS not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER to enable)");
@@ -58,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
         access_token_expiry_minutes: cfg.access_token_expiry_minutes,
         refresh_token_expiry_days: cfg.refresh_token_expiry_days,
         cookie_secure: cfg.cookie_secure,
-        twilio,
+        twilio: cfg.twilio,
     };
 
     // CORS
@@ -86,47 +84,23 @@ async fn main() -> anyhow::Result<()> {
         .allow_credentials(true)
         .allow_origin(allowed_origins);
 
-    // Rate limiters per IP (SmartIpKeyExtractor reads X-Forwarded-For/X-Real-IP from Caddy)
-    let login_rl = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(2)
-            .burst_size(5)
-            .key_extractor(SmartIpKeyExtractor)
-            .finish()
-            .unwrap(),
-    );
-    let refresh_rl = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_millisecond(200)
-            .burst_size(10)
-            .key_extractor(SmartIpKeyExtractor)
-            .finish()
-            .unwrap(),
-    );
-    let callout_rl = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(1)
-            .burst_size(3)
-            .key_extractor(SmartIpKeyExtractor)
-            .finish()
-            .unwrap(),
-    );
-    let password_rl = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(12)
-            .burst_size(5)
-            .key_extractor(SmartIpKeyExtractor)
-            .finish()
-            .unwrap(),
-    );
-    let sms_rl = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(60)
-            .burst_size(1)
-            .key_extractor(SmartIpKeyExtractor)
-            .finish()
-            .unwrap(),
-    );
+    // Rate limiters per IP (SmartIpKeyExtractor reads X-Forwarded-For/X-Real-IP from Caddy).
+    // `replenish_interval` = time to add one token back; `burst` = max tokens.
+    let rate_limiter = |replenish_interval: Duration, burst: u32| {
+        Arc::new(
+            GovernorConfigBuilder::default()
+                .period(replenish_interval)
+                .burst_size(burst)
+                .key_extractor(SmartIpKeyExtractor)
+                .finish()
+                .unwrap(),
+        )
+    };
+    let login_rl = rate_limiter(Duration::from_secs(2), 5);
+    let refresh_rl = rate_limiter(Duration::from_millis(200), 10);
+    let callout_rl = rate_limiter(Duration::from_secs(1), 3);
+    let password_rl = rate_limiter(Duration::from_secs(12), 5);
+    let sms_rl = rate_limiter(Duration::from_secs(60), 1);
 
     // Periodically prune expired rate-limit entries
     let limiters = vec![

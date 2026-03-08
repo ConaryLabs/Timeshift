@@ -75,8 +75,7 @@ export default function StaffingResolvePage() {
   const { isManager } = usePermissions()
 
   // URL params — date-centric
-  const dateParam = searchParams.get('date') ?? format(new Date(), 'yyyy-MM-dd')
-  const date = dateParam
+  const date = searchParams.get('date') ?? format(new Date(), 'yyyy-MM-dd')
 
   // UI state
   const [selectedBlock, setSelectedBlock] = useState<SelectedBlock | null>(null)
@@ -165,11 +164,7 @@ export default function StaffingResolvePage() {
     })
   }, [])
 
-  // Use native 2h blocks from the API directly (no re-aggregation to avoid inflated values)
-  const aggregatedClassifications = useMemo(() => {
-    if (!dayGrid) return []
-    return dayGrid.classifications
-  }, [dayGrid])
+  const aggregatedClassifications = dayGrid?.classifications ?? []
 
   // --- Handlers ---
 
@@ -283,7 +278,7 @@ export default function StaffingResolvePage() {
     shift_name: `${selectedBlock.blockStart}-${selectedBlock.blockEnd}`,
     shift_color: '#dc2626',
     target: selectedBlock.min,
-    actual: selectedBlock.actual as unknown as number,
+    actual: selectedBlock.actual,
     shortage,
   } : null
 
@@ -346,7 +341,6 @@ export default function StaffingResolvePage() {
           {aggregatedClassifications.map((cls) => (
             <ClassificationRow
               key={cls.classification_id}
-              classificationId={cls.classification_id}
               abbreviation={cls.abbreviation}
               blocks={cls.blocks}
               blockColumns={blockColumns}
@@ -484,13 +478,13 @@ export default function StaffingResolvePage() {
                           </Button>
                         )}
                       </div>
-                      {(volunteers ?? []).length > 0 && (
+                      {volunteers && volunteers.length > 0 && (
                         <div className="mb-3">
                           <h4 className="text-xs font-medium text-muted-foreground mb-1">
-                            Volunteers ({(volunteers ?? []).length})
+                            Volunteers ({volunteers.length})
                           </h4>
                           <div className="flex flex-wrap gap-1">
-                            {(volunteers ?? []).map((v) => (
+                            {volunteers.map((v) => (
                               <Badge key={v.id} variant="secondary" className="text-xs">
                                 {v.last_name}, {v.first_name}
                               </Badge>
@@ -703,7 +697,6 @@ function ClassificationRow({
   blockColumns,
   onBlockClick,
 }: {
-  classificationId: string
   abbreviation: string
   blocks: ClassificationBlock[]
   blockColumns: { index: number; startTime: string; endTime: string; label: string }[]
@@ -758,10 +751,6 @@ function ClassificationRow({
     const left = (startMin / totalMin) * 100
     const width = ((endMin - startMin) / totalMin) * 100
     return { left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }
-  }
-
-  function getBlock(colIndex: number): ClassificationBlock | undefined {
-    return blocks[colIndex]
   }
 
   return (
@@ -858,7 +847,7 @@ function ClassificationRow({
               </div>
               <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
                 {blockColumns.map((col) => {
-                  const block = getBlock(col.index)
+                  const block = blocks[col.index]
                   return (
                     <div key={col.index} className="border-r last:border-r-0 h-5 flex items-center justify-center text-[10px] tabular-nums text-muted-foreground">
                       {block?.min ?? ''}
@@ -874,7 +863,7 @@ function ClassificationRow({
               </div>
               <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}>
                 {blockColumns.map((col) => {
-                  const block = getBlock(col.index)
+                  const block = blocks[col.index]
                   if (!block) return <div key={col.index} className="border-r last:border-r-0 h-6" />
                   const isClickable = block.status === 'red'
                   return (

@@ -26,6 +26,5 @@ export function useMandatoryOtOrder(classificationId: string) {
     queryKey: queryKeys.staffing.mandatoryOtOrder(classificationId),
     queryFn: () => staffingApi.mandatoryOtOrder({ classification_id: classificationId }),
     enabled: !!classificationId,
-    staleTime: 30_000,
   })
 }

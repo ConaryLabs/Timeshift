@@ -19,6 +19,20 @@ use crate::{
     org_guard,
 };
 
+/// Resolve the fiscal year: use the provided value or fall back to the current one.
+async fn resolve_fiscal_year(
+    pool: &PgPool,
+    org_id: Uuid,
+    org_timezone: &str,
+    explicit: Option<i32>,
+) -> i32 {
+    explicit.unwrap_or(crate::services::timezone::current_fiscal_year(
+        org_timezone,
+        crate::services::org_settings::get_i64(pool, org_id, "fiscal_year_start_month", 1)
+            .await as u32,
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // OT Queue
 // ---------------------------------------------------------------------------
@@ -34,13 +48,7 @@ pub async fn get_queue(
 
     org_guard::verify_classification(&pool, params.classification_id, auth.org_id).await?;
 
-    let fiscal_year = params
-        .fiscal_year
-        .unwrap_or(crate::services::timezone::current_fiscal_year(
-            &auth.org_timezone,
-            crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
-                .await as u32,
-        ));
+    let fiscal_year = resolve_fiscal_year(&pool, auth.org_id, &auth.org_timezone, params.fiscal_year).await;
 
     let rows = sqlx::query!(
         r#"
@@ -101,13 +109,7 @@ pub async fn set_queue_position(
     org_guard::verify_classification(&pool, req.classification_id, auth.org_id).await?;
     org_guard::verify_user(&pool, req.user_id, auth.org_id).await?;
 
-    let fiscal_year = req
-        .fiscal_year
-        .unwrap_or(crate::services::timezone::current_fiscal_year(
-            &auth.org_timezone,
-            crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
-                .await as u32,
-        ));
+    let fiscal_year = resolve_fiscal_year(&pool, auth.org_id, &auth.org_timezone, req.fiscal_year).await;
 
     sqlx::query!(
         r#"
@@ -138,13 +140,7 @@ pub async fn get_hours(
     auth: AuthUser,
     Query(params): Query<OtHoursQuery>,
 ) -> Result<Json<Vec<OtHoursView>>> {
-    let fiscal_year = params
-        .fiscal_year
-        .unwrap_or(crate::services::timezone::current_fiscal_year(
-            &auth.org_timezone,
-            crate::services::org_settings::get_i64(&pool, auth.org_id, "fiscal_year_start_month", 1)
-                .await as u32,
-        ));
+    let fiscal_year = resolve_fiscal_year(&pool, auth.org_id, &auth.org_timezone, params.fiscal_year).await;
 
     // Employees can only see their own hours
     if !auth.role.can_manage_schedule() {

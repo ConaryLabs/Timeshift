@@ -7,8 +7,7 @@ use validator::Validate;
 use crate::{
     auth::AuthUser,
     error::{AppError, Result},
-    models::organization::{Organization, UpdateOrganizationRequest},
-    models::report::{OrgSetting, SetOrgSettingRequest},
+    models::organization::{Organization, OrgSetting, SetOrgSettingRequest, UpdateOrganizationRequest},
 };
 
 /// Get the caller's own organization.

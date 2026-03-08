@@ -86,7 +86,6 @@ export function useResolvedCoverage(date: string) {
     queryKey: queryKeys.coveragePlans.resolved(date),
     queryFn: () => coveragePlansApi.getResolved(date),
     enabled: !!date,
-    staleTime: 30_000,
   })
 }
 
@@ -95,7 +94,6 @@ export function useCoverageGaps(date: string, options?: { enabled?: boolean }) {
     queryKey: queryKeys.coveragePlans.gaps(date),
     queryFn: () => coveragePlansApi.getGaps(date),
     enabled: (options?.enabled ?? true) && !!date,
-    staleTime: 30_000,
   })
 }
 
@@ -104,7 +102,6 @@ export function useCoverageGapBlocks(date: string, options?: { enabled?: boolean
     queryKey: queryKeys.coveragePlans.gapBlocks(date),
     queryFn: () => coveragePlansApi.getGapBlocks(date),
     enabled: (options?.enabled ?? true) && !!date,
-    staleTime: 30_000,
   })
 }
 
@@ -121,6 +118,5 @@ export function useDayGrid(date: string) {
     queryKey: queryKeys.coveragePlans.dayGrid(date),
     queryFn: () => coveragePlansApi.dayGrid(date),
     enabled: !!date,
-    staleTime: 30_000,
   })
 }

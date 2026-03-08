@@ -39,13 +39,16 @@ pub enum AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let (status, message) = match &self {
-            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
-            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
+        let (status, message) = match self {
+            AppError::Unauthorized(msg) => (
+                StatusCode::UNAUTHORIZED,
+                msg.unwrap_or_else(|| "Authentication required".into()),
+            ),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "Insufficient permissions".into()),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
             AppError::SoftLimit(msg) => {
                 return (
                     StatusCode::CONFLICT,
@@ -53,7 +56,7 @@ impl IntoResponse for AppError {
                 )
                     .into_response();
             }
-            AppError::Validation(e) => {
+            AppError::Validation(ref e) => {
                 let messages: Vec<String> = e
                     .field_errors()
                     .into_iter()
@@ -73,14 +76,14 @@ impl IntoResponse for AppError {
                     .collect();
                 (StatusCode::BAD_REQUEST, messages.join("; "))
             }
-            AppError::Database(e) => {
+            AppError::Database(ref e) => {
                 if let Some(resp) = map_db_error_response(e) {
                     return resp;
                 }
                 tracing::error!("Database error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error".into())
             }
-            AppError::Internal(e) => {
+            AppError::Internal(ref e) => {
                 tracing::error!("Internal error: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { FormField } from '@/components/ui/form-field'
 import { useCreateOtRequest, useAssignOtRequest } from '@/hooks/queries'
+import { otRequestsApi } from '@/api/otRequests'
 import { formatTime, extractApiError, addHoursToTime } from '@/lib/format'
 
 /** Convert "HH:MM:SS" → "HH:MM" for <input type="time" /> */
@@ -106,10 +107,7 @@ export default function DayOffMandatoryDialog({
     } catch (err: unknown) {
       // If the OT request was created but assignment failed, cancel the orphan
       if (createdOtId) {
-        try {
-          const { api: client } = await import('@/api/client')
-          await client.patch(`/api/ot-requests/${createdOtId}/cancel`)
-        } catch { /* cleanup is best-effort */ }
+        otRequestsApi.cancel(createdOtId).catch(() => {})
       }
       toast.error(extractApiError(err, 'Failed to assign day-off mandatory OT'))
     }
