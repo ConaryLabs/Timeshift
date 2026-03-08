@@ -424,18 +424,7 @@ pub async fn list_position_qualifications(
     auth: AuthUser,
     Path(position_id): Path<Uuid>,
 ) -> Result<Json<Vec<Qualification>>> {
-    // Verify position belongs to org
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2)",
-        position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
+    org_guard::verify_duty_position(&pool, position_id, auth.org_id).await?;
 
     let quals = sqlx::query_as!(
         Qualification,
@@ -465,18 +454,7 @@ pub async fn add_position_qualification(
         return Err(AppError::Forbidden);
     }
 
-    // Verify position and qualification belong to org
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2)",
-        position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
+    org_guard::verify_duty_position(&pool, position_id, auth.org_id).await?;
 
     let qual_exists = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM qualifications WHERE id = $1 AND org_id = $2)",
@@ -514,18 +492,7 @@ pub async fn remove_position_qualification(
         return Err(AppError::Forbidden);
     }
 
-    // Verify position belongs to org
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2)",
-        position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
+    org_guard::verify_duty_position(&pool, position_id, auth.org_id).await?;
 
     sqlx::query!(
         "DELETE FROM duty_position_qualifications WHERE duty_position_id = $1 AND qualification_id = $2",
@@ -637,17 +604,7 @@ pub async fn list_position_hours(
     auth: AuthUser,
     Path(position_id): Path<Uuid>,
 ) -> Result<Json<Vec<DutyPositionHours>>> {
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2)",
-        position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
+    org_guard::verify_duty_position(&pool, position_id, auth.org_id).await?;
 
     let hours = sqlx::query_as!(
         DutyPositionHours,
@@ -679,17 +636,7 @@ pub async fn set_position_hours(
         return Err(AppError::BadRequest("day_of_week must be 0-6".into()));
     }
 
-    let pos_exists = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM duty_positions WHERE id = $1 AND org_id = $2)",
-        position_id,
-        auth.org_id,
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    if !pos_exists.unwrap_or(false) {
-        return Err(AppError::NotFound("Duty position not found".into()));
-    }
+    org_guard::verify_duty_position(&pool, position_id, auth.org_id).await?;
 
     let open_time = parse_hhmm(&req.open_time, "open_time")?;
     let close_time = parse_hhmm(&req.close_time, "close_time")?;

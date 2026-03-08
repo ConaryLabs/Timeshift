@@ -42,9 +42,6 @@ pub struct BidWindow {
     pub auto_advanced_at: Option<OffsetDateTime>,
 }
 
-/// Type alias for backward compatibility -- `BidWindow` now directly derives `sqlx::FromRow`.
-pub type BidWindowRow = BidWindow;
-
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BidSubmission {
     pub id: Uuid,

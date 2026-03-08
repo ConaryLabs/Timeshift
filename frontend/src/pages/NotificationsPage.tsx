@@ -106,8 +106,8 @@ function NotificationRow({ notification }: { notification: Notification }) {
   return (
     <div
       onClick={handleClick}
-      {...(notification.link ? {
-        role: 'button' as const,
+      {...(notification.link && {
+        role: 'button',
         tabIndex: 0,
         onKeyDown: (e: React.KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -115,7 +115,7 @@ function NotificationRow({ notification }: { notification: Notification }) {
             handleClick()
           }
         },
-      } : {})}
+      })}
       className={cn(
         'group flex items-start gap-3 px-4 py-3 transition-colors border-b last:border-b-0',
         notification.link && 'cursor-pointer',

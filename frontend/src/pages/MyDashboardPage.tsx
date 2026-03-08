@@ -22,7 +22,6 @@ import { formatDate, formatTime } from '@/lib/format'
 import { useAuthStore } from '@/store/auth'
 import type { MyScheduleEntry } from '@/api/employee'
 
-
 function ShiftCard({ entry, label }: { entry: MyScheduleEntry; label: string }) {
   return (
     <Card>

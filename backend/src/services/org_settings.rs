@@ -6,6 +6,10 @@ use uuid::Uuid;
 use crate::error::AppError;
 
 /// Get an org setting value as a string, falling back to the default.
+///
+/// The `value` column is JSONB, so `::TEXT` returns JSON-encoded text (e.g. `"hello"` with
+/// surrounding quotes for strings). We strip those quotes so callers (and `get_i64` /
+/// `get_bool`) receive the plain value.
 pub async fn get_str(pool: &PgPool, org_id: Uuid, key: &str, default: &str) -> String {
     sqlx::query_scalar!(
         "SELECT value::TEXT FROM org_settings WHERE org_id = $1 AND key = $2",
@@ -17,6 +21,7 @@ pub async fn get_str(pool: &PgPool, org_id: Uuid, key: &str, default: &str) -> S
     .ok()
     .flatten()
     .flatten()
+    .map(|s| s.trim_matches('"').to_string())
     .unwrap_or_else(|| default.to_string())
 }
 

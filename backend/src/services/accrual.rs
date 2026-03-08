@@ -10,6 +10,16 @@ use uuid::Uuid;
 
 use crate::error::Result;
 
+/// Get the first admin user ID for an org (used as the system actor for automated operations).
+async fn first_admin_id(pool: &PgPool, org_id: Uuid) -> Result<Option<Uuid>> {
+    Ok(sqlx::query_scalar!(
+        "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true ORDER BY created_at LIMIT 1",
+        org_id,
+    )
+    .fetch_optional(pool)
+    .await?)
+}
+
 /// Summary of a single accrual run for one org.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct AccrualRunResult {
@@ -72,7 +82,7 @@ pub async fn run_org_accrual(
     dry_run: bool,
 ) -> Result<AccrualRunResult> {
     let today = crate::services::timezone::org_today(org_timezone);
-    let today_str = format!("{}", today);
+    let today_str = today.to_string();
 
     // Fetch active users with accrual-relevant fields (seniority lives in seniority_records)
     let user_rows = sqlx::query!(
@@ -158,15 +168,8 @@ pub async fn run_org_accrual(
         details: Vec::new(),
     };
 
-    // Use a system user ID for the created_by field (the org's first admin, or generate one)
-    let system_actor_id = sqlx::query_scalar!(
-        "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true ORDER BY created_at LIMIT 1",
-        org_id,
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    let actor_id = match system_actor_id {
+    // Use a system user ID for the created_by field (the org's first admin)
+    let actor_id = match first_admin_id(pool, org_id).await? {
         Some(id) => id,
         None => return Ok(result), // No admin in org, skip
     };
@@ -199,8 +202,8 @@ pub async fn run_org_accrual(
         .await?
         .flatten();
 
-        let last_run_trimmed = last_run.as_deref().unwrap_or("").trim_matches('"');
-        if last_run_trimmed == today_str {
+        let last_run_date = last_run.as_deref().unwrap_or("").trim_matches('"');
+        if last_run_date == today_str {
             tracing::debug!(org_id = %org_id, "Skipping accrual run — already ran today (atomic check)");
             // Transaction (and advisory lock) released on drop
             return Ok(result);
@@ -527,14 +530,7 @@ pub async fn enforce_carryover_caps(
     }
 
     // Get system actor (first admin)
-    let actor_id = sqlx::query_scalar!(
-        "SELECT id FROM users WHERE org_id = $1 AND role = 'admin' AND is_active = true ORDER BY created_at LIMIT 1",
-        org_id,
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    let actor_id = match actor_id {
+    let actor_id = match first_admin_id(pool, org_id).await? {
         Some(id) => id,
         None => return Ok(0),
     };

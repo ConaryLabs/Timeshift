@@ -106,7 +106,6 @@ export default function SchedulePeriodsPage() {
     )
   }
 
-
   const columns: Column<SchedulePeriod>[] = [
     {
       header: 'Name',

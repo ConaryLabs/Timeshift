@@ -12,7 +12,7 @@ use crate::{
     error::{AppError, Result},
     models::bidding::{
         AvailableSlot, BidPeriodStatus, BidSubmissionView, BidWindow, BidWindowDetail,
-        BidWindowRow, OpenBiddingRequest, SubmitBidRequest,
+        OpenBiddingRequest, SubmitBidRequest,
     },
     org_guard,
     services::bidding::advance_expired_windows,
@@ -114,7 +114,7 @@ pub async fn open_bidding(
         let unlocked = if i == 0 { Some(opens) } else { None };
 
         let row = sqlx::query_as!(
-            BidWindowRow,
+            BidWindow,
             r#"
             INSERT INTO bid_windows (id, period_id, user_id, seniority_rank, opens_at, closes_at, unlocked_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -141,7 +141,7 @@ pub async fn open_bidding(
         .fetch_one(&mut *tx)
         .await?;
 
-        windows.push(row.into());
+        windows.push(row);
     }
 
     // Calculate overall bid period open/close times
@@ -181,7 +181,7 @@ pub async fn list_bid_windows(
 
     let rows = if auth.role.can_manage_schedule() {
         sqlx::query_as!(
-            BidWindowRow,
+            BidWindow,
             r#"
             SELECT bw.id, bw.period_id, bw.user_id,
                    u.first_name, u.last_name,
@@ -201,7 +201,7 @@ pub async fn list_bid_windows(
         .await?
     } else {
         sqlx::query_as!(
-            BidWindowRow,
+            BidWindow,
             r#"
             SELECT bw.id, bw.period_id, bw.user_id,
                    u.first_name, u.last_name,
@@ -222,9 +222,7 @@ pub async fn list_bid_windows(
         .await?
     };
 
-    let windows: Vec<BidWindow> = rows.into_iter().map(BidWindow::from).collect();
-
-    Ok(Json(windows))
+    Ok(Json(rows))
 }
 
 /// GET /api/bid-windows/:id
@@ -235,8 +233,8 @@ pub async fn get_bid_window(
     Path(window_id): Path<Uuid>,
 ) -> Result<Json<BidWindowDetail>> {
     // Fetch the window and verify org ownership
-    let window_row = sqlx::query_as!(
-        BidWindowRow,
+    let window = sqlx::query_as!(
+        BidWindow,
         r#"
         SELECT bw.id, bw.period_id, bw.user_id,
                u.first_name, u.last_name,
@@ -258,16 +256,16 @@ pub async fn get_bid_window(
     .ok_or_else(|| AppError::NotFound("Bid window not found".into()))?;
 
     // Only the window's user or admin/supervisor can view
-    if window_row.user_id != auth.id && !auth.role.can_manage_schedule() {
+    if window.user_id != auth.id && !auth.role.can_manage_schedule() {
         return Err(AppError::Forbidden);
     }
 
     // Auto-advance any expired windows before returning detail
-    advance_expired_windows(&pool, window_row.period_id).await?;
+    advance_expired_windows(&pool, window.period_id).await?;
 
     // Re-fetch in case this window was just auto-advanced
-    let window_row = sqlx::query_as!(
-        BidWindowRow,
+    let window = sqlx::query_as!(
+        BidWindow,
         r#"
         SELECT bw.id, bw.period_id, bw.user_id,
                u.first_name, u.last_name,
@@ -284,8 +282,6 @@ pub async fn get_bid_window(
     )
     .fetch_one(&pool)
     .await?;
-
-    let window = BidWindow::from(window_row);
 
     // Available slots: active slots for the org, marking ones already awarded
     let slots = sqlx::query!(

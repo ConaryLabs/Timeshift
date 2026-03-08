@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::models::common::Paginated;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Notification {
     pub id: Uuid,
@@ -48,12 +50,11 @@ pub struct NotificationListQuery {
     pub offset: Option<i64>,
 }
 
-impl NotificationListQuery {
-    pub fn limit(&self) -> i64 {
-        self.limit.unwrap_or(50).clamp(1, 200)
-    }
+impl Paginated for NotificationListQuery {
+    fn raw_limit(&self) -> Option<i64> { self.limit }
+    fn raw_offset(&self) -> Option<i64> { self.offset }
 
-    pub fn offset(&self) -> i64 {
-        self.offset.unwrap_or(0).max(0)
+    fn limit(&self) -> i64 {
+        self.raw_limit().unwrap_or(50).clamp(1, 200)
     }
 }

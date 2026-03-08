@@ -240,37 +240,8 @@ pub async fn create_slot(
     .execute(&pool)
     .await?;
 
-    // Fetch back the denormalized view
-    let row = sqlx::query!(
-        r#"
-        SELECT ss.id, ss.team_id, ss.shift_template_id,
-               st.name AS shift_template_name, st.start_time, st.end_time,
-               ss.classification_id,
-               c.abbreviation AS classification_abbreviation,
-               ss.days_of_week, ss.label, ss.is_active
-        FROM shift_slots ss
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        JOIN classifications c ON c.id = ss.classification_id
-        WHERE ss.id = $1
-        "#,
-        slot_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    Ok(Json(ShiftSlotView {
-        id: row.id,
-        team_id: row.team_id,
-        shift_template_id: row.shift_template_id,
-        shift_template_name: row.shift_template_name,
-        start_time: row.start_time,
-        end_time: row.end_time,
-        classification_id: row.classification_id,
-        classification_abbreviation: row.classification_abbreviation,
-        days_of_week: row.days_of_week,
-        label: row.label,
-        is_active: row.is_active,
-    }))
+    let view = fetch_single_slot_view(&pool, slot_id).await?;
+    Ok(Json(view))
 }
 
 pub async fn update_slot(
@@ -314,36 +285,8 @@ pub async fn update_slot(
     .execute(&pool)
     .await?;
 
-    let row = sqlx::query!(
-        r#"
-        SELECT ss.id, ss.team_id, ss.shift_template_id,
-               st.name AS shift_template_name, st.start_time, st.end_time,
-               ss.classification_id,
-               c.abbreviation AS classification_abbreviation,
-               ss.days_of_week, ss.label, ss.is_active
-        FROM shift_slots ss
-        JOIN shift_templates st ON st.id = ss.shift_template_id
-        JOIN classifications c ON c.id = ss.classification_id
-        WHERE ss.id = $1
-        "#,
-        slot_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    Ok(Json(ShiftSlotView {
-        id: row.id,
-        team_id: row.team_id,
-        shift_template_id: row.shift_template_id,
-        shift_template_name: row.shift_template_name,
-        start_time: row.start_time,
-        end_time: row.end_time,
-        classification_id: row.classification_id,
-        classification_abbreviation: row.classification_abbreviation,
-        days_of_week: row.days_of_week,
-        label: row.label,
-        is_active: row.is_active,
-    }))
+    let view = fetch_single_slot_view(&pool, slot_id).await?;
+    Ok(Json(view))
 }
 
 
@@ -364,6 +307,40 @@ async fn check_team_cycle(pool: &PgPool, team_id: Uuid, new_parent_id: Uuid) -> 
             .flatten();
     }
     Ok(())
+}
+
+async fn fetch_single_slot_view(pool: &PgPool, slot_id: Uuid) -> Result<ShiftSlotView> {
+    let row = sqlx::query!(
+        r#"
+        SELECT ss.id, ss.team_id, ss.shift_template_id,
+               st.name AS shift_template_name, st.start_time, st.end_time,
+               ss.classification_id,
+               c.abbreviation AS classification_abbreviation,
+               ss.days_of_week, ss.label, ss.is_active
+        FROM shift_slots ss
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        JOIN classifications c ON c.id = ss.classification_id
+        WHERE ss.id = $1
+        "#,
+        slot_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Shift slot not found".into()))?;
+
+    Ok(ShiftSlotView {
+        id: row.id,
+        team_id: row.team_id,
+        shift_template_id: row.shift_template_id,
+        shift_template_name: row.shift_template_name,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        classification_id: row.classification_id,
+        classification_abbreviation: row.classification_abbreviation,
+        days_of_week: row.days_of_week,
+        label: row.label,
+        is_active: row.is_active,
+    })
 }
 
 async fn fetch_slot_views(

@@ -5,9 +5,7 @@ import {
   ClipboardList,
   Phone,
   AlertTriangle,
-  MessageSquare,
   Calendar,
-  Star,
   ShieldAlert,
   Timer,
 } from 'lucide-react'
@@ -17,9 +15,19 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ErrorState } from '@/components/ui/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDashboard } from '@/hooks/queries'
+import { AnnotationBadge } from '@/components/AnnotationBadge'
 import { cn } from '@/lib/utils'
 import { formatTime, contrastText } from '@/lib/format'
 import type { ClassificationCoverageDetail } from '@/api/schedule'
+
+const CLICKABLE_CARD_CLASS = 'cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+function handleCardKeyDown(e: React.KeyboardEvent, action: () => void) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    action()
+  }
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -98,11 +106,11 @@ export default function DashboardPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card
-          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={CLICKABLE_CARD_CLASS}
           tabIndex={0}
           role="button"
           onClick={() => navigate('/leave')}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/leave') } }}
+          onKeyDown={(e) => handleCardKeyDown(e, () => navigate('/leave'))}
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -121,11 +129,11 @@ export default function DashboardPage() {
         </Card>
 
         <Card
-          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={CLICKABLE_CARD_CLASS}
           tabIndex={0}
           role="button"
           onClick={() => navigate('/callout')}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/callout') } }}
+          onKeyDown={(e) => handleCardKeyDown(e, () => navigate('/callout'))}
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -142,11 +150,11 @@ export default function DashboardPage() {
         </Card>
 
         <Card
-          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={CLICKABLE_CARD_CLASS}
           tabIndex={0}
           role="button"
           onClick={() => navigate(`/schedule/day/${today}`)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/schedule/day/${today}`) } }}
+          onKeyDown={(e) => handleCardKeyDown(e, () => navigate(`/schedule/day/${today}`))}
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -243,26 +251,12 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {annotations.map((ann) => (
-                  <div
+                  <AnnotationBadge
                     key={ann.id}
-                    className={cn(
-                      'flex items-start gap-2 p-2 rounded-md text-sm',
-                      ann.annotation_type === 'alert' && 'bg-destructive/10 text-destructive',
-                      ann.annotation_type === 'holiday' && 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-                      ann.annotation_type === 'note' && 'bg-muted',
-                    )}
-                  >
-                    {ann.annotation_type === 'alert' && (
-                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                    )}
-                    {ann.annotation_type === 'holiday' && (
-                      <Star className="h-4 w-4 mt-0.5 shrink-0" />
-                    )}
-                    {ann.annotation_type === 'note' && (
-                      <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
-                    )}
-                    <span>{ann.content}</span>
-                  </div>
+                    type={ann.annotation_type}
+                    content={ann.content}
+                    className="items-start p-2"
+                  />
                 ))}
               </div>
             )}

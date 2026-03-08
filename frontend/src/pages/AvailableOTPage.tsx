@@ -76,9 +76,8 @@ export default function AvailableOTPage() {
 
   const apiParams = useMemo(() => {
     const params: { status?: string; date_from?: string; date_to?: string; classification_id?: string } = {}
-    if (statusFilter === 'available') {
-      // Don't send status filter — fetch all, then client-side filter for open + partially_filled
-    } else if (statusFilter !== 'all') {
+    // 'available' fetches all statuses, then client-side filters to open + partially_filled
+    if (statusFilter !== 'available' && statusFilter !== 'all') {
       params.status = statusFilter
     }
     if (dateFrom) params.date_from = dateFrom

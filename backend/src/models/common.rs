@@ -11,8 +11,11 @@ pub mod time_format {
 /// Serde module: serialize/deserialize `Option<time::Time>` as optional "HH:MM:SS" strings.
 pub mod time_format_option {
     use serde::{self, Deserialize, Deserializer, Serializer};
-    use time::format_description;
+    use time::macros::format_description;
     use time::Time;
+
+    const FMT: &[time::format_description::FormatItem<'static>] =
+        format_description!("[hour]:[minute]:[second]");
 
     pub fn serialize<S>(time: &Option<Time>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -20,9 +23,7 @@ pub mod time_format_option {
     {
         match time {
             Some(t) => {
-                let fmt =
-                    format_description::parse("[hour]:[minute]:[second]").expect("valid format");
-                let s = t.format(&fmt).map_err(serde::ser::Error::custom)?;
+                let s = t.format(FMT).map_err(serde::ser::Error::custom)?;
                 serializer.serialize_some(&s)
             }
             None => serializer.serialize_none(),
@@ -35,13 +36,9 @@ pub mod time_format_option {
     {
         let opt: Option<String> = Option::deserialize(deserializer)?;
         match opt {
-            Some(s) => {
-                let fmt = format_description::parse("[hour]:[minute]:[second]")
-                    .map_err(serde::de::Error::custom)?;
-                Time::parse(&s, &fmt)
-                    .map(Some)
-                    .map_err(serde::de::Error::custom)
-            }
+            Some(s) => Time::parse(&s, FMT)
+                .map(Some)
+                .map_err(serde::de::Error::custom),
             None => Ok(None),
         }
     }

@@ -40,8 +40,9 @@ import {
   useCreateCoveragePlanAssignment,
   useDeleteCoveragePlanAssignment,
 } from '@/hooks/queries'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
 import type { CoveragePlanAssignment } from '@/api/coveragePlans'
-import { extractApiError, formatDateFull, formatDate } from '@/lib/format'
+import { formatDateFull, formatDate } from '@/lib/format'
 
 const INITIAL_FORM = { plan_id: '', start_date: '', end_date: '', notes: '' }
 
@@ -80,18 +81,12 @@ export default function CoveragePlanAssignmentsPage() {
         end_date: form.end_date || undefined,
         notes: form.notes || undefined,
       },
-      {
-        onSuccess: () => { toast.success('Assignment created'); setDialogOpen(false); setForm(INITIAL_FORM) },
-        onError: (err) => toast.error(extractApiError(err, 'Create failed')),
-      },
+      mutationCallbacks('Assignment created', () => { setDialogOpen(false); setForm(INITIAL_FORM) }, 'Create failed'),
     )
   }
 
   function handleDelete(id: string) {
-    deleteMut.mutate(id, {
-      onSuccess: () => { toast.success('Assignment deleted'); setDeleteConfirm(null) },
-      onError: (err) => toast.error(extractApiError(err, 'Delete failed')),
-    })
+    deleteMut.mutate(id, mutationCallbacks('Assignment deleted', () => setDeleteConfirm(null), 'Delete failed'))
   }
 
 

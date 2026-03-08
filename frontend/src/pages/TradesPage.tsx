@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronsUpDown, Check, MessageSquare } from 'lucide-react'
+import { ChevronsUpDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,6 +38,7 @@ import {
   useBulkReviewTrade,
   useCancelTrade,
 } from '@/hooks/queries'
+import { ReviewerNotesPopover } from '@/components/ReviewerNotesPopover'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { SearchInput } from '@/components/ui/search-input'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -223,19 +224,7 @@ export default function TradesPage() {
       cell: (r) => (
         <div className="flex items-center gap-1.5">
           <StatusBadge status={r.status} />
-          {r.reviewer_notes && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="text-muted-foreground hover:text-foreground transition-colors" title="Reviewer notes" aria-label="View reviewer notes">
-                  <MessageSquare className="h-3.5 w-3.5" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent side="top" className="w-64 text-sm">
-                <p className="font-medium text-xs text-muted-foreground mb-1">Reviewer Notes</p>
-                <p className="whitespace-pre-wrap">{r.reviewer_notes}</p>
-              </PopoverContent>
-            </Popover>
-          )}
+          {r.reviewer_notes && <ReviewerNotesPopover notes={r.reviewer_notes} />}
         </div>
       ),
     },

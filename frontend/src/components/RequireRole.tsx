@@ -1,3 +1,4 @@
+// components/RequireRole.tsx
 import { Link } from 'react-router-dom'
 import { ShieldAlert } from 'lucide-react'
 import { useAuthStore, type Role } from '@/store/auth'

@@ -34,6 +34,93 @@ fn hash_token(raw: &str) -> String {
     hex::encode(Sha256::digest(raw.as_bytes()))
 }
 
+/// Build Set-Cookie headers for auth_token and refresh_token.
+fn build_auth_cookies(
+    access_token: &str,
+    family_id: Uuid,
+    refresh_raw: &str,
+    state: &AppState,
+) -> Result<axum::http::HeaderMap> {
+    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
+
+    let auth_cookie = format!(
+        "auth_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
+        access_token,
+        state.access_token_expiry_minutes * 60,
+        secure_flag,
+    );
+    let refresh_cookie = format!(
+        "refresh_token={}:{}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
+        family_id,
+        refresh_raw,
+        state.refresh_token_expiry_days * 86400,
+        secure_flag,
+    );
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        auth_cookie.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
+    );
+    headers.append(
+        header::SET_COOKIE,
+        refresh_cookie.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
+    );
+
+    Ok(headers)
+}
+
+/// Build Set-Cookie headers that clear both auth and refresh cookies.
+fn build_clear_cookies(state: &AppState) -> Result<axum::http::HeaderMap> {
+    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
+
+    let clear_auth = format!(
+        "auth_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{}",
+        secure_flag
+    );
+    let clear_refresh = format!(
+        "refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0{}",
+        secure_flag
+    );
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        clear_auth.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
+    );
+    headers.append(
+        header::SET_COOKIE,
+        clear_refresh.parse().map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
+        })?,
+    );
+
+    Ok(headers)
+}
+
+/// Cap refresh tokens per user (keep most recent 10). Best-effort.
+async fn cap_refresh_tokens(pool: &PgPool, user_id: Uuid) {
+    if let Err(e) = sqlx::query!(
+        r#"
+        DELETE FROM refresh_tokens WHERE user_id = $1 AND id NOT IN (
+            SELECT id FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
+        )
+        "#,
+        user_id
+    )
+    .execute(pool)
+    .await
+    {
+        tracing::warn!("Failed to cap refresh tokens: {e}");
+    }
+}
+
 pub async fn login(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -234,20 +321,7 @@ pub async fn login(
     )
     .await;
 
-    // Cap refresh tokens per user (keep most recent 10)
-    if let Err(e) = sqlx::query!(
-        r#"
-        DELETE FROM refresh_tokens WHERE user_id = $1 AND id NOT IN (
-            SELECT id FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
-        )
-        "#,
-        user.id
-    )
-    .execute(&state.pool)
-    .await
-    {
-        tracing::warn!("Failed to cap refresh tokens: {e}");
-    }
+    cap_refresh_tokens(&state.pool, user.id).await;
 
     // Fetch classification name if set
     let classification_name = if let Some(cid) = user.classification_id {
@@ -272,37 +346,9 @@ pub async fn login(
     .fetch_optional(&state.pool)
     .await?;
 
-    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
-
-    let auth_cookie = format!(
-        "auth_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
-        token,
-        state.access_token_expiry_minutes * 60,
-        secure_flag,
-    );
     // Cookie format: "{family_id}:{raw_token}" — family_id enables revocation of
     // all tokens in a family when token reuse is detected (theft detection).
-    let refresh_cookie = format!(
-        "refresh_token={}:{}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
-        family_id,
-        refresh_raw,
-        state.refresh_token_expiry_days * 86400,
-        secure_flag,
-    );
-
-    let mut headers = axum::http::HeaderMap::new();
-    headers.insert(
-        header::SET_COOKIE,
-        auth_cookie.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
-        })?,
-    );
-    headers.append(
-        header::SET_COOKIE,
-        refresh_cookie.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
-        })?,
-    );
+    let headers = build_auth_cookies(&token, family_id, &refresh_raw, &state)?;
 
     Ok((
         headers,
@@ -394,30 +440,7 @@ pub async fn logout(
 
     log_audit(&state.pool, logout_user_id, logout_org_id, "logout", None, None).await;
 
-    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
-    let clear_auth = format!(
-        "auth_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{}",
-        secure_flag
-    );
-    let clear_refresh = format!(
-        "refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0{}",
-        secure_flag
-    );
-
-    let mut headers = axum::http::HeaderMap::new();
-    headers.insert(
-        header::SET_COOKIE,
-        clear_auth.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
-        })?,
-    );
-    headers.append(
-        header::SET_COOKIE,
-        clear_refresh.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
-        })?,
-    );
-
+    let headers = build_clear_cookies(&state)?;
     Ok((headers, StatusCode::NO_CONTENT))
 }
 
@@ -540,53 +563,11 @@ pub async fn refresh(
     .execute(&state.pool)
     .await?;
 
-    // Cap refresh tokens per user (keep most recent 10)
-    if let Err(e) = sqlx::query!(
-        r#"
-        DELETE FROM refresh_tokens WHERE user_id = $1 AND id NOT IN (
-            SELECT id FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
-        )
-        "#,
-        row.user_id
-    )
-    .execute(&state.pool)
-    .await
-    {
-        tracing::warn!("Failed to cap refresh tokens: {e}");
-    }
+    cap_refresh_tokens(&state.pool, row.user_id).await;
 
     log_audit(&state.pool, Some(row.user_id), Some(row.org_id), "refresh", None, None).await;
 
-    let secure_flag = if state.cookie_secure { "; Secure" } else { "" };
-
-    let auth_cookie = format!(
-        "auth_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
-        access_token,
-        state.access_token_expiry_minutes * 60,
-        secure_flag,
-    );
-    let refresh_cookie = format!(
-        "refresh_token={}:{}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={}{}",
-        row.family_id,
-        new_refresh_raw,
-        state.refresh_token_expiry_days * 86400,
-        secure_flag,
-    );
-
-    let mut headers = axum::http::HeaderMap::new();
-    headers.insert(
-        header::SET_COOKIE,
-        auth_cookie.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
-        })?,
-    );
-    headers.append(
-        header::SET_COOKIE,
-        refresh_cookie.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Failed to build Set-Cookie header"))
-        })?,
-    );
-
+    let headers = build_auth_cookies(&access_token, row.family_id, &new_refresh_raw, &state)?;
     Ok((headers, StatusCode::NO_CONTENT))
 }
 

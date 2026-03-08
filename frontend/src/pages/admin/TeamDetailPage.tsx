@@ -5,7 +5,6 @@ import { useParams, Link, Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { toast } from 'sonner'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +28,8 @@ import {
   useClassifications,
 } from '@/hooks/queries'
 import { useConfirmClose } from '@/hooks/useConfirmClose'
-import { formatTime, extractApiError, DAY_LABELS } from '@/lib/format'
+import { mutationCallbacks } from '@/hooks/mutationCallbacks'
+import { formatTime, DAY_LABELS } from '@/lib/format'
 import type { ShiftSlotView } from '@/api/teams'
 
 const schema = z.object({
@@ -120,16 +120,7 @@ export default function TeamDetailPage() {
           label: values.label || undefined,
           is_active: values.is_active,
         },
-        {
-          onSuccess: () => {
-            toast.success('Slot updated')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to update slot')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Slot updated', () => setDialogOpen(false), 'Failed to update slot'),
       )
     } else {
       createMut.mutate(
@@ -140,16 +131,7 @@ export default function TeamDetailPage() {
           days_of_week: values.days_of_week,
           label: values.label || undefined,
         },
-        {
-          onSuccess: () => {
-            toast.success('Slot created')
-            setDialogOpen(false)
-          },
-          onError: (err: unknown) => {
-            const msg = extractApiError(err, 'Failed to create slot')
-            toast.error(msg)
-          },
-        },
+        mutationCallbacks('Slot created', () => setDialogOpen(false), 'Failed to create slot'),
       )
     }
   }

@@ -1,3 +1,4 @@
+// components/ConflictDialog.tsx
 import {
   AlertDialog,
   AlertDialogContent,

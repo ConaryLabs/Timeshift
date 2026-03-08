@@ -31,6 +31,65 @@ pub enum TradeReviewOutcome {
     StillPending,
 }
 
+/// Swap two assignments between requester and partner.
+/// Returns `false` if either assignment was modified since the trade was created (stale).
+async fn swap_assignments(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    trade: &TradeForReview,
+) -> std::result::Result<bool, sqlx::Error> {
+    let req_rows = sqlx::query!(
+        r#"
+        UPDATE assignments SET user_id = $2, is_trade = true
+        WHERE id = $1 AND user_id = $3
+        "#,
+        trade.requester_assignment_id,
+        trade.partner_id,
+        trade.requester_id,
+    )
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+
+    let partner_rows = sqlx::query!(
+        r#"
+        UPDATE assignments SET user_id = $2, is_trade = true
+        WHERE id = $1 AND user_id = $3
+        "#,
+        trade.partner_assignment_id,
+        trade.requester_id,
+        trade.partner_id,
+    )
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+
+    Ok(req_rows > 0 && partner_rows > 0)
+}
+
+/// Finalize a trade request with a status and reviewer info.
+async fn finalize_trade(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    trade_id: Uuid,
+    status: &str,
+    reviewer_id: Uuid,
+    reviewer_notes: Option<&str>,
+) -> std::result::Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE trade_requests
+        SET status = $2::trade_status, reviewed_by = $3, reviewer_notes = $4, updated_at = NOW()
+        WHERE id = $1
+        "#,
+        trade_id,
+        status as _,
+        reviewer_id,
+        reviewer_notes,
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 /// Core trade review logic shared by single review and bulk review.
 /// Handles timing check, legacy/multi-supervisor paths, and assignment swap.
 pub async fn execute_trade_review(
@@ -90,62 +149,13 @@ pub async fn execute_trade_review(
     if approval_count == 0 {
         // Legacy path: any supervisor can approve/deny directly
         if status == ReviewAction::Approved {
-            let req_rows = sqlx::query!(
-                r#"
-                UPDATE assignments SET user_id = $2, is_trade = true
-                WHERE id = $1 AND user_id = $3
-                "#,
-                trade.requester_assignment_id,
-                trade.partner_id,
-                trade.requester_id,
-            )
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-
-            let partner_rows = sqlx::query!(
-                r#"
-                UPDATE assignments SET user_id = $2, is_trade = true
-                WHERE id = $1 AND user_id = $3
-                "#,
-                trade.partner_assignment_id,
-                trade.requester_id,
-                trade.partner_id,
-            )
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-
-            if req_rows == 0 || partner_rows == 0 {
+            if !swap_assignments(tx, trade).await? {
                 return Ok(TradeReviewOutcome::StaleAssignments);
             }
-
-            sqlx::query!(
-                r#"
-                UPDATE trade_requests
-                SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-                WHERE id = $1
-                "#,
-                trade.id,
-                reviewer_id,
-                reviewer_notes,
-            )
-            .execute(&mut **tx)
-            .await?;
+            finalize_trade(tx, trade.id, "approved", reviewer_id, reviewer_notes).await?;
             Ok(TradeReviewOutcome::Resolved("approved".into()))
         } else {
-            sqlx::query!(
-                r#"
-                UPDATE trade_requests
-                SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-                WHERE id = $1
-                "#,
-                trade.id,
-                reviewer_id,
-                reviewer_notes,
-            )
-            .execute(&mut **tx)
-            .await?;
+            finalize_trade(tx, trade.id, "denied", reviewer_id, reviewer_notes).await?;
             Ok(TradeReviewOutcome::Resolved("denied".into()))
         }
     } else {
@@ -181,18 +191,7 @@ pub async fn execute_trade_review(
         .await?;
 
         if status == ReviewAction::Denied {
-            sqlx::query!(
-                r#"
-                UPDATE trade_requests
-                SET status = 'denied', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-                WHERE id = $1
-                "#,
-                trade.id,
-                reviewer_id,
-                reviewer_notes,
-            )
-            .execute(&mut **tx)
-            .await?;
+            finalize_trade(tx, trade.id, "denied", reviewer_id, reviewer_notes).await?;
             Ok(TradeReviewOutcome::Resolved("denied".into()))
         } else {
             let remaining = sqlx::query_scalar!(
@@ -207,48 +206,10 @@ pub async fn execute_trade_review(
             .await?;
 
             if remaining == 0 {
-                let req_rows = sqlx::query!(
-                    r#"
-                    UPDATE assignments SET user_id = $2, is_trade = true
-                    WHERE id = $1 AND user_id = $3
-                    "#,
-                    trade.requester_assignment_id,
-                    trade.partner_id,
-                    trade.requester_id,
-                )
-                .execute(&mut **tx)
-                .await?
-                .rows_affected();
-
-                let partner_rows = sqlx::query!(
-                    r#"
-                    UPDATE assignments SET user_id = $2, is_trade = true
-                    WHERE id = $1 AND user_id = $3
-                    "#,
-                    trade.partner_assignment_id,
-                    trade.requester_id,
-                    trade.partner_id,
-                )
-                .execute(&mut **tx)
-                .await?
-                .rows_affected();
-
-                if req_rows == 0 || partner_rows == 0 {
+                if !swap_assignments(tx, trade).await? {
                     return Ok(TradeReviewOutcome::StaleAssignments);
                 }
-
-                sqlx::query!(
-                    r#"
-                    UPDATE trade_requests
-                    SET status = 'approved', reviewed_by = $2, reviewer_notes = $3, updated_at = NOW()
-                    WHERE id = $1
-                    "#,
-                    trade.id,
-                    reviewer_id,
-                    reviewer_notes,
-                )
-                .execute(&mut **tx)
-                .await?;
+                finalize_trade(tx, trade.id, "approved", reviewer_id, reviewer_notes).await?;
                 Ok(TradeReviewOutcome::Resolved("approved".into()))
             } else {
                 Ok(TradeReviewOutcome::StillPending)
