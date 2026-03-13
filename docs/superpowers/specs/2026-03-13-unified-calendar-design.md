@@ -22,6 +22,15 @@ Supervisors currently navigate 4+ separate pages (SchedulePage, DayViewPage, Sta
 - New data models or database changes
 - Mobile-specific layouts (future work)
 - Changes to `/duty-board/display` kiosk view
+- New features beyond what currently exists (feature parity, not feature expansion)
+
+## Design Notes
+
+Several aspects of this design are intentional visual redesigns of existing functionality, not ports of the existing UI:
+
+- **Block grid cells**: The existing StaffingResolvePage uses separate "Min" and "Actual" rows below Gantt bars. The new design uses `actual/required` fractions in each cell for density. This is a redesign.
+- **Week view**: The existing SchedulePage week view is a 7-column chip grid. The new week view is a compact heatmap strip + daily view. This is a full rebuild.
+- **Month view**: The existing month view uses per-shift coverage dots. The new month view uses full-cell heatmap coloring. This is a redesign.
 
 ---
 
@@ -68,8 +77,11 @@ View and date are URL-driven for bookmarkability and sharing. Default view prefe
 - Date display (e.g., "Friday, March 13, 2026")
 - Prev / Today / Next day buttons
 - View switcher: Day | Week | Month
+- Team filter dropdown (All Teams + active teams) — carried forward from existing SchedulePage
 - Print button
-- Annotation badges (notes, alerts, holidays) below header
+- Add Annotation button (supervisor only) — opens dialog to add note/alert/holiday for the date
+- Annotation badges (notes, alerts, holidays) displayed below header
+- SavedFilterBar below header — carried forward from existing SchedulePage
 
 #### Top Half — Staffing Block Grid
 - 12 columns: 2-hour blocks (00:00-02:00 through 22:00-00:00)
@@ -82,7 +94,7 @@ View and date are URL-driven for bookmarkability and sharing. Default view prefe
 - Current time block highlighted with border/ring
 - Summary row at top aggregates across all classifications
 - Expanding a classification row reveals individual employee Gantt bars
-- Clicking a red/yellow cell opens the slide-out action panel
+- Clicking a red cell opens the slide-out action panel (matching existing behavior — yellow cells are not actionable since staffing is at minimum)
 
 #### Bottom Half — Shift List
 - One card per shift (colored header strip, shift name, times)
@@ -100,7 +112,7 @@ Same as supervisor (date, nav, view switcher)
 
 #### Top Section — "My Shifts"
 - Prominent card(s) showing the employee's own shifts for the day (or "Day Off" card)
-- Quick action buttons: Request Leave, Request Trade, Volunteer for OT
+- Quick action buttons: Request Leave, Request Trade (matching existing MySchedulePage actions)
 
 #### Bottom Section — "Team Schedule" (collapsible, default collapsed)
 - Simplified shift list (who's working, no coverage numbers)
@@ -166,7 +178,7 @@ Same as supervisor (date, nav, view switcher)
 Slide-out right-side sheet for resolving staffing gaps. Supervisor only.
 
 ### Trigger
-Clicking a red/yellow cell in the block grid.
+Clicking a red cell in the block grid (yellow cells are at minimum — not actionable).
 
 ### Panel Header
 - Classification name + time block (e.g., "COI - 06:00-08:00")
@@ -207,7 +219,7 @@ Visible to all roles. Editable by supervisor+ only.
 - Rows: one per duty position
 - Current time block highlighted
 - Cell states:
-  - **Assigned**: employee first name, background tinted by position category (red=Fire, blue=Police, green=Break, tan=Access/CR)
+  - **Assigned**: employee first name, background tinted by position category color from DutyBoardDisplayPage's existing color scheme (Fire=red, Police/Data/Regional=blue, Break=green, Access/CR=tan — determined by position name prefix matching, same logic as the display page)
   - **OT Needed**: "OT" on yellow background
   - **Closed**: "X" on muted background
   - **Empty**: blank
@@ -220,7 +232,8 @@ Visible to all roles. Editable by supervisor+ only.
 
 ### Employee View
 - Same grid, fully visible, read-only
-- No click actions, no Console Hours, no Add Position
+- No click actions, no Add Position
+- Console Hours button: visible to all roles (read-only data, no reason to restrict)
 - Employee's own name highlighted/bolded
 
 ---
@@ -243,10 +256,20 @@ SchedulePage.tsx              — Route component, URL param handling, view swit
 ```
 
 ### Data Flow
-- All views share URL-driven date anchor state
-- Existing hooks reused: `useStaffing()`, `useDayGrid()`, `useDutyBoard()`, `useBlockAvailable()`, `useCoverageGaps()`, `useCalloutList()`, `useCalloutVolunteers()`
+- All views share URL-driven date anchor state via `useSearchParams`
+- DailyView fetches multiple hooks in parallel:
+  - `useDayGrid(date)` — block grid data (classifications, 2-hour blocks, employee Gantt bars)
+  - `useDayView(date)` — shift-level entries with assignments (for shift list)
+  - `useDutyBoard(date)` — position assignments (for duty board tab, only fetched when tab active)
+  - `useAnnotations(date, date)` — date annotations
+  - `useBlockAvailable(date, blockIndex, classificationId)` — fetched on-demand when action panel opens
+- Loading state: show skeleton/spinner until both `useDayGrid` and `useDayView` resolve. Duty board tab shows its own loading state independently.
+- WeekView additionally uses `useScheduleGrid(weekStart, weekEnd)` for the 7-day heatmap strip coverage data
+- MonthView uses `useScheduleGrid(monthStart, monthEnd)` for the calendar grid coverage data
 - Role detection via existing `usePermissions()` hook
-- View preference persisted in existing `useUIStore` Zustand store
+- View preference: add `preferredScheduleView: 'day' | 'week' | 'month'` field to `useUIStore` (Zustand, localStorage-persisted). Default: `'day'`
+- Team filter state: use existing `selectedTeamId` from `useUIStore`
+- Saved filters: use existing `useSavedFilters()` hook
 
 ### Deleted After Migration
 - `DayViewPage.tsx`
@@ -259,6 +282,12 @@ SchedulePage.tsx              — Route component, URL param handling, view swit
 - `/duty-board/display` (DutyBoardDisplayPage.tsx)
 - All backend API endpoints
 - All API modules and hooks
+
+### Implementation Notes
+- `DailyView`, `WeekView`, and `MonthView` should be lazy-loaded via `React.lazy()` (consistent with existing page-level lazy loading pattern)
+- Keyboard accessibility: the staffing block grid cells should support `tabIndex`, `role="button"`, `aria-label`, and Enter/Space handlers (matching existing DutyBoardPage pattern)
+- Print styles: the block grid and Gantt bars need print-specific CSS. Defer detailed print styling as a follow-up task after core functionality works.
+- The existing "Available OT" link from DayViewPage is not needed in the unified view — the action panel already provides direct access to OT request creation and available employee lists
 
 ---
 
