@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active,\n               u.first_name || ' ' || u.last_name AS supervisor_name,\n               pt.name AS \"parent_team_name?\",\n               COUNT(ss.id)::BIGINT AS slot_count\n        FROM teams t\n        LEFT JOIN users u ON u.id = t.supervisor_id\n        LEFT JOIN teams pt ON pt.id = t.parent_team_id\n        LEFT JOIN shift_slots ss ON ss.team_id = t.id AND ss.is_active = true\n        WHERE t.org_id = $1 AND t.is_active = true\n        GROUP BY t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active, u.first_name, u.last_name, pt.name\n        ORDER BY t.name\n        ",
+  "query": "\n        SELECT t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active,\n               u.first_name || ' ' || u.last_name AS supervisor_name,\n               pt.name AS \"parent_team_name?\",\n               COUNT(DISTINCT ss.id)::BIGINT AS slot_count,\n               COUNT(DISTINCT sa.user_id)::BIGINT AS member_count\n        FROM teams t\n        LEFT JOIN users u ON u.id = t.supervisor_id\n        LEFT JOIN teams pt ON pt.id = t.parent_team_id\n        LEFT JOIN shift_slots ss ON ss.team_id = t.id AND ss.is_active = true\n        LEFT JOIN slot_assignments sa ON sa.slot_id = ss.id\n        WHERE t.org_id = $1 AND t.is_active = true\n        GROUP BY t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active, u.first_name, u.last_name, pt.name\n        ORDER BY t.name\n        ",
   "describe": {
     "columns": [
       {
@@ -42,6 +42,11 @@
         "ordinal": 7,
         "name": "slot_count",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "member_count",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -57,8 +62,9 @@
       false,
       null,
       false,
+      null,
       null
     ]
   },
-  "hash": "95e8d188abd5bd1a3faa91796341fc97383d7a2b5cb19561d68a35e1b90663d1"
+  "hash": "6359cd9bedcc2688dca22263ae90655fdc31cefb74098e2ddc9646a5fe78fbdc"
 }

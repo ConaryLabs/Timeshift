@@ -2075,9 +2075,16 @@ pub(crate) struct ShiftCoverageStatus {
 /// For each classification within a shift, finds the worst single-slot shortage
 /// (max of `min_headcount - actual_headcount` at the same time slot). This avoids
 /// the old bug of comparing peak_min at one slot against min_actual at a different slot.
+/// Per-shift coverage status using per-classification gap analysis.
+///
+/// `shift_classifications` maps each shift_template_id to the set of
+/// classification_ids that actually have shift_slots for it. When provided,
+/// only those classifications are considered for coverage. When `None`, all
+/// classifications are checked (legacy behavior).
 pub(crate) fn coverage_status_per_shift(
     slot_coverage: &[SlotCoverage],
     shifts: &[(Uuid, time::Time, time::Time, bool)],
+    shift_classifications: Option<&std::collections::HashMap<Uuid, std::collections::HashSet<Uuid>>>,
 ) -> std::collections::HashMap<Uuid, ShiftCoverageStatus> {
     use crate::api::helpers::time_to_slot_range;
     use std::collections::HashMap;
@@ -2106,6 +2113,18 @@ pub(crate) fn coverage_status_per_shift(
         let mut by_classification = Vec::new();
 
         for (&class_id, abbreviation) in &class_info {
+            // Skip classifications not assigned to this shift template
+            if let Some(sc_map) = shift_classifications {
+                if let Some(class_set) = sc_map.get(&template_id) {
+                    if !class_set.contains(&class_id) {
+                        continue;
+                    }
+                } else {
+                    // Shift template has no slots at all — skip all classifications
+                    continue;
+                }
+            }
+
             // Find the worst single-slot shortage for this classification
             let mut worst_shortage: i32 = 0;
 

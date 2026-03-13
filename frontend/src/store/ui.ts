@@ -12,6 +12,8 @@ interface UIState {
   setSelectedTeamId: (id: string | null) => void
   setSelectedPeriodId: (id: string | null) => void
   toggleSection: (key: string) => void
+  preferredScheduleView: 'day' | 'week' | 'month'
+  setPreferredScheduleView: (view: 'day' | 'week' | 'month') => void
   /** Reset org-specific selections (call on logout) */
   reset: () => void
 }
@@ -23,6 +25,8 @@ export const useUIStore = create<UIState>()(
       selectedTeamId: null,
       selectedPeriodId: null,
       collapsedSections: {},
+      preferredScheduleView: 'day',
+      setPreferredScheduleView: (view) => set({ preferredScheduleView: view }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSelectedTeamId: (id) => set({ selectedTeamId: id }),
@@ -38,11 +42,14 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'timeshift-ui',
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
         const state = persistedState as UIState
         if (version < 2) {
-          return { ...state, collapsedSections: {} }
+          return { ...state, collapsedSections: {}, preferredScheduleView: 'day' as const }
+        }
+        if (version < 3) {
+          return { ...state, preferredScheduleView: 'day' as const }
         }
         return state
       },
