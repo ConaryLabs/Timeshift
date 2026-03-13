@@ -1,6 +1,6 @@
 // frontend/src/App.tsx
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import RequireRole from '@/components/RequireRole'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -9,16 +9,16 @@ import AppShell from '@/components/layout/AppShell'
 
 // Lazy-loaded pages
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
-const SchedulePage = lazy(() => import('@/pages/SchedulePage'))
+
 const LeavePage = lazy(() => import('@/pages/LeavePage'))
 const CalloutPage = lazy(() => import('@/pages/CalloutPage'))
 const TradesPage = lazy(() => import('@/pages/TradesPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
-const DayViewPage = lazy(() => import('@/pages/DayViewPage'))
+
 const VacationBidPage = lazy(() => import('@/pages/VacationBidPage'))
 const BidPage = lazy(() => import('@/pages/BidPage'))
 const MyDashboardPage = lazy(() => import('@/pages/MyDashboardPage'))
-const MySchedulePage = lazy(() => import('@/pages/MySchedulePage'))
+
 const MyProfilePage = lazy(() => import('@/pages/MyProfilePage'))
 const LeaveSellbackPage = lazy(() => import('@/pages/LeaveSellbackPage'))
 const SickDonationPage = lazy(() => import('@/pages/SickDonationPage'))
@@ -44,13 +44,18 @@ const AvailableOTPage = lazy(() => import('@/pages/AvailableOTPage'))
 const VolunteeredOTPage = lazy(() => import('@/pages/VolunteeredOTPage'))
 const OtRequestDetailPage = lazy(() => import('@/pages/OtRequestDetailPage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
-const DutyBoardPage = lazy(() => import('@/pages/DutyBoardPage'))
+
 const DutyBoardDisplayPage = lazy(() => import('@/pages/DutyBoardDisplayPage'))
 const DutyPositionsPage = lazy(() => import('@/pages/admin/DutyPositionsPage'))
-const StaffingResolvePage = lazy(() => import('@/pages/StaffingResolvePage'))
+
 const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 const UnifiedSchedulePage = lazy(() => import('@/pages/schedule/UnifiedSchedulePage'))
+
+function DayViewRedirect() {
+  const { date } = useParams()
+  return <Navigate to={`/schedule?view=day&date=${date}`} replace />
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -76,11 +81,10 @@ export default function App() {
           {/* Core pages */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<PageSuspense><MyDashboardPage /></PageSuspense>} />
-          <Route path="my-schedule" element={<PageSuspense><MySchedulePage /></PageSuspense>} />
+          <Route path="schedule" element={<PageSuspense><UnifiedSchedulePage /></PageSuspense>} />
+          <Route path="my-schedule" element={<Navigate to="/schedule" replace />} />
+          <Route path="schedule/day/:date" element={<DayViewRedirect />} />
           <Route path="profile" element={<PageSuspense><MyProfilePage /></PageSuspense>} />
-          <Route path="schedule" element={<PageSuspense><SchedulePage /></PageSuspense>} />
-          <Route path="schedule-v2" element={<PageSuspense><UnifiedSchedulePage /></PageSuspense>} />
-          <Route path="schedule/day/:date" element={<PageSuspense><DayViewPage /></PageSuspense>} />
           <Route path="leave" element={<PageSuspense><LeavePage /></PageSuspense>} />
           <Route path="leave/sellback" element={<PageSuspense><LeaveSellbackPage /></PageSuspense>} />
           <Route path="leave/donations" element={<PageSuspense><SickDonationPage /></PageSuspense>} />
@@ -89,7 +93,7 @@ export default function App() {
           <Route path="volunteered-ot" element={<PageSuspense><VolunteeredOTPage /></PageSuspense>} />
           <Route path="ot-requests/:id" element={<PageSuspense><OtRequestDetailPage /></PageSuspense>} />
           <Route path="notifications" element={<PageSuspense><NotificationsPage /></PageSuspense>} />
-          <Route path="duty-board" element={<PageSuspense><DutyBoardPage /></PageSuspense>} />
+          <Route path="duty-board" element={<Navigate to="/schedule" replace />} />
           <Route
             path="callout"
             element={
@@ -106,14 +110,7 @@ export default function App() {
               </RequireRole>
             }
           />
-          <Route
-            path="staffing/resolve"
-            element={
-              <RequireRole roles={['admin', 'supervisor']}>
-                <PageSuspense><StaffingResolvePage /></PageSuspense>
-              </RequireRole>
-            }
-          />
+          <Route path="staffing/resolve" element={<Navigate to="/schedule" replace />} />
           <Route path="vacation-bid/:windowId" element={<PageSuspense><VacationBidPage /></PageSuspense>} />
           <Route path="bid/:windowId" element={<PageSuspense><BidPage /></PageSuspense>} />
 
