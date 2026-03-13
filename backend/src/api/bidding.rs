@@ -277,9 +277,11 @@ pub async fn get_bid_window(
                bw.auto_advanced_at
         FROM bid_windows bw
         JOIN users u ON u.id = bw.user_id
-        WHERE bw.id = $1
+        JOIN schedule_periods sp ON sp.id = bw.period_id
+        WHERE bw.id = $1 AND sp.org_id = $2
         "#,
         window_id,
+        auth.org_id,
     )
     .fetch_one(&pool)
     .await?;
@@ -672,6 +674,15 @@ pub async fn process_bids(
     .await?;
 
     let mut awards_count = 0;
+    // Pre-load all already-assigned slot IDs to avoid N+1 queries
+    let mut assigned_slots: std::collections::HashSet<Uuid> = sqlx::query_scalar!(
+        "SELECT slot_id FROM slot_assignments WHERE period_id = $1",
+        period_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?
+    .into_iter()
+    .collect();
     // M4: Track flex slot awards per classification (max 2 per classification per cycle)
     let mut flex_awards: std::collections::HashMap<Uuid, u32> = std::collections::HashMap::new();
     // Collect award info for post-commit notifications
@@ -711,20 +722,11 @@ pub async fn process_bids(
             }
 
             // Check if this slot already has an assignment for this period
-            let already_assigned = sqlx::query_scalar!(
-                r#"
-                SELECT EXISTS(
-                    SELECT 1 FROM slot_assignments
-                    WHERE slot_id = $1 AND period_id = $2
-                ) AS "exists!"
-                "#,
-                sub.slot_id,
-                period_id
-            )
-            .fetch_one(&mut *tx)
-            .await?;
+            if assigned_slots.contains(&sub.slot_id) {
+                continue;
+            }
 
-            if !already_assigned {
+            {
                 // Award this slot
                 sqlx::query!(
                     "UPDATE bid_submissions SET awarded = true WHERE id = $1",
@@ -746,6 +748,9 @@ pub async fn process_bids(
                 )
                 .execute(&mut *tx)
                 .await?;
+
+                // Track this slot as assigned
+                assigned_slots.insert(sub.slot_id);
 
                 // M4: Track flex award
                 if sub.is_flex {
