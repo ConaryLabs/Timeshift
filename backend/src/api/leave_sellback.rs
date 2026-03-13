@@ -307,6 +307,7 @@ pub async fn review(
               AND lt.category = 'holiday'
               AND lb.balance_hours > 0
             ORDER BY lb.balance_hours DESC
+            FOR UPDATE OF lb
             "#,
             req.user_id,
             auth.org_id,
