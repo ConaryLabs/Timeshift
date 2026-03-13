@@ -5,7 +5,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useUIStore } from '@/store/ui'
 import { toLocalDateStr } from '@/lib/format'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { cn } from '@/lib/utils'
 import StaffingBlockGrid from './StaffingBlockGrid'
 import { ShiftList } from './ShiftList'
 import DutyBoardTab from './DutyBoardTab'
@@ -18,7 +17,7 @@ interface DailyViewProps {
   teamId?: string | null
 }
 
-export function DailyView({ date, teamId }: DailyViewProps) {
+export function DailyView({ date }: DailyViewProps) {
   const { isManager } = usePermissions()
   const collapsedSections = useUIStore((s) => s.collapsedSections)
   const toggleSection = useUIStore((s) => s.toggleSection)
@@ -45,7 +44,7 @@ export function DailyView({ date, teamId }: DailyViewProps) {
             <TabsTrigger value="duty-board">Duty Board</TabsTrigger>
           </TabsList>
           <TabsContent value="schedule">
-            <ShiftList date={dateStr} teamId={teamId} />
+            <ShiftList date={dateStr} />
           </TabsContent>
           <TabsContent value="duty-board">
             <DutyBoardTab date={dateStr} />
@@ -80,7 +79,7 @@ export function DailyView({ date, teamId }: DailyViewProps) {
         </button>
 
         {!teamSectionCollapsed && (
-          <div className={cn('px-4 pb-4 space-y-4')}>
+          <div className="px-4 pb-4 space-y-4">
             <div className="rounded-lg border">
               <button
                 className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
@@ -106,7 +105,7 @@ export function DailyView({ date, teamId }: DailyViewProps) {
                 <TabsTrigger value="duty-board">Duty Board</TabsTrigger>
               </TabsList>
               <TabsContent value="schedule">
-                <ShiftList date={dateStr} teamId={teamId} />
+                <ShiftList date={dateStr} />
               </TabsContent>
               <TabsContent value="duty-board">
                 <DutyBoardTab date={dateStr} />

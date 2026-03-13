@@ -72,8 +72,8 @@ export function MyShiftsCard({ date }: MyShiftsCardProps) {
       </div>
 
       {/* Shift cards */}
-      {shifts.map((entry, i) => (
-        <Card key={i} className="overflow-hidden">
+      {shifts.map((entry) => (
+        <Card key={`${entry.date}-${entry.shift_name}-${entry.start_time}`} className="overflow-hidden">
           {/* Color bar */}
           <div className="h-1.5" style={{ backgroundColor: entry.shift_color }} />
           <CardContent className="p-3 space-y-1">

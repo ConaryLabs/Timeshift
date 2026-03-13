@@ -171,7 +171,6 @@ export function MonthView({ date, onDateChange, teamId }: MonthViewProps) {
 
           const cellContent = (
             <button
-              key={dateStr}
               type="button"
               onClick={() => onDateChange(day)}
               className={cn(
