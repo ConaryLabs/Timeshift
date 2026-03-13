@@ -114,14 +114,21 @@ Same as supervisor (date, nav, view switcher)
 - Prominent card(s) showing the employee's own shifts for the day (or "Day Off" card)
 - Quick action buttons: Request Leave, Request Trade (matching existing MySchedulePage actions)
 
+#### Middle Section — Staffing Block Grid (collapsible, default collapsed)
+- Same 2-hour block × classification heatmap as supervisor view, but read-only
+- Shows `actual/required` fractions and color coding (red/yellow/green)
+- Expanding a classification row reveals employee Gantt bars
+- No cell click actions — red cells are not interactive for employees
+- No action panel
+
 #### Bottom Section — "Team Schedule" (collapsible, default collapsed)
-- Simplified shift list (who's working, no coverage numbers)
+- Shift list with coverage badges (same as supervisor view, read-only)
 - Duty Board tab (read-only)
 
 #### Not visible to employees
-- Staffing block grid
-- Coverage numbers on shift cards
-- Action panel
+- Action panel (gap resolution slide-out)
+- Add Annotation button
+- Any edit/assign/mandate actions
 
 ---
 
@@ -141,7 +148,8 @@ Same as supervisor (date, nav, view switcher)
 - Today snaps to current week with today selected
 
 ### Employee Version
-- Day cells show personal shift indicator (colored dot if working, hollow if off) instead of coverage heatmap
+- Day cells show personal shift indicator (colored dot if working, hollow if off) plus coverage heatmap coloring (employees can see staffing levels)
+- Gap count badge visible (read-only awareness)
 - Selected day shows employee daily view below
 
 ---
@@ -165,7 +173,7 @@ Same as supervisor (date, nav, view switcher)
   - Colored dot/bar matching shift color if working
   - Empty/muted if day off
   - Leave request indicator icon if leave pending/approved
-- No gap counts or coverage coloring
+- Coverage heatmap coloring and gap count badges visible (read-only staffing awareness)
 
 ### Navigation
 - Prev/Next move by month
