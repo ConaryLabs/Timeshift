@@ -50,6 +50,7 @@ const DutyPositionsPage = lazy(() => import('@/pages/admin/DutyPositionsPage'))
 const StaffingResolvePage = lazy(() => import('@/pages/StaffingResolvePage'))
 const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
+const UnifiedSchedulePage = lazy(() => import('@/pages/schedule/UnifiedSchedulePage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="my-schedule" element={<PageSuspense><MySchedulePage /></PageSuspense>} />
           <Route path="profile" element={<PageSuspense><MyProfilePage /></PageSuspense>} />
           <Route path="schedule" element={<PageSuspense><SchedulePage /></PageSuspense>} />
+          <Route path="schedule-v2" element={<PageSuspense><UnifiedSchedulePage /></PageSuspense>} />
           <Route path="schedule/day/:date" element={<PageSuspense><DayViewPage /></PageSuspense>} />
           <Route path="leave" element={<PageSuspense><LeavePage /></PageSuspense>} />
           <Route path="leave/sellback" element={<PageSuspense><LeaveSellbackPage /></PageSuspense>} />
