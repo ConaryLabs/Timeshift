@@ -10,8 +10,18 @@ export interface TeamSummary {
   parent_team_name: string | null
   is_active: boolean
   slot_count: number
+  member_count: number
   /** Present when backend returns it; used for optimistic locking. */
   updated_at?: string
+}
+
+export interface TeamMember {
+  user_id: string
+  first_name: string
+  last_name: string
+  classification_abbreviation: string | null
+  role: string
+  shift_name: string | null
 }
 
 export interface Team {
@@ -69,4 +79,7 @@ export const teamsApi = {
     label?: string
     is_active?: boolean
   }) => apiClient.patch<ShiftSlotView>(`/api/shift-slots/${slotId}`, body),
+
+  listMembers: (teamId: string) =>
+    apiClient.get<TeamMember[]>(`/api/teams/${teamId}/members`),
 }

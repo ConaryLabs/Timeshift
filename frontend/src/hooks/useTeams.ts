@@ -31,6 +31,14 @@ export function useUpdateTeam() {
   )
 }
 
+export function useTeamMembers(teamId: string) {
+  return useQuery({
+    queryKey: queryKeys.teams.members(teamId),
+    queryFn: () => teamsApi.listMembers(teamId),
+    enabled: !!teamId,
+  })
+}
+
 export function useTeamSlots(teamId: string) {
   return useQuery({
     queryKey: queryKeys.teams.slots(teamId),

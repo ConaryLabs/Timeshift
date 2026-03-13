@@ -9,8 +9,8 @@ use crate::{
     auth::AuthUser,
     error::{AppError, Result},
     models::team::{
-        CreateShiftSlotRequest, CreateTeamRequest, ShiftSlotView, Team, TeamSummary, TeamWithSlots,
-        UpdateShiftSlotRequest, UpdateTeamRequest,
+        CreateShiftSlotRequest, CreateTeamRequest, ShiftSlotView, Team, TeamMember, TeamSummary,
+        TeamWithSlots, UpdateShiftSlotRequest, UpdateTeamRequest,
     },
     org_guard,
 };
@@ -24,11 +24,13 @@ pub async fn list_teams(
         SELECT t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active,
                u.first_name || ' ' || u.last_name AS supervisor_name,
                pt.name AS "parent_team_name?",
-               COUNT(ss.id)::BIGINT AS slot_count
+               COUNT(DISTINCT ss.id)::BIGINT AS slot_count,
+               COUNT(DISTINCT sa.user_id)::BIGINT AS member_count
         FROM teams t
         LEFT JOIN users u ON u.id = t.supervisor_id
         LEFT JOIN teams pt ON pt.id = t.parent_team_id
         LEFT JOIN shift_slots ss ON ss.team_id = t.id AND ss.is_active = true
+        LEFT JOIN slot_assignments sa ON sa.slot_id = ss.id
         WHERE t.org_id = $1 AND t.is_active = true
         GROUP BY t.id, t.name, t.supervisor_id, t.parent_team_id, t.is_active, u.first_name, u.last_name, pt.name
         ORDER BY t.name
@@ -49,6 +51,7 @@ pub async fn list_teams(
             parent_team_name: r.parent_team_name,
             is_active: r.is_active,
             slot_count: r.slot_count.unwrap_or(0),
+            member_count: r.member_count.unwrap_or(0),
         })
         .collect();
 
@@ -306,6 +309,57 @@ async fn check_team_cycle(pool: &PgPool, team_id: Uuid, new_parent_id: Uuid) -> 
             .flatten();
     }
     Ok(())
+}
+
+pub async fn team_members(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(team_id): Path<Uuid>,
+) -> Result<Json<Vec<TeamMember>>> {
+    org_guard::verify_team(&pool, team_id, auth.org_id).await?;
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT ON (u.id)
+            u.id AS user_id,
+            u.first_name,
+            u.last_name,
+            c.abbreviation AS "classification_abbreviation?",
+            u.role AS "role!: String",
+            st.name AS "shift_name?"
+        FROM slot_assignments sa
+        JOIN shift_slots ss ON ss.id = sa.slot_id
+        JOIN users u ON u.id = sa.user_id
+        LEFT JOIN classifications c ON c.id = u.classification_id
+        LEFT JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE ss.team_id = $1 AND u.is_active = true
+        ORDER BY u.id, st.start_time
+        "#,
+        team_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let mut members: Vec<TeamMember> = rows
+        .into_iter()
+        .map(|r| TeamMember {
+            user_id: r.user_id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            classification_abbreviation: r.classification_abbreviation,
+            role: r.role,
+            shift_name: r.shift_name,
+        })
+        .collect();
+
+    // Sort: supervisors first, then by last name
+    members.sort_by(|a, b| {
+        let a_sup = a.role == "supervisor" || a.role == "admin";
+        let b_sup = b.role == "supervisor" || b.role == "admin";
+        b_sup.cmp(&a_sup).then(a.last_name.cmp(&b.last_name))
+    });
+
+    Ok(Json(members))
 }
 
 async fn fetch_single_slot_view(pool: &PgPool, slot_id: Uuid) -> Result<ShiftSlotView> {

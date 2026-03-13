@@ -93,6 +93,7 @@ pub fn router(state: AppState) -> Router {
             "/api/teams/:id/slots",
             get(teams::list_slots).post(teams::create_slot),
         )
+        .route("/api/teams/:id/members", get(teams::team_members))
         // Shift slots (cross-team update)
         .route("/api/shift-slots/:id", patch(teams::update_slot))
         // Special Assignments
