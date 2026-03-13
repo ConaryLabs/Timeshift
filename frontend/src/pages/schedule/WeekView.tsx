@@ -16,7 +16,7 @@ interface WeekViewProps {
   teamId?: string | null
 }
 
-export function WeekView({ date, onDateChange, teamId }: WeekViewProps) {
+export function WeekView({ date, onDateChange: _onDateChange, teamId }: WeekViewProps) {
   const { isManager } = usePermissions()
 
   const weekStart = startOfWeek(date, { weekStartsOn: 0 })
@@ -95,7 +95,6 @@ export function WeekView({ date, onDateChange, teamId }: WeekViewProps) {
               key={dayStr}
               onClick={() => {
                 setSelectedDay(day)
-                onDateChange(day)
               }}
               className={cn(
                 'relative flex flex-col items-center rounded-lg border px-1 py-2 text-center transition-colors hover:opacity-90',
