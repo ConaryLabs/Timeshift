@@ -8,7 +8,6 @@ import { toLocalDateStr } from '@/lib/format'
 import { useTeams, useAnnotations, useCreateAnnotation } from '@/hooks/queries'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useUIStore } from '@/store/ui'
-import { SavedFilterBar } from '@/components/SavedFilterBar'
 import { AnnotationBadge } from '@/components/AnnotationBadge'
 import { Button } from '@/components/ui/button'
 import {
@@ -223,24 +222,6 @@ export function ScheduleHeader({ date, view, onDateChange, onViewChange }: Sched
           )}
         </div>
       )}
-
-      {/* Saved filter bar */}
-      <SavedFilterBar
-        page="schedule"
-        currentFilters={{ teamId: selectedTeamId, view }}
-        onApplyFilter={(filters) => {
-          if (typeof filters.teamId === 'string' || filters.teamId === null) {
-            setSelectedTeamId(filters.teamId as string | null)
-          }
-          if (
-            filters.view === 'day' ||
-            filters.view === 'week' ||
-            filters.view === 'month'
-          ) {
-            onViewChange(filters.view as CalendarView)
-          }
-        }}
-      />
 
       {/* Create annotation dialog */}
       <Dialog open={annotationDialogOpen} onOpenChange={setAnnotationDialogOpen}>

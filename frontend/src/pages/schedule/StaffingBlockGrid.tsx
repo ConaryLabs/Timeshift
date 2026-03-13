@@ -1,5 +1,5 @@
 // frontend/src/pages/schedule/StaffingBlockGrid.tsx
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { ChevronDown, ChevronRight, Users, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -185,7 +185,11 @@ type EmployeeRow = {
   hasOvertime: boolean
   bars: BarSegment[]
   earliestStart: string
+  latestEnd: string // for block-based sorting
 }
+
+/** Sort modes: name-asc, name-desc, or by a specific block index */
+type SortMode = { type: 'name'; desc: boolean } | { type: 'block'; blockIndex: number }
 
 function ClassificationRow({
   classification,
@@ -199,6 +203,7 @@ function ClassificationRow({
   onBlockClick: (block: ClassificationBlock) => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const [sortMode, setSortMode] = useState<SortMode | null>(null)
 
   const { abbreviation, blocks } = classification
 
@@ -219,6 +224,7 @@ function ClassificationRow({
             hasOvertime: false,
             bars: [],
             earliestStart: e.shift_start,
+            latestEnd: e.shift_end,
           }
           byUser.set(e.user_id, row)
         }
@@ -231,12 +237,52 @@ function ClassificationRow({
         })
         if (e.is_overtime) row.hasOvertime = true
         if (e.shift_start < row.earliestStart) row.earliestStart = e.shift_start
+        if (e.shift_end > row.latestEnd) row.latestEnd = e.shift_end
       }
     }
-    return Array.from(byUser.values()).sort(
-      (a, b) => a.earliestStart.localeCompare(b.earliestStart) || a.lastName.localeCompare(b.lastName),
-    )
+    return Array.from(byUser.values())
   }, [blocks])
+
+  // Sort employee rows based on current sort mode
+  const sortedRows = useMemo(() => {
+    const rows = [...employeeRows]
+    if (!sortMode) {
+      // Default: earliest start, then last name
+      return rows.sort(
+        (a, b) => a.earliestStart.localeCompare(b.earliestStart) || a.lastName.localeCompare(b.lastName),
+      )
+    }
+    if (sortMode.type === 'name') {
+      return rows.sort((a, b) => {
+        const cmp = a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)
+        return sortMode.desc ? -cmp : cmp
+      })
+    }
+    // Block sort: people whose shift ends soonest relative to this block go to top
+    // (been there longest = ending soon). People who just started go to bottom.
+    const blockStartMin = sortMode.blockIndex * 120 // minutes from midnight
+    return rows.sort((a, b) => {
+      const aTime = timeInBlock(a, blockStartMin)
+      const bTime = timeInBlock(b, blockStartMin)
+      // Higher timeInBlock = been there longer = top
+      return bTime - aTime || a.lastName.localeCompare(b.lastName)
+    })
+  }, [employeeRows, sortMode])
+
+  const handleNameSort = useCallback(() => {
+    setSortMode((prev) => {
+      if (prev?.type === 'name' && !prev.desc) return { type: 'name', desc: true }
+      if (prev?.type === 'name' && prev.desc) return null // reset to default
+      return { type: 'name', desc: false }
+    })
+  }, [])
+
+  const handleBlockSort = useCallback((blockIndex: number) => {
+    setSortMode((prev) => {
+      if (prev?.type === 'block' && prev.blockIndex === blockIndex) return null // toggle off
+      return { type: 'block', blockIndex }
+    })
+  }, [])
 
   const hasShortage = blocks.some((b) => b.status === 'red' || b.status === 'yellow')
 
@@ -267,14 +313,50 @@ function ClassificationRow({
       {expanded && (
         <>
           {/* Employee Gantt rows */}
-          {employeeRows.length > 0 ? (
+          {sortedRows.length > 0 ? (
             <div className="bg-card">
-              {employeeRows.map((emp, idx) => (
+              {/* Sortable column headers within Gantt area */}
+              <div className="flex items-center border-b border-border/50 bg-muted/20">
+                <button
+                  type="button"
+                  onClick={handleNameSort}
+                  className={cn(
+                    'w-36 shrink-0 border-r px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors text-left flex items-center gap-1',
+                    sortMode?.type === 'name' && 'text-foreground font-semibold',
+                  )}
+                  title="Sort by name"
+                >
+                  Name
+                  {sortMode?.type === 'name' && (
+                    <span className="text-[9px]">{sortMode.desc ? '▼' : '▲'}</span>
+                  )}
+                </button>
+                <div
+                  className="flex-1 grid"
+                  style={{ gridTemplateColumns: `repeat(${BLOCK_COUNT}, 1fr)` }}
+                >
+                  {BLOCK_COLUMNS.map((col) => (
+                    <button
+                      key={col.index}
+                      type="button"
+                      onClick={() => handleBlockSort(col.index)}
+                      className={cn(
+                        'border-r last:border-r-0 h-5 flex items-center justify-center text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors',
+                        sortMode?.type === 'block' && sortMode.blockIndex === col.index && 'text-foreground font-semibold bg-muted/30',
+                      )}
+                      title={`Sort by time in ${col.startTime}–${col.endTime} block`}
+                    >
+                      {sortMode?.type === 'block' && sortMode.blockIndex === col.index ? '▼' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {sortedRows.map((emp, idx) => (
                 <div
                   key={emp.userId}
                   className={cn(
                     'flex items-center',
-                    idx !== employeeRows.length - 1 && 'border-b border-dashed border-border/50',
+                    idx !== sortedRows.length - 1 && 'border-b border-dashed border-border/50',
                   )}
                 >
                   {/* Name column */}
@@ -418,6 +500,30 @@ function ClassificationRow({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * How many minutes the employee has been working by the START of a given block.
+ * Higher = been there longer = finishing sooner relative to this block.
+ * If the employee hasn't started yet by this block, returns 0.
+ * Used for block-column sorting: longest-serving employees sort to top.
+ */
+function timeInBlock(emp: EmployeeRow, blockStartMin: number): number {
+  let maxTime = 0
+  for (const bar of emp.bars) {
+    const [sh, sm] = bar.shiftStart.split(':').map(Number)
+    const [eh, em] = bar.shiftEnd.split(':').map(Number)
+    const barStart = sh * 60 + sm
+    let barEnd = eh * 60 + em
+    if (barEnd <= barStart) barEnd += 24 * 60 // crosses midnight
+
+    // Employee must be working during this block
+    if (barStart > blockStartMin || barEnd <= blockStartMin) continue
+
+    const elapsed = blockStartMin - barStart
+    if (elapsed > maxTime) maxTime = elapsed
+  }
+  return maxTime
+}
 
 /** Calculate CSS left% and width% for a Gantt bar spanning shiftStart–shiftEnd. */
 function barPosition(shiftStart: string, shiftEnd: string) {
