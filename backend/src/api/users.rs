@@ -390,6 +390,12 @@ pub async fn create(
         org_guard::verify_classification(&pool, cid, auth.org_id).await?;
     }
 
+    if req.password.len() < 8 || req.password.len() > 128 {
+        return Err(AppError::BadRequest(
+            "Password must be between 8 and 128 characters".into(),
+        ));
+    }
+
     let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default()
         .hash_password(req.password.as_bytes(), &salt)
