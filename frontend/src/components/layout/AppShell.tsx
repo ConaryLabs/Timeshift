@@ -20,7 +20,7 @@ import {
   Wallet,
   ListOrdered,
   TreePalm,
-  CalendarCheck,
+
   UserCircle,
   LayoutDashboard,
   BarChart3,
@@ -88,7 +88,7 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem } {
       label: 'Operations',
       items: [
         { to: '/admin/dashboard', label: 'Ops Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-        { to: '/staffing/resolve', label: 'Daily Staffing', icon: <ShieldAlert className="h-4 w-4" /> },
+        { to: '/schedule?view=day', label: 'Daily Staffing', icon: <ShieldAlert className="h-4 w-4" /> },
         { to: '/approvals', label: 'Approvals', icon: <ListChecks className="h-4 w-4" />, badgeKey: 'pending_approvals' },
         { to: '/callout', label: 'Callout', icon: <Phone className="h-4 w-4" />, badgeKey: 'open_callouts' },
         { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" /> },
@@ -102,14 +102,12 @@ function useNavItems(): { groups: NavGroup[]; profile: NavItem } {
       label: '',
       items: [
         { to: '/dashboard', label: isManager ? 'My Dashboard' : 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-        { to: '/my-schedule', label: 'My Schedule', icon: <CalendarCheck className="h-4 w-4" /> },
       ],
     },
     {
       label: 'Schedule',
       items: [
         { to: '/schedule', label: 'Schedule', icon: <Calendar className="h-4 w-4" /> },
-        { to: '/duty-board', label: 'Duty Board', icon: <ClipboardCheck className="h-4 w-4" /> },
       ],
     },
     {
@@ -543,7 +541,7 @@ export default function AppShell() {
                         <div key={cls.classification_id}>
                           <button
                             className="text-sm font-semibold mb-1 hover:underline text-left"
-                            onClick={() => { setCoverageOpen(false); navigate(`/staffing/resolve?date=${today}&classification=${cls.classification_abbreviation}`) }}
+                            onClick={() => { setCoverageOpen(false); navigate(`/schedule?view=day&date=${today}&classification=${cls.classification_abbreviation}`) }}
                           >
                             {cls.classification_abbreviation} OT
                           </button>
@@ -571,7 +569,7 @@ export default function AppShell() {
                         <button
                           key={s.shift_template_id}
                           className="flex items-center justify-between text-sm w-full rounded-md px-2 py-1.5 hover:bg-accent transition-colors text-left"
-                          onClick={() => { setCoverageOpen(false); navigate(`/schedule/day/${today}`) }}
+                          onClick={() => { setCoverageOpen(false); navigate(`/schedule?view=day&date=${today}`) }}
                         >
                           <span>{s.shift_name}</span>
                           <span className="text-destructive font-medium tabular-nums">{s.coverage_actual}/{s.coverage_required}</span>
@@ -583,7 +581,7 @@ export default function AppShell() {
                     <div className="flex gap-2">
                       <button
                         className="text-xs text-primary hover:underline"
-                        onClick={() => { setCoverageOpen(false); navigate(`/schedule/day/${today}`) }}
+                        onClick={() => { setCoverageOpen(false); navigate(`/schedule?view=day&date=${today}`) }}
                       >
                         Day View
                       </button>
@@ -593,7 +591,7 @@ export default function AppShell() {
                         onClick={() => {
                           setCoverageOpen(false)
                           const classParam = gapBlocks?.length === 1 ? `&classification=${gapBlocks[0].classification_abbreviation}` : ''
-                          navigate(`/staffing/resolve?date=${today}${classParam}`)
+                          navigate(`/schedule?view=day&date=${today}${classParam}`)
                         }}
                       >
                         Resolve Staffing

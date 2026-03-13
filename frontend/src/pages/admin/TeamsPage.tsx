@@ -118,6 +118,7 @@ export default function TeamsPage() {
       header: 'Parent Team',
       cell: (r) => r.parent_team_name ?? <span className="text-muted-foreground">&mdash;</span>,
     },
+    { header: 'Members', cell: (r) => r.member_count, className: 'w-24' },
     { header: 'Slots', cell: (r) => r.slot_count, className: 'w-20' },
     {
       header: 'Status',
@@ -137,7 +138,7 @@ export default function TeamsPage() {
     <div>
       <PageHeader
         title="Teams"
-        description="Manage teams and their shift slots"
+        description="Manage teams, supervisors, and shift slot assignments"
         actions={<Button onClick={openCreate}>+ Add Team</Button>}
       />
 

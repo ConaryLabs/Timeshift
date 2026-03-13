@@ -29,6 +29,17 @@ pub struct TeamSummary {
     pub parent_team_name: Option<String>,
     pub is_active: bool,
     pub slot_count: i64,
+    pub member_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TeamMember {
+    pub user_id: Uuid,
+    pub first_name: String,
+    pub last_name: String,
+    pub classification_abbreviation: Option<String>,
+    pub role: String,
+    pub shift_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

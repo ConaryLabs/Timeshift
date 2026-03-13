@@ -2,24 +2,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useDutyBoard } from '@/hooks/queries'
-import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap } from '@/lib/dutyBoard'
-
-/** Map position name to its row label color from the original seating chart */
-function getPositionColor(name: string): { bg: string; text: string } {
-  const upper = name.toUpperCase()
-  if (upper.startsWith('FIRE'))
-    return { bg: '#C00000', text: '#ffffff' }
-  if (['DATA', 'AUBURN', 'FED WAY', 'KENT', 'RENTON'].includes(upper))
-    return { bg: '#2F75B5', text: '#ffffff' }
-  if (upper.includes('BREAK'))
-    return { bg: '#548235', text: '#ffffff' }
-  if (upper === 'ACCESS')
-    return { bg: '#F4B084', text: '#000000' }
-  if (upper.startsWith('CR'))
-    return { bg: '#F4B084', text: '#000000' }
-  // Default fallback
-  return { bg: '#2F75B5', text: '#ffffff' }
-}
+import { BLOCK_LABELS, getCurrentBlockIndex, buildAssignmentMap, getPositionColor } from '@/lib/dutyBoard'
 
 export default function DutyBoardDisplayPage() {
   const [now, setNow] = useState(new Date())

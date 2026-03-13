@@ -28,7 +28,7 @@ ScheduleExpress and generic tools (Deputy, When I Work) don't handle the specifi
 ## Features
 
 ### For employees
-- **My Schedule** — personal shift view with upcoming assignments
+- **Unified schedule** — personal shifts, team schedule, and staffing levels in one view (day/week/month)
 - **Leave requests** — 26 leave type codes, per-day breakdown, approval workflow
 - **Leave sellback** — sell accrued leave hours back to the org
 - **Sick leave donation** — donate leave to colleagues in need
@@ -38,9 +38,7 @@ ScheduleExpress and generic tools (Deputy, When I Work) don't handle the specifi
 - **Notifications** — in-app alerts for approvals, callouts, and schedule changes
 
 ### For supervisors & admins
-- **Schedule views** — week, board, and month views with color-coded shifts
-- **Day view** — detailed daily staffing breakdown
-- **Duty board** — real-time position assignments
+- **Unified schedule** — day/week/month views with staffing block grid (2-hour × classification heatmap), sortable columns, integrated duty board tab, and slide-out action panel for gap resolution
 - **Coverage alerts** — topbar warnings when shifts are understaffed
 - **Callout management** — initiate OT callout events; system tracks queue order
 - **OT queue** — fair-rotation queue per classification (seniority/last-called ordering)
@@ -53,7 +51,7 @@ ScheduleExpress and generic tools (Deputy, When I Work) don't handle the specifi
 - **Shift templates** — reusable shift definitions with name, times, hours, color
 - **Shift patterns** — recurring rotation schedules
 - **Coverage plans** — min/target/max headcount per shift and classification
-- **Teams** — org divisions with optional supervisor assignment
+- **Teams** — org divisions with supervisor assignment and member display (auto-populated from slot assignments)
 - **Bid periods** — configure shift bid windows and slot assignments
 - **Classifications** — job roles/grades with coverage rules
 - **Bargaining units** — configurable per-org (not hardcoded)
@@ -155,7 +153,7 @@ timeshift/
 │   │   ├── models/     # Request/response DTOs and DB row types
 │   │   ├── auth/       # JWT, AuthUser extractor, role permissions
 │   │   └── ...
-│   ├── migrations/     # SQLx migrations (0001–0020)
+│   ├── migrations/     # SQLx migrations (0001–0057)
 │   ├── seeds/          # Valleycom demo data
 │   └── tests/          # Integration tests (real DB, isolated orgs)
 ├── frontend/           # React + TypeScript + Vite

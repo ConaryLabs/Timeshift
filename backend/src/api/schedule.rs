@@ -638,6 +638,27 @@ pub async fn grid(
         .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
         .collect();
 
+    // Query which classifications are assigned to each shift via shift_slots
+    let shift_class_rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT ss.shift_template_id, ss.classification_id
+        FROM shift_slots ss
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE st.org_id = $1 AND st.is_active = true
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let mut shift_classifications: HashMap<Uuid, std::collections::HashSet<Uuid>> = HashMap::new();
+    for r in &shift_class_rows {
+        shift_classifications
+            .entry(r.shift_template_id)
+            .or_default()
+            .insert(r.classification_id);
+    }
+
     let mut cells_map: HashMap<(time::Date, Uuid), GridCell> = HashMap::new();
 
     for r in rows {
@@ -683,7 +704,7 @@ pub async fn grid(
     let mut date_coverage: HashMap<time::Date, HashMap<Uuid, ShiftCoverageStatus>> = HashMap::new();
     for (d, slot_coverage) in slot_coverage_batch {
         if !slot_coverage.is_empty() {
-            let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
+            let status_map = coverage_status_per_shift(&slot_coverage, &shift_info, Some(&shift_classifications));
             date_coverage.insert(d, status_map);
         }
     }
@@ -775,7 +796,29 @@ pub async fn day_view(
         .iter()
         .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
         .collect();
-    let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
+
+    // Query which classifications are assigned to each shift via shift_slots
+    let shift_class_rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT ss.shift_template_id, ss.classification_id
+        FROM shift_slots ss
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE st.org_id = $1 AND st.is_active = true
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let mut shift_classifications: HashMap<Uuid, std::collections::HashSet<Uuid>> = HashMap::new();
+    for r in &shift_class_rows {
+        shift_classifications
+            .entry(r.shift_template_id)
+            .or_default()
+            .insert(r.classification_id);
+    }
+
+    let status_map = coverage_status_per_shift(&slot_coverage, &shift_info, Some(&shift_classifications));
 
     let template_infos: Vec<ShiftTemplateInfo> = templates
         .into_iter()
@@ -867,7 +910,29 @@ pub async fn dashboard(State(pool): State<PgPool>, auth: AuthUser) -> Result<Jso
         .iter()
         .map(|t| (t.id, t.start_time, t.end_time, t.crosses_midnight))
         .collect();
-    let status_map = coverage_status_per_shift(&slot_coverage, &shift_info);
+
+    // Query which classifications are assigned to each shift via shift_slots
+    let shift_class_rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT ss.shift_template_id, ss.classification_id
+        FROM shift_slots ss
+        JOIN shift_templates st ON st.id = ss.shift_template_id
+        WHERE st.org_id = $1 AND st.is_active = true
+        "#,
+        auth.org_id,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let mut shift_classifications: HashMap<Uuid, std::collections::HashSet<Uuid>> = HashMap::new();
+    for r in &shift_class_rows {
+        shift_classifications
+            .entry(r.shift_template_id)
+            .or_default()
+            .insert(r.classification_id);
+    }
+
+    let status_map = coverage_status_per_shift(&slot_coverage, &shift_info, Some(&shift_classifications));
 
     let template_infos: Vec<ShiftTemplateInfo> = templates
         .into_iter()
