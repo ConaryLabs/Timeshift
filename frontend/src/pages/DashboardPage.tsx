@@ -87,7 +87,7 @@ export default function DashboardPage() {
         description={format(new Date(), 'EEEE, MMMM d, yyyy')}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate(`/staffing/resolve?date=${today}`)}>
+            <Button variant="outline" onClick={() => navigate(`/schedule?view=day&date=${today}`)}>
               <ShieldAlert className="h-4 w-4 mr-1.5" />
               Daily Staffing
             </Button>
@@ -95,9 +95,9 @@ export default function DashboardPage() {
               <Timer className="h-4 w-4 mr-1.5" />
               Create OT Request
             </Button>
-            <Button variant="outline" onClick={() => navigate(`/schedule/day/${today}`)}>
+            <Button variant="outline" onClick={() => navigate(`/schedule?view=day&date=${today}`)}>
               <Calendar className="h-4 w-4 mr-1.5" />
-              Day View
+              Schedule
             </Button>
           </div>
         }
@@ -153,8 +153,8 @@ export default function DashboardPage() {
           className={CLICKABLE_CARD_CLASS}
           tabIndex={0}
           role="button"
-          onClick={() => navigate(`/schedule/day/${today}`)}
-          onKeyDown={(e) => handleCardKeyDown(e, () => navigate(`/schedule/day/${today}`))}
+          onClick={() => navigate(`/schedule?view=day&date=${today}`)}
+          onKeyDown={(e) => handleCardKeyDown(e, () => navigate(`/schedule?view=day&date=${today}`))}
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
