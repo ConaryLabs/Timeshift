@@ -525,7 +525,9 @@ function timeInBlock(emp: EmployeeRow, blockStartMin: number): number {
   return maxTime
 }
 
-/** Calculate CSS left% and width% for a Gantt bar spanning shiftStart–shiftEnd. */
+/** Calculate CSS left% and width% for a Gantt bar.
+ *  Overnight shifts (endTime <= startTime) show only the pre-midnight portion
+ *  on this single-day grid. The tooltip shows the full time range. */
 function barPosition(shiftStart: string, shiftEnd: string) {
   const [sh, sm] = shiftStart.split(':').map(Number)
   const [eh, em] = shiftEnd.split(':').map(Number)

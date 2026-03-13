@@ -11,7 +11,6 @@ import type { ClassificationCoverageDetail } from '@/api/schedule'
 
 export interface ShiftListProps {
   date: string          // "YYYY-MM-DD"
-  teamId?: string | null
 }
 
 export function ShiftList({ date }: ShiftListProps) {
