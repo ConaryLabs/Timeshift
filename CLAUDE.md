@@ -111,13 +111,14 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `api/client.ts` — Axios instance with 401 auto-logout (credentials included for HttpOnly cookies)
 - `api/*.ts` — Per-domain API modules: auth, teams, users, shifts, schedule, schedulePeriods, leave, leaveBalances, callout, classifications, organization, coveragePlans, trades, ot, otRequests, bidding, vacationBids, employee, holidays, leaveSellback, sickDonation, nav, reports, staffing, bargainingUnits, dutyPositions, dutyBoard, shiftPatterns, specialAssignments, savedFilters, notifications
 - `store/auth.ts` — Zustand store: user profile only (no token — auth uses HttpOnly cookies), persisted to localStorage as `timeshift-auth`
-- `store/ui.ts` — Zustand store: sidebar state + selected team/period, persisted as `timeshift-ui`
+- `store/ui.ts` — Zustand store: sidebar state, selected team/period, `preferredScheduleView` (day/week/month), persisted as `timeshift-ui` (version 3)
 - `hooks/queryKeys.ts` — React Query key factories for all API endpoints
 - `hooks/queries.ts` — Barrel re-export of domain-specific hook files
 - `hooks/use*.ts` — Domain-specific React Query hooks (useAuth, useTeams, useLeave, useCallout, useOt, useTrades, useVacationBids, useBidding, useEmployee, useHolidays, useReports, useNotifications, useNav, useDutyPositions, useSpecialAssignments, useSavedFilters, useShiftPatterns, useStaffing, useCoverage, useDutyBoard, useSchedule, useUsers, useOrganization)
 - `hooks/usePermissions.ts` — Role-based access helpers
-- `lib/utils.ts` — `cn()` utility (clsx + tw-merge); `lib/format.ts` — date/time formatting; `lib/dutyBoard.ts` — duty board utilities
-- `pages/` — LoginPage, DashboardPage, SchedulePage, DayViewPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MySchedulePage, MyProfilePage, AvailableOTPage, VolunteeredOTPage, SickDonationPage, LeaveSellbackPage, NotificationsPage, ApprovalsPage, StaffingResolvePage, DutyBoardPage, DutyBoardDisplayPage, OtRequestDetailPage
+- `lib/utils.ts` — `cn()` utility (clsx + tw-merge); `lib/format.ts` — date/time formatting; `lib/dutyBoard.ts` — duty board utilities (`BLOCK_LABELS`, `getCurrentBlockIndex`, `buildAssignmentMap`, `getPositionColor`)
+- `pages/schedule/` — **Unified calendar** (single `/schedule` route, URL-driven `?view=day|week|month&date=YYYY-MM-DD`): `UnifiedSchedulePage` (route shell), `ScheduleHeader`, `DailyView`, `WeekView`, `MonthView`, `StaffingBlockGrid` (sortable 2-hour × classification heatmap), `ShiftList`, `DutyBoardTab`, `ActionPanel` (gap resolution slide-out), `MyShiftsCard`, `AssignmentChip`, `types.ts`
+- `pages/` — LoginPage, DashboardPage, LeavePage, TradesPage, CalloutPage, VacationBidPage, BidPage, MyDashboardPage, MyProfilePage, AvailableOTPage, VolunteeredOTPage, SickDonationPage, LeaveSellbackPage, NotificationsPage, ApprovalsPage, DutyBoardDisplayPage (kiosk-only), OtRequestDetailPage
 - `pages/admin/` — ClassificationsPage, ShiftTemplatesPage, CoveragePlansPage, CoveragePlanDetailPage, CoveragePlanAssignmentsPage, TeamsPage, TeamDetailPage, UsersPage, OTQueuePage, LeaveBalancesPage, SchedulePeriodsPage, SchedulePeriodDetailPage, VacationBidAdminPage, HolidayCalendarPage, ReportsPage, OrgSettingsPage, SpecialAssignmentsPage, DutyPositionsPage, ShiftPatternsPage
 - `components/ui/` — shadcn/radix-ui component wrappers (Button, Input, Card, Table, Dialog, etc.)
 - `components/layout/AppShell.tsx` — Main layout: collapsible sidebar + top bar + content area
@@ -127,7 +128,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 **State**: Zustand for client state (auth, UI preferences), React Query for server state (all API data). Query stale time: 30s. Mutations invalidate related query keys on success.
 
-**Routing**: React Router 7. `RequireAuth` wrapper checks auth user. `RequireRole` guards admin-only routes. All pages are lazy-loaded with `React.lazy()` + `Suspense`.
+**Routing**: React Router 7. `RequireAuth` wrapper checks auth user. `RequireRole` guards admin-only routes. All pages lazy-loaded with `React.lazy()` + `Suspense`. The unified schedule page at `/schedule` uses URL search params (`?view=day|week|month&date=YYYY-MM-DD`) for bookmarkable state. Old routes (`/my-schedule`, `/schedule/day/:date`, `/staffing/resolve`, `/duty-board`) redirect to `/schedule`.
 
 **Styling**: Tailwind CSS 4 + shadcn/ui. Use `cn()` utility (clsx + tw-merge) for class composition. CSS variables define theme tokens in oklch color space.
 
@@ -137,7 +138,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 
 ## Database Schema
 
-53 migrations in `backend/migrations/` (0001–0053). Key tables:
+57 migrations in `backend/migrations/` (0001–0057). Key tables:
 
 - `organizations` — Multi-tenant root
 - `users` — With `classification_id` FK, `employee_type` (type: `employee_type_enum`), `bargaining_unit` (TEXT, references `bargaining_units` table), `cto_designation` bool, `admin_training_supervisor_since` date, `employee_status` (type: `employee_status_enum`), `is_active` soft-delete
@@ -145,7 +146,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `classifications` — Org-specific job classifications (e.g., dispatcher, call-taker)
 - `shift_templates` — Reusable shift definitions (name, start/end time, hours, color)
 - `teams` — Org divisions with optional `supervisor_id`
-- `shift_slots` — Recurring slots linking team + template + classification + days_of_week
+- `shift_slots` — Recurring slots linking team + template + classification + days_of_week (coverage queries filter by shift_slots to only show relevant classifications per shift)
 - `shift_patterns` + `shift_pattern_assignments` — Rotating shift pattern definitions and user assignments
 - `scheduled_shifts` — Concrete shift instances on specific dates
 - `schedule_periods` — Bid periods for slot assignments
