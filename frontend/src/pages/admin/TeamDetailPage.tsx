@@ -21,6 +21,7 @@ import { ErrorState } from '@/components/ui/error-state'
 import {
   useTeam,
   useTeams,
+  useTeamMembers,
   useTeamSlots,
   useCreateSlot,
   useUpdateSlot,
@@ -50,6 +51,7 @@ export default function TeamDetailPage() {
   const teamId = id ?? ''
   const { data: team, isLoading: teamLoading, isError: teamError } = useTeam(teamId)
   const { data: allTeams } = useTeams()
+  const { data: members } = useTeamMembers(teamId)
   const { data: slots, isLoading: slotsLoading, isError: slotsError } = useTeamSlots(teamId)
   const { data: templates } = useShiftTemplates()
   const { data: classifications } = useClassifications()
@@ -238,6 +240,44 @@ export default function TeamDetailPage() {
         ) : null
       })()}
 
+      {/* Team Members */}
+      {members && members.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold mb-2">Members ({members.length})</h3>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Name</th>
+                  <th className="text-left px-3 py-2 font-medium">Classification</th>
+                  <th className="text-left px-3 py-2 font-medium">Role</th>
+                  <th className="text-left px-3 py-2 font-medium">Shift</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr key={m.user_id} className="border-t">
+                    <td className="px-3 py-1.5 font-medium">
+                      {m.last_name}, {m.first_name}
+                      {(m.role === 'supervisor' || m.role === 'admin') && (
+                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                          {m.role === 'admin' ? 'Admin' : 'SUP'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{m.classification_abbreviation ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground capitalize">{m.role}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{m.shift_name ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Shift Slots */}
+      <h3 className="text-sm font-semibold mb-2">Shift Slots</h3>
       {teamError || slotsError ? (
         <ErrorState message="Failed to load team data." />
       ) : (

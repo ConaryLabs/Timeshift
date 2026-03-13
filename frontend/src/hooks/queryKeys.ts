@@ -19,6 +19,7 @@ export const queryKeys = {
     all: ['teams'] as const,
     detail: (id: string) => ['teams', id] as const,
     slots: (teamId: string) => ['teams', teamId, 'slots'] as const,
+    members: (teamId: string) => ['teams', teamId, 'members'] as const,
   },
   users: {
     all: ['users'] as const,
