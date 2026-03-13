@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM login_audit_log WHERE created_at < NOW() - INTERVAL '90 days'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "9e6e88133752e3999c23f3702321a514db3f838b79cf93479999240736ea26e2"
+}
