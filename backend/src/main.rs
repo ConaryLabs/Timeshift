@@ -145,6 +145,29 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Periodic cleanup: expired refresh tokens and old audit logs
+    {
+        let pool = state.pool.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(86400));
+            interval.tick().await; // skip immediate first tick
+            loop {
+                interval.tick().await;
+                let tokens = sqlx::query!("DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL '1 day'")
+                    .execute(&pool)
+                    .await;
+                let audit = sqlx::query!("DELETE FROM login_audit_log WHERE created_at < NOW() - INTERVAL '90 days'")
+                    .execute(&pool)
+                    .await;
+                tracing::info!(
+                    "Cleanup: removed {} expired tokens, {} old audit entries",
+                    tokens.map(|r| r.rows_affected()).unwrap_or(0),
+                    audit.map(|r| r.rows_affected()).unwrap_or(0),
+                );
+            }
+        });
+    }
+
     // Build rate-limited routers. Route registrations use api:: handlers so the
     // handler<->URL mapping is discoverable from api/mod.rs::all_routes.
     let rate_limited = vec![

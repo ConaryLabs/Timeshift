@@ -104,6 +104,10 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "trade_require_same_period",
     "trade_approval_cutoff_minutes",
     "vacation_hours_charged_sep_feb",
+    "vacation_hours_per_day",
+    "max_concurrent_vacation",
+    "enable_bump_requests",
+    "sellback_periods",
 ];
 
 /// Set/update an org setting (admin only). Upserts by key.
@@ -122,7 +126,9 @@ pub async fn set_setting(
         return Err(AppError::BadRequest("key must not be empty".into()));
     }
 
-    if !ALLOWED_SETTING_KEYS.contains(&req.key.as_str()) {
+    let is_dynamic_sellback = req.key.starts_with("sellback_")
+        && (req.key.ends_with("_open") || req.key.ends_with("_close"));
+    if !ALLOWED_SETTING_KEYS.contains(&req.key.as_str()) && !is_dynamic_sellback {
         return Err(AppError::BadRequest(format!(
             "Unknown setting key '{}'. Allowed keys: {}",
             req.key,
