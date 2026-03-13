@@ -260,14 +260,14 @@ SchedulePage.tsx              — Route component, URL param handling, view swit
 - DailyView fetches multiple hooks in parallel:
   - `useDayGrid(date)` — block grid data (classifications, 2-hour blocks, employee Gantt bars)
   - `useDayView(date)` — shift-level entries with assignments (for shift list)
-  - `useDutyBoard(date)` — position assignments (for duty board tab, only fetched when tab active)
+  - `useDutyBoard(date)` — position assignments (for duty board tab, only fetched when tab active; no refetchInterval — that is only for the kiosk display page)
   - `useAnnotations(date, date)` — date annotations
-  - `useBlockAvailable(date, blockIndex, classificationId)` — fetched on-demand when action panel opens
+  - `useBlockAvailable(date, classificationId, blockStart, blockEnd)` — fetched on-demand when action panel opens
 - Loading state: show skeleton/spinner until both `useDayGrid` and `useDayView` resolve. Duty board tab shows its own loading state independently.
 - WeekView additionally uses `useScheduleGrid(weekStart, weekEnd)` for the 7-day heatmap strip coverage data
 - MonthView uses `useScheduleGrid(monthStart, monthEnd)` for the calendar grid coverage data
 - Role detection via existing `usePermissions()` hook
-- View preference: add `preferredScheduleView: 'day' | 'week' | 'month'` field to `useUIStore` (Zustand, localStorage-persisted). Default: `'day'`
+- View preference: add `preferredScheduleView: 'day' | 'week' | 'month'` field to `useUIStore` (Zustand, localStorage-persisted). Default: `'day'`. Requires bumping store version to 3 and adding a migration case.
 - Team filter state: use existing `selectedTeamId` from `useUIStore`
 - Saved filters: use existing `useSavedFilters()` hook
 
