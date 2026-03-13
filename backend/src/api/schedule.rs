@@ -1001,6 +1001,7 @@ pub async fn list_annotations(
     auth: AuthUser,
     Query(q): Query<AnnotationQuery>,
 ) -> Result<Json<Vec<ScheduleAnnotation>>> {
+    validate_date_range(q.start_date, q.end_date, Some(366))?;
     let rows = sqlx::query_as!(
         ScheduleAnnotation,
         r#"
