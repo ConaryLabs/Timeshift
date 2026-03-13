@@ -43,13 +43,11 @@ export function WeekView({ date, onDateChange, teamId }: WeekViewProps) {
       // Selected day is outside new week — move to date prop or today if in range
       const today = new Date()
       const todayStr = toLocalDateStr(today)
-      if (todayStr >= weekStartStr && todayStr <= weekEndStr) {
-        setSelectedDay(today)
-      } else {
-        setSelectedDay(date)
-      }
+      const next = todayStr >= weekStartStr && todayStr <= weekEndStr ? today : date
+      setSelectedDay(next)
     }
-  }, [weekStartStr, weekEndStr]) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStartStr, weekEndStr])
 
   // Build per-day coverage summary from grid cells
   function getDayCoverage(dayStr: string): {
