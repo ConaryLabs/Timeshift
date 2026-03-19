@@ -198,4 +198,4 @@ Every database table includes an `org_id` foreign key. JWT tokens carry `org_id`
 
 ## License
 
-[To be determined]
+[AGPL-3.0](LICENSE)
