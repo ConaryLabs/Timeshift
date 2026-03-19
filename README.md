@@ -2,15 +2,13 @@
 
 Shift scheduling for 911 dispatch centers — and any shift-work organization that needs more than a generic calendar.
 
-Timeshift is a modern replacement for [ScheduleExpress](https://www.scheduleexpress.com/), built from the ground up for organizations with complex scheduling rules: union contracts, seniority-based overtime callout queues, multi-round vacation bidding, and 24/7 coverage requirements.
-
-**Current deployment:** [Valley Communications Center](https://www.valleycom.org/), Kent WA (Valleycom) — a King County 911 dispatch center serving 14 cities.
+Timeshift is a modern replacement for legacy scheduling tools, built from the ground up for organizations with complex scheduling rules: union contracts, seniority-based overtime callout queues, multi-round vacation bidding, and 24/7 coverage requirements.
 
 ---
 
 ## Why Timeshift?
 
-ScheduleExpress and generic tools (Deputy, When I Work) don't handle the specific rules that govern public safety dispatch scheduling:
+Generic scheduling tools (Deputy, When I Work) don't handle the specific rules that govern public safety dispatch scheduling:
 
 | Need | Generic tools | Timeshift |
 |------|--------------|-----------|
@@ -88,8 +86,8 @@ ScheduleExpress and generic tools (Deputy, When I Work) don't handle the specifi
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/yourorg/timeshift
-cd timeshift
+git clone https://github.com/ConaryLabs/Timeshift
+cd Timeshift
 cp .env.example .env
 ```
 
@@ -117,7 +115,7 @@ sudo -u postgres createdb --owner=timeshift timeshift
 
 ```bash
 make migrate        # Run database migrations
-make seed           # Load Valleycom demo data
+make seed           # Load demo data
 ```
 
 ### 4. Run
@@ -133,13 +131,11 @@ Open [http://localhost:5173](http://localhost:5173).
 
 All accounts use password `admin123`:
 
-| Role | Email | Classification |
-|------|-------|---------------|
-| Admin | `admin@valleycom.org` | Supervisor |
-| Supervisor | `sarah.chen@valleycom.org` | Supervisor (VCSG) |
-| Employee | `mike.johnson@valleycom.org` | COII (VCCEA) |
-| Employee | `lisa.park@valleycom.org` | COI (VCCEA) |
-| Employee | `james.rivera@valleycom.org` | COII (VCCEA) |
+| Role | Email |
+|------|-------|
+| Admin | `admin@demo.org` |
+| Supervisor | `sarah.chen@demo.org` |
+| Employee | `mike.johnson@demo.org` |
 
 ---
 
@@ -154,7 +150,7 @@ timeshift/
 │   │   ├── auth/       # JWT, AuthUser extractor, role permissions
 │   │   └── ...
 │   ├── migrations/     # SQLx migrations (0001–0057)
-│   ├── seeds/          # Valleycom demo data
+│   ├── seeds/          # Demo data
 │   └── tests/          # Integration tests (real DB, isolated orgs)
 ├── frontend/           # React + TypeScript + Vite
 │   └── src/
@@ -163,7 +159,6 @@ timeshift/
 │       ├── hooks/      # React Query hooks (~110 hooks)
 │       ├── store/      # Zustand stores (auth, UI)
 │       └── components/ # UI components (shadcn/radix wrappers + layout)
-├── research/           # Domain research: union contracts, SE analysis, SOPs
 ├── Makefile            # Common dev commands
 └── docker-compose.yml  # PostgreSQL for local dev
 ```
@@ -198,12 +193,6 @@ cd frontend && npm run build   # includes TypeScript check
 ## Multi-tenancy
 
 Every database table includes an `org_id` foreign key. JWT tokens carry `org_id` in their claims. All queries filter by the authenticated user's org — orgs are fully isolated with no shared data.
-
----
-
-## Research
-
-The `research/` directory contains the domain research that informed this project: union contract rules (VCCEA 2025-2027, VCSG 2025-2026), ScheduleExpress feature analysis, Valleycom SOPs, shift patterns, leave types, and OT callout procedures. This context is useful for understanding why the data model is shaped the way it is.
 
 ---
 
