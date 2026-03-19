@@ -19,5 +19,8 @@ frontend/dist/
 .DS_Store
 
 
+# Proprietary research / contracts
+research/
+
 # Claude Code local data
 .claude/
