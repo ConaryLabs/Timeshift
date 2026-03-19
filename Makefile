@@ -13,7 +13,7 @@ migrate:
 
 # Load seed data (run after migrate — first-time only)
 seed:
-	PGPASSWORD=timeshift_dev psql -U timeshift -h 127.0.0.1 -d timeshift < backend/seeds/valleycom.sql
+	PGPASSWORD=timeshift_dev psql -U timeshift -h 127.0.0.1 -d timeshift < backend/seeds/demo.sql
 
 # Wipe and reload all seed data (works on both dev and production)
 reseed:

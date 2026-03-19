@@ -319,7 +319,7 @@ export default function MandatoryOTDialog({ gap, date, open, onOpenChange }: Pro
         <DialogHeader>
           <DialogTitle>Assign Mandatory OT</DialogTitle>
           <DialogDescription>
-            Contract limit: max 2 hours before or after the employee's scheduled shift (VCCEA § 4.4.3).
+            Contract limit: max 2 hours before or after the employee's scheduled shift (CBA § 4.4.3).
           </DialogDescription>
         </DialogHeader>
 

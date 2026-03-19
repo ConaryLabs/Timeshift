@@ -417,7 +417,7 @@ pub struct MandatoryOtOrderEntry {
 
 /// GET /api/staffing/mandatory-ot-order
 ///
-/// CBA (VCCEA Article 15): Mandatory OT distributed in inverse seniority order
+/// CBA (CBA Article 15): Mandatory OT distributed in inverse seniority order
 /// (least senior first). Least senior = most recent bargaining_unit_seniority_date
 /// = called first. NULL seniority date = no date = least senior = called first.
 /// Used by MandatoryOTDialog to order the employee dropdown.

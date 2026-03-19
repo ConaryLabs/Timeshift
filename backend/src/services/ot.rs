@@ -138,7 +138,7 @@ pub async fn revert_ot_hours_worked(
 /// Stamp an employee's OT queue position with the current time.
 /// CBA: After any OT contact (accepted or declined), the employee moves to the back
 /// of the queue. NULL last_ot_event_at = never contacted = highest priority.
-/// (VCCEA Article 15 — OT distribution by lowest-hours-first, then queue position.)
+/// (CBA Article 15 — OT distribution by lowest-hours-first, then queue position.)
 pub async fn stamp_ot_queue(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     org_id: Uuid,
@@ -164,7 +164,7 @@ pub async fn stamp_ot_queue(
     Ok(())
 }
 
-/// CBA (VCCEA Section 4.4.3): Verify at least 10 hours of rest between the end of an
+/// CBA (§ 4.4.3): Verify at least 10 hours of rest between the end of an
 /// OT shift and the employee's next regular shift.
 ///
 /// Used by both the callout acceptance flow and OT request assignment flow.
@@ -220,7 +220,7 @@ pub async fn check_10_hour_rest_gap(
         if gap_minutes < 10 * 60 {
             return Err(AppError::BadRequest(format!(
                 "OT would leave less than 10 hours before the employee's \
-                 next scheduled shift on {} (VCCEA Section 4.4.3).",
+                 next scheduled shift on {} (CBA § 4.4.3).",
                 next.shift_date,
             )));
         }

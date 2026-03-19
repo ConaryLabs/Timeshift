@@ -193,7 +193,7 @@ async fn test_accrual_basic_credit() {
     // User hired 2 years ago
     let user_id = create_accrual_user(
         &pool, org_id, "basic@accrual.test", "Alice", "Basic",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     let result = timeshift_backend::services::accrual::run_org_accrual(
@@ -226,19 +226,19 @@ async fn test_accrual_yos_tier_matching() {
     // User with 2 YOS → should match tier 1 (3.0 hrs)
     let user_new = create_accrual_user(
         &pool, org_id, "new@accrual.test", "New", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     // User with ~8 YOS → should match tier 2 (5.0 hrs)
     let user_mid = create_accrual_user(
         &pool, org_id, "mid@accrual.test", "Mid", "Employee",
-        "regular_full_time", "vccea", "2018-01-01",
+        "regular_full_time", "union_a", "2018-01-01",
     ).await;
 
     // User with ~15 YOS → should match tier 3 (7.0 hrs)
     let user_senior = create_accrual_user(
         &pool, org_id, "senior@accrual.test", "Senior", "Employee",
-        "regular_full_time", "vccea", "2011-01-01",
+        "regular_full_time", "union_a", "2011-01-01",
     ).await;
 
     let result = timeshift_backend::services::accrual::run_org_accrual(
@@ -268,19 +268,19 @@ async fn test_accrual_bu_precedence() {
 
     // Wildcard schedule (NULL BU): 2.0 hrs
     create_schedule(&pool, org_id, vac_id, "regular_full_time", None, 0, None, 2.0, None).await;
-    // BU-specific schedule for vccea: 4.0 hrs
-    create_schedule(&pool, org_id, vac_id, "regular_full_time", Some("vccea"), 0, None, 4.0, None).await;
+    // BU-specific schedule for union_a: 4.0 hrs
+    create_schedule(&pool, org_id, vac_id, "regular_full_time", Some("union_a"), 0, None, 4.0, None).await;
 
-    // VCCEA user → should get BU-specific (4.0)
-    let user_vccea = create_accrual_user(
-        &pool, org_id, "vccea@accrual.test", "VCCEA", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+    // Union A user → should get BU-specific (4.0)
+    let user_union_a = create_accrual_user(
+        &pool, org_id, "union-a@accrual.test", "UnionA", "Employee",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
-    // VCSG user → should fall back to wildcard (2.0)
-    let user_vcsg = create_accrual_user(
-        &pool, org_id, "vcsg@accrual.test", "VCSG", "Employee",
-        "regular_full_time", "vcsg", "2024-01-01",
+    // Union B user → should fall back to wildcard (2.0)
+    let user_union_b = create_accrual_user(
+        &pool, org_id, "union-b@accrual.test", "UnionB", "Employee",
+        "regular_full_time", "union_b", "2024-01-01",
     ).await;
 
     let result = timeshift_backend::services::accrual::run_org_accrual(
@@ -289,11 +289,11 @@ async fn test_accrual_bu_precedence() {
 
     assert_eq!(result.credits_applied, 2);
 
-    let bal_vccea = get_balance(&pool, org_id, user_vccea, vac_id).await;
-    let bal_vcsg = get_balance(&pool, org_id, user_vcsg, vac_id).await;
+    let bal_union_a = get_balance(&pool, org_id, user_union_a, vac_id).await;
+    let bal_union_b = get_balance(&pool, org_id, user_union_b, vac_id).await;
 
-    assert!((bal_vccea - 4.0).abs() < 0.01, "VCCEA should get 4.0 (BU-specific), got {bal_vccea}");
-    assert!((bal_vcsg - 2.0).abs() < 0.01, "VCSG should get 2.0 (wildcard), got {bal_vcsg}");
+    assert!((bal_union_a - 4.0).abs() < 0.01, "Union A should get 4.0 (BU-specific), got {bal_union_a}");
+    assert!((bal_union_b - 2.0).abs() < 0.01, "Union B should get 2.0 (wildcard), got {bal_union_b}");
 
     cleanup_test_org(&pool, org_id).await;
 }
@@ -310,7 +310,7 @@ async fn test_accrual_pause_skips_user() {
     // Create a user that is paused
     let user_id = create_accrual_user(
         &pool, org_id, "paused@accrual.test", "Paused", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     // Set leave_accrual_paused_at
@@ -343,7 +343,7 @@ async fn test_accrual_max_balance_cap() {
 
     let user_id = create_accrual_user(
         &pool, org_id, "cap@accrual.test", "Capped", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     // Pre-set balance to 3.0 hrs (so 4.0 would exceed cap of 5.0)
@@ -392,7 +392,7 @@ async fn test_accrual_max_balance_already_at_cap() {
 
     let user_id = create_accrual_user(
         &pool, org_id, "atcap@accrual.test", "AtCap", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     // Pre-set balance at exactly the cap
@@ -436,7 +436,7 @@ async fn test_accrual_idempotent_rerun() {
 
     let user_id = create_accrual_user(
         &pool, org_id, "idempotent@accrual.test", "Idempotent", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     // First run
@@ -490,7 +490,7 @@ async fn test_accrual_dry_run() {
 
     let user_id = create_accrual_user(
         &pool, org_id, "dryrun@accrual.test", "DryRun", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     let result = timeshift_backend::services::accrual::run_org_accrual(
@@ -524,7 +524,7 @@ async fn test_accrual_admin_endpoint() {
     // But create_test_user doesn't set employee_type, so let's create a proper user
     let _user_id = create_accrual_user(
         &pool, org_id, "endpoint-emp@accrual.test", "Endpoint", "Employee",
-        "regular_full_time", "vccea", "2024-01-01",
+        "regular_full_time", "union_a", "2024-01-01",
     ).await;
 
     let client = http_client();

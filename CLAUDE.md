@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Timeshift is a shift-scheduling platform replacing ScheduleExpress for 911 dispatch centers (starting with Valleycom, Kent WA). The goal is to generalize beyond Valleycom to support any shift-work organization.
+Timeshift is a shift-scheduling platform for 911 dispatch centers and any shift-work organization that needs more than a generic calendar.
 
 - **Backend**: Rust (Axum 0.7 + SQLx 0.8 + PostgreSQL 18) at `backend/`
 - **Frontend**: React 19 + TypeScript + Vite at `frontend/`
@@ -17,7 +17,7 @@ All commands run from the project root via `Makefile`:
 ```bash
 make db-reset          # Drop and recreate database (native PostgreSQL)
 make migrate           # Run SQLx migrations
-make seed              # Load Valleycom seed data
+make seed              # Load demo seed data
 make reseed            # Wipe and reload seed data (works on dev and production)
 make backend           # Run Axum server on :8080
 make frontend          # Run Vite dev server on :5173
@@ -49,7 +49,7 @@ cd frontend && npm run build
 
 ### Seed credentials
 
-All accounts use password `admin123`. Seed admin: `admin@valleycom.org`. See `/reseed` skill for full test account list.
+All accounts use password `admin123`. Seed admin: `admin@demo.timeshift.dev`. See `/reseed` skill for full test account list.
 
 ## Common Pitfalls
 
@@ -160,7 +160,7 @@ Integration tests live in `backend/tests/` with helpers in `tests/common/mod.rs`
 - `leave_request_lines` — Per-day leave request breakdown
 - `callout_events` + `callout_attempts` — Callout process tracking
 - `ot_hours` — OT tracking per user/fiscal_year/classification
-- `ot_reasons` — Reasons for overtime (29 Valleycom-specific reasons)
+- `ot_reasons` — Reasons for overtime (29 dispatch-specific reasons)
 - `ot_requests` — Standalone OT request slots (date, times, classification, status workflow via `ot_request_status` enum)
 - `ot_request_volunteers` — Employee volunteers for OT requests
 - `ot_request_assignments` — Supervisor assignments to OT requests

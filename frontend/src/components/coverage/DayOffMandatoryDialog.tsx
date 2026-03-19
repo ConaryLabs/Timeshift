@@ -120,7 +120,7 @@ export default function DayOffMandatoryDialog({
           <DialogTitle>Mandate Day-Off Employee</DialogTitle>
           <DialogDescription>
             Assign mandatory OT to an employee on their scheduled day off.
-            Contract allows 4–6 hour blocks (VCCEA § 4.4.3).
+            Contract allows 4–6 hour blocks (CBA § 4.4.3).
           </DialogDescription>
         </DialogHeader>
 

@@ -178,7 +178,7 @@ pub async fn create(
         ));
     }
 
-    // Configurable: require both shifts within the same schedule period (VCCEA 14.3)
+    // Configurable: require both shifts within the same schedule period (CBA Article 14.3)
     let require_same_period = crate::services::org_settings::get_bool(
         &pool,
         auth.org_id,
@@ -525,7 +525,7 @@ pub async fn review(
         ));
     }
 
-    // VCCEA Article 14.3: reject approval if trade deadline has passed
+    // CBA Article 14.3: reject approval if trade deadline has passed
     if body.status == ReviewAction::Approved {
         if let Some(deadline) = r.deadline_at {
             if time::OffsetDateTime::now_utc() > deadline {

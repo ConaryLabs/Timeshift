@@ -1,4 +1,4 @@
--- Valleycom seed data
+-- Demo seed data
 -- Run after migrations: make seed
 -- March 2026 team structure: 1 admin + 10 SUP + 49 COII + 39 COI = 99 users
 
@@ -7,7 +7,7 @@ BEGIN;
 -- ── Organization ────────────────────────────────────────────────────────────
 
 INSERT INTO organizations (id, name, slug, timezone) VALUES
-    ('00000000-0000-0000-0000-000000000a01', 'Valley Communications Center', 'valleycom', 'America/Los_Angeles');
+    ('00000000-0000-0000-0000-000000000a01', 'Metro Dispatch Center', 'demo', 'America/Los_Angeles');
 
 -- ── Bargaining Units ──────────────────────────────────────────────────────
 -- Recreated here (originally from migration 0045) so reseed works after TRUNCATE
@@ -18,9 +18,9 @@ INSERT INTO bargaining_units (org_id, code, name,
     donation_annual_cap, donation_retention_floor,
     longevity_eligible, longevity_vacation_credit, longevity_tiers)
 VALUES
-    ('00000000-0000-0000-0000-000000000a01', 'vccea', 'VCCEA',
+    ('00000000-0000-0000-0000-000000000a01', 'union_a', 'Union A',
      240.0, ARRAY['vacation','holiday'], 96.0, 20.0, 100.0, false, 0.0, NULL),
-    ('00000000-0000-0000-0000-000000000a01', 'vcsg', 'VCSG',
+    ('00000000-0000-0000-0000-000000000a01', 'union_b', 'Union B',
      260.0, ARRAY['vacation'], 88.0, 40.0, 100.0, true, 24.0,
      '[{"min_years":0,"max_years":4,"percent":1.55},{"min_years":5,"max_years":9,"percent":2.05},{"min_years":10,"max_years":14,"percent":2.55},{"min_years":15,"max_years":19,"percent":3.05},{"min_years":20,"max_years":99,"percent":3.55}]'::jsonb),
     ('00000000-0000-0000-0000-000000000a01', 'non_represented', 'Non-Represented',
@@ -42,7 +42,7 @@ INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, passwo
     ('00000000-0000-0000-0000-0000000000a1',
      '00000000-0000-0000-0000-000000000a01',
      'ADMIN001', 'System', 'Admin',
-     'admin@valleycom.org',
+     'admin@demo.timeshift.dev',
      '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
      'admin',
      '00000000-0000-0000-0000-000000000c03',
@@ -51,418 +51,418 @@ INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, passwo
 -- Team 1
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit, phone) VALUES
     ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000a01', 'SUP001', 'Sarah', 'Chen',
-     'sarah.chen@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2012-03-15', 'vcsg', '253-555-0102');
+     'sarah.chen@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2012-03-15', 'union_b', '253-555-0102');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit, phone) VALUES
     ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000a01', 'EMP002', 'Mike', 'Johnson',
-     'mike.johnson@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2018-06-01', 'vccea', '253-555-0201');
+     'mike.johnson@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2018-06-01', 'union_a', '253-555-0201');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit, phone) VALUES
     ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000a01', 'EMP003', 'Lisa', 'Park',
-     'lisa.park@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2021-09-12', 'vccea', '253-555-0202');
+     'lisa.park@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2021-09-12', 'union_a', '253-555-0202');
 
 -- Team 2
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit, phone) VALUES
     ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000a01', 'EMP004', 'James', 'Rivera',
-     'james.rivera@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2015-11-20', 'vccea', '253-555-0203');
+     'james.rivera@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2015-11-20', 'union_a', '253-555-0203');
 
 -- Team 1
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000a01', 'EMP005', 'Marcus', 'Torres',
-     'marcus.torres@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2021-04-27', 'vccea');
+     'marcus.torres@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2021-04-27', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000a01', 'EMP006', 'Elena', 'Nakamura',
-     'elena.nakamura@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2018-01-26', 'vccea');
+     'elena.nakamura@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2018-01-26', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000a01', 'EMP007', 'Devon', 'Okonkwo',
-     'devon.okonkwo@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2014-10-27', 'vccea');
+     'devon.okonkwo@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2014-10-27', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000a01', 'EMP008', 'Priya', 'Petrov',
-     'priya.petrov@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2011-07-28', 'vccea');
+     'priya.petrov@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2011-07-28', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000a01', 'EMP009', 'Tyler', 'Santos',
-     'tyler.santos@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2023-01-23', 'vccea');
+     'tyler.santos@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2023-01-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000a01', 'EMP010', 'Keiko', 'Chang',
-     'keiko.chang@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2015-10-25', 'vccea');
+     'keiko.chang@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2015-10-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-000000000a01', 'EMP011', 'Brandon', 'Hoffman',
-     'brandon.hoffman@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2018-07-24', 'vccea');
+     'brandon.hoffman@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2018-07-24', 'union_a');
 
 -- Team 2
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-000000000a01', 'SUP012', 'Amara', 'Morales',
-     'amara.morales@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2005-08-30', 'vcsg');
+     'amara.morales@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2005-08-30', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-000000000a01', 'EMP013', 'Nathan', 'Cooper',
-     'nathan.cooper@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2013-02-26', 'vccea');
+     'nathan.cooper@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2013-02-26', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000000e', '00000000-0000-0000-0000-000000000a01', 'EMP014', 'Sofia', 'Walsh',
-     'sofia.walsh@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2022-11-24', 'vccea');
+     'sofia.walsh@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2022-11-24', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000000f', '00000000-0000-0000-0000-000000000a01', 'EMP015', 'Jordan', 'Patel',
-     'jordan.patel@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2019-08-25', 'vccea');
+     'jordan.patel@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2019-08-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000a01', 'EMP016', 'Yuki', 'Brooks',
-     'yuki.brooks@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2016-05-25', 'vccea');
+     'yuki.brooks@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2016-05-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000a01', 'EMP017', 'Cameron', 'Williams',
-     'cameron.williams@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2019-02-23', 'vccea');
+     'cameron.williams@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2019-02-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000a01', 'EMP018', 'Zara', 'Hayes',
-     'zara.hayes@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2021-11-22', 'vccea');
+     'zara.hayes@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2021-11-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000a01', 'EMP019', 'Dylan', 'Cruz',
-     'dylan.cruz@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2024-08-21', 'vccea');
+     'dylan.cruz@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2024-08-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000a01', 'EMP020', 'Mei', 'Nguyen',
-     'mei.nguyen@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2017-05-23', 'vccea');
+     'mei.nguyen@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2017-05-23', 'union_a');
 
 -- Team 3
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000a01', 'SUP021', 'Travis', 'Mitchell',
-     'travis.mitchell@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2011-06-28', 'vcsg');
+     'travis.mitchell@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2011-06-28', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000a01', 'EMP022', 'Anika', 'Edwards',
-     'anika.edwards@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2021-03-26', 'vccea');
+     'anika.edwards@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2021-03-26', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000a01', 'EMP023', 'Colton', 'Kim',
-     'colton.kim@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2017-12-25', 'vccea');
+     'colton.kim@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2017-12-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000a01', 'EMP024', 'Fatima', 'Wright',
-     'fatima.wright@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2014-09-25', 'vccea');
+     'fatima.wright@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2014-09-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000a01', 'EMP025', 'Ryan', 'Baker',
-     'ryan.baker@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2011-06-26', 'vccea');
+     'ryan.baker@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2011-06-26', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000001a', '00000000-0000-0000-0000-000000000a01', 'EMP026', 'Lena', 'Foster',
-     'lena.foster@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2021-03-23', 'vccea');
+     'lena.foster@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2021-03-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-000000000a01', 'EMP027', 'Wyatt', 'Reed',
-     'wyatt.reed@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2017-12-23', 'vccea');
+     'wyatt.reed@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2017-12-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000001c', '00000000-0000-0000-0000-000000000a01', 'EMP028', 'Nadia', 'Bell',
-     'nadia.bell@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2020-09-21', 'vccea');
+     'nadia.bell@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2020-09-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000001d', '00000000-0000-0000-0000-000000000a01', 'EMP029', 'Grant', 'Green',
-     'grant.green@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2023-06-21', 'vccea');
+     'grant.green@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2023-06-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000001e', '00000000-0000-0000-0000-000000000a01', 'EMP030', 'Sasha', 'Sharma',
-     'sasha.sharma@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2016-03-22', 'vccea');
+     'sasha.sharma@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2016-03-22', 'union_a');
 
 -- Team 4
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000001f', '00000000-0000-0000-0000-000000000a01', 'SUP031', 'Keith', 'Lee',
-     'keith.lee@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2006-04-28', 'vcsg');
+     'keith.lee@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2006-04-28', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000a01', 'EMP032', 'Dina', 'Huang',
-     'dina.huang@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2013-01-25', 'vccea');
+     'dina.huang@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2013-01-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000a01', 'EMP033', 'Derek', 'Vargas',
-     'derek.vargas@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2022-10-23', 'vccea');
+     'derek.vargas@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2022-10-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000a01', 'EMP034', 'Rosa', 'Dubois',
-     'rosa.dubois@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2019-07-24', 'vccea');
+     'rosa.dubois@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2019-07-24', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-000000000a01', 'EMP035', 'Blake', 'Svensson',
-     'blake.svensson@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2016-04-23', 'vccea');
+     'blake.svensson@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2016-04-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000a01', 'EMP036', 'Ines', 'Kowalski',
-     'ines.kowalski@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2013-01-22', 'vccea');
+     'ines.kowalski@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2013-01-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000025', '00000000-0000-0000-0000-000000000a01', 'EMP037', 'Craig', 'Tanaka',
-     'craig.tanaka@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2016-10-22', 'vccea');
+     'craig.tanaka@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2016-10-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000026', '00000000-0000-0000-0000-000000000a01', 'EMP038', 'Tanya', 'Singh',
-     'tanya.singh@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2019-07-22', 'vccea');
+     'tanya.singh@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2019-07-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000027', '00000000-0000-0000-0000-000000000a01', 'EMP039', 'Brett', 'Fernandez',
-     'brett.fernandez@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2022-04-20', 'vccea');
+     'brett.fernandez@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2022-04-20', 'union_a');
 
 -- Team 5
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000028', '00000000-0000-0000-0000-000000000a01', 'SUP040', 'Leila', 'Russo',
-     'leila.russo@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2012-02-24', 'vcsg');
+     'leila.russo@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2012-02-24', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000029', '00000000-0000-0000-0000-000000000a01', 'EMP041', 'Shane', 'Novak',
-     'shane.novak@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2017-11-23', 'vccea');
+     'shane.novak@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2017-11-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000002a', '00000000-0000-0000-0000-000000000a01', 'EMP042', 'Marta', 'Andersen',
-     'marta.andersen@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2014-08-24', 'vccea');
+     'marta.andersen@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2014-08-24', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000002b', '00000000-0000-0000-0000-000000000a01', 'EMP043', 'Wade', 'Kato',
-     'wade.kato@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2011-05-25', 'vccea');
+     'wade.kato@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2011-05-25', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000002c', '00000000-0000-0000-0000-000000000a01', 'EMP044', 'Anya', 'Ali',
-     'anya.ali@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2021-02-19', 'vccea');
+     'anya.ali@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2021-02-19', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000002d', '00000000-0000-0000-0000-000000000a01', 'EMP045', 'Drew', 'Weber',
-     'drew.weber@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2017-11-20', 'vccea');
+     'drew.weber@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2017-11-20', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000002e', '00000000-0000-0000-0000-000000000a01', 'EMP046', 'Vera', 'Berg',
-     'vera.berg@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2015-08-22', 'vccea');
+     'vera.berg@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2015-08-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000002f', '00000000-0000-0000-0000-000000000a01', 'EMP047', 'Cole', 'Nilsson',
-     'cole.nilsson@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2018-05-21', 'vccea');
+     'cole.nilsson@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2018-05-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000030', '00000000-0000-0000-0000-000000000a01', 'EMP048', 'Nina', 'Hernandez',
-     'nina.hernandez@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2021-02-17', 'vccea');
+     'nina.hernandez@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2021-02-17', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000031', '00000000-0000-0000-0000-000000000a01', 'EMP049', 'Troy', 'Roth',
-     'troy.roth@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2023-11-17', 'vccea');
+     'troy.roth@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2023-11-17', 'union_a');
 
 -- Team 6
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000032', '00000000-0000-0000-0000-000000000a01', 'SUP050', 'Iris', 'Lam',
-     'iris.lam@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2006-12-25', 'vcsg');
+     'iris.lam@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2006-12-25', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000033', '00000000-0000-0000-0000-000000000a01', 'EMP051', 'Glen', 'Fischer',
-     'glen.fischer@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2022-09-21', 'vccea');
+     'glen.fischer@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2022-09-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000a01', 'EMP052', 'Lydia', 'Vogel',
-     'lydia.vogel@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2019-06-22', 'vccea');
+     'lydia.vogel@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2019-06-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000035', '00000000-0000-0000-0000-000000000a01', 'EMP053', 'Miles', 'Mendez',
-     'miles.mendez@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2016-03-22', 'vccea');
+     'miles.mendez@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2016-03-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000036', '00000000-0000-0000-0000-000000000a01', 'EMP054', 'Clara', 'Larsson',
-     'clara.larsson@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2012-12-21', 'vccea');
+     'clara.larsson@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2012-12-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000037', '00000000-0000-0000-0000-000000000a01', 'EMP055', 'Reed', 'Schneider',
-     'reed.schneider@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2022-09-18', 'vccea');
+     'reed.schneider@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2022-09-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000038', '00000000-0000-0000-0000-000000000a01', 'EMP056', 'Jana', 'Lund',
-     'jana.lund@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2024-06-18', 'vccea');
+     'jana.lund@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2024-06-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000039', '00000000-0000-0000-0000-000000000a01', 'EMP057', 'Quinn', 'Muller',
-     'quinn.muller@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2017-03-20', 'vccea');
+     'quinn.muller@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2017-03-20', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000003a', '00000000-0000-0000-0000-000000000a01', 'EMP058', 'Daria', 'Bergman',
-     'daria.bergman@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2019-12-18', 'vccea');
+     'daria.bergman@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2019-12-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000003b', '00000000-0000-0000-0000-000000000a01', 'EMP059', 'Ross', 'Costa',
-     'ross.costa@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2022-09-16', 'vccea');
+     'ross.costa@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2022-09-16', 'union_a');
 
 -- Team 7
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000003c', '00000000-0000-0000-0000-000000000a01', 'SUP060', 'Olga', 'Johansson',
-     'olga.johansson@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2012-10-22', 'vcsg');
+     'olga.johansson@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2012-10-22', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000003d', '00000000-0000-0000-0000-000000000a01', 'EMP061', 'Knox', 'Varga',
-     'knox.varga@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2014-07-23', 'vccea');
+     'knox.varga@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2014-07-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000003e', '00000000-0000-0000-0000-000000000a01', 'EMP062', 'Faye', 'Stein',
-     'faye.stein@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2011-04-23', 'vccea');
+     'faye.stein@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2011-04-23', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000003f', '00000000-0000-0000-0000-000000000a01', 'EMP063', 'Seth', 'Orozco',
-     'seth.orozco@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2021-01-18', 'vccea');
+     'seth.orozco@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2021-01-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000040', '00000000-0000-0000-0000-000000000a01', 'EMP064', 'Gwen', 'Lindberg',
-     'gwen.lindberg@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2017-10-19', 'vccea');
+     'gwen.lindberg@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2017-10-19', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-000000000a01', 'EMP065', 'Dane', 'Poole',
-     'dane.poole@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2014-07-20', 'vccea');
+     'dane.poole@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2014-07-20', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000042', '00000000-0000-0000-0000-000000000a01', 'EMP066', 'Ruth', 'Stanton',
-     'ruth.stanton@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2023-04-18', 'vccea');
+     'ruth.stanton@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2023-04-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000043', '00000000-0000-0000-0000-000000000a01', 'EMP067', 'Kurt', 'Barker',
-     'kurt.barker@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2016-01-18', 'vccea');
+     'kurt.barker@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2016-01-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000044', '00000000-0000-0000-0000-000000000a01', 'EMP068', 'Hope', 'Hewitt',
-     'hope.hewitt@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2018-10-17', 'vccea');
+     'hope.hewitt@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2018-10-17', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000045', '00000000-0000-0000-0000-000000000a01', 'EMP069', 'Lance', 'Delgado',
-     'lance.delgado@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2021-07-16', 'vccea');
+     'lance.delgado@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2021-07-16', 'union_a');
 
 -- Team 8
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000046', '00000000-0000-0000-0000-000000000a01', 'SUP070', 'Pearl', 'Cervantes',
-     'pearl.cervantes@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2007-08-23', 'vcsg');
+     'pearl.cervantes@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2007-08-23', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000047', '00000000-0000-0000-0000-000000000a01', 'EMP071', 'Todd', 'Ortega',
-     'todd.ortega@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2019-05-21', 'vccea');
+     'todd.ortega@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2019-05-21', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000048', '00000000-0000-0000-0000-000000000a01', 'EMP072', 'Luz', 'Goodwin',
-     'luz.goodwin@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2016-02-19', 'vccea');
+     'luz.goodwin@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2016-02-19', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000049', '00000000-0000-0000-0000-000000000a01', 'EMP073', 'Brent', 'Preston',
-     'brent.preston@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2012-11-19', 'vccea');
+     'brent.preston@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2012-11-19', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000004a', '00000000-0000-0000-0000-000000000a01', 'EMP074', 'Ivy', 'Harmon',
-     'ivy.harmon@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2022-08-17', 'vccea');
+     'ivy.harmon@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2022-08-17', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000004b', '00000000-0000-0000-0000-000000000a01', 'EMP075', 'Clark', 'Stafford',
-     'clark.stafford@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2019-05-18', 'vccea');
+     'clark.stafford@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2019-05-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000004c', '00000000-0000-0000-0000-000000000a01', 'EMP076', 'Ada', 'Reeves',
-     'ada.reeves@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2022-02-15', 'vccea');
+     'ada.reeves@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2022-02-15', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000004d', '00000000-0000-0000-0000-000000000a01', 'EMP077', 'Neil', 'Holt',
-     'neil.holt@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2024-11-14', 'vccea');
+     'neil.holt@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2024-11-14', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000004e', '00000000-0000-0000-0000-000000000a01', 'EMP078', 'Opal', 'Mercer',
-     'opal.mercer@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2017-08-16', 'vccea');
+     'opal.mercer@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2017-08-16', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000004f', '00000000-0000-0000-0000-000000000a01', 'EMP079', 'Rex', 'Dillon',
-     'rex.dillon@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2020-05-15', 'vccea');
+     'rex.dillon@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2020-05-15', 'union_a');
 
 -- Team 9
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000050', '00000000-0000-0000-0000-000000000a01', 'SUP080', 'Eve', 'Kemp',
-     'eve.kemp@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2013-06-20', 'vcsg');
+     'eve.kemp@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2013-06-20', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-000000000a01', 'EMP081', 'Vince', 'Monroe',
-     'vince.monroe@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2011-03-22', 'vccea');
+     'vince.monroe@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2011-03-22', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000052', '00000000-0000-0000-0000-000000000a01', 'EMP082', 'Joy', 'Vance',
-     'joy.vance@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2020-12-17', 'vccea');
+     'joy.vance@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2020-12-17', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000053', '00000000-0000-0000-0000-000000000a01', 'EMP083', 'Cliff', 'Garrett',
-     'cliff.garrett@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2017-09-17', 'vccea');
+     'cliff.garrett@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2017-09-17', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000054', '00000000-0000-0000-0000-000000000a01', 'EMP084', 'May', 'Lucero',
-     'may.lucero@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2014-06-18', 'vccea');
+     'may.lucero@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2014-06-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000055', '00000000-0000-0000-0000-000000000a01', 'EMP085', 'Dale', 'McBride',
-     'dale.mcbride@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2011-03-19', 'vccea');
+     'dale.mcbride@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2011-03-19', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000056', '00000000-0000-0000-0000-000000000a01', 'EMP086', 'Fern', 'Dorsey',
-     'fern.dorsey@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2020-12-15', 'vccea');
+     'fern.dorsey@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2020-12-15', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000057', '00000000-0000-0000-0000-000000000a01', 'EMP087', 'Ray', 'Whitfield',
-     'ray.whitfield@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2023-09-14', 'vccea');
+     'ray.whitfield@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2023-09-14', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000058', '00000000-0000-0000-0000-000000000a01', 'EMP088', 'Bree', 'Blevins',
-     'bree.blevins@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2016-06-15', 'vccea');
+     'bree.blevins@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2016-06-15', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000059', '00000000-0000-0000-0000-000000000a01', 'EMP089', 'Jude', 'Cantu',
-     'jude.cantu@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2019-03-15', 'vccea');
+     'jude.cantu@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2019-03-15', 'union_a');
 
 -- Team 10
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000005a', '00000000-0000-0000-0000-000000000a01', 'SUP090', 'Cara', 'Mack',
-     'cara.mack@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'supervisor', '00000000-0000-0000-0000-000000000c03', '2008-04-20', 'vcsg');
+     'cara.mack@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'supervisor', '00000000-0000-0000-0000-000000000c03', '2008-04-20', 'union_b');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000005b', '00000000-0000-0000-0000-000000000a01', 'EMP091', 'Noel', 'Winters',
-     'noel.winters@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2016-01-18', 'vccea');
+     'noel.winters@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2016-01-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000005c', '00000000-0000-0000-0000-000000000a01', 'EMP092', 'Gemma', 'Robles',
-     'gemma.robles@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2012-10-18', 'vccea');
+     'gemma.robles@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2012-10-18', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000005d', '00000000-0000-0000-0000-000000000a01', 'EMP093', 'Hugh', 'Henson',
-     'hugh.henson@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2022-07-16', 'vccea');
+     'hugh.henson@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2022-07-16', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000005e', '00000000-0000-0000-0000-000000000a01', 'EMP094', 'Sage', 'Downing',
-     'sage.downing@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c02', '2019-04-16', 'vccea');
+     'sage.downing@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c02', '2019-04-16', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-00000000005f', '00000000-0000-0000-0000-000000000a01', 'EMP095', 'Roy', 'Estrada',
-     'roy.estrada@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2017-01-15', 'vccea');
+     'roy.estrada@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2017-01-15', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000060', '00000000-0000-0000-0000-000000000a01', 'EMP096', 'Lark', 'Pace',
-     'lark.pace@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2019-10-15', 'vccea');
+     'lark.pace@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2019-10-15', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000061', '00000000-0000-0000-0000-000000000a01', 'EMP097', 'Paul', 'Bowen',
-     'paul.bowen@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2022-07-14', 'vccea');
+     'paul.bowen@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2022-07-14', 'union_a');
 INSERT INTO users (id, org_id, employee_id, first_name, last_name, email, password_hash, role, classification_id, hire_date, bargaining_unit) VALUES
     ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000a01', 'EMP098', 'Wren', 'Kirk',
-     'wren.kirk@valleycom.org', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
-     'employee', '00000000-0000-0000-0000-000000000c01', '2015-04-15', 'vccea');
+     'wren.kirk@demo.timeshift.dev', '$argon2id$v=19$m=16384,t=2,p=1$Tjhna0VCVjZiZlgzU093enNHeUd6dz09$ddNxIoJtYXDHVy2x+ySbZwoZwUCYOwNovyZZn6c0l7g',
+     'employee', '00000000-0000-0000-0000-000000000c01', '2015-04-15', 'union_a');
 
 -- ── Seniority Records ──────────────────────────────────────────────────────
 
@@ -568,7 +568,7 @@ INSERT INTO seniority_records (user_id, org_id, overall_seniority_date, bargaini
     ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000a01', '2015-04-15', '2015-04-15', '2015-04-15');
 
 -- ── Shift Templates ─────────────────────────────────────────────────────────
--- 11 Valleycom time patterns (includes 04-1600 for Team 4 SUP)
+-- 11 demo time patterns (includes 04-1600 for Team 4 SUP)
 
 INSERT INTO shift_templates (id, org_id, name, start_time, end_time, crosses_midnight, duration_minutes, color) VALUES
     ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000a01', '04-1400', '04:00', '14:00', false, 600, '#2196F3'),
@@ -584,7 +584,7 @@ INSERT INTO shift_templates (id, org_id, name, start_time, end_time, crosses_mid
     ('00000000-0000-0000-0000-0000000000bb', '00000000-0000-0000-0000-000000000a01', '04-1600', '04:00', '16:00', false, 720, '#795548');
 
 -- ── Leave Types ─────────────────────────────────────────────────────────────
--- All 26 Valleycom leave codes
+-- All 26 demo leave codes
 
 INSERT INTO leave_types (org_id, code, name, requires_approval, is_reported, draws_from, display_order) VALUES
     ('00000000-0000-0000-0000-000000000a01', 'bid_vacation',      'BID Vacation',             true,  false, 'vacation',  1),
@@ -615,7 +615,7 @@ INSERT INTO leave_types (org_id, code, name, requires_approval, is_reported, dra
     ('00000000-0000-0000-0000-000000000a01', 'other',             'Other',                    true,  false, NULL,       26);
 
 -- ── OT Reasons ──────────────────────────────────────────────────────────────
--- All 29 Valleycom OT reason codes
+-- All 29 demo OT reason codes
 
 INSERT INTO ot_reasons (org_id, code, name, display_order) VALUES
     ('00000000-0000-0000-0000-000000000a01', 'sick_coverage',        'Sick Coverage',            1),
@@ -887,62 +887,62 @@ INSERT INTO shift_slots (id, team_id, shift_template_id, classification_id, days
     ('00000000-0000-0000-0001-000000000062', '00000000-0000-0000-0000-0000000000da', '00000000-0000-0000-0000-0000000000b7', '00000000-0000-0000-0000-000000000c01', '{3,4,5}', 'T10 COI 14-2400 WTF');
 
 -- ── Accrual Schedules ─────────────────────────────────────────────────────
--- Vacation accrual per VCCEA contract: YOS-tiered, biweekly (26 pay periods/year)
+-- Vacation accrual per Union A contract: YOS-tiered, biweekly (26 pay periods/year)
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 0, 5, 3.08, 240, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 0, 5, 3.08, 240, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 5, 10, 4.62, 360, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 5, 10, 4.62, 360, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 10, 20, 6.15, 480, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 10, 20, 6.15, 480, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 20, NULL, 7.69, 600, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 20, NULL, 7.69, 600, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 0, 5, 3.08, 240, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 0, 5, 3.08, 240, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 5, 10, 4.62, 360, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 5, 10, 4.62, 360, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 10, 20, 6.15, 480, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 10, 20, 6.15, 480, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 20, NULL, 7.69, 600, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 20, NULL, 7.69, 600, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'bid_vacation';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 0, NULL, 3.69, NULL, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 0, NULL, 3.69, NULL, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'sick';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 0, NULL, 3.69, NULL, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 0, NULL, 3.69, NULL, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'sick';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 0, NULL, 3.69, 96, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 0, NULL, 3.69, 96, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'holiday';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 0, NULL, 3.69, 96, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 0, NULL, 3.69, 96, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'holiday';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vccea', 0, NULL, 1.54, 40, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_a', 0, NULL, 1.54, 40, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'comp_time';
 
 INSERT INTO accrual_schedules (org_id, leave_type_id, employee_type, bargaining_unit, years_of_service_min, years_of_service_max, hours_per_pay_period, max_balance_hours, effective_date)
-SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'vcsg', 0, NULL, 1.54, 40, '2025-01-01'
+SELECT '00000000-0000-0000-0000-000000000a01', lt.id, 'regular_full_time', 'union_b', 0, NULL, 1.54, 40, '2025-01-01'
 FROM leave_types lt WHERE lt.org_id = '00000000-0000-0000-0000-000000000a01' AND lt.code = 'comp_time';
 
 -- ── Schedule Period ───────────────────────────────────────────────────────
@@ -1544,7 +1544,7 @@ WHERE u.org_id = '00000000-0000-0000-0000-000000000a01'
   AND u.classification_id IN ('00000000-0000-0000-0000-000000000c01', '00000000-0000-0000-0000-000000000c02');
 
 -- ── Qualifications ─────────────────────────────────────────────────────────
--- Qualification definitions for Valleycom dispatch positions
+-- Qualification definitions for demo dispatch positions
 INSERT INTO qualifications (id, org_id, name, description) VALUES
     ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-000000000a01', 'Fire Dispatch', 'Qualified to operate fire dispatch consoles (FIRE 1-3)'),
     ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-000000000a01', 'Police Dispatch', 'Qualified to operate police city consoles (Auburn, Fed Way, Kent, Renton)');

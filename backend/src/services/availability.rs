@@ -11,7 +11,7 @@ use crate::models::callout::CalloutListEntry;
 /// Compute the ordered list of available (and unavailable) employees for a potential
 /// OT assignment on a given shift.
 ///
-/// CBA (VCCEA Article 15 — Overtime Distribution):
+/// CBA (Article 15 — Overtime Distribution):
 /// Employees are ordered by:
 /// 1. Primary classification employees first (same-class before cross-class)
 /// 2. Available employees before unavailable

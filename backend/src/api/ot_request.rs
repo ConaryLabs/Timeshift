@@ -909,23 +909,23 @@ async fn validate_ot_assignment(
         .execute(&mut **tx)
         .await?;
 
-    // Rule 1a: On-shift mandatory OT is capped at 2 hours (VCCEA § 4.4.3).
+    // Rule 1a: On-shift mandatory OT is capped at 2 hours (CBA § 4.4.3).
     if ot_type == OtType::Mandatory && request.hours > 2.0 {
         return Err(AppError::BadRequest(
             "Mandatory OT cannot exceed 2 hours before or after the employee's scheduled shift \
-             (VCCEA § 4.4.3). For day-off assignments, use the day-off mandatory OT path."
+             (CBA § 4.4.3). For day-off assignments, use the day-off mandatory OT path."
                 .into(),
         ));
     }
 
-    // Rule 1b: Day-off mandatory OT must be 4–6 hours (VCCEA § 4.4.3).
+    // Rule 1b: Day-off mandatory OT must be 4–6 hours (CBA § 4.4.3).
     if ot_type == OtType::MandatoryDayOff && !(4.0..=6.0).contains(&request.hours) {
         return Err(AppError::BadRequest(
-            "Day-off mandatory OT must be between 4 and 6 hours (VCCEA § 4.4.3).".into(),
+            "Day-off mandatory OT must be between 4 and 6 hours (CBA § 4.4.3).".into(),
         ));
     }
 
-    // Rule 2: 14-hour daily maximum across scheduled shifts + OT (VCCEA § 4.4.3 / SOP 120 § 3.7).
+    // Rule 2: 14-hour daily maximum across scheduled shifts + OT (CBA § 4.4.3 / SOP 120 § 3.7).
     let scheduled_hours_today = sqlx::query_scalar!(
         r#"
         SELECT COALESCE(SUM(CAST(st.duration_minutes AS FLOAT8) / 60.0), 0.0) AS "h!"
@@ -973,17 +973,17 @@ async fn validate_ot_assignment(
         )));
     }
 
-    // Rule 2b: Hard 14-hour daily maximum for all OT types (VCCEA § 4.4.3 / SOP 120 § 3.7).
+    // Rule 2b: Hard 14-hour daily maximum for all OT types (CBA § 4.4.3 / SOP 120 § 3.7).
     if total_hours > 14.0 {
         return Err(AppError::BadRequest(format!(
             "Assignment would bring employee to {:.1} hours on {} — exceeding the 14-hour \
-             daily maximum (VCCEA § 4.4.3 / SOP 120 § 3.7).",
+             daily maximum (CBA § 4.4.3 / SOP 120 § 3.7).",
             total_hours, request.date,
         )));
     }
 
     // Rule 3: Mandatory OT (on-shift or day-off) must leave >= 10 hours before the employee's
-    // next regular shift (VCCEA Section 4.4.3).
+    // next regular shift (CBA § 4.4.3).
     if ot_type == OtType::Mandatory || ot_type == OtType::MandatoryDayOff {
         crate::services::ot::check_10_hour_rest_gap(
             tx, req.user_id, org_id,

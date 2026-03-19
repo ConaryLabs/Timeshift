@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/reseed.sh — Wipe all seed data and reload from valleycom.sql
+# scripts/reseed.sh — Wipe all seed data and reload from demo.sql
 #
 # On production: uses sudo -u postgres (peer auth)
 # On dev: uses PGPASSWORD=timeshift_dev (password auth)
@@ -10,7 +10,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-SEED_FILE="$PROJECT_DIR/backend/seeds/valleycom.sql"
+SEED_FILE="$PROJECT_DIR/backend/seeds/demo.sql"
 
 if [ ! -f "$SEED_FILE" ]; then
     echo "ERROR: Seed file not found: $SEED_FILE"
@@ -30,7 +30,7 @@ fi
 echo "==> Wiping all org data (TRUNCATE organizations CASCADE)..."
 $PSQL -c "TRUNCATE organizations CASCADE;"
 
-echo "==> Loading seed data from valleycom.sql..."
+echo "==> Loading seed data from demo.sql..."
 $PSQL < "$SEED_FILE"
 
 echo "==> Verifying..."

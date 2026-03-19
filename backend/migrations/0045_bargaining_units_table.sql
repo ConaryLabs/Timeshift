@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS bargaining_units (
 
 CREATE INDEX idx_bargaining_units_org ON bargaining_units(org_id);
 
--- 2. Seed Valleycom bargaining units from existing enum values
+-- 2. Seed bargaining units from existing enum values
 INSERT INTO bargaining_units (org_id, code, name,
     carryover_cap_hours, carryover_categories,
     sellback_annual_cap,

@@ -91,8 +91,8 @@ CREATE INDEX idx_ot_request_assignments_user ON ot_request_assignments(user_id);
 ALTER TABLE callout_events ADD COLUMN ot_request_id UUID REFERENCES ot_requests(id);
 CREATE INDEX idx_callout_events_ot_request ON callout_events(ot_request_id);
 
--- ── Seed Valleycom OT Reasons ────────────────────────────────────────────────
--- Insert the Valleycom-specific OT reasons that represent the underlying
+-- ── Seed OT Reasons ─────────────────────────────────────────────────────────
+-- Insert the OT reasons that represent the underlying
 -- absence/staffing reasons generating the OT need. These complement the
 -- existing coverage-type reasons already in the seed data.
 

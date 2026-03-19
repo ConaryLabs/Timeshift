@@ -17,7 +17,7 @@ pub enum EmployeeStatus {
     UnpaidLoa,
     /// Leave without pay — pauses seniority unless exception.
     Lwop,
-    /// Laid off; recall rights typically 18 months (VCSG); seniority paused.
+    /// Laid off; recall rights typically 18 months (CBA); seniority paused.
     Layoff,
     /// Permanently separated from employment.
     Separated,
@@ -44,7 +44,7 @@ pub struct User {
     /// CTO is a pay modifier on top of COI/COII, not a separate classification.
     pub cto_designation: bool,
     /// Set to the start date of the rotational assignment when employee is currently
-    /// serving as Admin Supervisor or Training Supervisor (VCSG only; 36-month rotations).
+    /// serving as Admin Supervisor or Training Supervisor (CBA; 36-month rotations).
     pub admin_training_supervisor_since: Option<time::Date>,
     pub employee_status: EmployeeStatus,
     pub medical_ot_exempt: bool,
@@ -89,7 +89,7 @@ pub struct UserProfile {
     pub hire_date: Option<time::Date>,
     /// Total service at the organization — drives bid window ordering.
     pub overall_seniority_date: Option<time::Date>,
-    /// Time in bargaining unit (VCCEA/VCSG) — drives inverse-seniority callout step.
+    /// Time in bargaining unit (CBA) — drives inverse-seniority callout step.
     pub bargaining_unit_seniority_date: Option<time::Date>,
     /// Time in current classification — used in tie-breaking rules.
     pub classification_seniority_date: Option<time::Date>,

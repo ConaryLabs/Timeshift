@@ -268,7 +268,7 @@ async fn handle_attempt_accepted(
 ) -> Result<()> {
     let shift_hours = ctx.duration_minutes as f64 / 60.0;
 
-    // CBA: 10-hour rest protection (VCCEA Section 4.4.3) — verify at least 10 hours
+    // CBA: 10-hour rest protection (CBA § 4.4.3) — verify at least 10 hours
     // between the end of this OT shift and the employee's next regular shift.
     // Applies to ALL OT types (voluntary, elective, mandatory), not just mandatory.
     crate::services::ot::check_10_hour_rest_gap(
@@ -757,7 +757,7 @@ pub async fn cancel_event(
 /// timestamp when hours are equal) than the displaced user. If they do not, the request
 /// is rejected with a 409 Conflict.
 ///
-/// This is intentional per the VCCEA contract — union members have the right to bump
+/// This is intentional per the CBA — union members have the right to bump
 /// lower-priority employees off OT assignments without requiring supervisor pre-approval.
 /// A supervisor review step occurs *after* submission (see `review_bump_request`).
 pub async fn create_bump_request(
@@ -893,7 +893,7 @@ pub async fn create_bump_request(
             "Cannot request a bump after the shift has started".into(),
         ));
     }
-    // CBA (VCCEA Article 15.9): Bump requests must be submitted before the deadline.
+    // CBA (CBA Article 15.9): Bump requests must be submitted before the deadline.
     let bump_deadline =
         crate::services::org_settings::get_i64(&pool, auth.org_id, "bump_deadline_hours", 24).await;
     let hours_until = (shift_start - now).whole_hours();
@@ -903,7 +903,7 @@ pub async fn create_bump_request(
         )));
     }
 
-    // 5. CBA (VCCEA Article 15.9): Bump priority check — requester must have strictly
+    // 5. CBA (CBA Article 15.9): Bump priority check — requester must have strictly
     // higher OT priority (fewer hours worked, or earlier queue timestamp if hours equal)
     // than the displaced user. This ensures equitable OT distribution.
     let fiscal_year = crate::services::ot::org_fiscal_year(&pool, auth.org_id, event.shift_date).await;
